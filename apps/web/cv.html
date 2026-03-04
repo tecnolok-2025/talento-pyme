@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Talento PyME · Mi CV</title>
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+    <div class="header">
+    <div class="brand">
+      <img class="brandLogo" src="/icon-192.png" alt="Talento PyME" />
+      <div class="brandTitle">Talento PyME</div>
+    </div>
+    <div class="nav">
+      <a href="/dashboard.html">Panel</a>
+      <a href="/perfil.html">Mi Perfil</a>
+      <a href="/cv.html">Mi CV</a>
+      <a href="/buscar.html">Buscar Talento</a>
+      <a href="#" id="btnLogout">Salir</a>
+    </div>
+  </div>
+
+</div>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Mi CV</h2>
+      <div class="muted">v2.5.0: podés pegar texto o adjuntar un archivo para autocompletar (PDF/DOCX/TXT). (luego lo estructuramos por puestos y fechas).</div>
+
+
+      <div class="card" style="margin-top:12px">
+        <div class="rowBetween">
+          <b>Autocompletar desde archivo</b>
+          <span class="badge">gratis</span>
+        </div>
+        <div class="muted" style="margin-top:6px">No almacenamos tu CV. Solo guardamos la información extraída y editable en estas celdas.</div>
+        <input class="input" id="cvFile" type="file" accept=".pdf,.docx,.txt" style="margin-top:10px" />
+        <div class="row" style="margin-top:10px">
+          <button class="btn btn-cta" id="btnParse">Leer y completar</button>
+          <button class="btn" id="btnClear">Limpiar</button>
+        </div>
+        <div class="muted" style="margin-top:8px" id="parseMsg"></div>
+      </div>
+
+
+      <label>Resumen</label>
+      <textarea id="summary" placeholder="Resumen profesional..."></textarea>
+
+      <label>Experiencia</label>
+      <textarea id="experience" placeholder="Empresa - Puesto - Responsabilidades - Logros..."></textarea>
+
+      <label>Educación</label>
+      <textarea id="education" placeholder="Institución - Título - Año..."></textarea>
+
+      <label>Certificaciones</label>
+      <textarea id="certifications" placeholder="Cursos, habilitaciones, etc..."></textarea>
+
+      <div class="row">
+        <label>Observaciones</label>
+      <textarea id="observations" placeholder="Notas, disponibilidad, preferencias, etc..."></textarea>
+
+      <button class="btn btn-primary" id="btnSave">Guardar</button>
+        <span class="muted" id="msg"></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.min.js">
+// Autocompletar desde archivo (PDF/DOCX/TXT) vía API
+const btnParse = document.getElementById('btnParse');
+btnParse.addEventListener('click', async () => {
+  const f = document.getElementById('cvFile').files[0];
+  const parseMsg = document.getElementById('parseMsg');
+  parseMsg.textContent = '';
+  if(!f){ parseMsg.textContent = 'Seleccioná un archivo (PDF/DOCX/TXT).'; return; }
+  const token = localStorage.getItem('tp_token');
+  if(!token){ parseMsg.textContent = 'Tu sesión expiró. Volvé a iniciar sesión.'; return; }
+
+  parseMsg.textContent = 'Leyendo archivo...';
+  try{
+    const form = new FormData();
+    form.append('file', f, f.name);
+
+    const base = window.TP_API_URL || '';
+    const r = await fetch(base.replace(/\/$/,'') + '/resume/parse', {
+      method:'POST',
+      headers:{ 'Authorization': 'Bearer ' + token },
+      body: form
+    });
+    const data = await r.json().catch(()=> ({}));
+    if(!r.ok){
+      parseMsg.textContent = (data && data.error) ? data.error : 'No se pudo procesar el archivo.';
+      return;
+    }
+    const s = data.sections || {};
+    document.getElementById('summary').value = s.summary || document.getElementById('summary').value;
+    document.getElementById('experience').value = s.experience || document.getElementById('experience').value;
+    document.getElementById('education').value = s.education || document.getElementById('education').value;
+    document.getElementById('certifications').value = s.certifications || document.getElementById('certifications').value;
+    document.getElementById('observations').value = s.observations || document.getElementById('observations').value;
+    parseMsg.textContent = 'Listo. Revisá/ajustá el texto y presioná Guardar.';
+  }catch(e){
+    console.error(e);
+    parseMsg.textContent = 'Error de red al procesar el archivo.';
+  }
+});
+
+</script>
+<script>window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.worker.min.js";
+// Autocompletar desde archivo (PDF/DOCX/TXT) vía API
+const btnParse = document.getElementById('btnParse');
+btnParse.addEventListener('click', async () => {
+  const f = document.getElementById('cvFile').files[0];
+  const parseMsg = document.getElementById('parseMsg');
+  parseMsg.textContent = '';
+  if(!f){ parseMsg.textContent = 'Seleccioná un archivo (PDF/DOCX/TXT).'; return; }
+  const token = localStorage.getItem('tp_token');
+  if(!token){ parseMsg.textContent = 'Tu sesión expiró. Volvé a iniciar sesión.'; return; }
+
+  parseMsg.textContent = 'Leyendo archivo...';
+  try{
+    const form = new FormData();
+    form.append('file', f, f.name);
+
+    const base = window.TP_API_URL || '';
+    const r = await fetch(base.replace(/\/$/,'') + '/resume/parse', {
+      method:'POST',
+      headers:{ 'Authorization': 'Bearer ' + token },
+      body: form
+    });
+    const data = await r.json().catch(()=> ({}));
+    if(!r.ok){
+      parseMsg.textContent = (data && data.error) ? data.error : 'No se pudo procesar el archivo.';
+      return;
+    }
+    const s = data.sections || {};
+    document.getElementById('summary').value = s.summary || document.getElementById('summary').value;
+    document.getElementById('experience').value = s.experience || document.getElementById('experience').value;
+    document.getElementById('education').value = s.education || document.getElementById('education').value;
+    document.getElementById('certifications').value = s.certifications || document.getElementById('certifications').value;
+    document.getElementById('observations').value = s.observations || document.getElementById('observations').value;
+    parseMsg.textContent = 'Listo. Revisá/ajustá el texto y presioná Guardar.';
+  }catch(e){
+    console.error(e);
+    parseMsg.textContent = 'Error de red al procesar el archivo.';
+  }
+});
+
+</script>
+<script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js">
+// Autocompletar desde archivo (PDF/DOCX/TXT) vía API
+const btnParse = document.getElementById('btnParse');
+btnParse.addEventListener('click', async () => {
+  const f = document.getElementById('cvFile').files[0];
+  const parseMsg = document.getElementById('parseMsg');
+  parseMsg.textContent = '';
+  if(!f){ parseMsg.textContent = 'Seleccioná un archivo (PDF/DOCX/TXT).'; return; }
+  const token = localStorage.getItem('tp_token');
+  if(!token){ parseMsg.textContent = 'Tu sesión expiró. Volvé a iniciar sesión.'; return; }
+
+  parseMsg.textContent = 'Leyendo archivo...';
+  try{
+    const form = new FormData();
+    form.append('file', f, f.name);
+
+    const base = window.TP_API_URL || '';
+    const r = await fetch(base.replace(/\/$/,'') + '/resume/parse', {
+      method:'POST',
+      headers:{ 'Authorization': 'Bearer ' + token },
+      body: form
+    });
+    const data = await r.json().catch(()=> ({}));
+    if(!r.ok){
+      parseMsg.textContent = (data && data.error) ? data.error : 'No se pudo procesar el archivo.';
+      return;
+    }
+    const s = data.sections || {};
+    document.getElementById('summary').value = s.summary || document.getElementById('summary').value;
+    document.getElementById('experience').value = s.experience || document.getElementById('experience').value;
+    document.getElementById('education').value = s.education || document.getElementById('education').value;
+    document.getElementById('certifications').value = s.certifications || document.getElementById('certifications').value;
+    document.getElementById('observations').value = s.observations || document.getElementById('observations').value;
+    parseMsg.textContent = 'Listo. Revisá/ajustá el texto y presioná Guardar.';
+  }catch(e){
+    console.error(e);
+    parseMsg.textContent = 'Error de red al procesar el archivo.';
+  }
+});
+
+</script>
+
+<script src="/config.js">
+// Autocompletar desde archivo (PDF/DOCX/TXT) vía API
+const btnParse = document.getElementById('btnParse');
+btnParse.addEventListener('click', async () => {
+  const f = document.getElementById('cvFile').files[0];
+  const parseMsg = document.getElementById('parseMsg');
+  parseMsg.textContent = '';
+  if(!f){ parseMsg.textContent = 'Seleccioná un archivo (PDF/DOCX/TXT).'; return; }
+  const token = localStorage.getItem('tp_token');
+  if(!token){ parseMsg.textContent = 'Tu sesión expiró. Volvé a iniciar sesión.'; return; }
+
+  parseMsg.textContent = 'Leyendo archivo...';
+  try{
+    const form = new FormData();
+    form.append('file', f, f.name);
+
+    const base = window.TP_API_URL || '';
+    const r = await fetch(base.replace(/\/$/,'') + '/resume/parse', {
+      method:'POST',
+      headers:{ 'Authorization': 'Bearer ' + token },
+      body: form
+    });
+    const data = await r.json().catch(()=> ({}));
+    if(!r.ok){
+      parseMsg.textContent = (data && data.error) ? data.error : 'No se pudo procesar el archivo.';
+      return;
+    }
+    const s = data.sections || {};
+    document.getElementById('summary').value = s.summary || document.getElementById('summary').value;
+    document.getElementById('experience').value = s.experience || document.getElementById('experience').value;
+    document.getElementById('education').value = s.education || document.getElementById('education').value;
+    document.getElementById('certifications').value = s.certifications || document.getElementById('certifications').value;
+    document.getElementById('observations').value = s.observations || document.getElementById('observations').value;
+    parseMsg.textContent = 'Listo. Revisá/ajustá el texto y presioná Guardar.';
+  }catch(e){
+    console.error(e);
+    parseMsg.textContent = 'Error de red al procesar el archivo.';
+  }
+});
+
+</script>
+  <script src="/auth.js">
+// Autocompletar desde archivo (PDF/DOCX/TXT) vía API
+const btnParse = document.getElementById('btnParse');
+btnParse.addEventListener('click', async () => {
+  const f = document.getElementById('cvFile').files[0];
+  const parseMsg = document.getElementById('parseMsg');
+  parseMsg.textContent = '';
+  if(!f){ parseMsg.textContent = 'Seleccioná un archivo (PDF/DOCX/TXT).'; return; }
+  const token = localStorage.getItem('tp_token');
+  if(!token){ parseMsg.textContent = 'Tu sesión expiró. Volvé a iniciar sesión.'; return; }
+
+  parseMsg.textContent = 'Leyendo archivo...';
+  try{
+    const form = new FormData();
+    form.append('file', f, f.name);
+
+    const base = window.TP_API_URL || '';
+    const r = await fetch(base.replace(/\/$/,'') + '/resume/parse', {
+      method:'POST',
+      headers:{ 'Authorization': 'Bearer ' + token },
+      body: form
+    });
+    const data = await r.json().catch(()=> ({}));
+    if(!r.ok){
+      parseMsg.textContent = (data && data.error) ? data.error : 'No se pudo procesar el archivo.';
+      return;
+    }
+    const s = data.sections || {};
+    document.getElementById('summary').value = s.summary || document.getElementById('summary').value;
+    document.getElementById('experience').value = s.experience || document.getElementById('experience').value;
+    document.getElementById('education').value = s.education || document.getElementById('education').value;
+    document.getElementById('certifications').value = s.certifications || document.getElementById('certifications').value;
+    document.getElementById('observations').value = s.observations || document.getElementById('observations').value;
+    parseMsg.textContent = 'Listo. Revisá/ajustá el texto y presioná Guardar.';
+  }catch(e){
+    console.error(e);
+    parseMsg.textContent = 'Error de red al procesar el archivo.';
+  }
+});
+
+</script>
+  <script>
+    requireAuth();
+    document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
+
+    (async ()=>{
+      try{
+        const r = await apiFetch("/resume/me");
+        if(r){
+          summary.value = r.summary || "";
+          experience.value = r.experience || "";
+          education.value = r.education || "";
+          certifications.value = r.certifications || "";
+      observations.value = r.observations || "";
+        }
+      }catch(e){ msg.textContent = e.message; }
+    })();
+
+    btnSave.onclick = async ()=>{
+      msg.textContent = "Guardando...";
+      try{
+        const payload = {
+          summary: summary.value || null,
+          experience: experience.value || null,
+          education: education.value || null,
+          certifications: certifications.value || null,
+          observations: observations.value || null
+        };
+        await apiFetch("/resume/me", { method:"PUT", body: JSON.stringify(payload) });
+        msg.textContent = "Guardado OK.";
+      }catch(e){ msg.textContent = e.message; }
+    };
+  
+// Autocompletar desde archivo (PDF/DOCX/TXT) vía API
+const btnParse = document.getElementById('btnParse');
+btnParse.addEventListener('click', async () => {
+  const f = document.getElementById('cvFile').files[0];
+  const parseMsg = document.getElementById('parseMsg');
+  parseMsg.textContent = '';
+  if(!f){ parseMsg.textContent = 'Seleccioná un archivo (PDF/DOCX/TXT).'; return; }
+  const token = localStorage.getItem('tp_token');
+  if(!token){ parseMsg.textContent = 'Tu sesión expiró. Volvé a iniciar sesión.'; return; }
+
+  parseMsg.textContent = 'Leyendo archivo...';
+  try{
+    const form = new FormData();
+    form.append('file', f, f.name);
+
+    const base = window.TP_API_URL || '';
+    const r = await fetch(base.replace(/\/$/,'') + '/resume/parse', {
+      method:'POST',
+      headers:{ 'Authorization': 'Bearer ' + token },
+      body: form
+    });
+    const data = await r.json().catch(()=> ({}));
+    if(!r.ok){
+      parseMsg.textContent = (data && data.error) ? data.error : 'No se pudo procesar el archivo.';
+      return;
+    }
+    const s = data.sections || {};
+    document.getElementById('summary').value = s.summary || document.getElementById('summary').value;
+    document.getElementById('experience').value = s.experience || document.getElementById('experience').value;
+    document.getElementById('education').value = s.education || document.getElementById('education').value;
+    document.getElementById('certifications').value = s.certifications || document.getElementById('certifications').value;
+    document.getElementById('observations').value = s.observations || document.getElementById('observations').value;
+    parseMsg.textContent = 'Listo. Revisá/ajustá el texto y presioná Guardar.';
+  }catch(e){
+    console.error(e);
+    parseMsg.textContent = 'Error de red al procesar el archivo.';
+  }
+});
+
+</script>
+</body>
+</html>

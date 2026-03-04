@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Talento PyME · Publicar</title>
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="header">
+    <img src="/assets/logo-tp.svg" alt="Talento PyME" />
+    <div class="nav">
+  <a href="/dashboard.html">Panel</a>
+  <a href="/perfil.html" data-role="CANDIDATE">Mi Perfil</a>
+  <a href="/cv.html" data-role="CANDIDATE">Mi CV</a>
+  <a href="/empleos.html">Empleos</a>
+  <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
+  <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
+  <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
+  <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
+  <a href="#" id="btnLogout">Salir</a>
+</div>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Publicar Búsqueda</h2>
+      <div class="muted">Elegí rubro/categoría (incluye Hotelería).</div>
+
+      <label>Título del puesto</label>
+      <input class="input" id="title" placeholder="Ej: Supervisor Electromecánico" />
+
+      <div class="grid2">
+        <div>
+          <label>Ubicación</label>
+          <input class="input" id="location" placeholder="Ej: Campana" />
+        </div>
+        <div>
+          <label>Modalidad</label>
+          <input class="input" id="modality" placeholder="Ej: Presencial / Híbrido / Remoto" />
+        </div>
+      </div>
+
+      <label>Categoría</label>
+      <select class="input" id="category"></select>
+
+      <label>Descripción</label>
+      <textarea id="description" placeholder="Qué se va a hacer, alcance, contexto..."></textarea>
+
+      <label>Requisitos</label>
+      <textarea id="requirements" placeholder="Experiencia, skills, estudios, horarios..."></textarea>
+
+      <div class="row">
+        <button class="btn btn-primary" id="btnPost">Publicar</button>
+        <span class="muted" id="msg"></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="/auth.js"></script>
+  <script>
+    requireAuth();
+    const role = tpRole();
+    if(role !== "COMPANY") window.location.href = "/dashboard.html";
+    document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
+    document.querySelectorAll('[data-role]').forEach(a=>{ const r=a.getAttribute('data-role'); if(r && r!==role) a.style.display='none'; });
+
+    const msg = document.getElementById("msg");
+    const category = document.getElementById("category");
+
+    (async ()=>{
+      try{
+        const data = await fetch(window.TP_API_URL + "/categories").then(r=>r.json());
+        const cats = data.categories || [];
+        category.innerHTML = '<option value="">(Sin categoría)</option>' + cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+      }catch(e){ msg.textContent = e.message; }
+    })();
+
+    document.getElementById("btnPost").onclick = async ()=>{
+      msg.textContent = "Publicando...";
+      try{
+        const payload = {
+          title: document.getElementById("title").value.trim(),
+          location: document.getElementById("location").value.trim() || null,
+          modality: document.getElementById("modality").value.trim() || null,
+          categoryId: category.value || null,
+          description: document.getElementById("description").value || "",
+          requirements: document.getElementById("requirements").value || null
+        };
+        await apiFetch("/jobs", { method:"POST", body: JSON.stringify(payload) });
+        msg.textContent = "Publicado OK. Miralo en Empleos.";
+      }catch(e){ msg.textContent = e.message; }
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Talento PyME · Empleos</title>
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="header">
+    <img src="/assets/logo-tp.svg" alt="Talento PyME" />
+    <div class="nav">
+  <a href="/dashboard.html">Panel</a>
+  <a href="/perfil.html" data-role="CANDIDATE">Mi Perfil</a>
+  <a href="/cv.html" data-role="CANDIDATE">Mi CV</a>
+  <a href="/empleos.html">Empleos</a>
+  <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
+  <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
+  <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
+  <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
+  <a href="#" id="btnLogout">Salir</a>
+</div>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Empleos</h2>
+      <div class="muted">Buscá búsquedas publicadas. Candidato: podés postularte.</div>
+
+      <div class="grid2" style="margin-top:10px">
+        <div>
+          <label>Buscar</label>
+          <input class="input" id="q" placeholder="Ej: mantenimiento, recepción, cocina, PLC..." />
+        </div>
+        <div>
+          <label>Categoría</label>
+          <select class="input" id="category"></select>
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="btn btn-primary" id="btnSearch">Buscar</button>
+        <span class="muted" id="msg"></span>
+      </div>
+
+      <div id="results" style="margin-top:14px"></div>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="/auth.js"></script>
+  <script>
+    requireAuth();
+    const role = tpRole();
+    document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
+    document.querySelectorAll('[data-role]').forEach(a=>{ const r=a.getAttribute('data-role'); if(r && r!==role) a.style.display='none'; });
+
+    function esc(s){ return (s||"").replace(/[&<>"]/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
+
+    async function loadCats(){
+      const data = await fetch(window.TP_API_URL + "/categories").then(r=>r.json());
+      const cats = data.categories || [];
+      document.getElementById("category").innerHTML = '<option value="">(Todas)</option>' + cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    }
+
+    async function loadJobs(){
+      const msg = document.getElementById("msg");
+      const results = document.getElementById("results");
+      msg.textContent = "Cargando...";
+      results.innerHTML = "";
+      try{
+        const qs = new URLSearchParams();
+        const qv = document.getElementById("q").value.trim();
+        const cv = document.getElementById("category").value;
+        if(qv) qs.set("q", qv);
+        if(cv) qs.set("categoryId", cv);
+        const data = await fetch(window.TP_API_URL + "/jobs?" + qs.toString()).then(r=>r.json());
+        const jobs = data.jobs || [];
+        msg.textContent = jobs.length ? `Resultados: ${jobs.length}` : "Sin resultados.";
+
+        results.innerHTML = jobs.map(j=>{
+          const btn = (role==="CANDIDATE") ? `<button class="btn btn-cta" data-id="${j.id}">Postularme</button>` : "";
+          const cat = j.category ? j.category.name : "";
+          return `<div class="card" style="margin-top:10px">
+            <div style="font-weight:800">${esc(j.title)}</div>
+            <div class="muted">${esc(j.company?.companyName||"")} · ${esc(j.location||"")} · ${esc(j.modality||"")}</div>
+            <div class="muted small">${esc(cat)}</div>
+            <div class="hr"></div>
+            <div class="muted"><b>Descripción:</b><br>${esc(j.description).slice(0,700)}${j.description && j.description.length>700 ? "..." : ""}</div>
+            <div class="row" style="margin-top:10px">${btn}</div>
+          </div>`;
+        }).join("");
+
+        document.querySelectorAll('button[data-id]').forEach(b=>{
+          b.onclick = async ()=>{
+            const id = b.getAttribute("data-id");
+            b.disabled = true;
+            b.textContent = "Postulando...";
+            try{
+              await apiFetch(`/jobs/${id}/apply`, { method:"POST", body: JSON.stringify({ coverNote: null }) });
+              b.textContent = "Postulado ✅";
+            }catch(e){
+              b.disabled = false;
+              b.textContent = "Postularme";
+              alert(e.message);
+            }
+          };
+        });
+      }catch(e){ msg.textContent = e.message; }
+    }
+
+    document.getElementById("btnSearch").onclick = loadJobs;
+    (async ()=>{ await loadCats(); await loadJobs(); })();
+  </script>
+</body>
+</html>

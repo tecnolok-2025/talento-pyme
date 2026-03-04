@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Talento PyME · Buscar</title>
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+    <div class="header">
+    <div class="brand">
+      <img class="brandLogo" src="/icon-192.png" alt="Talento PyME" />
+      <div class="brandTitle">Talento PyME</div>
+    </div>
+    <div class="nav">
+      <a href="/dashboard.html">Panel</a>
+      <a href="/perfil.html">Mi Perfil</a>
+      <a href="/cv.html">Mi CV</a>
+      <a href="/buscar.html">Buscar Talento</a>
+      <a href="#" id="btnLogout">Salir</a>
+    </div>
+  </div>
+
+</div>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Buscar Talento</h2>
+      <div class="muted">Buscá por skill, ciudad, título, resumen o experiencia (v2.4.1).</div>
+
+      <label>Buscar</label>
+      <input class="input" id="q" placeholder="Ej: PLC, Campana, supervisor, soldador..." />
+
+      <div class="row">
+        <button class="btn btn-primary" id="btnSearch">Buscar</button>
+        <span class="muted" id="msg"></span>
+      </div>
+
+      <div id="results" style="margin-top:14px"></div>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="/auth.js"></script>
+  <script>
+    requireAuth();
+    document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
+
+    function esc(s){ return (s||"").replace(/[&<>"]/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
+
+    btnSearch.onclick = async ()=>{
+      msg.textContent = "Buscando...";
+      results.innerHTML = "";
+      try{
+        const query = q.value.trim();
+        const data = await fetch(window.TP_API_URL + "/search?q=" + encodeURIComponent(query)).then(r=>r.json());
+        const arr = data.results || [];
+        msg.textContent = arr.length ? `Resultados: ${arr.length}` : "Sin resultados.";
+        results.innerHTML = arr.map(p=>{
+          const skills = (p.skills||[]).map(s=>s.level? `${s.name}(${s.level})`: s.name).join(", ");
+          return `<div class="card" style="margin-top:10px">
+            <div style="font-weight:800">${esc(p.fullName||"(sin nombre)")}</div>
+            <div class="muted">${esc(p.headline||"")}</div>
+            <div class="muted">${esc(p.city||"")}${p.province? ", "+esc(p.province):""}</div>
+            <div class="muted"><b>Skills:</b> ${esc(skills)}</div>
+          </div>`;
+        }).join("");
+      }catch(e){
+        msg.textContent = "Error: " + e.message;
+      }
+    };
+  </script>
+</body>
+</html>

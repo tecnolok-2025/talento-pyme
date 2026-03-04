@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Talento PyME · Mis Búsquedas</title>
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="header">
+    <img src="/assets/logo-tp.svg" alt="Talento PyME" />
+    <div class="nav">
+  <a href="/dashboard.html">Panel</a>
+  <a href="/perfil.html" data-role="CANDIDATE">Mi Perfil</a>
+  <a href="/cv.html" data-role="CANDIDATE">Mi CV</a>
+  <a href="/empleos.html">Empleos</a>
+  <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
+  <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
+  <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
+  <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
+  <a href="#" id="btnLogout">Salir</a>
+</div>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Mis Búsquedas</h2>
+      <div class="muted">Listado de publicaciones de tu empresa.</div>
+      <div id="msg" class="muted" style="margin-top:10px"></div>
+      <div id="list" style="margin-top:14px"></div>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="/auth.js"></script>
+  <script>
+    requireAuth();
+    const role = tpRole();
+    if(role !== "COMPANY") window.location.href = "/dashboard.html";
+    document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
+    document.querySelectorAll('[data-role]').forEach(a=>{ const r=a.getAttribute('data-role'); if(r && r!==role) a.style.display='none'; });
+
+    function esc(s){ return (s||"").replace(/[&<>"]/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
+
+    (async ()=>{
+      const msg = document.getElementById("msg");
+      const list = document.getElementById("list");
+      msg.textContent = "Cargando...";
+      try{
+        const data = await apiFetch("/jobs/mine");
+        const jobs = data.jobs || [];
+        msg.textContent = jobs.length ? `Total: ${jobs.length}` : "Sin publicaciones aún.";
+        list.innerHTML = jobs.map(j=>`<div class="card" style="margin-top:10px">
+          <div style="font-weight:800">${esc(j.title)}</div>
+          <div class="muted small">${new Date(j.createdAt).toLocaleString()}</div>
+          <div class="muted">${esc(j.location||"")} · ${esc(j.modality||"")}</div>
+        </div>`).join('');
+      }catch(e){ msg.textContent = e.message; }
+    })();
+  </script>
+</body>
+</html>

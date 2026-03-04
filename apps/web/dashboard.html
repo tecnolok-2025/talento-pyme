@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Talento PyME · Panel</title>
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="header">
+    <img src="/assets/logo-tp.svg" alt="Talento PyME" />
+    <div class="nav">
+  <a href="/dashboard.html">Panel</a>
+  <a href="/perfil.html" data-role="CANDIDATE">Mi Perfil</a>
+  <a href="/cv.html" data-role="CANDIDATE">Mi CV</a>
+  <a href="/empleos.html">Empleos</a>
+  <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
+  <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
+  <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
+  <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
+  <a href="#" id="btnLogout">Salir</a>
+</div>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Panel</h2>
+      <div class="muted">v2.4.1: base de bolsa de trabajo (Candidato/Empresa) + Hotelería como rubro.</div>
+      <div class="hr"></div>
+      <div id="info" class="muted"></div>
+      <div id="tips" class="muted" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="/auth.js"></script>
+  <script>
+    requireAuth();
+    document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
+
+    const role = tpRole();
+    document.querySelectorAll('[data-role]').forEach(a=>{ const r=a.getAttribute('data-role'); if(r && r!==role) a.style.display='none'; });
+
+    (async ()=>{
+      try{
+        if(role === "COMPANY"){
+          const c = await apiFetch("/company/me");
+          document.getElementById("info").textContent = "Empresa: " + (c?.companyName || "(sin configurar)");
+          document.getElementById("tips").textContent = "Siguiente paso: Mi Empresa → completá datos. Luego Publicar Búsqueda.";
+        } else {
+          const p = await apiFetch("/profile/me");
+          document.getElementById("info").textContent = "Candidato: " + (p?.fullName || "(sin nombre cargado)");
+          document.getElementById("tips").textContent = "Siguiente paso: Mi Perfil + Mi CV. Luego Empleos → postularte.";
+        }
+      }catch(e){
+        document.getElementById("info").textContent = "No se pudo cargar datos: " + e.message;
+      }
+    })();
+  </script>
+</body>
+</html>

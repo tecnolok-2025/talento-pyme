@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Talento PyME</title>
+  <meta name="theme-color" content="#1769E0" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="header">
+    <img src="/assets/logo-talento-pyme-small.png" alt="Talento PyME" />
+    <span class="badge">v2.5.0 · Web + PWA</span>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Acceso</h2>
+      <div class="muted">Registrate o ingresá. Según tu rol, vas al Panel de Candidato o de Empresa.</div>
+
+      <label>API URL (opcional)</label>
+      <input class="input" id="apiUrl" />
+
+      <div class="hr"></div>
+
+      <label>Rol</label>
+      <div class="row">
+        <label style="margin:0"><input type="radio" name="role" value="CANDIDATE" checked> Candidato</label>
+        <label style="margin:0"><input type="radio" name="role" value="COMPANY"> Empresa</label>
+      </div>
+
+      <div class="grid2">
+        <div>
+          <label>Nombre y apellido (solo Candidato)</label>
+          <input class="input" id="fullName" placeholder="Ej: Néstor Manucci" />
+        </div>
+        <div>
+          <label>Empresa (solo Empresa)</label>
+          <input class="input" id="companyName" placeholder="Ej: MiPyme S.A." />
+        </div>
+      </div>
+
+      <label>Email</label>
+      <input class="input" id="email" placeholder="tu@email.com" />
+
+      <label>Contraseña</label>
+      <input class="input" id="password" type="password" placeholder="mínimo 8 caracteres" />
+
+      <div class="row">
+        <button class="btn btn-cta" id="btnRegister">Registrar</button>
+        <button class="btn btn-primary" id="btnLogin">Ingresar</button>
+      </div>
+
+      <div class="muted" style="margin-top:12px" id="msg"></div>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="/auth.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(()=>{}));
+    }
+    const $ = (id) => document.getElementById(id);
+    const msg = (t) => ($("msg").textContent = t);
+    const role = () => (document.querySelector('input[name="role"]:checked')?.value || "CANDIDATE");
+
+    $("apiUrl").value = window.TP_API_URL;
+    $("apiUrl").addEventListener("change", ()=> window.TP_API_URL = $("apiUrl").value.trim() || window.TP_API_URL);
+
+    async function post(path, body){
+      const r = await fetch(`${window.TP_API_URL}${path}`,{
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await r.json().catch(()=> ({}));
+      if(!r.ok) throw new Error(data?.error || "Error");
+      return data;
+    }
+
+    $("btnRegister").onclick = async () => {
+      msg("Registrando...");
+      try{
+        const r = role();
+        const email = $("email").value.trim();
+        const password = $("password").value;
+
+        const payload = { email, password, role: r };
+        if(r === "CANDIDATE") payload.fullName = $("fullName").value.trim() || undefined;
+        if(r === "COMPANY") payload.companyName = $("companyName").value.trim();
+
+        await post("/auth/register", payload);
+        msg("Registro OK. Ahora ingresá.");
+      }catch(e){ msg(e.message); }
+    };
+
+    $("btnLogin").onclick = async () => {
+      msg("Ingresando...");
+      try{
+        const email = $("email").value.trim();
+        const password = $("password").value;
+        const data = await post("/auth/login",{ email, password });
+        localStorage.setItem("tp_token", data.token);
+        localStorage.setItem("tp_role", data.role);
+        msg(`OK login. Rol: ${roleES(data.role)}. Entrando al Panel...`);
+        window.location.href = "/dashboard.html";
+      }catch(e){ msg(e.message); }
+    };
+  </script>
+</body>
+</html>
