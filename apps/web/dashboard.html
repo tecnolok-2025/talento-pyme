@@ -26,10 +26,25 @@
   <div class="wrap">
     <div class="card">
       <h2>Panel</h2>
-      <div class="muted">v2.4.1: base de bolsa de trabajo (Candidato/Empresa) + Hotelería como rubro.</div>
+      <div class="muted"><span class="tp-version"></span>: base de bolsa de trabajo (Candidato/Empresa) + Hotelería como rubro.</div>
       <div class="hr"></div>
       <div id="info" class="muted"></div>
       <div id="tips" class="muted" style="margin-top:10px"></div>
+
+      <div id="adminPanel" style="display:none; margin-top:12px">
+        <div class="hr"></div>
+        <h3 style="margin:0 0 10px 0">Panel Superadmin</h3>
+        <div class="grid3">
+          <div class="kpi"><div class="kpi-label">Usuarios</div><div class="kpi-value" id="kpiUsers">-</div></div>
+          <div class="kpi"><div class="kpi-label">Candidatos</div><div class="kpi-value" id="kpiCandidates">-</div></div>
+          <div class="kpi"><div class="kpi-label">Empresas</div><div class="kpi-value" id="kpiCompanies">-</div></div>
+          <div class="kpi"><div class="kpi-label">CVs</div><div class="kpi-value" id="kpiResumes">-</div></div>
+          <div class="kpi"><div class="kpi-label">Empleos</div><div class="kpi-value" id="kpiJobs">-</div></div>
+          <div class="kpi"><div class="kpi-label">Postulaciones</div><div class="kpi-value" id="kpiApplications">-</div></div>
+        </div>
+        <button class="btn" id="btnReloadMetrics" style="margin-top:10px">Actualizar métricas</button>
+        <div class="muted" id="metricsMsg" style="margin-top:8px"></div>
+      </div>
     </div>
   </div>
 

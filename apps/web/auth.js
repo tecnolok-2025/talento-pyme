@@ -20,3 +20,25 @@ async function apiFetch(path, options={}){
   if(!res.ok) throw new Error(data?.error || "Error");
   return data;
 }
+
+
+function tpVersion(){
+  return (window.TP_APP_VERSION || "dev");
+}
+function applyVersionBadges(){
+  const v = "v" + tpVersion();
+  document.querySelectorAll(".tp-version").forEach(el => { el.textContent = v; });
+}
+document.addEventListener("DOMContentLoaded", applyVersionBadges);
+
+function roleES(role){
+  switch(role){
+    case "CANDIDATE": return "Candidato";
+    case "COMPANY": return "Empresa";
+    case "ADMIN_CANDIDATE": return "Admin Candidatos";
+    case "ADMIN_COMPANY": return "Admin Empresas";
+    case "SUPERADMIN": return "Superadmin";
+    case "ADMIN": return "Admin";
+    default: return role || "";
+  }
+}

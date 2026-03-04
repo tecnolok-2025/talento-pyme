@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Talento PyME · Reset de contraseña</title>
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="header">
+    <a href="/"><img src="/assets/logo-tp.svg" alt="Talento PyME" /></a>
+    <div class="nav">
+      <a href="/"><span class="tp-version"></span></a>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h2>Definir nueva contraseña</h2>
+      <div class="muted">Ingresá tu nueva clave (mínimo 8 caracteres).</div>
+      <div class="hr"></div>
+
+      <label>Nueva contraseña</label>
+      <input class="input" id="pass1" type="password" placeholder="********" />
+      <label>Repetir contraseña</label>
+      <input class="input" id="pass2" type="password" placeholder="********" />
+
+      <button class="btn" id="btn">Guardar</button>
+      <div id="msg" class="muted" style="margin-top:10px"></div>
+      <div class="row" style="margin-top:10px">
+        <a class="btn secondary" href="/" style="text-decoration:none">Volver al login</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="/auth.js"></script>
+  <script>
+    const $ = (id)=>document.getElementById(id);
+    const token = new URLSearchParams(location.search).get("token");
+    if(!token) $("msg").textContent = "Falta token en el link.";
+    $("btn").onclick = async ()=>{
+      $("msg").textContent = "Procesando...";
+      try{
+        if(!token) throw new Error("Falta token");
+        const p1 = $("pass1").value;
+        const p2 = $("pass2").value;
+        if(p1.length < 8) throw new Error("La contraseña es muy corta");
+        if(p1 !== p2) throw new Error("Las contraseñas no coinciden");
+        await apiFetch("/auth/reset", { method:"POST", body: JSON.stringify({ token, newPassword: p1 }) });
+        $("msg").textContent = "Contraseña actualizada. Ya podés iniciar sesión.";
+      }catch(e){
+        $("msg").textContent = "Error: " + (e.message || e);
+      }
+    };
+  </script>
+</body>
+</html>

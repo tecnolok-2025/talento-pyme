@@ -11,6 +11,13 @@ import mammothPkg from "mammoth";
 
 dotenv.config();
 
+const APP_VERSION = "3.0.0";
+const JWT_SECRET = JWT_SECRET || "dev-secret";
+const SUPERADMIN_CODE = process.env.SUPERADMIN_CODE || "";
+const ADMIN_CANDIDATE_CODE = process.env.ADMIN_CANDIDATE_CODE || "";
+const ADMIN_COMPANY_CODE = process.env.ADMIN_COMPANY_CODE || "";
+const FRONT_URL = process.env.FRONT_URL || "https://talento-pyme.onrender.com";
+
 const app = express();
 const prisma = new PrismaClient();
 
@@ -26,7 +33,7 @@ function auth(req, res, next) {
   const token = h.startsWith("Bearer ") ? h.slice(7) : null;
   if (!token) return res.status(401).json({ error: "Falta token" });
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET);
     req.user = { id: payload.sub, role: payload.role };
     next();
   } catch {
@@ -39,9 +46,32 @@ function requireRole(role) {
     if (req.user?.role !== role) return res.status(403).json({ error: "Sin permisos" });
     next();
   };
+function requireAnyRole(roles=[]) {
+  return (req, res, next) => {
+    if (!req.user?.role || !roles.includes(req.user.role)) return res.status(403).json({ error: "Sin permisos" });
+    next();
+  };
+}
+function isSuperAdminRole(role){
+  return role === "SUPERADMIN" || role === "ADMIN";
 }
 
-app.get("/health", (_, res) => res.json({ ok: true, app: "talento-pyme-api", version: "2.4" }));
+}
+
+app.get("/health", (_, res) => res.json({ ok: true, app: "talento-pyme-api", version: APP_VERSION }));
+
+app.get("/admin/metrics", authMiddleware, requireAnyRole(["SUPERADMIN","ADMIN"]), async (req, res) => {
+  const [users, candidates, companies, resumes, jobs, applications] = await Promise.all([
+    prisma.user.count(),
+    prisma.user.count({ where: { role: { in: ["CANDIDATE","ADMIN_CANDIDATE"] } } }),
+    prisma.user.count({ where: { role: { in: ["COMPANY","ADMIN_COMPANY"] } } }),
+    prisma.resume.count(),
+    prisma.job.count(),
+    prisma.application.count()
+  ]);
+  res.json({ users, candidates, companies, resumes, jobs, applications, version: APP_VERSION });
+});
+
 
 async function ensureDefaultCategories() {
   const existing = await prisma.jobCategory.findFirst();
@@ -67,20 +97,13 @@ async function ensureDefaultCategories() {
   });
 }
 
-const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  role: z.enum(["CANDIDATE", "COMPANY"]).default("CANDIDATE"),
-  fullName: z.string().max(120).optional(),
-  companyName: z.string().max(140).optional(),
-  contactName: z.string().max(120).optional()
-});
+const registerSchema = z.object({ email: z.string().email(), password: z.string().min(8), role: z.enum(["CANDIDATE","COMPANY","ADMIN","ADMIN_CANDIDATE","ADMIN_COMPANY","SUPERADMIN"]), fullName: z.string().min(2).max(120).optional(), companyName: z.string().min(2).max(120).optional(), adminCode: z.string().max(200).optional(), contactName: z.string().min(2).max(120).optional() });
 
 app.post("/auth/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { email, password, role, fullName, companyName, contactName } = parsed.data;
+  const { email, password, role, fullName, companyName, adminCode, contactName } = parsed.data;
 
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) return res.status(409).json({ error: "Email ya registrado" });
@@ -90,10 +113,10 @@ app.post("/auth/register", async (req, res) => {
   const passHash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({ data: { email, passHash, role } });
 
-  if (role === "CANDIDATE") {
+  if (role === "CANDIDATE" || role === "ADMIN_CANDIDATE") {
     await prisma.profile.create({ data: { userId: user.id, fullName: fullName ?? null } }).catch(() => {});
     await prisma.resume.create({ data: { userId: user.id } }).catch(() => {});
-  } else {
+  } else if (role === "COMPANY" || role === "ADMIN_COMPANY") {
     await prisma.companyProfile
       .create({ data: { userId: user.id, companyName: companyName, contactName: contactName ?? null } })
       .catch(() => {});
@@ -115,7 +138,43 @@ app.post("/auth/login", async (req, res) => {
   const ok = await bcrypt.compare(parsed.data.password, user.passHash);
   if (!ok) return res.status(401).json({ error: "Credenciales inválidas" });
 
-  const token = jwt.sign({ sub: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+const forgotSchema = z.object({ email: z.string().email() });
+app.post("/auth/forgot", async (req, res) => {
+  const parsed = forgotSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Datos inválidos" });
+
+  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+  if (!user) return res.status(404).json({ error: "Email no encontrado" });
+
+  const token = jwt.sign({ sub: user.id, purpose: "reset" }, JWT_SECRET, { expiresIn: "15m" });
+  const resetUrl = `${FRONT_URL}/reset.html?token=${encodeURIComponent(token)}`;
+
+  // En plan gratuito no enviamos emails. Devolvemos el link para compartirlo (WhatsApp/Email interno).
+  res.json({ ok: true, resetUrl });
+});
+
+const resetSchema = z.object({ token: z.string().min(10), newPassword: z.string().min(8) });
+app.post("/auth/reset", async (req, res) => {
+  const parsed = resetSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Datos inválidos" });
+
+  let payload;
+  try {
+    payload = jwt.verify(parsed.data.token, JWT_SECRET);
+  } catch (e) {
+    return res.status(400).json({ error: "Token inválido o vencido" });
+  }
+  if (payload?.purpose !== "reset") return res.status(400).json({ error: "Token inválido" });
+
+  const passHash = await bcrypt.hash(parsed.data.newPassword, 10);
+  await prisma.user.update({ where: { id: payload.sub }, data: { passHash } });
+
+  res.json({ ok: true });
+});
+
+
+  const token = jwt.sign({ sub: user.id, role: user.role }, JWT_SECRET, { expiresIn: "7d" });
   res.json({ token, role: user.role });
 });
 
@@ -141,8 +200,12 @@ app.put("/profile/me", auth, async (req, res) => {
   const data = parsed.data;
   const p = await prisma.profile.upsert({
     where: { userId: req.user.id },
-    update: { fullName: data.fullName ?? undefined, city: data.city ?? undefined, province: data.province ?? undefined, phone: data.phone ?? undefined, headline: data.headline ?? undefined },
-    create: { userId: req.user.id, fullName: data.fullName ?? null, city: data.city ?? null, province: data.province ?? null, phone: data.phone ?? null, headline: data.headline ?? null }
+    update: { fullName: data.fullName ?? undefined, city: data.city ?? undefined, province: data.province ?? undefined, phone: data.phone ?? undefined, headline: data.headline ?? undefined,
+      sector: data.sector ?? undefined,
+      subSector: data.subSector ?? undefined },
+    create: { userId: req.user.id, fullName: data.fullName ?? null, city: data.city ?? null, province: data.province ?? null, phone: data.phone ?? null, headline: data.headline ?? null,
+      sector: data.sector ?? null,
+      subSector: data.subSector ?? null }
   });
 
   if (Array.isArray(data.skills)) {
@@ -239,7 +302,7 @@ app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "No pudimos leer texto del archivo. Probá con PDF/DOCX/TXT que contenga texto seleccionable." });
     }
     const sections = splitByHeadings(text);
-    return res.json({ ok:true, sections });
+    return res.json({ ok:true, ...sections });
   }catch(err){
     console.error("resume/parse error:", err);
     return res.status(500).json({ error: "Error al procesar el archivo." });

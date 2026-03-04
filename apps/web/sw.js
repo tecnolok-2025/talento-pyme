@@ -1,4 +1,4 @@
-const CACHE = "tp-v2.4";
+const CACHE = "tp-v3.0.0";
 const ASSETS = [
   "/", "/index.html", "/dashboard.html", "/perfil.html", "/cv.html", "/buscar.html",
   "/empleos.html", "/empresa.html", "/publicar.html", "/mis-busquedas.html",
@@ -8,12 +8,13 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
+  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 

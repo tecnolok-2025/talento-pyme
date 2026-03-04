@@ -12,7 +12,7 @@
 <body>
   <div class="header">
     <img src="/assets/logo-talento-pyme-small.png" alt="Talento PyME" />
-    <span class="badge">v2.5.0 · Web + PWA</span>
+    <span class="badge"><span class="tp-version"></span> · Web + PWA</span>
   </div>
 
   <div class="wrap">
@@ -26,9 +26,18 @@
       <div class="hr"></div>
 
       <label>Rol</label>
-      <div class="row">
+      <div class="row" style="flex-wrap:wrap; gap:12px">
         <label style="margin:0"><input type="radio" name="role" value="CANDIDATE" checked> Candidato</label>
         <label style="margin:0"><input type="radio" name="role" value="COMPANY"> Empresa</label>
+        <label style="margin:0"><input type="radio" name="role" value="ADMIN_CANDIDATE"> Admin Candidatos</label>
+        <label style="margin:0"><input type="radio" name="role" value="ADMIN_COMPANY"> Admin Empresas</label>
+        <label style="margin:0"><input type="radio" name="role" value="SUPERADMIN"> Superadmin</label>
+      </div>
+
+      <div id="adminCodeWrap" style="display:none; margin-top:10px">
+        <label>Código de administración</label>
+        <input class="input" id="adminCode" placeholder="Ingresá el código" />
+        <div class="muted">Solo aplica para roles de administración.</div>
       </div>
 
       <div class="grid2">
@@ -52,6 +61,9 @@
         <button class="btn btn-cta" id="btnRegister">Registrar</button>
         <button class="btn btn-primary" id="btnLogin">Ingresar</button>
       </div>
+      <div class="row" style="margin-top:10px">
+        <a class="muted" href="/forgot.html" style="text-decoration:underline">Olvidé mi contraseña</a>
+      </div>
 
       <div class="muted" style="margin-top:12px" id="msg"></div>
     </div>
@@ -67,8 +79,19 @@
     const msg = (t) => ($("msg").textContent = t);
     const role = () => (document.querySelector('input[name="role"]:checked')?.value || "CANDIDATE");
 
+    const isAdminRole = (r) => (r === "ADMIN_CANDIDATE" || r === "ADMIN_COMPANY" || r === "SUPERADMIN" || r === "ADMIN");
+    const updateAdminUI = () => {
+      const r = role();
+      const show = isAdminRole(r);
+      const w = $("adminCodeWrap");
+      if(w) w.style.display = show ? "block" : "none";
+    };
+    document.querySelectorAll('input[name="role"]').forEach(el => el.addEventListener("change", updateAdminUI));
+
     $("apiUrl").value = window.TP_API_URL;
     $("apiUrl").addEventListener("change", ()=> window.TP_API_URL = $("apiUrl").value.trim() || window.TP_API_URL);
+
+    updateAdminUI();
 
     async function post(path, body){
       const r = await fetch(`${window.TP_API_URL}${path}`,{
@@ -91,6 +114,7 @@
         const payload = { email, password, role: r };
         if(r === "CANDIDATE") payload.fullName = $("fullName").value.trim() || undefined;
         if(r === "COMPANY") payload.companyName = $("companyName").value.trim();
+        if(isAdminRole(r)) payload.adminCode = $("adminCode")?.value.trim() || "";
 
         await post("/auth/register", payload);
         msg("Registro OK. Ahora ingresá.");

@@ -1,21 +1,24 @@
-# Talento PyME — v2.4
+# Talento PyME — v3.0.0
 
-## Incluye
-- Roles: CANDIDATE / COMPANY
-- Hotelería como rubro con subrubros
-- Empresa: Mi Empresa, Publicar, Mis Búsquedas
-- Candidato: Mi Perfil, Mi CV (incluye Observaciones), Empleos (postularse)
+## Qué incluye (v3)
+- Web + PWA instalable (sin tiendas) y API Node + Prisma + Neon
+- Roles:
+  - CANDIDATE (Candidato)
+  - COMPANY (Empresa)
+  - ADMIN_CANDIDATE (Admin Candidatos) *requiere código*
+  - ADMIN_COMPANY (Admin Empresas) *requiere código*
+  - SUPERADMIN (Superadmin) *requiere código*
+  - (legacy) ADMIN
+- Candidato:
+  - Mi Perfil (incluye Sector/Subsector)
+  - Mi CV con “Leer y completar” (parseo de PDF/DOCX/TXT vía /resume/parse)
+- Empresa:
+  - Mi Empresa
+  - Publicar empleos
+  - Mis Búsquedas
+- Rubro “Hotelería” con subrubros
+- Panel Superadmin con métricas básicas (usuarios/candidatos/empresas/CVs/empleos/postulaciones)
 
-## Render
-### API (Web Service) `talento-pyme-api`
-Root Directory: `apps/api`
-Build: `npm install && npx prisma generate && npx prisma db push`
-Start: `npm start`
-Environment:
-- DATABASE_URL
-- JWT_SECRET
+## Nota sobre actualizaciones de la PWA
+La PWA usa Service Worker con caché versionada. En v3 el caché pasa a `tp-v3.0.0` para forzar actualización en iPhone/Android al recargar (y evitar quedarse pegado a una versión vieja).
 
-### WEB (Static Site) `talento-pyme`
-Root Directory: `apps/web`
-Build: `echo "no build"`
-Publish: `.`

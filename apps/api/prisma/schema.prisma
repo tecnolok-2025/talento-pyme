@@ -11,6 +11,9 @@ enum UserRole {
   CANDIDATE
   COMPANY
   ADMIN
+  ADMIN_CANDIDATE
+  ADMIN_COMPANY
+  SUPERADMIN
 }
 
 enum JobStatus {

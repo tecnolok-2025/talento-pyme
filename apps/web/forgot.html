@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Talento PyME · Recuperar contraseña</title>
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="header">
+    <a href="/"><img src="/assets/logo-tp.svg" alt="Talento PyME" /></a>
+    <div class="nav">
+      <a href="/"><span class="tp-version"></span></a>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h2>Olvidé mi contraseña</h2>
+      <div class="muted">Plan gratuito: el sistema genera un link de reseteo para compartir (WhatsApp / mail interno).</div>
+      <div class="hr"></div>
+
+      <label>Email</label>
+      <input class="input" id="email" type="email" placeholder="tu@email.com" />
+
+      <button class="btn" id="btn">Generar link</button>
+      <div id="msg" class="muted" style="margin-top:10px"></div>
+
+      <div id="out" style="display:none; margin-top:12px">
+        <label>Link de reseteo</label>
+        <textarea class="input" id="resetUrl" rows="3" readonly></textarea>
+        <div class="row" style="margin-top:8px">
+          <button class="btn secondary" id="btnCopy">Copiar</button>
+          <a class="btn secondary" href="/" style="text-decoration:none">Volver</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="/auth.js"></script>
+  <script>
+    const $ = (id)=>document.getElementById(id);
+    $("btn").onclick = async ()=>{
+      $("msg").textContent = "Procesando...";
+      $("out").style.display = "none";
+      try{
+        const email = $("email").value.trim();
+        if(!email) throw new Error("Ingresá tu email");
+        const data = await apiFetch("/auth/forgot", { method:"POST", body: JSON.stringify({ email }) });
+        $("resetUrl").value = data.resetUrl;
+        $("out").style.display = "block";
+        $("msg").textContent = "Listo. Compartí el link y abrilo para definir la nueva clave.";
+      }catch(e){
+        $("msg").textContent = "Error: " + (e.message || e);
+      }
+    };
+    $("btnCopy").onclick = async ()=>{
+      try{
+        await navigator.clipboard.writeText($("resetUrl").value);
+        $("msg").textContent = "Copiado al portapapeles.";
+      }catch(e){
+        $("msg").textContent = "No pude copiar automáticamente. Seleccioná el texto y copialo manualmente.";
+      }
+    };
+  </script>
+</body>
+</html>
