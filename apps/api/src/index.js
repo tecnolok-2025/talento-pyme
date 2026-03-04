@@ -1,194 +1,317 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
-import { z } from "zod";
 import multer from "multer";
-import pdfParsePkg from "pdf-parse";
-import mammothPkg from "mammoth";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+import { z } from "zod";
+import { PrismaClient } from "@prisma/client";
+import pdfParse from "pdf-parse";
+import mammoth from "mammoth";
 
-dotenv.config();
-
-const APP_VERSION = "3.0.0";
-const JWT_SECRET = JWT_SECRET || "dev-secret";
-const SUPERADMIN_CODE = process.env.SUPERADMIN_CODE || "";
-const ADMIN_CANDIDATE_CODE = process.env.ADMIN_CANDIDATE_CODE || "";
-const ADMIN_COMPANY_CODE = process.env.ADMIN_COMPANY_CODE || "";
-const FRONT_URL = process.env.FRONT_URL || "https://talento-pyme.onrender.com";
-
-const app = express();
 const prisma = new PrismaClient();
+const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: "4mb" }));
+app.use(express.json({ limit: "2mb" }));
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
-const pdfParse = pdfParsePkg?.default || pdfParsePkg;
-const mammoth = mammothPkg?.default || mammothPkg;
+const APP_VERSION = "3.2.0";
 
-function auth(req, res, next) {
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
+
+// -----------------------------
+// Helpers
+// -----------------------------
+function normalizeName(str = ""){
+  return String(str)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function levenshtein(a = "", b = ""){
+  const m = a.length, n = b.length;
+  if(m === 0) return n;
+  if(n === 0) return m;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0] = i;
+  for(let j=0;j<=n;j++) dp[0][j] = j;
+  for(let i=1;i<=m;i++){
+    for(let j=1;j<=n;j++){
+      const cost = a[i-1] === b[j-1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i-1][j] + 1,
+        dp[i][j-1] + 1,
+        dp[i-1][j-1] + cost
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+function similarity(a, b){
+  const A = normalizeName(a);
+  const B = normalizeName(b);
+  const maxLen = Math.max(A.length, B.length);
+  if(maxLen === 0) return 1;
+  const dist = levenshtein(A, B);
+  return 1 - (dist / maxLen);
+}
+
+function signToken(user){
+  return jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
+}
+
+function auth(req, res, next){
   const h = req.headers.authorization || "";
   const token = h.startsWith("Bearer ") ? h.slice(7) : null;
-  if (!token) return res.status(401).json({ error: "Falta token" });
-  try {
+  if(!token) return res.status(401).json({ error: "Falta token" });
+  try{
     const payload = jwt.verify(token, JWT_SECRET);
-    req.user = { id: payload.sub, role: payload.role };
+    req.user = payload;
     next();
-  } catch {
+  }catch{
     return res.status(401).json({ error: "Token inválido" });
   }
 }
 
-function requireRole(role) {
+function requireRole(role){
   return (req, res, next) => {
-    if (req.user?.role !== role) return res.status(403).json({ error: "Sin permisos" });
-    next();
-  };
-function requireAnyRole(roles=[]) {
-  return (req, res, next) => {
-    if (!req.user?.role || !roles.includes(req.user.role)) return res.status(403).json({ error: "Sin permisos" });
+    if(req.user?.role !== role) return res.status(403).json({ error: "No autorizado" });
     next();
   };
 }
-function isSuperAdminRole(role){
-  return role === "SUPERADMIN" || role === "ADMIN";
-}
 
-}
+app.get("/health", (_, res) => res.json({ ok:true, service:"talento-pyme-api", version: APP_VERSION }));
 
-app.get("/health", (_, res) => res.json({ ok: true, app: "talento-pyme-api", version: APP_VERSION }));
-
-app.get("/admin/metrics", authMiddleware, requireAnyRole(["SUPERADMIN","ADMIN"]), async (req, res) => {
-  const [users, candidates, companies, resumes, jobs, applications] = await Promise.all([
-    prisma.user.count(),
-    prisma.user.count({ where: { role: { in: ["CANDIDATE","ADMIN_CANDIDATE"] } } }),
-    prisma.user.count({ where: { role: { in: ["COMPANY","ADMIN_COMPANY"] } } }),
-    prisma.resume.count(),
-    prisma.job.count(),
-    prisma.application.count()
-  ]);
-  res.json({ users, candidates, companies, resumes, jobs, applications, version: APP_VERSION });
+// -----------------------------
+// Auth (solo CANDIDATE / COMPANY)
+// -----------------------------
+const registerSchema = z.object({
+  role: z.enum(["CANDIDATE", "COMPANY"]),
+  fullName: z.string().min(3).max(120),
+  email: z.string().email().max(180),
+  password: z.string().min(8).max(200),
+  dni: z.string().max(20).optional(),
+  companyName: z.string().max(160).optional(),
+  cuit: z.string().max(40).optional()
 });
 
+const loginSchema = z.object({
+  fullName: z.string().min(2).max(120),
+  password: z.string().min(8).max(200)
+});
 
-async function ensureDefaultCategories() {
-  const existing = await prisma.jobCategory.findFirst();
-  if (existing) return;
-
-  const industria = await prisma.jobCategory.create({ data: { name: "Industria" } });
-  const servicios = await prisma.jobCategory.create({ data: { name: "Servicios" } });
-  const hoteleria = await prisma.jobCategory.create({ data: { name: "Hotelería" } });
-
-  await prisma.jobCategory.createMany({
-    data: [
-      { name: "Mantenimiento Industrial", parentId: industria.id },
-      { name: "Producción", parentId: industria.id },
-      { name: "Logística", parentId: servicios.id },
-      { name: "Administración", parentId: servicios.id },
-
-      { name: "Recepción", parentId: hoteleria.id },
-      { name: "Housekeeping", parentId: hoteleria.id },
-      { name: "Cocina", parentId: hoteleria.id },
-      { name: "Mantenimiento Hotelero", parentId: hoteleria.id },
-      { name: "Eventos & Banquetes", parentId: hoteleria.id }
-    ]
-  });
-}
-
-const registerSchema = z.object({ email: z.string().email(), password: z.string().min(8), role: z.enum(["CANDIDATE","COMPANY","ADMIN","ADMIN_CANDIDATE","ADMIN_COMPANY","SUPERADMIN"]), fullName: z.string().min(2).max(120).optional(), companyName: z.string().min(2).max(120).optional(), adminCode: z.string().max(200).optional(), contactName: z.string().min(2).max(120).optional() });
+const resetByIdSchema = z.object({
+  role: z.enum(["CANDIDATE", "COMPANY"]),
+  dni: z.string().max(20).optional(),
+  cuit: z.string().max(40).optional(),
+  newPassword: z.string().min(8).max(200)
+});
 
 app.post("/auth/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  if(!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { email, password, role, fullName, companyName, adminCode, contactName } = parsed.data;
+  const { role, fullName, email, password } = parsed.data;
 
-  const exists = await prisma.user.findUnique({ where: { email } });
-  if (exists) return res.status(409).json({ error: "Email ya registrado" });
+  if(role === "CANDIDATE"){
+    const dni = (parsed.data.dni || "").trim();
+    if(!dni) return res.status(400).json({ error: "Falta DNI" });
 
-  if (role === "COMPANY" && !companyName) return res.status(400).json({ error: "companyName requerido para Empresa" });
+    // validar DNI único si ya está cargado
+    const existingDni = await prisma.profile.findFirst({ where: { dni } });
+    if(existingDni) return res.status(409).json({ error: "Ese DNI ya está registrado" });
 
-  const passHash = await bcrypt.hash(password, 10);
-  const user = await prisma.user.create({ data: { email, passHash, role } });
+    const passHash = await bcrypt.hash(password, 10);
 
-  if (role === "CANDIDATE" || role === "ADMIN_CANDIDATE") {
-    await prisma.profile.create({ data: { userId: user.id, fullName: fullName ?? null } }).catch(() => {});
-    await prisma.resume.create({ data: { userId: user.id } }).catch(() => {});
-  } else if (role === "COMPANY" || role === "ADMIN_COMPANY") {
-    await prisma.companyProfile
-      .create({ data: { userId: user.id, companyName: companyName, contactName: contactName ?? null } })
-      .catch(() => {});
+    try{
+      const user = await prisma.user.create({
+        data: {
+          email,
+          passHash,
+          role,
+          profile: { create: { fullName, dni } },
+          resume: { create: {} }
+        }
+      });
+      return res.json({ ok:true, token: signToken(user), role: user.role });
+    }catch(err){
+      return res.status(409).json({ error: "Email ya registrado" });
+    }
   }
 
-  await ensureDefaultCategories();
-  res.json({ id: user.id, email: user.email, role: user.role });
-});
+  // COMPANY
+  const companyName = (parsed.data.companyName || "").trim();
+  const cuit = (parsed.data.cuit || "").trim();
+  if(!companyName) return res.status(400).json({ error: "Falta Empresa" });
+  if(!cuit) return res.status(400).json({ error: "Falta CUIT" });
 
-const loginSchema = z.object({ email: z.string().email(), password: z.string().min(8) });
+  const existingCuit = await prisma.companyProfile.findFirst({ where: { cuit } });
+  if(existingCuit) return res.status(409).json({ error: "Ese CUIT ya está registrado" });
+
+  const passHash = await bcrypt.hash(password, 10);
+
+  try{
+    const user = await prisma.user.create({
+      data: {
+        email,
+        passHash,
+        role,
+        companyProfile: {
+          create: {
+            companyName,
+            cuit,
+            contactName: fullName,
+            contactEmail: email
+          }
+        }
+      }
+    });
+    return res.json({ ok:true, token: signToken(user), role: user.role });
+  }catch{
+    return res.status(409).json({ error: "Email ya registrado" });
+  }
+});
 
 app.post("/auth/login", async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Datos inválidos" });
+  if(!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (!user) return res.status(401).json({ error: "Credenciales inválidas" });
+  const { fullName, password } = parsed.data;
+  const nameNorm = normalizeName(fullName);
+  const firstToken = nameNorm.split(" ")[0] || nameNorm;
 
-  const ok = await bcrypt.compare(parsed.data.password, user.passHash);
-  if (!ok) return res.status(401).json({ error: "Credenciales inválidas" });
+  // buscar candidatos/empresas por token para no traer todo
+  const [cand, comp] = await Promise.all([
+    prisma.profile.findMany({
+      where: { fullName: { contains: firstToken, mode: "insensitive" } },
+      include: { user: true },
+      take: 50
+    }),
+    prisma.companyProfile.findMany({
+      where: { contactName: { contains: firstToken, mode: "insensitive" } },
+      include: { user: true },
+      take: 50
+    })
+  ]);
 
-
-const forgotSchema = z.object({ email: z.string().email() });
-app.post("/auth/forgot", async (req, res) => {
-  const parsed = forgotSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Datos inválidos" });
-
-  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (!user) return res.status(404).json({ error: "Email no encontrado" });
-
-  const token = jwt.sign({ sub: user.id, purpose: "reset" }, JWT_SECRET, { expiresIn: "15m" });
-  const resetUrl = `${FRONT_URL}/reset.html?token=${encodeURIComponent(token)}`;
-
-  // En plan gratuito no enviamos emails. Devolvemos el link para compartirlo (WhatsApp/Email interno).
-  res.json({ ok: true, resetUrl });
-});
-
-const resetSchema = z.object({ token: z.string().min(10), newPassword: z.string().min(8) });
-app.post("/auth/reset", async (req, res) => {
-  const parsed = resetSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Datos inválidos" });
-
-  let payload;
-  try {
-    payload = jwt.verify(parsed.data.token, JWT_SECRET);
-  } catch (e) {
-    return res.status(400).json({ error: "Token inválido o vencido" });
+  const candidates = [];
+  for(const p of cand){
+    candidates.push({
+      kind: "CANDIDATE",
+      displayName: p.fullName || "",
+      user: p.user,
+      score: similarity(fullName, p.fullName || "")
+    });
   }
-  if (payload?.purpose !== "reset") return res.status(400).json({ error: "Token inválido" });
+  for(const c of comp){
+    candidates.push({
+      kind: "COMPANY",
+      displayName: c.contactName || "",
+      user: c.user,
+      score: similarity(fullName, c.contactName || "")
+    });
+  }
 
-  const passHash = await bcrypt.hash(parsed.data.newPassword, 10);
-  await prisma.user.update({ where: { id: payload.sub }, data: { passHash } });
+  // fallback: si no encontramos por token, intentar contains global (insensitive)
+  if(candidates.length === 0 && nameNorm.length >= 4){
+    const [cand2, comp2] = await Promise.all([
+      prisma.profile.findMany({ where: { fullName: { contains: fullName, mode: "insensitive" } }, include: { user: true }, take: 50 }),
+      prisma.companyProfile.findMany({ where: { contactName: { contains: fullName, mode: "insensitive" } }, include: { user: true }, take: 50 })
+    ]);
+    for(const p of cand2){ candidates.push({ kind:"CANDIDATE", displayName:p.fullName||"", user:p.user, score: similarity(fullName, p.fullName||"") }); }
+    for(const c of comp2){ candidates.push({ kind:"COMPANY", displayName:c.contactName||"", user:c.user, score: similarity(fullName, c.contactName||"") }); }
+  }
 
-  res.json({ ok: true });
+  if(candidates.length === 0){
+    return res.status(401).json({ error: "No encontramos ese nombre. Verificá cómo te registraste." });
+  }
+
+  candidates.sort((a,b) => b.score - a.score);
+  const best = candidates[0];
+
+  // criterio 70%
+  if(best.score < 0.70){
+    return res.status(401).json({ error: "Nombre no coincide lo suficiente (mínimo 70%). Probá escribir tu nombre completo." });
+  }
+
+  // si hay otro muy cerca (ambigüedad), pedimos más precisión
+  const second = candidates[1];
+  if(second && (best.score - second.score) < 0.03 && second.score >= 0.70){
+    return res.status(409).json({ error: "Nombre ambiguo. Escribí el nombre completo (incluyendo segundo nombre y apellido) para ingresar." });
+  }
+
+  const ok = await bcrypt.compare(password, best.user.passHash);
+  if(!ok) return res.status(401).json({ error: "Clave incorrecta" });
+
+  return res.json({ token: signToken(best.user), role: best.user.role });
 });
 
+app.post("/auth/reset-by-id", async (req, res) => {
+  const parsed = resetByIdSchema.safeParse(req.body);
+  if(!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const token = jwt.sign({ sub: user.id, role: user.role }, JWT_SECRET, { expiresIn: "7d" });
-  res.json({ token, role: user.role });
+  const { role, newPassword } = parsed.data;
+  const passHash = await bcrypt.hash(newPassword, 10);
+
+  if(role === "CANDIDATE"){
+    const dni = (parsed.data.dni || "").trim();
+    if(!dni) return res.status(400).json({ error: "Falta DNI" });
+
+    const p = await prisma.profile.findFirst({ where: { dni }, include: { user: true } });
+    if(!p?.user) return res.status(404).json({ error: "No encontramos un usuario con ese DNI" });
+
+    await prisma.user.update({ where: { id: p.user.id }, data: { passHash } });
+    return res.json({ ok:true });
+  }
+
+  const cuit = (parsed.data.cuit || "").trim();
+  if(!cuit) return res.status(400).json({ error: "Falta CUIT" });
+
+  const c = await prisma.companyProfile.findFirst({ where: { cuit }, include: { user: true } });
+  if(!c?.user) return res.status(404).json({ error: "No encontramos una empresa con ese CUIT" });
+
+  await prisma.user.update({ where: { id: c.user.id }, data: { passHash } });
+  return res.json({ ok:true });
 });
 
-// Candidate profile
+// -----------------------------
+// Profile (candidato)
+// -----------------------------
 const profileSchema = z.object({
   fullName: z.string().max(120).optional().nullable(),
+  dni: z.string().max(20).optional().nullable(),
   city: z.string().max(80).optional().nullable(),
   province: z.string().max(80).optional().nullable(),
   phone: z.string().max(40).optional().nullable(),
-  headline: z.string().max(160).optional().nullable(),
-  sector: z.string().max(60).optional().nullable(),
+  headline: z.string().max(140).optional().nullable(),
+  sector: z.string().max(80).optional().nullable(),
   subSector: z.string().max(120).optional().nullable(),
-  skills: z.array(z.object({ name: z.string().max(60), level: z.number().int().min(1).max(5).optional().nullable() })).optional()
+  skillsText: z.string().max(8000).optional().nullable()
 });
+
+function parseSkills(skillsText){
+  const rows = String(skillsText || "")
+    .split("\n")
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const skills = [];
+  for(const row of rows){
+    const parts = row.split("|").map(x=>x.trim()).filter(Boolean);
+    const name = parts[0];
+    let level = null;
+    if(parts[1]){
+      const n = parseInt(parts[1],10);
+      if(!isNaN(n)) level = Math.max(1, Math.min(5, n));
+    }
+    if(name) skills.push({ name, level });
+  }
+  return skills;
+}
 
 app.get("/profile/me", auth, async (req, res) => {
   const p = await prisma.profile.findUnique({ where: { userId: req.user.id }, include: { skills: true } });
@@ -197,90 +320,91 @@ app.get("/profile/me", auth, async (req, res) => {
 
 app.put("/profile/me", auth, async (req, res) => {
   const parsed = profileSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  if(!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const data = parsed.data;
+  const { skillsText, ...rest } = parsed.data;
+
+  // si manda DNI, verificar unicidad
+  if(rest.dni){
+    const other = await prisma.profile.findFirst({ where: { dni: rest.dni, NOT: { userId: req.user.id } } });
+    if(other) return res.status(409).json({ error: "Ese DNI ya está registrado" });
+  }
+
   const p = await prisma.profile.upsert({
     where: { userId: req.user.id },
-    update: { fullName: data.fullName ?? undefined, city: data.city ?? undefined, province: data.province ?? undefined, phone: data.phone ?? undefined, headline: data.headline ?? undefined,
-      sector: data.sector ?? undefined,
-      subSector: data.subSector ?? undefined },
-    create: { userId: req.user.id, fullName: data.fullName ?? null, city: data.city ?? null, province: data.province ?? null, phone: data.phone ?? null, headline: data.headline ?? null,
-      sector: data.sector ?? null,
-      subSector: data.subSector ?? null }
+    update: rest,
+    create: { userId: req.user.id, ...rest }
   });
 
-  if (Array.isArray(data.skills)) {
+  if (skillsText !== undefined) {
     await prisma.skill.deleteMany({ where: { profileId: p.id } });
-    if (data.skills.length) {
-      await prisma.skill.createMany({ data: data.skills.map(s => ({ profileId: p.id, name: s.name, level: s.level ?? null })) });
+    const skills = parseSkills(skillsText);
+    if (skills.length) {
+      await prisma.skill.createMany({ data: skills.map(s => ({ profileId: p.id, name: s.name, level: s.level })) });
     }
   }
 
-  const fresh = await prisma.profile.findUnique({ where: { id: p.id }, include: { skills: true } });
-  res.json(fresh);
+  const p2 = await prisma.profile.findUnique({ where: { userId: req.user.id }, include: { skills: true } });
+  res.json(p2);
 });
 
-// Resume
+// -----------------------------
+// Resume + Parse
+// -----------------------------
 const resumeSchema = z.object({
-  summary: z.string().max(4000).optional().nullable(),
-  experience: z.string().max(12000).optional().nullable(),
-  education: z.string().max(8000).optional().nullable(),
-  certifications: z.string().max(6000).optional().nullable(),
-  observations: z.string().max(8000).optional().nullable()
+  summary: z.string().max(12000).optional().nullable(),
+  experience: z.string().max(20000).optional().nullable(),
+  education: z.string().max(12000).optional().nullable(),
+  certifications: z.string().max(12000).optional().nullable(),
+  observations: z.string().max(12000).optional().nullable()
 });
 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 6 * 1024 * 1024 }
+});
 
-// --- CV / Resume parsing (PDF/DOCX/TXT) ---
-// Devuelve sugerencias para autocompletar campos; el usuario puede editarlas y luego Guardar.
-// No almacenamos el archivo: procesamos en memoria y descartamos.
 function splitByHeadings(text){
-  const t = (text||"").replace(/\r/g,"");
-  const markers = [
-    {k:"summary", rx:/\b(resumen|perfil profesional|perfil)\b/i},
-    {k:"experience", rx:/\b(experiencia|experiencia laboral|historial laboral)\b/i},
-    {k:"education", rx:/\b(educaci[oó]n|formaci[oó]n acad[eé]mica|formaci[oó]n)\b/i},
-    {k:"certifications", rx:/\b(certificaciones|cursos|capacitaciones|habilitaciones)\b/i},
-    {k:"observations", rx:/\b(observaciones|otros|informaci[oó]n adicional)\b/i},
-  ];
+  const t = String(text || "");
+  // Heurística simple: detecta secciones por palabras clave
+  const buckets = {
+    summary: "",
+    experience: "",
+    education: "",
+    certifications: "",
+    observations: ""
+  };
 
-  // encontrar posiciones
-  const found = [];
-  markers.forEach(m=>{
-    const match = m.rx.exec(t);
-    if(match) found.push({k:m.k, idx: match.index});
-  });
-  found.sort((a,b)=>a.idx-b.idx);
+  const lines = t.split(/\r?\n/);
+  let current = "summary";
 
-  const out = { summary:"", experience:"", education:"", certifications:"", observations:"" };
-  if(found.length===0){
-    const lines = t.split("\n").map(s=>s.trim()).filter(Boolean);
-    out.summary = lines.slice(0,12).join("\n");
-    out.experience = lines.slice(12,120).join("\n");
-    out.education = "";
-    out.certifications = "";
-    out.observations = lines.slice(120).join("\n");
-    return out;
+  const pick = (line) => {
+    const s = normalizeName(line);
+    if(/\b(resumen|perfil|objetivo)\b/.test(s)) return "summary";
+    if(/\b(experiencia|trayectoria|antecedentes)\b/.test(s)) return "experience";
+    if(/\b(educacion|formacion|estudios)\b/.test(s)) return "education";
+    if(/\b(certificaciones|cursos|habilitaciones)\b/.test(s)) return "certifications";
+    if(/\b(observaciones|otros|adicional)\b/.test(s)) return "observations";
+    return null;
+  };
+
+  for(const line of lines){
+    const k = pick(line);
+    if(k) current = k;
+    buckets[current] += line + "\n";
   }
 
-  for(let i=0;i<found.length;i++){
-    const a = found[i];
-    const b = found[i+1];
-    const start = a.idx;
-    const end = b ? b.idx : t.length;
-    const chunk = t.slice(start, end).trim();
-    // quitar el heading de la primera línea
-    const firstNl = chunk.indexOf("\n");
-    const cleaned = (firstNl>0 ? chunk.slice(firstNl+1) : "").trim();
-    out[a.k] = cleaned || "";
+  // limpieza
+  for(const k of Object.keys(buckets)){
+    buckets[k] = buckets[k].trim();
   }
-  return out;
+
+  return buckets;
 }
 
 async function extractTextFromUpload(file){
-  const name = (file?.originalname||"").toLowerCase();
-  const buf = file?.buffer;
-  if(!buf) return "";
+  const name = String(file.originalname || "").toLowerCase();
+  const buf = file.buffer;
   if(name.endsWith(".txt")){
     return buf.toString("utf-8");
   }
@@ -304,7 +428,7 @@ app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "No pudimos leer texto del archivo. Probá con PDF/DOCX/TXT que contenga texto seleccionable." });
     }
     const sections = splitByHeadings(text);
-    return res.json({ ok:true, ...sections });
+    return res.json({ ok:true, sections });
   }catch(err){
     console.error("resume/parse error:", err);
     return res.status(500).json({ error: "Error al procesar el archivo." });
@@ -328,12 +452,14 @@ app.put("/resume/me", auth, async (req, res) => {
   res.json(r);
 });
 
+// -----------------------------
 // Company profile
+// -----------------------------
 const companySchema = z.object({
   companyName: z.string().min(2).max(140),
-  cuit: z.string().max(20).optional().nullable(),
+  cuit: z.string().max(40).optional().nullable(),
   address: z.string().max(200).optional().nullable(),
-  contactEmail: z.string().email().max(160).optional().nullable(),
+  contactEmail: z.string().email().max(180).optional().nullable(),
   contactName: z.string().max(120).optional().nullable(),
   city: z.string().max(80).optional().nullable(),
   province: z.string().max(80).optional().nullable(),
@@ -349,18 +475,49 @@ app.get("/company/me", auth, requireRole("COMPANY"), async (req, res) => {
 app.put("/company/me", auth, requireRole("COMPANY"), async (req, res) => {
   const parsed = companySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const c = await prisma.companyProfile.upsert({ where: { userId: req.user.id }, update: parsed.data, create: { userId: req.user.id, ...parsed.data } });
+
+  // si manda CUIT, verificar unicidad
+  if(parsed.data.cuit){
+    const other = await prisma.companyProfile.findFirst({ where: { cuit: parsed.data.cuit, NOT: { userId: req.user.id } } });
+    if(other) return res.status(409).json({ error: "Ese CUIT ya está registrado" });
+  }
+
+  const c = await prisma.companyProfile.upsert({
+    where: { userId: req.user.id },
+    update: parsed.data,
+    create: { userId: req.user.id, ...parsed.data }
+  });
   res.json(c);
 });
 
+// -----------------------------
 // Categories
+// -----------------------------
+async function ensureDefaultCategories(){
+  const defaults = [
+    "Industria y Producción",
+    "Mantenimiento y Servicios",
+    "Logística y Transporte",
+    "Administración",
+    "Comercial y Ventas",
+    "Tecnología",
+    "Hotelería"
+  ];
+
+  for(const name of defaults){
+    try{ await prisma.jobCategory.create({ data: { name } }); }catch{}
+  }
+}
+
 app.get("/categories", async (_, res) => {
   await ensureDefaultCategories();
   const cats = await prisma.jobCategory.findMany({ orderBy: { name: "asc" } });
   res.json({ categories: cats });
 });
 
+// -----------------------------
 // Jobs
+// -----------------------------
 const jobSchema = z.object({
   title: z.string().min(4).max(140),
   location: z.string().max(120).optional().nullable(),
@@ -442,32 +599,20 @@ app.post("/jobs/:id/apply", auth, requireRole("CANDIDATE"), async (req, res) => 
   }
 });
 
-// Search talent (for companies, free for now)
+// -----------------------------
+// Search talent (para empresas, gratis)
+// -----------------------------
 app.get("/search", async (req, res) => {
   const q = String(req.query.q || "").trim();
-  const skill = String(req.query.skill || "").trim();
-  const headline = String(req.query.headline || "").trim();
-  const city = String(req.query.city || "").trim();
-  const province = String(req.query.province || "").trim();
-  const sector = String(req.query.sector || "").trim();
-  const subSector = String(req.query.subSector || "").trim();
+  if (!q) return res.json({ results: [] });
 
-  const AND = [];
-  if (city) AND.push({ city: { contains: city, mode: "insensitive" } });
-  if (province) AND.push({ province: { contains: province, mode: "insensitive" } });
-  if (headline) AND.push({ headline: { contains: headline, mode: "insensitive" } });
-  if (sector) AND.push({ sector: { equals: sector } });
-  if (subSector) AND.push({ subSector: { contains: subSector, mode: "insensitive" } });
-  if (skill) AND.push({ skills: { some: { name: { contains: skill, mode: "insensitive" } } } });
-  if (q) {
-    AND.push({
+  const results = await prisma.profile.findMany({
+    where: {
       OR: [
         { fullName: { contains: q, mode: "insensitive" } },
         { headline: { contains: q, mode: "insensitive" } },
         { city: { contains: q, mode: "insensitive" } },
         { province: { contains: q, mode: "insensitive" } },
-        { sector: { contains: q, mode: "insensitive" } },
-        { subSector: { contains: q, mode: "insensitive" } },
         { skills: { some: { name: { contains: q, mode: "insensitive" } } } },
         {
           user: {
@@ -483,22 +628,13 @@ app.get("/search", async (req, res) => {
           }
         }
       ]
-    });
-  }
-
-  if (AND.length === 0) return res.json({ results: [] });
-
-  const results = await prisma.profile.findMany({
-    where: { AND },
-    include: {
-      skills: true,
-      user: { select: { email: true, role: true, resume: true } }
     },
-    take: 50
+    include: { skills: true, user: { select: { email: true, role: true } } },
+    take: 25
   });
 
   res.json({ results });
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, "0.0.0.0", () => console.log("Talento PyME API escuchando en", PORT));
+app.listen(PORT, "0.0.0.0", () => console.log("Talento PyME API escuchando en", PORT, "(v"+APP_VERSION+")"));

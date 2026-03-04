@@ -4,68 +4,142 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Talento PyME</title>
-  <meta name="theme-color" content="#1769E0" />
+  <meta name="theme-color" content="#0B1220" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icon-192.png" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
-<body>
-  <div class="header">
-    <img src="/assets/logo-talento-pyme-small.png" alt="Talento PyME" />
-    <span class="badge"><span class="tp-version"></span> · Web + PWA</span>
+<body class="authBody">
+  <div class="authTop">
+    <div class="authBrand">
+      <img src="/assets/logo-talento-pyme-small.png" alt="Talento PyME" />
+      <div>
+        <div class="authTitle">Talento PyME</div>
+        <div class="authSubtitle">Portal gratuito · Web + PWA instalable (sin tiendas)</div>
+      </div>
+    </div>
+    <div class="authBadge"><span class="tp-version"></span> · Acceso</div>
   </div>
 
-  <div class="wrap">
-    <div class="card">
-      <h2>Acceso</h2>
-      <div class="muted">Registrate o ingresá. Según tu rol, vas al Panel de Candidato o de Empresa.</div>
+  <div class="authWrap">
+    <div class="authCard">
+      <div class="authGrid">
+        <div class="authLeft">
+          <h2 class="bigTitle">Elegí tu rol</h2>
+          <div class="bigLead">Solo hay dos caminos. Sin confusión: <b>Candidato</b> o <b>Empresa</b>.</div>
 
-      <label>API URL (opcional)</label>
-      <input class="input" id="apiUrl" />
+          <div class="rolePicker" style="margin-top:14px">
+            <div class="roleBtn active" id="roleCand">
+              <div class="roleIcon">C</div>
+              <div class="roleMeta">
+                <div class="roleName">Candidato</div>
+                <div class="roleDesc">Cargá tu perfil y buscá empleos.</div>
+              </div>
+            </div>
+            <div class="roleBtn" id="roleComp">
+              <div class="roleIcon">E</div>
+              <div class="roleMeta">
+                <div class="roleName">Empresa</div>
+                <div class="roleDesc">Publicá búsquedas y encontrá talento.</div>
+              </div>
+            </div>
+          </div>
 
-      <div class="hr"></div>
+          <div class="modeTabs">
+            <div class="modeTab active" id="tabLogin">Ingresar</div>
+            <div class="modeTab" id="tabRegister">Registrarme</div>
+          </div>
 
-      <label>Rol</label>
-      <div class="row" style="flex-wrap:wrap; gap:12px">
-        <label style="margin:0"><input type="radio" name="role" value="CANDIDATE" checked> Candidato</label>
-        <label style="margin:0"><input type="radio" name="role" value="COMPANY"> Empresa</label>
-        <label style="margin:0"><input type="radio" name="role" value="ADMIN_CANDIDATE"> Admin Candidatos</label>
-        <label style="margin:0"><input type="radio" name="role" value="ADMIN_COMPANY"> Admin Empresas</label>
-        <label style="margin:0"><input type="radio" name="role" value="SUPERADMIN"> Superadmin</label>
-      </div>
+          <div class="authForm">
+            <!-- LOGIN -->
+            <div id="loginForm">
+              <label>Nombre y apellido</label>
+              <input class="input" id="loginName" placeholder="Ej: Néstor Manucci" />
+              <div class="muted small">Tip: si escribís con errores, se acepta coincidencia aproximada (≈70%).</div>
 
-      <div id="adminCodeWrap" style="display:none; margin-top:10px">
-        <label>Código de administración</label>
-        <input class="input" id="adminCode" placeholder="Ingresá el código" />
-        <div class="muted">Solo aplica para roles de administración.</div>
-      </div>
+              <label>Contraseña</label>
+              <input class="input" id="loginPassword" type="password" placeholder="Tu clave" />
 
-      <div class="grid2">
-        <div>
-          <label>Nombre y apellido (solo Candidato)</label>
-          <input class="input" id="fullName" placeholder="Ej: Néstor Manucci" />
+              <div class="authActions">
+                <button class="btn btn-primary" id="btnLogin">Ingresar</button>
+              </div>
+
+              <div class="authFoot">
+                <a class="authLink" href="/forgot.html">Olvidé mi contraseña</a>
+                <span class="muted small">Se recupera con <b>DNI</b> (candidato) o <b>CUIT</b> (empresa).</span>
+              </div>
+            </div>
+
+            <!-- REGISTER -->
+            <div id="registerForm" style="display:none">
+              <div id="candFields">
+                <label>Nombre y apellido</label>
+                <input class="input" id="regFullName" placeholder="Ej: Sergio Matabos" />
+
+                <label>Email</label>
+                <input class="input" id="regEmail" placeholder="tu@email.com" />
+
+                <label>DNI</label>
+                <input class="input" id="regDni" placeholder="Solo números" inputmode="numeric" />
+
+                <label>Contraseña</label>
+                <input class="input" id="regPassword" type="password" placeholder="mínimo 8 caracteres" />
+              </div>
+
+              <div id="compFields" style="display:none">
+                <label>Nombre y apellido (persona de contacto)</label>
+                <input class="input" id="regContactName" placeholder="Ej: Juan Pérez" />
+
+                <label>Empresa</label>
+                <input class="input" id="regCompanyName" placeholder="Ej: Tecno Logisti-K S.A." />
+
+                <label>CUIT</label>
+                <input class="input" id="regCuit" placeholder="Ej: 30-12345678-9" />
+
+                <label>Email de contacto</label>
+                <input class="input" id="regCompanyEmail" placeholder="contacto@empresa.com" />
+
+                <label>Contraseña</label>
+                <input class="input" id="regCompanyPassword" type="password" placeholder="mínimo 8 caracteres" />
+              </div>
+
+              <div class="authActions">
+                <button class="btn btn-cta" id="btnRegister">Registrar</button>
+                <button class="btn btn-ghost" id="btnBackToLogin" type="button">Volver a ingresar</button>
+              </div>
+            </div>
+
+            <div class="muted" style="margin-top:12px" id="msg"></div>
+
+            <details class="details">
+              <summary>Avanzado: URL de la API</summary>
+              <div class="small muted">Solo si estás probando otro backend (por defecto queda el oficial).</div>
+              <input class="input" id="apiUrl" style="margin-top:8px" />
+            </details>
+          </div>
         </div>
-        <div>
-          <label>Empresa (solo Empresa)</label>
-          <input class="input" id="companyName" placeholder="Ej: MiPyme S.A." />
+
+        <div class="authRight">
+          <div class="authHint">
+            <h3>Reglas claras (para que sea simple)</h3>
+            <p>Talento PyME trabaja con dos perfiles y dos flujos distintos:</p>
+            <ul>
+              <li><b>Candidato</b>: se registra con <b>DNI</b> y luego busca empleos.</li>
+              <li><b>Empresa</b>: se registra con <b>CUIT</b> y luego busca talento.</li>
+            </ul>
+          </div>
+
+          <div class="authHint" style="margin-top:12px">
+            <h3>Modo gratuito</h3>
+            <p>Sin tiendas, sin costos. Se instala como app (PWA) desde el navegador.</p>
+          </div>
+
+          <div class="authHint" style="margin-top:12px">
+            <h3>Privacidad</h3>
+            <p>Tu CV se procesa para extraer información y completar campos editables. No guardamos el archivo en el servidor.</p>
+          </div>
         </div>
       </div>
-
-      <label>Email</label>
-      <input class="input" id="email" placeholder="tu@email.com" />
-
-      <label>Contraseña</label>
-      <input class="input" id="password" type="password" placeholder="mínimo 8 caracteres" />
-
-      <div class="row">
-        <button class="btn btn-cta" id="btnRegister">Registrar</button>
-        <button class="btn btn-primary" id="btnLogin">Ingresar</button>
-      </div>
-      <div class="row" style="margin-top:10px">
-        <a class="muted" href="/forgot.html" style="text-decoration:underline">Olvidé mi contraseña</a>
-      </div>
-
-      <div class="muted" style="margin-top:12px" id="msg"></div>
     </div>
   </div>
 
@@ -75,23 +149,42 @@
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(()=>{}));
     }
-    const $ = (id) => document.getElementById(id);
-    const msg = (t) => ($("msg").textContent = t);
-    const role = () => (document.querySelector('input[name="role"]:checked')?.value || "CANDIDATE");
 
-    const isAdminRole = (r) => (r === "ADMIN_CANDIDATE" || r === "ADMIN_COMPANY" || r === "SUPERADMIN" || r === "ADMIN");
-    const updateAdminUI = () => {
-      const r = role();
-      const show = isAdminRole(r);
-      const w = $("adminCodeWrap");
-      if(w) w.style.display = show ? "block" : "none";
-    };
-    document.querySelectorAll('input[name="role"]').forEach(el => el.addEventListener("change", updateAdminUI));
+    const $ = (id) => document.getElementById(id);
+    const msg = (t) => ($("msg").textContent = t || "");
+
+    let selectedRole = "CANDIDATE"; // CANDIDATE | COMPANY
+    let mode = "LOGIN"; // LOGIN | REGISTER
+
+    function setRole(r){
+      selectedRole = r;
+      $("roleCand").classList.toggle("active", r === "CANDIDATE");
+      $("roleComp").classList.toggle("active", r === "COMPANY");
+      $("candFields").style.display = (r === "CANDIDATE") ? "block" : "none";
+      $("compFields").style.display = (r === "COMPANY") ? "block" : "none";
+      msg("");
+    }
+
+    function setMode(m){
+      mode = m;
+      $("tabLogin").classList.toggle("active", m === "LOGIN");
+      $("tabRegister").classList.toggle("active", m === "REGISTER");
+      $("loginForm").style.display = (m === "LOGIN") ? "block" : "none";
+      $("registerForm").style.display = (m === "REGISTER") ? "block" : "none";
+      msg("");
+    }
+
+    $("roleCand").onclick = () => setRole("CANDIDATE");
+    $("roleComp").onclick = () => setRole("COMPANY");
+    $("tabLogin").onclick = () => setMode("LOGIN");
+    $("tabRegister").onclick = () => setMode("REGISTER");
+    $("btnBackToLogin").onclick = () => setMode("LOGIN");
 
     $("apiUrl").value = window.TP_API_URL;
-    $("apiUrl").addEventListener("change", ()=> window.TP_API_URL = $("apiUrl").value.trim() || window.TP_API_URL);
-
-    updateAdminUI();
+    $("apiUrl").addEventListener("change", () => {
+      const v = $("apiUrl").value.trim();
+      if(v) window.TP_API_URL = v;
+    });
 
     async function post(path, body){
       const r = await fetch(`${window.TP_API_URL}${path}`,{
@@ -104,35 +197,61 @@
       return data;
     }
 
+    function disable(el, v){ el.disabled = !!v; el.style.opacity = v ? .7 : 1; }
+
     $("btnRegister").onclick = async () => {
       msg("Registrando...");
+      disable($("btnRegister"), true);
       try{
-        const r = role();
-        const email = $("email").value.trim();
-        const password = $("password").value;
-
-        const payload = { email, password, role: r };
-        if(r === "CANDIDATE") payload.fullName = $("fullName").value.trim() || undefined;
-        if(r === "COMPANY") payload.companyName = $("companyName").value.trim();
-        if(isAdminRole(r)) payload.adminCode = $("adminCode")?.value.trim() || "";
-
-        await post("/auth/register", payload);
-        msg("Registro OK. Ahora ingresá.");
+        if(selectedRole === "CANDIDATE"){
+          const fullName = $("regFullName").value.trim();
+          const email = $("regEmail").value.trim();
+          const dni = $("regDni").value.trim();
+          const password = $("regPassword").value;
+          if(!fullName) throw new Error("Falta Nombre y apellido");
+          if(!email) throw new Error("Falta Email");
+          if(!dni) throw new Error("Falta DNI");
+          if((password||"").length < 8) throw new Error("La contraseña debe tener mínimo 8 caracteres");
+          await post("/auth/register", { role: "CANDIDATE", fullName, email, dni, password });
+        } else {
+          const fullName = $("regContactName").value.trim();
+          const companyName = $("regCompanyName").value.trim();
+          const cuit = $("regCuit").value.trim();
+          const email = $("regCompanyEmail").value.trim();
+          const password = $("regCompanyPassword").value;
+          if(!fullName) throw new Error("Falta Nombre y apellido (contacto)");
+          if(!companyName) throw new Error("Falta Empresa");
+          if(!cuit) throw new Error("Falta CUIT");
+          if(!email) throw new Error("Falta Email de contacto");
+          if((password||"").length < 8) throw new Error("La contraseña debe tener mínimo 8 caracteres");
+          await post("/auth/register", { role: "COMPANY", fullName, companyName, cuit, email, password });
+        }
+        msg("Registro OK. Ahora podés ingresar.");
+        setMode("LOGIN");
       }catch(e){ msg(e.message); }
+      finally{ disable($("btnRegister"), false); }
     };
 
     $("btnLogin").onclick = async () => {
       msg("Ingresando...");
+      disable($("btnLogin"), true);
       try{
-        const email = $("email").value.trim();
-        const password = $("password").value;
-        const data = await post("/auth/login",{ email, password });
+        const fullName = $("loginName").value.trim();
+        const password = $("loginPassword").value;
+        if(!fullName) throw new Error("Ingresá tu Nombre y apellido");
+        if((password||"").length < 8) throw new Error("Ingresá tu contraseña (mínimo 8 caracteres)");
+        const data = await post("/auth/login", { fullName, password });
         localStorage.setItem("tp_token", data.token);
         localStorage.setItem("tp_role", data.role);
-        msg(`OK login. Rol: ${roleES(data.role)}. Entrando al Panel...`);
+        msg(`OK. Entrando al Panel (${roleES(data.role)})...`);
         window.location.href = "/dashboard.html";
       }catch(e){ msg(e.message); }
+      finally{ disable($("btnLogin"), false); }
     };
+
+    // init
+    setRole("CANDIDATE");
+    setMode("LOGIN");
   </script>
 </body>
 </html>

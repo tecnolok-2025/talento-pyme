@@ -82,3 +82,157 @@ pre{white-space:pre-wrap}
 .progressWrap{ margin-top:12px; }
 .progressBar{ height:10px; border-radius:999px; background: rgba(0,0,0,.08); overflow:hidden; }
 .progressBar > div{ height:100%; width:0%; background: rgba(245,158,11,0.9); transition: width .2s ease; }
+
+/* ==============================
+   Auth / Acceso (v3.2+)
+   ============================== */
+.authBody{
+  min-height:100vh;
+  background:
+    radial-gradient(1200px 600px at 10% 0%, rgba(23,105,224,.22), transparent 55%),
+    radial-gradient(1000px 520px at 100% 10%, rgba(242,140,40,.16), transparent 55%),
+    radial-gradient(900px 520px at 30% 100%, rgba(46,173,74,.10), transparent 55%),
+    linear-gradient(180deg, #0B1220 0%, #0B1220 40%, #F5F7FB 40%, #F5F7FB 100%);
+}
+.authTop{
+  padding:20px 16px 10px 16px;
+  max-width:980px;
+  margin:0 auto;
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.authBrand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.authBrand img{ height:42px; width:auto; }
+.authTitle{
+  font-weight:950;
+  letter-spacing:.2px;
+  font-size:20px;
+  line-height:1.1;
+}
+.authSubtitle{ opacity:.78; font-size:12px; margin-top:4px; }
+.authBadge{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-radius:999px;
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.14);
+  color:#fff;
+  font-weight:800;
+  font-size:12px;
+}
+
+.authWrap{ max-width:980px; margin:0 auto; padding:12px 16px 24px 16px; }
+.authCard{
+  background:#fff;
+  border-radius:22px;
+  box-shadow:0 18px 60px rgba(0,0,0,.25);
+  overflow:hidden;
+}
+.authGrid{
+  display:grid;
+  grid-template-columns: 1.05fr .95fr;
+}
+@media(max-width:920px){ .authGrid{ grid-template-columns:1fr; } }
+
+.authLeft{
+  padding:18px 18px 16px 18px;
+  border-right:1px solid rgba(0,0,0,.06);
+}
+@media(max-width:920px){ .authLeft{ border-right:0; border-bottom:1px solid rgba(0,0,0,.06); } }
+
+.rolePicker{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:12px;
+  margin-top:12px;
+}
+.roleBtn{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  padding:14px 14px;
+  border-radius:16px;
+  border:1px solid rgba(0,0,0,.10);
+  background:#fff;
+  cursor:pointer;
+  transition: transform .08s ease, border-color .12s ease, box-shadow .12s ease;
+}
+.roleBtn:hover{ transform: translateY(-1px); box-shadow:0 10px 22px rgba(0,0,0,.10); }
+.roleBtn.active{ border-color: rgba(23,105,224,.55); box-shadow:0 12px 26px rgba(23,105,224,.18); }
+.roleIcon{
+  width:38px;height:38px;border-radius:14px;
+  display:flex;align-items:center;justify-content:center;
+  background: rgba(23,105,224,.10);
+  color: var(--tp-blue-900);
+  font-weight:900;
+}
+.roleMeta{ min-width:0; }
+.roleName{ font-weight:900; }
+.roleDesc{ font-size:12px; color: var(--tp-muted); margin-top:2px; }
+
+.modeTabs{
+  display:flex;
+  gap:10px;
+  margin-top:16px;
+}
+.modeTab{
+  flex:1;
+  text-align:center;
+  padding:10px 12px;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,.10);
+  background: rgba(0,0,0,.03);
+  cursor:pointer;
+  font-weight:900;
+}
+.modeTab.active{
+  background: rgba(23,105,224,.10);
+  border-color: rgba(23,105,224,.40);
+  color: var(--tp-blue-900);
+}
+
+.authForm{ margin-top:10px; }
+.authForm .input{ border-radius:14px; }
+
+.authActions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+.authActions .btn{ padding:12px 16px; border-radius:14px; }
+
+.authRight{
+  padding:18px;
+  background: linear-gradient(180deg, rgba(23,105,224,.06), rgba(242,140,40,.05));
+}
+.authHint{
+  background:#fff;
+  border:1px solid rgba(0,0,0,.08);
+  border-radius:16px;
+  padding:14px;
+}
+.authHint h3{ margin:0 0 6px 0; font-size:14px; }
+.authHint p{ margin:0; color:var(--tp-muted); font-size:13px; line-height:1.35; }
+.authHint ul{ margin:10px 0 0 18px; color:var(--tp-muted); font-size:13px; }
+
+.authFoot{
+  margin-top:14px;
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.authLink{ color: var(--tp-blue-900); font-weight:850; text-decoration:underline; }
+.details{ margin-top:12px; }
+.details summary{ cursor:pointer; color:var(--tp-muted); font-weight:800; }
+.details .small{ margin-top:8px; }
+
+.bigTitle{ font-size:22px; font-weight:950; margin:0; }
+.bigLead{ color:var(--tp-muted); margin-top:6px; }

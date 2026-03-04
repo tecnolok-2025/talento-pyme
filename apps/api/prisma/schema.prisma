@@ -40,6 +40,7 @@ model Profile {
   id          String   @id @default(cuid())
   userId      String   @unique
   fullName    String?
+  dni         String?  @unique
   city        String?
   province    String?
   phone       String?
@@ -83,7 +84,7 @@ model CompanyProfile {
   id          String   @id @default(cuid())
   userId      String   @unique
   companyName String
-  cuit        String?
+  cuit        String?  @unique
   address     String?
   contactEmail String?
   contactName String?

@@ -3,36 +3,86 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Talento PyME · Recuperar contraseña</title>
+  <title>Recuperar contraseña · Talento PyME</title>
+  <meta name="theme-color" content="#0B1220" />
   <link rel="icon" href="/icon-192.png" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
-<body>
-  <div class="header">
-    <a href="/"><img src="/assets/logo-tp.svg" alt="Talento PyME" /></a>
-    <div class="nav">
-      <a href="/"><span class="tp-version"></span></a>
+<body class="authBody">
+  <div class="authTop">
+    <div class="authBrand">
+      <img src="/assets/logo-talento-pyme-small.png" alt="Talento PyME" />
+      <div>
+        <div class="authTitle">Talento PyME</div>
+        <div class="authSubtitle">Recuperación por DNI (candidato) o CUIT (empresa)</div>
+      </div>
     </div>
+    <div class="authBadge"><span class="tp-version"></span> · Recuperar</div>
   </div>
 
-  <div class="container">
-    <div class="card">
-      <h2>Olvidé mi contraseña</h2>
-      <div class="muted">Plan gratuito: el sistema genera un link de reseteo para compartir (WhatsApp / mail interno).</div>
-      <div class="hr"></div>
+  <div class="authWrap">
+    <div class="authCard">
+      <div class="authGrid">
+        <div class="authLeft">
+          <h2 class="bigTitle">Olvidé mi contraseña</h2>
+          <div class="bigLead">Por ahora, en modo gratuito, la recuperación se valida con tu <b>DNI</b> o <b>CUIT</b>.</div>
 
-      <label>Email</label>
-      <input class="input" id="email" type="email" placeholder="tu@email.com" />
+          <div class="rolePicker" style="margin-top:14px">
+            <div class="roleBtn active" id="roleCand">
+              <div class="roleIcon">C</div>
+              <div class="roleMeta">
+                <div class="roleName">Candidato</div>
+                <div class="roleDesc">Usá tu DNI.</div>
+              </div>
+            </div>
+            <div class="roleBtn" id="roleComp">
+              <div class="roleIcon">E</div>
+              <div class="roleMeta">
+                <div class="roleName">Empresa</div>
+                <div class="roleDesc">Usá el CUIT de la empresa.</div>
+              </div>
+            </div>
+          </div>
 
-      <button class="btn" id="btn">Generar link</button>
-      <div id="msg" class="muted" style="margin-top:10px"></div>
+          <div class="authForm">
+            <div id="candFields">
+              <label>DNI</label>
+              <input class="input" id="dni" placeholder="Solo números" inputmode="numeric" />
+            </div>
+            <div id="compFields" style="display:none">
+              <label>CUIT</label>
+              <input class="input" id="cuit" placeholder="Ej: 30-12345678-9" />
+            </div>
 
-      <div id="out" style="display:none; margin-top:12px">
-        <label>Link de reseteo</label>
-        <textarea class="input" id="resetUrl" rows="3" readonly></textarea>
-        <div class="row" style="margin-top:8px">
-          <button class="btn secondary" id="btnCopy">Copiar</button>
-          <a class="btn secondary" href="/" style="text-decoration:none">Volver</a>
+            <label>Nueva contraseña</label>
+            <input class="input" id="newPass" type="password" placeholder="mínimo 8 caracteres" />
+
+            <label>Repetir contraseña</label>
+            <input class="input" id="newPass2" type="password" placeholder="repetí la nueva contraseña" />
+
+            <div class="authActions">
+              <button class="btn btn-cta" id="btnReset">Actualizar contraseña</button>
+              <a class="btn btn-ghost" href="/" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center">Volver</a>
+            </div>
+
+            <div class="muted" style="margin-top:12px" id="msg"></div>
+
+            <details class="details">
+              <summary>Avanzado: URL de la API</summary>
+              <input class="input" id="apiUrl" style="margin-top:8px" />
+            </details>
+          </div>
+        </div>
+
+        <div class="authRight">
+          <div class="authHint">
+            <h3>Nota</h3>
+            <p>Si el DNI/CUIT no coincide con un usuario registrado, no podremos resetear la contraseña.</p>
+          </div>
+          <div class="authHint" style="margin-top:12px">
+            <h3>Recomendación</h3>
+            <p>Usá una contraseña de al menos 8 caracteres. Ideal: una frase + números.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -41,29 +91,67 @@
   <script src="/config.js"></script>
   <script src="/auth.js"></script>
   <script>
-    const $ = (id)=>document.getElementById(id);
-    $("btn").onclick = async ()=>{
-      $("msg").textContent = "Procesando...";
-      $("out").style.display = "none";
+    const $ = (id) => document.getElementById(id);
+    const msg = (t) => ($("msg").textContent = t || "");
+
+    let selectedRole = "CANDIDATE";
+    function setRole(r){
+      selectedRole = r;
+      $("roleCand").classList.toggle("active", r === "CANDIDATE");
+      $("roleComp").classList.toggle("active", r === "COMPANY");
+      $("candFields").style.display = (r === "CANDIDATE") ? "block" : "none";
+      $("compFields").style.display = (r === "COMPANY") ? "block" : "none";
+      msg("");
+    }
+    $("roleCand").onclick = () => setRole("CANDIDATE");
+    $("roleComp").onclick = () => setRole("COMPANY");
+
+    $("apiUrl").value = window.TP_API_URL;
+    $("apiUrl").addEventListener("change", () => {
+      const v = $("apiUrl").value.trim();
+      if(v) window.TP_API_URL = v;
+    });
+
+    async function post(path, body){
+      const r = await fetch(`${window.TP_API_URL}${path}`,{
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await r.json().catch(()=> ({}));
+      if(!r.ok) throw new Error(data?.error || "Error");
+      return data;
+    }
+
+    function disable(el, v){ el.disabled = !!v; el.style.opacity = v ? .7 : 1; }
+
+    $("btnReset").onclick = async () => {
+      msg("Actualizando...");
+      disable($("btnReset"), true);
       try{
-        const email = $("email").value.trim();
-        if(!email) throw new Error("Ingresá tu email");
-        const data = await apiFetch("/auth/forgot", { method:"POST", body: JSON.stringify({ email }) });
-        $("resetUrl").value = data.resetUrl;
-        $("out").style.display = "block";
-        $("msg").textContent = "Listo. Compartí el link y abrilo para definir la nueva clave.";
-      }catch(e){
-        $("msg").textContent = "Error: " + (e.message || e);
-      }
+        const p1 = $("newPass").value;
+        const p2 = $("newPass2").value;
+        if((p1||"").length < 8) throw new Error("La contraseña debe tener mínimo 8 caracteres");
+        if(p1 !== p2) throw new Error("Las contraseñas no coinciden");
+
+        const payload = { role: selectedRole, newPassword: p1 };
+        if(selectedRole === "CANDIDATE"){
+          const dni = $("dni").value.trim();
+          if(!dni) throw new Error("Ingresá tu DNI");
+          payload.dni = dni;
+        } else {
+          const cuit = $("cuit").value.trim();
+          if(!cuit) throw new Error("Ingresá el CUIT");
+          payload.cuit = cuit;
+        }
+
+        await post("/auth/reset-by-id", payload);
+        msg("Listo ✅ Contraseña actualizada. Ya podés ingresar.");
+      }catch(e){ msg(e.message); }
+      finally{ disable($("btnReset"), false); }
     };
-    $("btnCopy").onclick = async ()=>{
-      try{
-        await navigator.clipboard.writeText($("resetUrl").value);
-        $("msg").textContent = "Copiado al portapapeles.";
-      }catch(e){
-        $("msg").textContent = "No pude copiar automáticamente. Seleccioná el texto y copialo manualmente.";
-      }
-    };
+
+    setRole("CANDIDATE");
   </script>
 </body>
 </html>
