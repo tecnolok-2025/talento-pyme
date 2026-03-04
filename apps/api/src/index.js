@@ -185,6 +185,8 @@ const profileSchema = z.object({
   province: z.string().max(80).optional().nullable(),
   phone: z.string().max(40).optional().nullable(),
   headline: z.string().max(160).optional().nullable(),
+  sector: z.string().max(60).optional().nullable(),
+  subSector: z.string().max(120).optional().nullable(),
   skills: z.array(z.object({ name: z.string().max(60), level: z.number().int().min(1).max(5).optional().nullable() })).optional()
 });
 
@@ -329,6 +331,9 @@ app.put("/resume/me", auth, async (req, res) => {
 // Company profile
 const companySchema = z.object({
   companyName: z.string().min(2).max(140),
+  cuit: z.string().max(20).optional().nullable(),
+  address: z.string().max(200).optional().nullable(),
+  contactEmail: z.string().email().max(160).optional().nullable(),
   contactName: z.string().max(120).optional().nullable(),
   city: z.string().max(80).optional().nullable(),
   province: z.string().max(80).optional().nullable(),
@@ -440,21 +445,56 @@ app.post("/jobs/:id/apply", auth, requireRole("CANDIDATE"), async (req, res) => 
 // Search talent (for companies, free for now)
 app.get("/search", async (req, res) => {
   const q = String(req.query.q || "").trim();
-  if (!q) return res.json({ results: [] });
+  const skill = String(req.query.skill || "").trim();
+  const headline = String(req.query.headline || "").trim();
+  const city = String(req.query.city || "").trim();
+  const province = String(req.query.province || "").trim();
+  const sector = String(req.query.sector || "").trim();
+  const subSector = String(req.query.subSector || "").trim();
 
-  const results = await prisma.profile.findMany({
-    where: {
+  const AND = [];
+  if (city) AND.push({ city: { contains: city, mode: "insensitive" } });
+  if (province) AND.push({ province: { contains: province, mode: "insensitive" } });
+  if (headline) AND.push({ headline: { contains: headline, mode: "insensitive" } });
+  if (sector) AND.push({ sector: { equals: sector } });
+  if (subSector) AND.push({ subSector: { contains: subSector, mode: "insensitive" } });
+  if (skill) AND.push({ skills: { some: { name: { contains: skill, mode: "insensitive" } } } });
+  if (q) {
+    AND.push({
       OR: [
         { fullName: { contains: q, mode: "insensitive" } },
         { headline: { contains: q, mode: "insensitive" } },
         { city: { contains: q, mode: "insensitive" } },
         { province: { contains: q, mode: "insensitive" } },
+        { sector: { contains: q, mode: "insensitive" } },
+        { subSector: { contains: q, mode: "insensitive" } },
         { skills: { some: { name: { contains: q, mode: "insensitive" } } } },
-        { user: { resume: { is: { OR: [{ summary: { contains: q, mode: "insensitive" } }, { experience: { contains: q, mode: "insensitive" } }, { observations: { contains: q, mode: "insensitive" } }] } } } }
+        {
+          user: {
+            resume: {
+              is: {
+                OR: [
+                  { summary: { contains: q, mode: "insensitive" } },
+                  { experience: { contains: q, mode: "insensitive" } },
+                  { observations: { contains: q, mode: "insensitive" } }
+                ]
+              }
+            }
+          }
+        }
       ]
+    });
+  }
+
+  if (AND.length === 0) return res.json({ results: [] });
+
+  const results = await prisma.profile.findMany({
+    where: { AND },
+    include: {
+      skills: true,
+      user: { select: { email: true, role: true, resume: true } }
     },
-    include: { skills: true, user: { select: { email: true, role: true } } },
-    take: 25
+    take: 50
   });
 
   res.json({ results });

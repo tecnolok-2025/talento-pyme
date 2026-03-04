@@ -11,45 +11,62 @@
   <div class="header">
     <img src="/assets/logo-tp.svg" alt="Talento PyME" />
     <div class="nav">
-  <a href="/dashboard.html">Panel</a>
-  <a href="/perfil.html" data-role="CANDIDATE">Mi Perfil</a>
-  <a href="/cv.html" data-role="CANDIDATE">Mi CV</a>
-  <a href="/empleos.html">Empleos</a>
-  <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
-  <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
-  <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
-  <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
-  <a href="#" id="btnLogout">Salir</a>
-</div>
+      <a href="/dashboard.html">Panel</a>
+      <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
+      <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
+      <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
+      <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
+      <a href="/empleos.html">Empleos</a>
+      <a href="#" id="btnLogout">Salir</a>
+    </div>
   </div>
 
   <div class="wrap">
     <div class="card">
       <h2>Mi Empresa</h2>
-      <div class="muted">Completar datos para publicar búsquedas.</div>
+      <div class="muted"><span class="tp-version"></span>: estos datos se completan al registrarte como empresa y se usan para publicar búsquedas.</div>
 
-      <label>Empresa</label>
-      <input class="input" id="companyName" />
+      <label>Nombre de la empresa</label>
+      <input class="input" id="companyName" placeholder="Ej: Tecno Logisti-K S.A." />
 
-      <label>Contacto</label>
-      <input class="input" id="contactName" />
-
-      <div class="grid2">
-        <div>
-          <label>Ciudad</label>
-          <input class="input" id="city" />
+      <div class="row">
+        <div style="flex:1; min-width:220px">
+          <label>CUIT</label>
+          <input class="input" id="cuit" placeholder="Ej: 30-XXXXXXXX-X" />
         </div>
-        <div>
-          <label>Provincia</label>
-          <input class="input" id="province" />
+        <div style="flex:1; min-width:220px">
+          <label>Sitio web</label>
+          <input class="input" id="website" placeholder="https://..." />
         </div>
       </div>
 
-      <label>Teléfono</label>
-      <input class="input" id="phone" />
+      <label>Dirección</label>
+      <input class="input" id="address" placeholder="Calle y número" />
 
-      <label>Sitio web</label>
-      <input class="input" id="website" placeholder="https://..." />
+      <div class="row">
+        <div style="flex:1; min-width:220px">
+          <label>Ciudad</label>
+          <input class="input" id="city" placeholder="Ej: Campana" />
+        </div>
+        <div style="flex:1; min-width:220px">
+          <label>Provincia</label>
+          <input class="input" id="province" placeholder="Ej: Buenos Aires" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div style="flex:1; min-width:220px">
+          <label>Mail de contacto</label>
+          <input class="input" id="contactEmail" placeholder="rrhh@empresa.com" />
+        </div>
+        <div style="flex:1; min-width:220px">
+          <label>Persona de contacto</label>
+          <input class="input" id="contactName" placeholder="Ej: Juan Pérez" />
+        </div>
+      </div>
+
+      <label>Teléfono de contacto</label>
+      <input class="input" id="phone" placeholder="Ej: +54 9 ..." />
 
       <div class="row">
         <button class="btn btn-primary" id="btnSave">Guardar</button>
@@ -62,47 +79,55 @@
   <script src="/auth.js"></script>
   <script>
     requireAuth();
-    const role = tpRole();
-    if(role !== "COMPANY") window.location.href = "/dashboard.html";
     document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
-    document.querySelectorAll('[data-role]').forEach(a=>{ const r=a.getAttribute('data-role'); if(r && r!==role) a.style.display='none'; });
 
-    const msg = document.getElementById("msg");
-    const companyName = document.getElementById("companyName");
-    const contactName = document.getElementById("contactName");
-    const city = document.getElementById("city");
-    const province = document.getElementById("province");
-    const phone = document.getElementById("phone");
-    const website = document.getElementById("website");
-    const btnSave = document.getElementById("btnSave");
+    applyRoleVisibility();
+    requireRole('COMPANY');
+
+    const msg = document.getElementById('msg');
+    const companyName = document.getElementById('companyName');
+    const cuit = document.getElementById('cuit');
+    const address = document.getElementById('address');
+    const website = document.getElementById('website');
+    const city = document.getElementById('city');
+    const province = document.getElementById('province');
+    const contactEmail = document.getElementById('contactEmail');
+    const contactName = document.getElementById('contactName');
+    const phone = document.getElementById('phone');
 
     (async ()=>{
       try{
-        const c = await apiFetch("/company/me");
+        const c = await apiFetch('/company/me');
         if(c){
-          companyName.value = c.companyName || "";
-          contactName.value = c.contactName || "";
-          city.value = c.city || "";
-          province.value = c.province || "";
-          phone.value = c.phone || "";
-          website.value = c.website || "";
+          companyName.value = c.companyName || '';
+          cuit.value = c.cuit || '';
+          address.value = c.address || '';
+          website.value = c.website || '';
+          city.value = c.city || '';
+          province.value = c.province || '';
+          contactEmail.value = c.contactEmail || '';
+          contactName.value = c.contactName || '';
+          phone.value = c.phone || '';
         }
       }catch(e){ msg.textContent = e.message; }
     })();
 
-    btnSave.onclick = async ()=>{
-      msg.textContent = "Guardando...";
+    document.getElementById('btnSave').onclick = async ()=>{
+      msg.textContent = 'Guardando…';
       try{
         const payload = {
           companyName: companyName.value.trim(),
-          contactName: contactName.value.trim() || null,
+          cuit: cuit.value.trim() || null,
+          address: address.value.trim() || null,
+          website: website.value.trim() || null,
           city: city.value.trim() || null,
           province: province.value.trim() || null,
-          phone: phone.value.trim() || null,
-          website: website.value.trim() || null
+          contactEmail: contactEmail.value.trim() || null,
+          contactName: contactName.value.trim() || null,
+          phone: phone.value.trim() || null
         };
-        await apiFetch("/company/me", { method:"PUT", body: JSON.stringify(payload) });
-        msg.textContent = "Guardado OK.";
+        await apiFetch('/company/me', { method:'PUT', body: JSON.stringify(payload) });
+        msg.textContent = 'Guardado OK.';
       }catch(e){ msg.textContent = e.message; }
     };
   </script>

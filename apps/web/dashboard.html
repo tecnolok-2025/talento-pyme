@@ -54,8 +54,7 @@
     requireAuth();
     document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
 
-    const role = tpRole();
-    document.querySelectorAll('[data-role]').forEach(a=>{ const r=a.getAttribute('data-role'); if(r && r!==role) a.style.display='none'; });
+    const role = applyRoleVisibility();
 
     (async ()=>{
       try{

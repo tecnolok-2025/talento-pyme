@@ -77,3 +77,8 @@ pre{white-space:pre-wrap}
   font-weight: 800;
   margin-top: 6px;
 }
+
+/* ---- Talento PyME: progreso de lectura de CV ---- */
+.progressWrap{ margin-top:12px; }
+.progressBar{ height:10px; border-radius:999px; background: rgba(0,0,0,.08); overflow:hidden; }
+.progressBar > div{ height:100%; width:0%; background: rgba(245,158,11,0.9); transition: width .2s ease; }

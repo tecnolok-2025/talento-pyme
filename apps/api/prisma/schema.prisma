@@ -44,6 +44,8 @@ model Profile {
   province    String?
   phone       String?
   headline    String?
+  sector      String?
+  subSector   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -81,6 +83,9 @@ model CompanyProfile {
   id          String   @id @default(cuid())
   userId      String   @unique
   companyName String
+  cuit        String?
+  address     String?
+  contactEmail String?
   contactName String?
   city        String?
   province    String?

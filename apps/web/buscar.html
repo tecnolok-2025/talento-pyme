@@ -3,41 +3,81 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Talento PyME · Buscar</title>
+  <title>Talento PyME · Buscar Talento</title>
   <link rel="icon" href="/icon-192.png" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-    <div class="header">
-    <div class="brand">
-      <img class="brandLogo" src="/icon-192.png" alt="Talento PyME" />
-      <div class="brandTitle">Talento PyME</div>
-    </div>
+  <div class="header">
+    <img src="/assets/logo-tp.svg" alt="Talento PyME" />
     <div class="nav">
       <a href="/dashboard.html">Panel</a>
-      <a href="/perfil.html">Mi Perfil</a>
-      <a href="/cv.html">Mi CV</a>
-      <a href="/buscar.html">Buscar Talento</a>
+      <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
+      <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
+      <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
+      <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
+      <a href="/empleos.html">Empleos</a>
       <a href="#" id="btnLogout">Salir</a>
     </div>
   </div>
 
-</div>
-
   <div class="wrap">
     <div class="card">
       <h2>Buscar Talento</h2>
-      <div class="muted">Buscá por skill, ciudad, título, resumen o experiencia (<span class="tp-version"></span>).</div>
+      <div class="muted"><span class="tp-version"></span>: búsqueda por campos (pensado para escalar a miles de perfiles).</div>
 
-      <label>Buscar</label>
-      <input class="input" id="q" placeholder="Ej: PLC, Campana, supervisor, soldador..." />
+      <div class="hr"></div>
 
-      <div class="row">
+      <div class="row" style="gap:12px">
+        <div style="flex:1; min-width:220px">
+          <label>Skill / Palabra clave</label>
+          <input class="input" id="qSkill" placeholder="Ej: PLC, soldadura TIG, mantenimiento" />
+        </div>
+        <div style="flex:1; min-width:220px">
+          <label>Título (headline)</label>
+          <input class="input" id="qHeadline" placeholder="Ej: supervisor, proyectista eléctrico" />
+        </div>
+      </div>
+
+      <div class="row" style="gap:12px">
+        <div style="flex:1; min-width:220px">
+          <label>Ciudad</label>
+          <input class="input" id="qCity" placeholder="Ej: Campana" />
+        </div>
+        <div style="flex:1; min-width:220px">
+          <label>Provincia</label>
+          <input class="input" id="qProvince" placeholder="Ej: Buenos Aires" />
+        </div>
+      </div>
+
+      <div class="row" style="gap:12px">
+        <div style="flex:1; min-width:220px">
+          <label>Sector</label>
+          <select class="input" id="qSector">
+            <option value="">(cualquiera)</option>
+            <option value="Industria">Industria</option>
+            <option value="Servicios">Servicios</option>
+            <option value="Logística">Logística</option>
+            <option value="Construcción">Construcción</option>
+            <option value="Hotelería">Hotelería</option>
+            <option value="Gastronomía">Gastronomía</option>
+            <option value="Comercio">Comercio</option>
+            <option value="Otros">Otros</option>
+          </select>
+        </div>
+        <div style="flex:1; min-width:220px">
+          <label>Sub-sector / Especialidad</label>
+          <input class="input" id="qSubSector" placeholder="Ej: Housekeeping, Mantenimiento hotelero" />
+        </div>
+      </div>
+
+      <div class="row" style="gap:10px">
         <button class="btn btn-primary" id="btnSearch">Buscar</button>
+        <button class="btn" id="btnReset">Limpiar filtros</button>
         <span class="muted" id="msg"></span>
       </div>
 
-      <div id="results" style="margin-top:14px"></div>
+      <div id="results"></div>
     </div>
   </div>
 
@@ -47,28 +87,66 @@
     requireAuth();
     document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
 
-    function esc(s){ return (s||"").replace(/[&<>"]/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
+    applyRoleVisibility();
+    requireRole('COMPANY');
 
-    btnSearch.onclick = async ()=>{
-      msg.textContent = "Buscando...";
-      results.innerHTML = "";
+    const qSkill = document.getElementById('qSkill');
+    const qHeadline = document.getElementById('qHeadline');
+    const qCity = document.getElementById('qCity');
+    const qProvince = document.getElementById('qProvince');
+    const qSector = document.getElementById('qSector');
+    const qSubSector = document.getElementById('qSubSector');
+    const msg = document.getElementById('msg');
+    const results = document.getElementById('results');
+
+    function esc(s){
+      return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function search(){
+      msg.textContent = 'Buscando…';
+      results.innerHTML = '';
       try{
-        const query = q.value.trim();
-        const data = await fetch(window.TP_API_URL + "/search?q=" + encodeURIComponent(query)).then(r=>r.json());
-        const arr = data.results || [];
-        msg.textContent = arr.length ? `Resultados: ${arr.length}` : "Sin resultados.";
-        results.innerHTML = arr.map(p=>{
-          const skills = (p.skills||[]).map(s=>s.level? `${s.name}(${s.level})`: s.name).join(", ");
-          return `<div class="card" style="margin-top:10px">
-            <div style="font-weight:800">${esc(p.fullName||"(sin nombre)")}</div>
-            <div class="muted">${esc(p.headline||"")}</div>
-            <div class="muted">${esc(p.city||"")}${p.province? ", "+esc(p.province):""}</div>
-            <div class="muted"><b>Skills:</b> ${esc(skills)}</div>
-          </div>`;
-        }).join("");
+        const params = new URLSearchParams();
+        if(qSkill.value.trim()) params.set('skill', qSkill.value.trim());
+        if(qHeadline.value.trim()) params.set('headline', qHeadline.value.trim());
+        if(qCity.value.trim()) params.set('city', qCity.value.trim());
+        if(qProvince.value.trim()) params.set('province', qProvince.value.trim());
+        if(qSector.value) params.set('sector', qSector.value);
+        if(qSubSector.value.trim()) params.set('subSector', qSubSector.value.trim());
+
+        // /search es público en esta etapa (fase 1). Más adelante lo cerramos a empresas.
+        const resp = await apiFetch('/search?' + params.toString());
+        const list = resp?.results || [];
+
+        msg.textContent = list.length ? `${list.length} resultado(s)` : 'Sin resultados';
+
+        if(!list.length) return;
+
+        results.innerHTML = list.map(item => {
+          const p = item || {};
+          const r = item?.user?.resume || {};
+          const skills = (p.skills||[]).slice(0,6).map(s=> s.level ? `${s.name} (${s.level})` : s.name).join(', ');
+          return `
+            <div class="card" style="margin-top:12px">
+              <div style="font-weight:700">${esc(p.fullName || 'Candidato')}</div>
+              <div class="muted">${esc(p.headline || '')}</div>
+              <div class="muted">${esc([p.city, p.province].filter(Boolean).join(', '))}</div>
+              <div class="muted">${esc([p.sector, p.subSector].filter(Boolean).join(' · '))}</div>
+              ${skills ? `<div class="muted"><b>Skills:</b> ${esc(skills)}</div>` : ''}
+              ${r.summary ? `<div class="muted" style="margin-top:6px"><b>Resumen:</b> ${esc(r.summary).slice(0,240)}${r.summary.length>240?'…':''}</div>` : ''}
+            </div>
+          `;
+        }).join('');
       }catch(e){
-        msg.textContent = "Error: " + e.message;
+        msg.textContent = e.message;
       }
+    }
+
+    document.getElementById('btnSearch').onclick = search;
+    document.getElementById('btnReset').onclick = ()=>{
+      qSkill.value=''; qHeadline.value=''; qCity.value=''; qProvince.value=''; qSector.value=''; qSubSector.value='';
+      msg.textContent=''; results.innerHTML='';
     };
   </script>
 </body>

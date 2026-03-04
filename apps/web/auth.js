@@ -31,6 +31,22 @@ function applyVersionBadges(){
 }
 document.addEventListener("DOMContentLoaded", applyVersionBadges);
 
+function applyRoleVisibility(){
+  const role = tpRole();
+  document.querySelectorAll('[data-role]').forEach(el => {
+    const r = el.getAttribute('data-role');
+    if(r && role && r !== role) el.style.display = 'none';
+  });
+  return role;
+}
+
+function requireRole(allowed){
+  const role = tpRole();
+  const ok = Array.isArray(allowed) ? allowed.includes(role) : (role === allowed);
+  if(!ok){ window.location.href = '/dashboard.html'; return false; }
+  return true;
+}
+
 function roleES(role){
   switch(role){
     case "CANDIDATE": return "Candidato";
