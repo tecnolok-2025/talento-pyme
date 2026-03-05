@@ -58,7 +58,7 @@
               <div class="muted small">Tip: si escribís con errores, se acepta coincidencia aproximada (≈70%).</div>
 
               <label>Contraseña</label>
-              <input class="input" id="loginPassword" type="password" placeholder="Tu clave" />
+              <div class="pw"><input class="input" id="loginPassword" type="password" placeholder="Tu clave" /><button type="button" class="pwToggle" data-target="loginPassword" aria-label="Ver contraseña">👁</button></div>
 
               <div class="authActions">
                 <button class="btn btn-primary" id="btnLogin" type="button">Ingresar</button>
@@ -93,7 +93,7 @@
                 <input class="input" id="regPhone" placeholder="Ej: +54 9 ..." />
 
                 <label>Contraseña</label>
-                <input class="input" id="regPassword" type="password" placeholder="mínimo 8 caracteres" />
+                <div class="pw"><input class="input" id="regPassword" type="password" placeholder="mínimo 8 caracteres" /><button type="button" class="pwToggle" data-target="regPassword" aria-label="Ver contraseña">👁</button></div>
               </div>
 
               <div id="compFields" style="display:none">
@@ -120,7 +120,7 @@
                 <input class="input" id="regCompanyPhone" placeholder="Ej: +54 9 ..." />
 
                 <label>Contraseña</label>
-                <input class="input" id="regCompanyPassword" type="password" placeholder="mínimo 8 caracteres" />
+                <div class="pw"><input class="input" id="regCompanyPassword" type="password" placeholder="mínimo 8 caracteres" /><button type="button" class="pwToggle" data-target="regCompanyPassword" aria-label="Ver contraseña">👁</button></div>
               </div>
 
               <div class="authActions">

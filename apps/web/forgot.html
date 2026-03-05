@@ -55,10 +55,10 @@
             </div>
 
             <label>Nueva contraseña</label>
-            <input class="input" id="newPass" type="password" placeholder="mínimo 8 caracteres" />
+            <div class="pw"><input class="input" id="newPass" type="password" placeholder="mínimo 8 caracteres" /><button type="button" class="pwToggle" data-target="newPass" aria-label="Ver contraseña">👁</button></div>
 
             <label>Repetir contraseña</label>
-            <input class="input" id="newPass2" type="password" placeholder="repetí la nueva contraseña" />
+            <div class="pw"><input class="input" id="newPass2" type="password" placeholder="repetí la nueva contraseña" /><button type="button" class="pwToggle" data-target="newPass2" aria-label="Ver contraseña">👁</button></div>
 
             <div class="authActions">
               <button class="btn btn-cta" id="btnReset">Actualizar contraseña</button>
@@ -66,12 +66,7 @@
             </div>
 
             <div class="muted" style="margin-top:12px" id="msg"></div>
-
-            <details class="details">
-              <summary>Avanzado: URL de la API</summary>
-              <input class="input" id="apiUrl" style="margin-top:8px" />
-            </details>
-          </div>
+</div>
         </div>
 
         <div class="authRight">

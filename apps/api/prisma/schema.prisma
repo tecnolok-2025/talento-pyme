@@ -40,6 +40,7 @@ model Profile {
   id          String   @id @default(cuid())
   userId      String   @unique
   fullName    String?
+  fullNameNorm String?
   dni         String?  @unique
   city        String?
   province    String?
@@ -53,6 +54,8 @@ model Profile {
 
   user        User     @relation(fields: [userId], references: [id])
   skills      Skill[]
+
+  @@index([fullNameNorm])
 }
 
 model Skill {
@@ -85,10 +88,12 @@ model CompanyProfile {
   id          String   @id @default(cuid())
   userId      String   @unique
   companyName String
+  companyNameNorm String?
   cuit        String?  @unique
   address     String?
   contactEmail String?
   contactName String?
+  contactNameNorm String?
   city        String?
   province    String?
   phone       String?
@@ -98,6 +103,9 @@ model CompanyProfile {
 
   user        User     @relation(fields: [userId], references: [id])
   jobs        Job[]
+
+  @@index([companyNameNorm])
+  @@index([contactNameNorm])
 }
 
 model JobCategory {

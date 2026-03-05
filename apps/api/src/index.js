@@ -14,13 +14,17 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
-const APP_VERSION = "3.2.1";
+const APP_VERSION = "3.2.5";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
 // -----------------------------
 // Helpers
 // -----------------------------
+function normalizeId(str = ""){
+  return String(str||"").replace(/\D/g, "").trim();
+}
+
 function normalizeName(str = ""){
   return String(str)
     .normalize("NFD")
@@ -121,8 +125,13 @@ app.post("/auth/register", async (req, res) => {
 
   const { role, fullName, email, password } = parsed.data;
 
+  const emailNorm = String(email||"").trim().toLowerCase();
+
   if(role === "CANDIDATE"){
-    const dni = (parsed.data.dni || "").trim();
+    const dniRaw = (parsed.data.dni || "").trim();
+    const dni = normalizeId(dniRaw);
+    const fullNameNorm = normalizeName(fullName);
+
     if(!dni) return res.status(400).json({ error: "Falta DNI" });
 
     const address = (parsed.data.address || "").trim();
@@ -141,10 +150,10 @@ app.post("/auth/register", async (req, res) => {
     try{
       const user = await prisma.user.create({
         data: {
-          email,
+          email: emailNorm,
           passHash,
           role,
-          profile: { create: { fullName, dni, address, city, phone } },
+          profile: { create: { fullName, fullNameNorm, dni, address, city, phone } },
           resume: { create: {} }
         }
       });
@@ -156,7 +165,11 @@ app.post("/auth/register", async (req, res) => {
 
   // COMPANY
   const companyName = (parsed.data.companyName || "").trim();
-  const cuit = (parsed.data.cuit || "").trim();
+  const companyNameNorm = normalizeName(companyName);
+  const contactNameNorm = normalizeName(fullName);
+
+  const cuitRaw = (parsed.data.cuit || "").trim();
+  const cuit = normalizeId(cuitRaw);
   if(!companyName) return res.status(400).json({ error: "Falta Empresa" });
   if(!cuit) return res.status(400).json({ error: "Falta CUIT" });
 
@@ -175,7 +188,7 @@ app.post("/auth/register", async (req, res) => {
   try{
     const user = await prisma.user.create({
       data: {
-        email,
+        email: emailNorm,
         passHash,
         role,
         companyProfile: {
@@ -183,7 +196,7 @@ app.post("/auth/register", async (req, res) => {
             companyName,
             cuit,
             contactName: fullName,
-            contactEmail: email,
+            contactEmail: emailNorm,
             address,
             city,
             phone
@@ -202,7 +215,19 @@ app.post("/auth/login", async (req, res) => {
   if(!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const { fullName, password, roleHint } = parsed.data;
-  const identifier = fullName;
+
+  const identifier = fullName.trim();
+
+  // Soporte: si el usuario pega su email, permitimos login directo por email (más robusto).
+  if(identifier.includes("@")){
+    const emailTry = identifier.toLowerCase();
+    const u = await prisma.user.findFirst({ where: { email: { equals: emailTry, mode: "insensitive" } } });
+    if(!u) return res.status(401).json({ error: "No encontramos ese email. Verificá cómo te registraste." });
+    const ok = await bcrypt.compare(password, u.passHash);
+    if(!ok) return res.status(401).json({ error: "Clave incorrecta" });
+    return res.json({ token: signToken(u), role: u.role });
+  }
+
   const nameNorm = normalizeName(identifier);
   const firstToken = nameNorm.split(" ")[0] || nameNorm;
 
@@ -210,7 +235,10 @@ app.post("/auth/login", async (req, res) => {
   const candPromise = (roleHint === "COMPANY")
     ? Promise.resolve([])
     : prisma.profile.findMany({
-        where: { fullName: { contains: firstToken, mode: "insensitive" } },
+        where: { OR: [
+          { fullNameNorm: { contains: firstToken, mode: "insensitive" } },
+          { fullName: { contains: identifier, mode: "insensitive" } }
+        ] },
         include: { user: true },
         take: 50
       });
@@ -220,8 +248,10 @@ app.post("/auth/login", async (req, res) => {
     : prisma.companyProfile.findMany({
         where: {
           OR: [
-            { contactName: { contains: firstToken, mode: "insensitive" } },
-            { companyName: { contains: firstToken, mode: "insensitive" } }
+            { contactNameNorm: { contains: firstToken, mode: "insensitive" } },
+            { companyNameNorm: { contains: firstToken, mode: "insensitive" } },
+            { contactName: { contains: identifier, mode: "insensitive" } },
+            { companyName: { contains: identifier, mode: "insensitive" } }
           ]
         },
         include: { user: true },
@@ -254,13 +284,15 @@ app.post("/auth/login", async (req, res) => {
   if(candidates.length === 0 && nameNorm.length >= 4){
     const cand2Promise = (roleHint === "COMPANY")
       ? Promise.resolve([])
-      : prisma.profile.findMany({ where: { fullName: { contains: identifier, mode: "insensitive" } }, include: { user: true }, take: 50 });
+      : prisma.profile.findMany({ where: { OR: [ { fullNameNorm: { contains: normalizeName(identifier), mode: "insensitive" } }, { fullName: { contains: identifier, mode: "insensitive" } } ] }, include: { user: true }, take: 50 });
 
     const comp2Promise = (roleHint === "CANDIDATE")
       ? Promise.resolve([])
       : prisma.companyProfile.findMany({
           where: {
             OR: [
+              { contactNameNorm: { contains: normalizeName(identifier), mode: "insensitive" } },
+              { companyNameNorm: { contains: normalizeName(identifier), mode: "insensitive" } },
               { contactName: { contains: identifier, mode: "insensitive" } },
               { companyName: { contains: identifier, mode: "insensitive" } }
             ]
@@ -278,6 +310,35 @@ app.post("/auth/login", async (req, res) => {
       const sContact = similarity(identifier, c.contactName||"");
       const sCompany = similarity(identifier, c.companyName||"");
       candidates.push({ kind:"COMPANY", displayName:(c.companyName||c.contactName||""), user:c.user, score: Math.max(sContact, sCompany) });
+    }
+  }
+
+  // 3er fallback (especial para registros recientes): buscar en los últimos perfiles por si hay tildes/puntos o no existe fullNameNorm aún
+  if(candidates.length === 0 && nameNorm.length >= 4){
+    const take = 200;
+
+    if(roleHint !== "COMPANY"){
+      const recentCand = await prisma.profile.findMany({
+        include: { user: true },
+        orderBy: { updatedAt: "desc" },
+        take
+      });
+      for(const p of recentCand){
+        candidates.push({ kind:"CANDIDATE", displayName:p.fullName||"", user:p.user, score: similarity(identifier, p.fullName||"") });
+      }
+    }
+
+    if(roleHint !== "CANDIDATE"){
+      const recentComp = await prisma.companyProfile.findMany({
+        include: { user: true },
+        orderBy: { updatedAt: "desc" },
+        take
+      });
+      for(const c of recentComp){
+        const sContact = similarity(identifier, c.contactName||"");
+        const sCompany = similarity(identifier, c.companyName||"");
+        candidates.push({ kind:"COMPANY", displayName:(c.companyName||c.contactName||""), user:c.user, score: Math.max(sContact, sCompany) });
+      }
     }
   }
 
@@ -313,20 +374,24 @@ app.post("/auth/reset-by-id", async (req, res) => {
   const passHash = await bcrypt.hash(newPassword, 10);
 
   if(role === "CANDIDATE"){
-    const dni = (parsed.data.dni || "").trim();
+    const dniRaw = (parsed.data.dni || "").trim();
+    const dni = normalizeId(dniRaw);
+    const fullNameNorm = normalizeName(fullName);
+
     if(!dni) return res.status(400).json({ error: "Falta DNI" });
 
-    const p = await prisma.profile.findFirst({ where: { dni }, include: { user: true } });
+    const p = await prisma.profile.findFirst({ where: { OR: [ { dni }, { dni: dniRaw } ] }, include: { user: true } });
     if(!p?.user) return res.status(404).json({ error: "No encontramos un usuario con ese DNI" });
 
     await prisma.user.update({ where: { id: p.user.id }, data: { passHash } });
     return res.json({ ok:true });
   }
 
-  const cuit = (parsed.data.cuit || "").trim();
+  const cuitRaw = (parsed.data.cuit || "").trim();
+  const cuit = normalizeId(cuitRaw);
   if(!cuit) return res.status(400).json({ error: "Falta CUIT" });
 
-  const c = await prisma.companyProfile.findFirst({ where: { cuit }, include: { user: true } });
+  const c = await prisma.companyProfile.findFirst({ where: { OR: [ { cuit }, { cuit: cuitRaw } ] }, include: { user: true } });
   if(!c?.user) return res.status(404).json({ error: "No encontramos una empresa con ese CUIT" });
 
   await prisma.user.update({ where: { id: c.user.id }, data: { passHash } });
@@ -378,6 +443,9 @@ app.put("/profile/me", auth, async (req, res) => {
   if(!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const { skillsText, ...rest } = parsed.data;
+
+  if(rest.fullName) rest.fullNameNorm = normalizeName(rest.fullName);
+  if(rest.dni) rest.dni = normalizeId(rest.dni);
 
   // si manda DNI, verificar unicidad
   if(rest.dni){
@@ -501,8 +569,8 @@ app.put("/resume/me", auth, async (req, res) => {
 
   const r = await prisma.resume.upsert({
     where: { userId: req.user.id },
-    update: parsed.data,
-    create: { userId: req.user.id, ...parsed.data }
+    update: data,
+    create: { userId: req.user.id, ...data }
   });
   res.json(r);
 });
@@ -531,16 +599,21 @@ app.put("/company/me", auth, requireRole("COMPANY"), async (req, res) => {
   const parsed = companySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
+  const data = { ...parsed.data };
+  if(data.companyName) data.companyNameNorm = normalizeName(data.companyName);
+  if(data.contactName) data.contactNameNorm = normalizeName(data.contactName);
+  if(data.cuit) data.cuit = normalizeId(data.cuit);
+
   // si manda CUIT, verificar unicidad
-  if(parsed.data.cuit){
-    const other = await prisma.companyProfile.findFirst({ where: { cuit: parsed.data.cuit, NOT: { userId: req.user.id } } });
+  if(data.cuit){
+    const other = await prisma.companyProfile.findFirst({ where: { cuit: data.cuit, NOT: { userId: req.user.id } } });
     if(other) return res.status(409).json({ error: "Ese CUIT ya está registrado" });
   }
 
   const c = await prisma.companyProfile.upsert({
     where: { userId: req.user.id },
-    update: parsed.data,
-    create: { userId: req.user.id, ...parsed.data }
+    update: data,
+    create: { userId: req.user.id, ...data }
   });
   res.json(c);
 });
