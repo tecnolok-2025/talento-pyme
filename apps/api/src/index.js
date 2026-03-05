@@ -96,12 +96,16 @@ const registerSchema = z.object({
   password: z.string().min(8).max(200),
   dni: z.string().max(20).optional(),
   companyName: z.string().max(160).optional(),
-  cuit: z.string().max(40).optional()
+  cuit: z.string().max(40).optional(),
+  address: z.string().max(200).optional(),
+  city: z.string().max(120).optional(),
+  phone: z.string().max(60).optional()
 });
 
 const loginSchema = z.object({
   fullName: z.string().min(2).max(120),
-  password: z.string().min(8).max(200)
+  password: z.string().min(8).max(200),
+  roleHint: z.enum(["CANDIDATE", "COMPANY"]).optional()
 });
 
 const resetByIdSchema = z.object({
@@ -121,6 +125,13 @@ app.post("/auth/register", async (req, res) => {
     const dni = (parsed.data.dni || "").trim();
     if(!dni) return res.status(400).json({ error: "Falta DNI" });
 
+    const address = (parsed.data.address || "").trim();
+    const city = (parsed.data.city || "").trim();
+    const phone = (parsed.data.phone || "").trim();
+    if(!address) return res.status(400).json({ error: "Falta Dirección" });
+    if(!city) return res.status(400).json({ error: "Falta Localidad" });
+    if(!phone) return res.status(400).json({ error: "Falta Teléfono" });
+
     // validar DNI único si ya está cargado
     const existingDni = await prisma.profile.findFirst({ where: { dni } });
     if(existingDni) return res.status(409).json({ error: "Ese DNI ya está registrado" });
@@ -133,7 +144,7 @@ app.post("/auth/register", async (req, res) => {
           email,
           passHash,
           role,
-          profile: { create: { fullName, dni } },
+          profile: { create: { fullName, dni, address, city, phone } },
           resume: { create: {} }
         }
       });
@@ -148,6 +159,13 @@ app.post("/auth/register", async (req, res) => {
   const cuit = (parsed.data.cuit || "").trim();
   if(!companyName) return res.status(400).json({ error: "Falta Empresa" });
   if(!cuit) return res.status(400).json({ error: "Falta CUIT" });
+
+  const address = (parsed.data.address || "").trim();
+  const city = (parsed.data.city || "").trim();
+  const phone = (parsed.data.phone || "").trim();
+  if(!address) return res.status(400).json({ error: "Falta Dirección" });
+  if(!city) return res.status(400).json({ error: "Falta Localidad" });
+  if(!phone) return res.status(400).json({ error: "Falta Teléfono" });
 
   const existingCuit = await prisma.companyProfile.findFirst({ where: { cuit } });
   if(existingCuit) return res.status(409).json({ error: "Ese CUIT ya está registrado" });
@@ -165,7 +183,10 @@ app.post("/auth/register", async (req, res) => {
             companyName,
             cuit,
             contactName: fullName,
-            contactEmail: email
+            contactEmail: email,
+            address,
+            city,
+            phone
           }
         }
       }
@@ -180,23 +201,34 @@ app.post("/auth/login", async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if(!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { fullName, password } = parsed.data;
-  const nameNorm = normalizeName(fullName);
+  const { fullName, password, roleHint } = parsed.data;
+  const identifier = fullName;
+  const nameNorm = normalizeName(identifier);
   const firstToken = nameNorm.split(" ")[0] || nameNorm;
 
-  // buscar candidatos/empresas por token para no traer todo
-  const [cand, comp] = await Promise.all([
-    prisma.profile.findMany({
-      where: { fullName: { contains: firstToken, mode: "insensitive" } },
-      include: { user: true },
-      take: 50
-    }),
-    prisma.companyProfile.findMany({
-      where: { contactName: { contains: firstToken, mode: "insensitive" } },
-      include: { user: true },
-      take: 50
-    })
-  ]);
+  // buscar candidatos/empresas por token (y opcionalmente limitar por rol)
+  const candPromise = (roleHint === "COMPANY")
+    ? Promise.resolve([])
+    : prisma.profile.findMany({
+        where: { fullName: { contains: firstToken, mode: "insensitive" } },
+        include: { user: true },
+        take: 50
+      });
+
+  const compPromise = (roleHint === "CANDIDATE")
+    ? Promise.resolve([])
+    : prisma.companyProfile.findMany({
+        where: {
+          OR: [
+            { contactName: { contains: firstToken, mode: "insensitive" } },
+            { companyName: { contains: firstToken, mode: "insensitive" } }
+          ]
+        },
+        include: { user: true },
+        take: 50
+      });
+
+  const [cand, comp] = await Promise.all([candPromise, compPromise]);
 
   const candidates = [];
   for(const p of cand){
@@ -204,26 +236,49 @@ app.post("/auth/login", async (req, res) => {
       kind: "CANDIDATE",
       displayName: p.fullName || "",
       user: p.user,
-      score: similarity(fullName, p.fullName || "")
+      score: similarity(identifier, p.fullName || "")
     });
   }
   for(const c of comp){
+    const sContact = similarity(identifier, c.contactName || "");
+    const sCompany = similarity(identifier, c.companyName || "");
     candidates.push({
       kind: "COMPANY",
-      displayName: c.contactName || "",
+      displayName: c.companyName || c.contactName || "",
       user: c.user,
-      score: similarity(fullName, c.contactName || "")
+      score: Math.max(sContact, sCompany)
     });
   }
 
   // fallback: si no encontramos por token, intentar contains global (insensitive)
   if(candidates.length === 0 && nameNorm.length >= 4){
-    const [cand2, comp2] = await Promise.all([
-      prisma.profile.findMany({ where: { fullName: { contains: fullName, mode: "insensitive" } }, include: { user: true }, take: 50 }),
-      prisma.companyProfile.findMany({ where: { contactName: { contains: fullName, mode: "insensitive" } }, include: { user: true }, take: 50 })
-    ]);
-    for(const p of cand2){ candidates.push({ kind:"CANDIDATE", displayName:p.fullName||"", user:p.user, score: similarity(fullName, p.fullName||"") }); }
-    for(const c of comp2){ candidates.push({ kind:"COMPANY", displayName:c.contactName||"", user:c.user, score: similarity(fullName, c.contactName||"") }); }
+    const cand2Promise = (roleHint === "COMPANY")
+      ? Promise.resolve([])
+      : prisma.profile.findMany({ where: { fullName: { contains: identifier, mode: "insensitive" } }, include: { user: true }, take: 50 });
+
+    const comp2Promise = (roleHint === "CANDIDATE")
+      ? Promise.resolve([])
+      : prisma.companyProfile.findMany({
+          where: {
+            OR: [
+              { contactName: { contains: identifier, mode: "insensitive" } },
+              { companyName: { contains: identifier, mode: "insensitive" } }
+            ]
+          },
+          include: { user: true },
+          take: 50
+        });
+
+    const [cand2, comp2] = await Promise.all([cand2Promise, comp2Promise]);
+
+    for(const p of cand2){
+      candidates.push({ kind:"CANDIDATE", displayName:p.fullName||"", user:p.user, score: similarity(identifier, p.fullName||"") });
+    }
+    for(const c of comp2){
+      const sContact = similarity(identifier, c.contactName||"");
+      const sCompany = similarity(identifier, c.companyName||"");
+      candidates.push({ kind:"COMPANY", displayName:(c.companyName||c.contactName||""), user:c.user, score: Math.max(sContact, sCompany) });
+    }
   }
 
   if(candidates.length === 0){

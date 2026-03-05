@@ -53,8 +53,8 @@
           <div class="authForm">
             <!-- LOGIN -->
             <div id="loginForm">
-              <label>Nombre y apellido</label>
-              <input class="input" id="loginName" placeholder="Ej: Néstor Manucci" />
+              <label id="loginIdLabel">Nombre y apellido</label>
+              <input class="input" id="loginName" placeholder="Ej: Fulano Pérez" />
               <div class="muted small">Tip: si escribís con errores, se acepta coincidencia aproximada (≈70%).</div>
 
               <label>Contraseña</label>
@@ -66,7 +66,7 @@
 
               <div class="authFoot">
                 <a class="authLink" href="/forgot.html">Olvidé mi contraseña</a>
-                <span class="muted small">Se recupera con <b>DNI</b> (candidato) o <b>CUIT</b> (empresa).</span>
+                <span class="muted small">Se valida con tus datos de registro.</span>
               </div>
             </div>
 
@@ -74,13 +74,23 @@
             <div id="registerForm" style="display:none">
               <div id="candFields">
                 <label>Nombre y apellido</label>
-                <input class="input" id="regFullName" placeholder="Ej: Sergio Matabos" />
+                <input class="input" id="regFullName" placeholder="Ej: Fulano Pérez" />
 
                 <label>Email</label>
                 <input class="input" id="regEmail" placeholder="tu@email.com" />
 
                 <label>DNI</label>
                 <input class="input" id="regDni" placeholder="Solo números" inputmode="numeric" />
+
+
+                <label>Dirección</label>
+                <input class="input" id="regAddress" placeholder="Ej: Av. Siempre Viva 742" />
+
+                <label>Localidad</label>
+                <input class="input" id="regCity" placeholder="Ej: Campana" />
+
+                <label>Teléfono</label>
+                <input class="input" id="regPhone" placeholder="Ej: +54 9 ..." />
 
                 <label>Contraseña</label>
                 <input class="input" id="regPassword" type="password" placeholder="mínimo 8 caracteres" />
@@ -91,13 +101,23 @@
                 <input class="input" id="regContactName" placeholder="Ej: Juan Pérez" />
 
                 <label>Empresa</label>
-                <input class="input" id="regCompanyName" placeholder="Ej: Tecno Logisti-K S.A." />
+                <input class="input" id="regCompanyName" placeholder="Ej: MiPyme S.A." />
 
                 <label>CUIT</label>
                 <input class="input" id="regCuit" placeholder="Ej: 30-12345678-9" />
 
                 <label>Email de contacto</label>
                 <input class="input" id="regCompanyEmail" placeholder="contacto@empresa.com" />
+
+
+                <label>Dirección</label>
+                <input class="input" id="regCompanyAddress" placeholder="Ej: Calle 123" />
+
+                <label>Localidad</label>
+                <input class="input" id="regCompanyCity" placeholder="Ej: Campana" />
+
+                <label>Teléfono</label>
+                <input class="input" id="regCompanyPhone" placeholder="Ej: +54 9 ..." />
 
                 <label>Contraseña</label>
                 <input class="input" id="regCompanyPassword" type="password" placeholder="mínimo 8 caracteres" />
@@ -121,20 +141,12 @@
         <div class="authRight">
           <div class="authHint">
             <h3>¿Cómo se usa?</h3>
-            <p><b>1)</b> Registrate una sola vez (Candidato o Empresa). <b>2)</b> Luego ingresá con tu <b>Nombre y apellido</b> y tu <b>clave</b>.</p>
-            <p class="muted small">Si olvidás la contraseña, la recuperás con <b>DNI</b> (candidato) o <b>CUIT</b> (empresa).</p>
+            <p><b>1)</b> Elegí <b>Candidato</b> o <b>Empresa</b>.</p>
+            <p><b>2)</b> Si es tu primera vez, tocá <b>Registrarme</b> y completá el formulario.</p>
+            <p><b>3)</b> Luego volvé a <b>Ingresar</b> y entrá con tu usuario y tu clave.</p>
+            <p class="muted small">Tip: si sos Empresa, ingresás con el <b>nombre de la empresa</b>. Si sos Candidato, con tu <b>nombre y apellido</b>.</p>
           </div>
-
-          <div class="authHint">
-            <h3>Reglas claras (para que sea simple)</h3>
-            <p>Talento PyME trabaja con dos perfiles y dos flujos distintos:</p>
-            <ul>
-              <li><b>Candidato</b>: se registra con <b>DNI</b> y luego busca empleos.</li>
-              <li><b>Empresa</b>: se registra con <b>CUIT</b> y luego busca talento.</li>
-            </ul>
-          </div>
-
-          <div class="authHint" style="margin-top:12px">
+<div class="authHint" style="margin-top:12px">
             <h3>Modo gratuito</h3>
             <p>Sin tiendas, sin costos. Se instala como app (PWA) desde el navegador.</p>
           </div>
@@ -182,6 +194,13 @@
       $("roleComp").classList.toggle("active", r === "COMPANY");
       $("candFields").style.display = (r === "CANDIDATE") ? "block" : "none";
       $("compFields").style.display = (r === "COMPANY") ? "block" : "none";
+
+      // Ajustar etiqueta y placeholder de ingreso según rol (sin confusión)
+      const lab = $("loginIdLabel");
+      if(lab) lab.textContent = (r === "COMPANY") ? "Empresa (nombre)" : "Nombre y apellido";
+      const inp = $("loginName");
+      if(inp) inp.placeholder = (r === "COMPANY") ? "Ej: MiPyme S.A." : "Ej: Fulano Pérez";
+
       msg("");
     }
 
@@ -201,8 +220,6 @@
     $("btnBackToLogin").onclick = () => setMode("LOGIN");
 
     $("btnUpdate").onclick = () => forceUpdate();
-if(v) window.TP_API_URL = v;
-    });
 
     async function post(path, body){
       const r = await fetch(`${window.TP_API_URL}${path}`,{
@@ -251,24 +268,36 @@ if(v) window.TP_API_URL = v;
           const fullName = $("regFullName").value.trim();
           const email = $("regEmail").value.trim();
           const dni = $("regDni").value.trim();
+          const address = $("regAddress").value.trim();
+          const city = $("regCity").value.trim();
+          const phone = $("regPhone").value.trim();
           const password = $("regPassword").value;
           if(!fullName) throw new Error("Falta Nombre y apellido");
           if(!email) throw new Error("Falta Email");
           if(!dni) throw new Error("Falta DNI");
-          if((password||"").length < 8) throw new Error("La contraseña debe tener mínimo 8 caracteres");
-          await post("/auth/register", { role: "CANDIDATE", fullName, email, dni, password });
+          if(!address) throw new Error("Falta Dirección");
+          if(!city) throw new Error("Falta Localidad");
+          if(!phone) throw new Error("Falta Teléfono");
+          if((password||"").length < 8 throw new Error("La contraseña debe tener mínimo 8 caracteres");
+          await post("/auth/register", { role: "CANDIDATE", fullName, email, dni, address, city, phone, password });
         } else {
           const fullName = $("regContactName").value.trim();
           const companyName = $("regCompanyName").value.trim();
           const cuit = $("regCuit").value.trim();
           const email = $("regCompanyEmail").value.trim();
+          const address = $("regCompanyAddress").value.trim();
+          const city = $("regCompanyCity").value.trim();
+          const phone = $("regCompanyPhone").value.trim();
           const password = $("regCompanyPassword").value;
           if(!fullName) throw new Error("Falta Nombre y apellido (contacto)");
           if(!companyName) throw new Error("Falta Empresa");
           if(!cuit) throw new Error("Falta CUIT");
           if(!email) throw new Error("Falta Email de contacto");
-          if((password||"").length < 8) throw new Error("La contraseña debe tener mínimo 8 caracteres");
-          await post("/auth/register", { role: "COMPANY", fullName, companyName, cuit, email, password });
+          if(!address) throw new Error("Falta Dirección");
+          if(!city) throw new Error("Falta Localidad");
+          if(!phone) throw new Error("Falta Teléfono");
+          if((password||"").length < 8 throw new Error("La contraseña debe tener mínimo 8 caracteres");
+          await post("/auth/register", { role: "COMPANY", fullName, companyName, cuit, email, address, city, phone, password });
         }
         msg("Registro OK. Ahora podés ingresar.");
         setMode("LOGIN");
@@ -284,7 +313,7 @@ if(v) window.TP_API_URL = v;
         const password = $("loginPassword").value;
         if(!fullName) throw new Error("Ingresá tu Nombre y apellido");
         if((password||"").length < 8) throw new Error("Ingresá tu contraseña (mínimo 8 caracteres)");
-        const data = await post("/auth/login", { fullName, password });
+        const data = await post("/auth/login", { fullName, password, roleHint: selectedRole });
         localStorage.setItem("tp_token", data.token);
         localStorage.setItem("tp_role", data.role);
         msg(`OK. Entrando al Panel (${roleES(data.role)})...`);

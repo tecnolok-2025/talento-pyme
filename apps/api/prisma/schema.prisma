@@ -44,6 +44,7 @@ model Profile {
   city        String?
   province    String?
   phone       String?
+  address     String?
   headline    String?
   sector      String?
   subSector   String?
