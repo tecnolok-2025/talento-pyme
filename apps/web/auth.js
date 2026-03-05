@@ -79,3 +79,50 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   });
 });
+
+async function checkApiHealth() {
+  try {
+    const r = await fetch(`${window.TP_API_URL}/health`, { method: "GET" });
+    const j = await r.json().catch(() => ({}));
+    const el = document.getElementById("apiHealth");
+    if (!el) return;
+    if (r.ok) el.textContent = `API OK · v${j.version || "?"}`;
+    else el.textContent = `API error (${r.status})`;
+  } catch (e) {
+    const el = document.getElementById("apiHealth");
+    if (el) el.textContent = "API sin respuesta";
+  }
+}
+window.addEventListener("load", () => checkApiHealth());
+
+async function hardUpdate() {
+  const msg = document.getElementById("updateMsg");
+  try {
+    if (msg) msg.textContent = "Actualizando…";
+
+    // 1) Desregistrar SW
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+
+    // 2) Borrar caches
+    if (window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+
+    // 3) Recargar con cache-busting
+    const u = new URL(location.href);
+    u.searchParams.set("v", Date.now().toString());
+    location.replace(u.toString());
+  } catch (e) {
+    console.error(e);
+    if (msg) msg.textContent = "No se pudo actualizar. Probá cerrar y volver a abrir.";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("btnUpdate");
+  if (btn) btn.addEventListener("click", () => hardUpdate());
+});

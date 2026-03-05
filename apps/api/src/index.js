@@ -14,7 +14,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
-const APP_VERSION = "3.2.7";
+const APP_VERSION = "3.2.8";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
@@ -23,6 +23,10 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 // -----------------------------
 function normalizeId(str = ""){
   return String(str||"").replace(/\D/g, "").trim();
+}
+
+function normalizeEmail(email = ""){
+  return String(email||"").trim().toLowerCase();
 }
 
 function normalizeName(str = ""){

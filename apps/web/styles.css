@@ -317,5 +317,3 @@ pre{white-space:pre-wrap}
 .pwToggle:active{
   transform: translateY(1px);
 }
-
-.pw input{ flex:1; }
