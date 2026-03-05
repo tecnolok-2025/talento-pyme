@@ -14,7 +14,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
-const APP_VERSION = "3.2.5";
+const APP_VERSION = "3.2.6";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
@@ -121,92 +121,179 @@ const resetByIdSchema = z.object({
 
 app.post("/auth/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
-  if(!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: "Datos inválidos" });
 
-  const { role, fullName, email, password } = parsed.data;
+  const {
+    role,
+    fullName,
+    email,
+    password,
+    dni,
+    cuit,
+    companyName,
+    contactName,
+    contactEmail,
+    phone,
+    address,
+    city,
+    province,
+  } = parsed.data;
 
-  const emailNorm = String(email||"").trim().toLowerCase();
+  const emailNorm = normalizeEmail(email);
+  const passHash = await bcrypt.hash(password, 10);
 
-  if(role === "CANDIDATE"){
-    const dniRaw = (parsed.data.dni || "").trim();
-    const dni = normalizeId(dniRaw);
-    const fullNameNorm = normalizeName(fullName);
+  // Validaciones de identidad (DNI/CUIT) y unicidad
+  if (role === "CANDIDATE") {
+    const dniNorm = normalizeId(dni || "");
+    if (!dniNorm) return res.status(400).json({ error: "DNI requerido" });
 
-    if(!dni) return res.status(400).json({ error: "Falta DNI" });
+    const existingByDni = await prisma.profile.findUnique({ where: { dni: dniNorm } });
+    if (existingByDni) return res.status(409).json({ error: "Ya existe un candidato con ese DNI" });
+  }
 
-    const address = (parsed.data.address || "").trim();
-    const city = (parsed.data.city || "").trim();
-    const phone = (parsed.data.phone || "").trim();
-    if(!address) return res.status(400).json({ error: "Falta Dirección" });
-    if(!city) return res.status(400).json({ error: "Falta Localidad" });
-    if(!phone) return res.status(400).json({ error: "Falta Teléfono" });
+  if (role === "COMPANY") {
+    const cuitNorm = normalizeId(cuit || "");
+    if (!cuitNorm) return res.status(400).json({ error: "CUIT requerido" });
 
-    // validar DNI único si ya está cargado
-    const existingDni = await prisma.profile.findFirst({ where: { dni } });
-    if(existingDni) return res.status(409).json({ error: "Ese DNI ya está registrado" });
+    const existingByCuit = await prisma.companyProfile.findUnique({ where: { cuit: cuitNorm } });
+    if (existingByCuit) return res.status(409).json({ error: "Ya existe una empresa con ese CUIT" });
+  }
 
-    const passHash = await bcrypt.hash(password, 10);
+  // Si el email ya existe, permitimos "completar" el registro
+  // (caso típico: versiones anteriores crearon el usuario pero no el perfil por mismatch de schema/código)
+  const existingUser = await prisma.user.findUnique({
+    where: { email: emailNorm },
+    include: { candidateProfile: true, company: true, resume: true },
+  });
 
-    try{
+  if (existingUser) {
+    if (existingUser.role !== role) {
+      return res.status(409).json({ error: "Ese email ya está registrado con otro perfil" });
+    }
+
+    if (role === "CANDIDATE" && !existingUser.candidateProfile) {
+      const dniNorm = normalizeId(dni || "");
+      const fullNameNorm = normalizeName(fullName || "");
+
+      await prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          passHash,
+          candidateProfile: {
+            create: {
+              fullName,
+              fullNameNorm,
+              dni: dniNorm,
+              phone: phone || "",
+              address: address || "",
+              city: city || "",
+              province: province || "",
+            },
+          },
+          ...(existingUser.resume ? {} : { resume: { create: {} } }),
+        },
+      });
+
+      return res.json({ ok: true, upgraded: true, version: APP_VERSION });
+    }
+
+    if (role === "COMPANY" && !existingUser.company) {
+      const cuitNorm = normalizeId(cuit || "");
+      const companyNameNorm = normalizeName(companyName || "");
+      const contactNameNorm = normalizeName(contactName || "");
+
+      await prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          passHash,
+          company: {
+            create: {
+              companyName,
+              companyNameNorm,
+              cuit: cuitNorm,
+              contactName: contactName || "",
+              contactNameNorm,
+              contactEmail: contactEmail || emailNorm,
+              phone: phone || "",
+              address: address || "",
+              city: city || "",
+              province: province || "",
+            },
+          },
+          ...(existingUser.resume ? {} : { resume: { create: {} } }),
+        },
+      });
+
+      return res.json({ ok: true, upgraded: true, version: APP_VERSION });
+    }
+
+    return res.status(409).json({ error: "Email ya registrado" });
+  }
+
+  // Alta normal
+  try {
+    if (role === "CANDIDATE") {
+      const dniNorm = normalizeId(dni || "");
+      const fullNameNorm = normalizeName(fullName || "");
+
       const user = await prisma.user.create({
         data: {
           email: emailNorm,
           passHash,
           role,
-          profile: { create: { fullName, fullNameNorm, dni, address, city, phone } },
-          resume: { create: {} }
-        }
+          candidateProfile: {
+            create: {
+              fullName,
+              fullNameNorm,
+              dni: dniNorm,
+              phone: phone || "",
+              address: address || "",
+              city: city || "",
+              province: province || "",
+            },
+          },
+          resume: { create: {} },
+        },
       });
-      return res.json({ ok:true, token: signToken(user), role: user.role });
-    }catch(err){
-      return res.status(409).json({ error: "Email ya registrado" });
+
+      return res.json({ ok: true, userId: user.id, version: APP_VERSION });
     }
-  }
 
-  // COMPANY
-  const companyName = (parsed.data.companyName || "").trim();
-  const companyNameNorm = normalizeName(companyName);
-  const contactNameNorm = normalizeName(fullName);
+    if (role === "COMPANY") {
+      const cuitNorm = normalizeId(cuit || "");
+      const companyNameNorm = normalizeName(companyName || "");
+      const contactNameNorm = normalizeName(contactName || "");
 
-  const cuitRaw = (parsed.data.cuit || "").trim();
-  const cuit = normalizeId(cuitRaw);
-  if(!companyName) return res.status(400).json({ error: "Falta Empresa" });
-  if(!cuit) return res.status(400).json({ error: "Falta CUIT" });
+      const user = await prisma.user.create({
+        data: {
+          email: emailNorm,
+          passHash,
+          role,
+          company: {
+            create: {
+              companyName,
+              companyNameNorm,
+              cuit: cuitNorm,
+              contactName: contactName || "",
+              contactNameNorm,
+              contactEmail: contactEmail || emailNorm,
+              phone: phone || "",
+              address: address || "",
+              city: city || "",
+              province: province || "",
+            },
+          },
+          resume: { create: {} },
+        },
+      });
 
-  const address = (parsed.data.address || "").trim();
-  const city = (parsed.data.city || "").trim();
-  const phone = (parsed.data.phone || "").trim();
-  if(!address) return res.status(400).json({ error: "Falta Dirección" });
-  if(!city) return res.status(400).json({ error: "Falta Localidad" });
-  if(!phone) return res.status(400).json({ error: "Falta Teléfono" });
+      return res.json({ ok: true, userId: user.id, version: APP_VERSION });
+    }
 
-  const existingCuit = await prisma.companyProfile.findFirst({ where: { cuit } });
-  if(existingCuit) return res.status(409).json({ error: "Ese CUIT ya está registrado" });
-
-  const passHash = await bcrypt.hash(password, 10);
-
-  try{
-    const user = await prisma.user.create({
-      data: {
-        email: emailNorm,
-        passHash,
-        role,
-        companyProfile: {
-          create: {
-            companyName,
-            cuit,
-            contactName: fullName,
-            contactEmail: emailNorm,
-            address,
-            city,
-            phone
-          }
-        }
-      }
-    });
-    return res.json({ ok:true, token: signToken(user), role: user.role });
-  }catch{
-    return res.status(409).json({ error: "Email ya registrado" });
+    return res.status(400).json({ error: "Rol inválido" });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Error registrando usuario" });
   }
 });
 
@@ -376,8 +463,7 @@ app.post("/auth/reset-by-id", async (req, res) => {
   if(role === "CANDIDATE"){
     const dniRaw = (parsed.data.dni || "").trim();
     const dni = normalizeId(dniRaw);
-    const fullNameNorm = normalizeName(fullName);
-
+  
     if(!dni) return res.status(400).json({ error: "Falta DNI" });
 
     const p = await prisma.profile.findFirst({ where: { OR: [ { dni }, { dni: dniRaw } ] }, include: { user: true } });

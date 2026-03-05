@@ -54,3 +54,28 @@ function roleES(role){
     default: return role || "";
   }
 }
+
+
+// UI helpers (shared)
+window.addEventListener("DOMContentLoaded", () => {
+  // Version badges
+  const v = window.TP_APP_VERSION;
+  if (v) {
+    document.querySelectorAll(".tp-version").forEach(el => { el.textContent = "v" + v; });
+  }
+
+  // Password visibility toggles
+  document.querySelectorAll(".pwToggle").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const targetId = btn.getAttribute("data-target");
+      const inp = targetId ? document.getElementById(targetId) : null;
+      if (!inp) return;
+
+      const willShow = (inp.type === "password");
+      inp.type = willShow ? "text" : "password";
+      btn.textContent = willShow ? "🙈" : "👁";
+      btn.setAttribute("aria-label", willShow ? "Ocultar contraseña" : "Mostrar contraseña");
+    });
+  });
+});

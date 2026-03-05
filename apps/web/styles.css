@@ -291,3 +291,29 @@ pre{white-space:pre-wrap}
   padding:16px 16px;
   box-shadow:0 18px 60px rgba(0,0,0,.18);
 }
+
+
+/* Password input with eye button */
+.pw{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.pw .input{
+  flex:1;
+}
+.pwToggle{
+  width:44px;
+  height:44px;
+  border:1px solid rgba(0,0,0,.12);
+  border-radius:12px;
+  background:#fff;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  user-select:none;
+}
+.pwToggle:active{
+  transform: translateY(1px);
+}
