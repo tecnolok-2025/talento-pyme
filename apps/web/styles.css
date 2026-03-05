@@ -157,6 +157,11 @@ pre{white-space:pre-wrap}
   margin-top:12px;
 }
 .roleBtn{
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  width: 100%;
   display:flex;
   gap:10px;
   align-items:center;
@@ -186,6 +191,10 @@ pre{white-space:pre-wrap}
   margin-top:16px;
 }
 .modeTab{
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  width: 100%;
   flex:1;
   text-align:center;
   padding:10px 12px;

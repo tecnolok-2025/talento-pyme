@@ -1,24 +1,27 @@
-# Talento PyME — v3.0.0
+# Talento PyME — v3.2.4
 
-## Qué incluye (v3)
-- Web + PWA instalable (sin tiendas) y API Node + Prisma + Neon
-- Roles:
-  - CANDIDATE (Candidato)
-  - COMPANY (Empresa)
-  - ADMIN_CANDIDATE (Admin Candidatos) *requiere código*
-  - ADMIN_COMPANY (Admin Empresas) *requiere código*
-  - SUPERADMIN (Superadmin) *requiere código*
-  - (legacy) ADMIN
-- Candidato:
-  - Mi Perfil (incluye Sector/Subsector)
-  - Mi CV con “Leer y completar” (parseo de PDF/DOCX/TXT vía /resume/parse)
-- Empresa:
-  - Mi Empresa
-  - Publicar empleos
-  - Mis Búsquedas
-- Rubro “Hotelería” con subrubros
-- Panel Superadmin con métricas básicas (usuarios/candidatos/empresas/CVs/empleos/postulaciones)
+Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**.
 
-## Nota sobre actualizaciones de la PWA
-La PWA usa Service Worker con caché versionada. En v3 el caché pasa a `tp-v3.0.0` para forzar actualización en iPhone/Android al recargar (y evitar quedarse pegado a una versión vieja).
+## Estado actual
+- **Frontend (Static Site Render):** https://talento-pyme.onrender.com
+- **API (Web Service Render):** https://talento-pyme-api.onrender.com
+- **DB:** Neon (PostgreSQL) via Prisma.
 
+## Roles (sin confusión)
+Solo existen **2 perfiles**:
+- **CANDIDATE (Candidato)**
+- **COMPANY (Empresa)**
+
+> En el panel de acceso ya **no** existen Admins/Superadmin.
+
+## Acceso (registro / ingreso)
+- **Registro (primera vez):**
+  - Candidato: Nombre y apellido, Email, DNI, Dirección, Localidad, Teléfono, Contraseña
+  - Empresa: Contacto (Nombre y apellido), Empresa, CUIT, Email, Dirección, Localidad, Teléfono, Contraseña
+- **Ingreso:**
+  - Empresa: ingresa con **nombre de la empresa** + contraseña
+  - Candidato: ingresa con **nombre y apellido** + contraseña
+- **Recupero de contraseña:** valida contra los datos de registro (DNI/CUIT, según corresponda).
+
+## PWA / caché
+La PWA usa Service Worker con caché versionada (`tp-v3.2.4`) y un botón en Acceso **“Actualizar versión”** para forzar refresh.

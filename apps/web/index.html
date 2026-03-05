@@ -29,25 +29,25 @@
           <div class="bigLead">Solo hay dos caminos. Sin confusión: <b>Candidato</b> o <b>Empresa</b>.</div>
 
           <div class="rolePicker" style="margin-top:14px">
-            <div class="roleBtn active" id="roleCand">
+            <button type="button" class="roleBtn active" id="roleCand" aria-pressed="true">
               <div class="roleIcon">C</div>
               <div class="roleMeta">
                 <div class="roleName">Candidato</div>
                 <div class="roleDesc">Cargá tu perfil y buscá empleos.</div>
               </div>
-            </div>
-            <div class="roleBtn" id="roleComp">
+            </button>
+            <button type="button" class="roleBtn" id="roleComp" aria-pressed="false">
               <div class="roleIcon">E</div>
               <div class="roleMeta">
                 <div class="roleName">Empresa</div>
                 <div class="roleDesc">Publicá búsquedas y encontrá talento.</div>
               </div>
-            </div>
+            </button>
           </div>
 
           <div class="modeTabs">
-            <div class="modeTab active" id="tabLogin">Ingresar</div>
-            <div class="modeTab" id="tabRegister">Registrarme</div>
+            <button type="button" class="modeTab active" id="tabLogin" aria-pressed="true">Ingresar</button>
+            <button type="button" class="modeTab" id="tabRegister" aria-pressed="false">Registrarme</button>
           </div>
 
           <div class="authForm">
@@ -61,7 +61,7 @@
               <input class="input" id="loginPassword" type="password" placeholder="Tu clave" />
 
               <div class="authActions">
-                <button class="btn btn-primary" id="btnLogin">Ingresar</button>
+                <button class="btn btn-primary" id="btnLogin" type="button">Ingresar</button>
               </div>
 
               <div class="authFoot">
@@ -124,7 +124,7 @@
               </div>
 
               <div class="authActions">
-                <button class="btn btn-cta" id="btnRegister">Registrar</button>
+                <button class="btn btn-cta" id="btnRegister" type="button">Registrar</button>
                 <button class="btn btn-ghost" id="btnBackToLogin" type="button">Volver a ingresar</button>
               </div>
             </div>
@@ -192,6 +192,8 @@
       selectedRole = r;
       $("roleCand").classList.toggle("active", r === "CANDIDATE");
       $("roleComp").classList.toggle("active", r === "COMPANY");
+      $("roleCand").setAttribute("aria-pressed", r === "CANDIDATE" ? "true" : "false");
+      $("roleComp").setAttribute("aria-pressed", r === "COMPANY" ? "true" : "false");
       $("candFields").style.display = (r === "CANDIDATE") ? "block" : "none";
       $("compFields").style.display = (r === "COMPANY") ? "block" : "none";
 
@@ -208,18 +210,20 @@
       mode = m;
       $("tabLogin").classList.toggle("active", m === "LOGIN");
       $("tabRegister").classList.toggle("active", m === "REGISTER");
+      $("tabLogin").setAttribute("aria-pressed", m === "LOGIN" ? "true" : "false");
+      $("tabRegister").setAttribute("aria-pressed", m === "REGISTER" ? "true" : "false");
       $("loginForm").style.display = (m === "LOGIN") ? "block" : "none";
       $("registerForm").style.display = (m === "REGISTER") ? "block" : "none";
       msg("");
     }
 
-    $("roleCand").onclick = () => setRole("CANDIDATE");
-    $("roleComp").onclick = () => setRole("COMPANY");
-    $("tabLogin").onclick = () => setMode("LOGIN");
-    $("tabRegister").onclick = () => setMode("REGISTER");
-    $("btnBackToLogin").onclick = () => setMode("LOGIN");
-
-    $("btnUpdate").onclick = () => forceUpdate();
+    // Bindings (defensivo: si algo falta, no rompe todo)
+    $("roleCand")?.addEventListener("click", () => setRole("CANDIDATE"));
+    $("roleComp")?.addEventListener("click", () => setRole("COMPANY"));
+    $("tabLogin")?.addEventListener("click", () => setMode("LOGIN"));
+    $("tabRegister")?.addEventListener("click", () => setMode("REGISTER"));
+    $("btnBackToLogin")?.addEventListener("click", () => setMode("LOGIN"));
+    $("btnUpdate")?.addEventListener("click", () => forceUpdate());
 
     async function post(path, body){
       const r = await fetch(`${window.TP_API_URL}${path}`,{
@@ -278,7 +282,7 @@
           if(!address) throw new Error("Falta Dirección");
           if(!city) throw new Error("Falta Localidad");
           if(!phone) throw new Error("Falta Teléfono");
-          if((password||"").length < 8 throw new Error("La contraseña debe tener mínimo 8 caracteres");
+          if((password||"").length < 8) throw new Error("La contraseña debe tener mínimo 8 caracteres");
           await post("/auth/register", { role: "CANDIDATE", fullName, email, dni, address, city, phone, password });
         } else {
           const fullName = $("regContactName").value.trim();
@@ -296,7 +300,7 @@
           if(!address) throw new Error("Falta Dirección");
           if(!city) throw new Error("Falta Localidad");
           if(!phone) throw new Error("Falta Teléfono");
-          if((password||"").length < 8 throw new Error("La contraseña debe tener mínimo 8 caracteres");
+          if((password||"").length < 8) throw new Error("La contraseña debe tener mínimo 8 caracteres");
           await post("/auth/register", { role: "COMPANY", fullName, companyName, cuit, email, address, city, phone, password });
         }
         msg("Registro OK. Ahora podés ingresar.");
