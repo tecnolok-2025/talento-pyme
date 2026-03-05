@@ -46,6 +46,10 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
+  // IMPORTANT: do not hijack API / POST / cross-origin requests.
+  if (req.method !== "GET") return;
+  if (url.origin !== self.location.origin) return;
+  const url = new URL(req.url);
 
   // Always go network-first for the API.
   if (url.origin.includes("onrender.com") && url.pathname.startsWith("/")) {
