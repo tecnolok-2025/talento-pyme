@@ -1,4 +1,4 @@
-const CACHE = "tp-v3.2.1";
+const CACHE = "tp-v3.2.2";
 const ASSETS = [
   "/", "/index.html", "/dashboard.html", "/perfil.html", "/cv.html", "/buscar.html",
   "/empleos.html", "/empresa.html", "/publicar.html", "/mis-busquedas.html",

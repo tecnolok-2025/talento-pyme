@@ -12,7 +12,7 @@
 <body class="authBody">
   <div class="authTop">
     <div class="authBrand">
-      <img src="/assets/logo-talento-pyme-small.png" alt="Talento PyME" />
+      <img class="brandLogo" src="/assets/logo-tp.svg" alt="Talento PyME" />
       <div>
         <div class="authTitle">Talento PyME</div>
         <div class="authSubtitle">Portal gratuito · Web + PWA instalable (sin tiendas)</div>
@@ -111,15 +111,20 @@
 
             <div class="muted" style="margin-top:12px" id="msg"></div>
 
-            <details class="details">
-              <summary>Avanzado: URL de la API</summary>
-              <div class="small muted">Solo si estás probando otro backend (por defecto queda el oficial).</div>
-              <input class="input" id="apiUrl" style="margin-top:8px" />
-            </details>
+            <div id="busyBox" class="busyBox" style="display:none">
+              <div class="busyText" id="busyText">Esperá…</div>
+              <div class="busyBar"><div></div></div>
+            </div>
           </div>
         </div>
 
         <div class="authRight">
+          <div class="authHint">
+            <h3>¿Cómo se usa?</h3>
+            <p><b>1)</b> Registrate una sola vez (Candidato o Empresa). <b>2)</b> Luego ingresá con tu <b>Nombre y apellido</b> y tu <b>clave</b>.</p>
+            <p class="muted small">Si olvidás la contraseña, la recuperás con <b>DNI</b> (candidato) o <b>CUIT</b> (empresa).</p>
+          </div>
+
           <div class="authHint">
             <h3>Reglas claras (para que sea simple)</h3>
             <p>Talento PyME trabaja con dos perfiles y dos flujos distintos:</p>
@@ -138,6 +143,21 @@
             <h3>Privacidad</h3>
             <p>Tu CV se procesa para extraer información y completar campos editables. No guardamos el archivo en el servidor.</p>
           </div>
+
+          <div class="authHint updateBox" style="margin-top:12px">
+            <div class="updateRow">
+              <div>
+                <h3 style="margin:0 0 6px 0">Actualizar versión</h3>
+                <div class="muted small">Si ves una versión vieja o querés forzar la actualización, usá este botón.</div>
+              </div>
+              <button class="btn btn-ghost" id="btnUpdate" type="button">Actualizar</button>
+            </div>
+            <div class="muted small" id="updateMsg" style="margin-top:8px"></div>
+            <div class="brandFooter">
+              <img src="/assets/logo-talento-pyme.png" alt="Talento PyME" />
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -180,10 +200,8 @@
     $("tabRegister").onclick = () => setMode("REGISTER");
     $("btnBackToLogin").onclick = () => setMode("LOGIN");
 
-    $("apiUrl").value = window.TP_API_URL;
-    $("apiUrl").addEventListener("change", () => {
-      const v = $("apiUrl").value.trim();
-      if(v) window.TP_API_URL = v;
+    $("btnUpdate").onclick = () => forceUpdate();
+if(v) window.TP_API_URL = v;
     });
 
     async function post(path, body){
@@ -199,8 +217,34 @@
 
     function disable(el, v){ el.disabled = !!v; el.style.opacity = v ? .7 : 1; }
 
+    function setBusy(on, text){
+      const box = $("busyBox");
+      if(!box) return;
+      box.style.display = on ? "block" : "none";
+      $("busyText").textContent = text || "Esperá…";
+    }
+
+    async function forceUpdate(){
+      const u = $("updateMsg");
+      if(u) u.textContent = "Esperá… actualizando la versión.";
+      try{
+        if("serviceWorker" in navigator){
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for(const reg of regs){ await reg.update(); }
+        }
+        if("caches" in window){
+          const keys = await caches.keys();
+          await Promise.all(keys.filter(k => k.startsWith("tp-") || k.startsWith("tp-cache")).map(k => caches.delete(k)));
+        }
+        if(u) u.textContent = "Versión actualizada. Recargando…";
+      }catch(e){
+        if(u) u.textContent = "No se pudo forzar la actualización: " + (e?.message || e);
+      }
+      setTimeout(()=> window.location.reload(), 600);
+    }
+
     $("btnRegister").onclick = async () => {
-      msg("Registrando...");
+      msg(""); setBusy(true, "Registrando… conectando con la base de datos");
       disable($("btnRegister"), true);
       try{
         if(selectedRole === "CANDIDATE"){
@@ -229,11 +273,11 @@
         msg("Registro OK. Ahora podés ingresar.");
         setMode("LOGIN");
       }catch(e){ msg(e.message); }
-      finally{ disable($("btnRegister"), false); }
+      finally{ setBusy(false); disable($("btnRegister"), false); }
     };
 
     $("btnLogin").onclick = async () => {
-      msg("Ingresando...");
+      msg(""); setBusy(true, "Ingresando… conectando con la base de datos");
       disable($("btnLogin"), true);
       try{
         const fullName = $("loginName").value.trim();
@@ -246,7 +290,7 @@
         msg(`OK. Entrando al Panel (${roleES(data.role)})...`);
         window.location.href = "/dashboard.html";
       }catch(e){ msg(e.message); }
-      finally{ disable($("btnLogin"), false); }
+      finally{ setBusy(false); disable($("btnLogin"), false); }
     };
 
     // init

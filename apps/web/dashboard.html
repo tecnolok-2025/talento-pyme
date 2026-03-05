@@ -23,6 +23,13 @@
 </div>
   </div>
 
+  <div id="pageLoader" class="pageLoader">
+    <div class="pageLoaderInner">
+      <div class="busyText" style="font-size:14px">Esperá… conectando con la base de datos</div>
+      <div class="busyBar" style="margin-top:10px"><div></div></div>
+    </div>
+  </div>
+
   <div class="wrap">
     <div class="card">
       <h2>Panel</h2>
@@ -56,6 +63,10 @@
 
     const role = applyRoleVisibility();
 
+    const loader = document.getElementById("pageLoader");
+    function showLoader(v){ if(loader) loader.style.display = v ? "flex" : "none"; }
+    showLoader(true);
+
     (async ()=>{
       try{
         if(role === "COMPANY"){
@@ -69,6 +80,8 @@
         }
       }catch(e){
         document.getElementById("info").textContent = "No se pudo cargar datos: " + e.message;
+      } finally {
+        showLoader(false);
       }
     })();
   </script>
