@@ -18,7 +18,6 @@
         </div>
       </div>
       <nav class="nav">
-        <a href="/dashboard.html">Panel</a>
         <a href="/perfil.html" class="active" data-role="CANDIDATE">Mi Perfil</a>
         <a href="/cv.html" data-role="CANDIDATE">Mi CV</a>
         <a href="/empleos.html">Empleos</a>
@@ -33,8 +32,21 @@
       <div id="bolsaRoot"></div>
     </main>
 
-    <script src="/config.js?v=4.0.2"></script>
-    <script src="/auth.js?v=4.0.2"></script>
-    <script src="/bolsa-candidato.js?v=4.0.2"></script>
+    <script src="/config.js?v=4.0.3"></script>
+    <script src="/auth.js?v=4.0.3"></script>
+    <script src="/app.js?v=4.0.3"></script>
+    
+  <script>
+    window.addEventListener("error", (e) => {
+      console.error(e.error || e.message);
+      if (typeof setPageError === "function") setPageError("bolsaRoot", "Error al abrir Mi Perfil", (e.error && e.error.message) ? e.error.message : (e.message || ""));
+    });
+    window.addEventListener("unhandledrejection", (e) => {
+      console.error(e.reason);
+      if (typeof setPageError === "function") setPageError("bolsaRoot", "Error al cargar datos", (e.reason && e.reason.message) ? e.reason.message : String(e.reason || ""));
+    });
+  </script>
+
+  <script src="/bolsa-candidato.js?v=4.0.3"></script>
   </body>
 </html>

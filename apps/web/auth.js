@@ -43,7 +43,7 @@ function applyRoleVisibility(){
 function requireRole(allowed){
   const role = tpRole();
   const ok = Array.isArray(allowed) ? allowed.includes(role) : (role === allowed);
-  if(!ok){ window.location.href = '/dashboard.html'; return false; }
+  if(!ok){ window.location.href = '/perfil.html'; return false; }
   return true;
 }
 

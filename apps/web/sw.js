@@ -1,21 +1,44 @@
-/* Talento PyME Service Worker — v4.0.1 (20260306)
-   Cachea SOLO recursos same-origin GET. La API (cross-origin) nunca se intercepta.
-   - Navegación: network-first (para actualizar versión).
-   - Assets GET: stale-while-revalidate.
-*/
-self.importScripts("/config.js?v=4.0.2");
+// Talento PyME service worker (v4.0.3)
+// Objetivo: evitar "versiones pegadas" por cache. 
+// Estrategia:
+// - HTML (navegación): network-first (si hay red, siempre busca lo último).
+// - Assets (css/js/img): stale-while-revalidate.
+// - Al cambiar VERSION, se crea un cache nuevo y se limpian caches viejos.
 
-const VERSION = (self.TP_APP_VERSION || "4.0.1");
-const CACHE_NAME = "tp-cache-" + VERSION;
+importScripts("/config.js?v=4.0.3");
+
+const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "4.0.3";
+const CACHE_NAME = `tp-cache-${VERSION}`;
+
+const PRECACHE = [
+  "/",
+  "/index.html",
+  "/perfil.html",
+  "/cv.html",
+  "/empleos.html",
+  "/buscar.html",
+  "/styles.css?v=4.0.3",
+  "/auth.js?v=4.0.3",
+  "/app.js?v=4.0.3",
+  "/bolsa-candidato.js?v=4.0.3",
+  "/config.js?v=4.0.3",
+  "/manifest.webmanifest",
+  "/icon-192.png",
+  "/icon-512.png"
+];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.addAll(PRECACHE);
+  })());
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.map((k) => (k.startsWith("tp-cache-") && k !== CACHE_NAME) ? caches.delete(k) : Promise.resolve()));
+    await Promise.all(keys.filter(k => k.startsWith("tp-cache-") && k !== CACHE_NAME).map(k => caches.delete(k)));
     await self.clients.claim();
   })());
 });
@@ -24,42 +47,34 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  if (req.method !== "GET") return;                 // no interceptar POST/etc
-  if (url.origin !== self.location.origin) return;  // no interceptar cross-origin (API)
+  // Solo same-origin
+  if (url.origin !== self.location.origin) return;
 
-  if (req.mode === "navigate") {
+  // Navegación (HTML): network-first
+  if (req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html")) {
     event.respondWith((async () => {
       try {
-        const net = await fetch(req);
+        const fresh = await fetch(req, { cache: "no-store" });
         const cache = await caches.open(CACHE_NAME);
-        cache.put(req, net.clone());
-        return net;
+        cache.put(req, fresh.clone());
+        return fresh;
       } catch (e) {
         const cached = await caches.match(req);
-        if (cached) return cached;
-        return caches.match("/index.html");
+        return cached || caches.match("/index.html");
       }
     })());
     return;
   }
 
+  // Assets: stale-while-revalidate
   event.respondWith((async () => {
-    const cache = await caches.open(CACHE_NAME);
-    const cached = await cache.match(req);
+    const cached = await caches.match(req);
+    const fetchPromise = fetch(req).then(async (res) => {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(req, res.clone());
+      return res;
+    }).catch(() => cached);
 
-    const fetchAndUpdate = fetch(req).then((net) => {
-      if (net && net.ok) cache.put(req, net.clone());
-      return net;
-    }).catch(() => null);
-
-    if (cached) {
-      event.waitUntil(fetchAndUpdate);
-      return cached;
-    }
-
-    const net = await fetchAndUpdate;
-    if (net) return net;
-
-    return new Response("Offline", { status: 503, headers: { "Content-Type": "text/plain" } });
+    return cached || fetchPromise;
   })());
 });

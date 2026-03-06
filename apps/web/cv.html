@@ -11,7 +11,6 @@
   <div class="header">
     <img src="/assets/logo-tp.svg" alt="Talento PyME" />
     <div class="nav">
-      <a href="/dashboard.html">Panel</a>
       <a href="/perfil.html" data-role="CANDIDATE">Mi Perfil</a>
       <a href="/cv.html" data-role="CANDIDATE">Mi CV</a>
       <a href="/empleos.html">Empleos</a>
@@ -71,15 +70,15 @@
     </div>
   </div>
 
-  <script src="/config.js?v=4.0.2"></script>
-  <script src="/auth.js?v=4.0.2"></script>
+  <script src="/config.js?v=4.0.3"></script>
+  <script src="/auth.js?v=4.0.3"></script>
   <script>
     requireAuth();
     document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
 
     const role = applyRoleVisibility();
     if(role !== "CANDIDATE"){
-      window.location.href = "/dashboard.html";
+      window.location.href = "/perfil.html";
     }
 
     const elFile = document.getElementById('file');

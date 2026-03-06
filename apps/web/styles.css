@@ -323,3 +323,7 @@ pre{white-space:pre-wrap}
 .pwToggle:active{
   transform: translateY(1px);
 }
+
+
+/* Wider layout for internal pages */
+.wrap.wide{max-width:1100px;}

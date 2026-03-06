@@ -175,8 +175,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=4.0.2"></script>
-  <script src="/auth.js?v=4.0.2"></script>
+  <script src="/config.js?v=4.0.3"></script>
+  <script src="/auth.js?v=4.0.3"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));
@@ -245,26 +245,26 @@
       $("busyText").textContent = text || "Esperá…";
     }
 
-    async function forceUpdate(){
-      const u = $("updateMsg");
-      if(u) u.textContent = "Esperá… actualizando la versión.";
-      try{
-        if("serviceWorker" in navigator){
+    async function forceUpdate() {
+      // Modo "definitivo": desregistrar Service Worker + borrar caches + recargar con cache bust
+      try {
+        if ("serviceWorker" in navigator) {
           const regs = await navigator.serviceWorker.getRegistrations();
-          for(const reg of regs){ await reg.update(); }
+          await Promise.all(regs.map(r => r.unregister()));
         }
-        if("caches" in window){
+        if ("caches" in window) {
           const keys = await caches.keys();
-          await Promise.all(keys.filter(k => k.startsWith("tp-") || k.startsWith("tp-cache")).map(k => caches.delete(k)));
+          await Promise.all(keys.map(k => caches.delete(k)));
         }
-        if(u) u.textContent = "Versión actualizada. Recargando…";
-      }catch(e){
-        if(u) u.textContent = "No se pudo forzar la actualización: " + (e?.message || e);
+      } catch (e) {
+        // seguimos igual: al menos recargamos
       }
-      setTimeout(()=> window.location.reload(), 600);
+      const bust = "v=" + Date.now();
+      const next = window.location.pathname + (window.location.search ? "&" : "?") + bust;
+      window.location.replace(next);
     }
 
-    $("btnRegister").onclick = async () => {
+$("btnRegister").onclick = async () => {
       msg(""); setBusy(true, "Registrando… conectando con la base de datos");
       disable($("btnRegister"), true);
       try{
@@ -321,7 +321,7 @@
         localStorage.setItem("tp_token", data.token);
         localStorage.setItem("tp_role", data.role);
         msg(`OK. Entrando al Panel (${roleES(data.role)})...`);
-        window.location.href = "/dashboard.html";
+        window.location.href = "/perfil.html";
       }catch(e){ msg(e.message); }
       finally{ setBusy(false); disable($("btnLogin"), false); }
     };
