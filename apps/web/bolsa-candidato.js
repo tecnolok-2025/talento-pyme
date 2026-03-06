@@ -34,7 +34,9 @@ const NIVEL_EDU = ["Primaria", "Secundaria", "Terciaria", "Universitaria", "Otro
 
 const ESTADO_CIVIL = ["Soltero/a", "Casado/a", "Unión convivencial / Concubinato", "Separado/a", "Divorciado/a", "Viudo/a"];
 
-const NACIONALIDAD = ["Argentina", "Uruguaya", "Paraguaya", "Boliviana", "Chilena", "Brasileña", "Peruana", "Colombiana", "Venezolana", "Otra"];
+const NACIONALIDAD = ["Argentina", "Uruguaya", "Paraguaya", "Boliviana", "Chilena", "Brasileña", "Peruana", "Colombiana", "Venezolana", "Otra"]
+
+const HIJOS_OPTIONS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10+"];
 
 const LOCALIDADES = [
   "Campana", "Zárate", "Pilar", "Escobar", "Tigre", "Malvinas Argentinas", "San Fernando", "San Isidro", "Vicente López", "San Martín", "Hurlingham", "Morón",
@@ -221,7 +223,7 @@ async function initBolsaCandidato(){
     nombre:"",
     apellido:"",
     dni:"",
-    nacionalidad:"Argentino/a",
+    nacionalidad:"Argentina",
     estadoCivil:"",
     hijos:"",
     telefono:"",
@@ -300,7 +302,7 @@ async function initBolsaCandidato(){
         </div>
         <div class="tp-chip-row">
           <span class="tp-status ${isEditing ? "editing" : "locked"}">${statusLabel()}</span>
-          <button class="chip ${mode==="alta"?"on":""}" data-mode="alta">Alta / Mi perfil</button>
+          <button class="chip ${mode==="alta"?"on":""}" data-mode="alta">Mi perfil</button>
         </div>
       </div>
 
@@ -308,7 +310,7 @@ async function initBolsaCandidato(){
         ${mode==="alta" ? `
           <div class="tp-hero">
             <div>
-              <div class="tp-hero-title">Perfil individual protegido</div>
+              <div class="tp-hero-title">Mi Perfil del candidato</div>
               <div class="muted">Los datos del registro se cargan por defecto. Solo el usuario autenticado puede editar su información y guardar cambios.</div>
             </div>
             <div class="tp-hero-actions">
@@ -329,11 +331,11 @@ async function initBolsaCandidato(){
             </div>
             <div class="tp-mini-card">
               <div class="tp-mini-label">Datos base</div>
-              <div class="tp-mini-value">Registro inicial autocompletado</div>
+              <div class="tp-mini-value">Datos del alta autocompletados</div>
             </div>
             <div class="tp-mini-card">
               <div class="tp-mini-label">Edición</div>
-              <div class="tp-mini-value">Nombre y apellido bloqueados</div>
+              <div class="tp-mini-value">Nombre y apellido protegidos</div>
             </div>
           </div>
 
@@ -362,7 +364,10 @@ async function initBolsaCandidato(){
                 </select>
               </label>
               <label>Hijos (cantidad)
-                <input id="c_hijos" value="${esc(cand.hijos)}" placeholder="Ej: 0 / 1 / 2" ${ro()} />
+                <select id="c_hijos" ${dis()}>
+                  <option value="">(seleccionar)</option>
+                  ${renderSelectOptions(HIJOS_OPTIONS, cand.hijos)}
+                </select>
               </label>
               <label>Teléfono
                 <input id="c_telefono" value="${esc(cand.telefono)}" placeholder="Ej: 11..." ${ro()} />
@@ -494,7 +499,7 @@ async function initBolsaCandidato(){
               <span class="ok">${esc(okMsg)}</span>
               <span class="error">${esc(errMsg)}</span>
             </div>
-            <div class="muted">${bolsaLoaded ? (isEditing ? "Edición habilitada" : "Perfil cargado · modo lectura") : "Cargando..."}</div>
+            <div class="muted">${isEditing ? (bolsaLoaded ? "Edición habilitada" : "Completá tu perfil inicial") : "Mi perfil cargado · modo lectura"}</div>
           </div>
         ` : `
           <div class="rowBetween" style="margin-bottom:10px;">
@@ -707,7 +712,7 @@ async function initBolsaCandidato(){
       const r = await apiFetch("/me");
       if(r.ok){
         me = r;
-        const fullName = r.profile?.fullName || "";
+        const fullName = r.fullName || r.profile?.fullName || "";
         const sp = splitFullName(fullName);
         cand.nombre = cand.nombre || sp.nombre;
         cand.apellido = cand.apellido || sp.apellido;
@@ -727,16 +732,20 @@ async function initBolsaCandidato(){
         cand = {
           ...cand,
           ...r.bolsa,
-          // normalize arrays
           herramientasMecanica: r.bolsa.herramientasMecanica || [],
           instrumentosElectrica: r.bolsa.instrumentosElectrica || [],
         };
+        bolsaLoaded = true;
+        isEditing = false;
+      } else {
+        bolsaLoaded = false;
+        isEditing = true;
       }
-      bolsaLoaded = true;
       render();
     }catch(err){
-      bolsaLoaded = true;
-      errMsg = "No se pudo cargar tu perfil.";
+      bolsaLoaded = false;
+      isEditing = true;
+      errMsg = "No se pudo cargar tu perfil guardado. Podés completar uno nuevo.";
       render();
     }
   }
@@ -767,7 +776,7 @@ async function initBolsaCandidato(){
         nombre: cand.nombre,
         apellido: cand.apellido,
         dni: cand.dni,
-        nacionalidad: cand.nacionalidad || "Argentino/a",
+        nacionalidad: cand.nacionalidad || "Argentina",
         estadoCivil: cand.estadoCivil || "",
         hijos: cand.hijos || "",
         telefono: cand.telefono || "",

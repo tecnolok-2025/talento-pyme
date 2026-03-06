@@ -107,6 +107,13 @@ app.get("/me", authRequired, async (req, res) => {
       },
       fullName: user.candidateProfile?.fullName || null,
       companyName: user.company?.companyName || null,
+      profile: user.candidateProfile ? {
+        fullName: user.candidateProfile.fullName || null,
+        dni: user.candidateProfile.dni || null,
+        phone: user.candidateProfile.phone || null,
+        city: user.candidateProfile.city || null,
+        address: user.candidateProfile.address || null,
+      } : null,
     });
   } catch (err) {
     console.error("GET /me", err);
