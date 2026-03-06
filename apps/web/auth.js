@@ -126,3 +126,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const btn = document.getElementById("btnUpdate");
   if (btn) btn.addEventListener("click", () => hardUpdate());
 });
+
+// Normaliza roles para evitar errores recurrentes (mayúsculas/minúsculas/ES/EN)
+function normalizeRole(role) {
+  if (!role) return null;
+  const r = String(role).trim().toUpperCase();
+  if (r === 'CANDIDATO' || r === 'CANDIDATE') return 'CANDIDATE';
+  if (r === 'EMPRESA' || r === 'COMPANY') return 'COMPANY';
+  if (r === 'ADMIN' || r === 'SUPERADMIN') return 'ADMIN';
+  return r;
+}
+

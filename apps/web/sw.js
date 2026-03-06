@@ -3,7 +3,7 @@
    - Navegación: network-first (para actualizar versión).
    - Assets GET: stale-while-revalidate.
 */
-self.importScripts("/config.js?v=4.0.1");
+self.importScripts("/config.js?v=4.0.2");
 
 const VERSION = (self.TP_APP_VERSION || "4.0.1");
 const CACHE_NAME = "tp-cache-" + VERSION;
