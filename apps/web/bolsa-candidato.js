@@ -1,4 +1,4 @@
-/* Talento PyME - v4.0.5 (candidato) - Mi Perfil = Bolsa de Trabajo (gemela UIC) */
+/* Talento PyME - v4.0.7 (candidato) - Mi Perfil = Bolsa de Trabajo (gemela UIC) */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -258,6 +258,10 @@ async function initBolsaCandidato(){
   let searchErr = "";
   let searchItems = [];
   let statsTotal = null;
+  let parsingCv = false;
+  let parseProgress = 0;
+  let parseMsg = "";
+  let detailsState = { d1:false, d2:false, d3:false, d4:false, d5:false };
 
   let jobs = {
     q:"",
@@ -278,7 +282,17 @@ async function initBolsaCandidato(){
   }
 
   function statusLabel(){
+    if (parsingCv) return "Analizando CV...";
     return isEditing ? "Modo edición activo" : "Perfil protegido";
+  }
+
+  function detailOpen(key){
+    return detailsState[key] ? "open" : "";
+  }
+
+  function toggleDetail(key){
+    detailsState[key] = !detailsState[key];
+    render();
   }
 
   function render(){
@@ -298,10 +312,10 @@ async function initBolsaCandidato(){
         <div>
           <div class="tp-overline">Talento PyME · Candidato</div>
           <h2 style="margin:0;">Mi Perfil</h2>
-          <div class="muted">Bolsa de Trabajo · estilo UIC · v${esc(TP_APP_VERSION)}</div>
+          <div class="muted">Mi perfil del candidato · estilo UIC tecnológico · v${esc(TP_APP_VERSION)}</div>
         </div>
         <div class="tp-chip-row">
-          <span class="tp-status ${isEditing ? "editing" : "locked"}">${statusLabel()}</span>
+          <span class="tp-status ${parsingCv ? "editing" : (isEditing ? "editing" : "locked")}">${statusLabel()}</span>
           <button class="chip ${mode==="alta"?"on":""}" data-mode="alta">Mi perfil</button>
         </div>
       </div>
@@ -311,18 +325,28 @@ async function initBolsaCandidato(){
           <div class="tp-hero">
             <div>
               <div class="tp-hero-title">Mi Perfil del candidato</div>
-              <div class="muted">Los datos del registro se cargan por defecto. Solo el usuario autenticado puede editar su información y guardar cambios.</div>
+              <div class="muted">Los datos del registro se cargan por defecto. <b>Recargar</b> vuelve a leer los datos guardados. <b>Guardar cambios</b> confirma y registra las modificaciones del perfil.</div>
             </div>
             <div class="tp-hero-actions">
               <button class="btn secondary" id="btnReloadBolsa" type="button">Recargar</button>
+              <label class="btn secondary tp-upload-btn" for="cvUploadInput">Cargar currículum</label>
+              <input id="cvUploadInput" type="file" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg" hidden />
               ${isEditing ? `
                 <button class="btn secondary" id="btnCancelEdit" type="button">Cancelar</button>
-                <button class="btn" id="btnSaveBolsa" type="button" ${busy?"disabled":""}>${busy?"Guardando...":"Guardar cambios"}</button>
+                <button class="btn" id="btnSaveBolsa" type="button" ${(busy||parsingCv)?"disabled":""}>${busy?"Guardando...":"Guardar cambios"}</button>
               ` : `
-                <button class="btn btn-tech" id="btnEditBolsa" type="button">Editar</button>
+                <button class="btn btn-tech" id="btnEditBolsa" type="button" ${parsingCv?"disabled":""}>Editar</button>
               `}
             </div>
           </div>
+
+          ${parsingCv ? `
+            <div class="tp-parse-overlay-card">
+              <div class="tp-parse-title">Procesando currículum</div>
+              <div class="muted">${esc(parseMsg || "Esperá un momento mientras confeccionamos el resumen curricular.")}</div>
+              <div class="tp-progress"><span style="width:${parseProgress}%;"></span></div>
+            </div>
+          ` : ``}
 
           <div class="tp-intro-grid">
             <div class="tp-mini-card">
@@ -331,16 +355,16 @@ async function initBolsaCandidato(){
             </div>
             <div class="tp-mini-card">
               <div class="tp-mini-label">Datos base</div>
-              <div class="tp-mini-value">Datos del alta autocompletados</div>
+              <div class="tp-mini-value">Nombre, email, localidad y dirección desde registro</div>
             </div>
             <div class="tp-mini-card">
               <div class="tp-mini-label">Edición</div>
-              <div class="tp-mini-value">Nombre y apellido protegidos</div>
+              <div class="tp-mini-value">Podés editar antes de guardar · luego con Editar</div>
             </div>
           </div>
 
-          <details class="tp-details">
-            <summary><b>1) Datos personales</b></summary>
+          <details class="tp-details" ${detailOpen("d1")}>
+            <summary data-detail="d1"><b>1) Datos personales</b></summary>
             <div class="formGrid">
               <label>Nombre
                 <input id="c_nombre" value="${esc(cand.nombre)}" placeholder="Ej: Juan" readonly class="field-lock" />
@@ -387,8 +411,8 @@ async function initBolsaCandidato(){
             </div>
           </details>
 
-          <details class="tp-details">
-            <summary><b>2) Perfil laboral</b></summary>
+          <details class="tp-details" ${detailOpen("d2")}>
+            <summary data-detail="d2"><b>2) Perfil laboral</b></summary>
             <div class="formGrid">
               <label>Área de trabajo
                 <select id="c_areaTrabajo" ${dis()}>
@@ -445,8 +469,8 @@ async function initBolsaCandidato(){
             ` : ""}
           </details>
 
-          <details class="tp-details">
-            <summary><b>3) Experiencia y formación</b></summary>
+          <details class="tp-details" ${detailOpen("d3")}>
+            <summary data-detail="d3"><b>3) Experiencia y formación</b></summary>
             <div class="formGrid">
               <label>Rango de experiencia
                 <select id="c_rangoExp" ${dis()}>
@@ -469,8 +493,8 @@ async function initBolsaCandidato(){
             </div>
           </details>
 
-          <details class="tp-details">
-            <summary><b>4) Situación y preferencias</b></summary>
+          <details class="tp-details" ${detailOpen("d4")}>
+            <summary data-detail="d4"><b>4) Situación y preferencias</b></summary>
             <div class="formGrid">
               <label>¿Trabajás actualmente?
                 <select id="c_trabaja" ${dis()}>
@@ -487,10 +511,11 @@ async function initBolsaCandidato(){
             </div>
           </details>
 
-          <details class="tp-details">
-            <summary><b>5) Observaciones</b></summary>
+          <details class="tp-details" ${detailOpen("d5")}>
+            <summary data-detail="d5"><b>5) Resumen curricular</b></summary>
             <label style="display:block; margin-top:8px;">
-              <textarea id="c_obs" rows="4" placeholder="Información adicional..." ${ro()}>${esc(cand.observaciones)}</textarea>
+              <textarea id="c_obs" rows="9" placeholder="Acá se va a mostrar el resumen curricular más importante, priorizando la experiencia más reciente." ${ro()}>${esc(cand.observaciones)}</textarea>
+              <small class="muted">Podés cargar un archivo PDF, DOCX o TXT. Las imágenes JPG/PNG quedan sujetas a que el archivo contenga texto legible.</small>
             </label>
           </details>
 
@@ -616,6 +641,13 @@ async function initBolsaCandidato(){
       });
     });
 
+    root.querySelectorAll("summary[data-detail]").forEach(sm=>{
+      sm.addEventListener("click", (ev)=>{
+        ev.preventDefault();
+        toggleDetail(sm.dataset.detail);
+      });
+    });
+
     if(mode==="alta") bindAlta();
     else bindBuscar();
   }
@@ -677,11 +709,13 @@ async function initBolsaCandidato(){
     const btnSave = el("btnSaveBolsa");
     if(btnSave) btnSave.addEventListener("click", saveAlta);
     const btnReload = el("btnReloadBolsa");
-    if(btnReload) btnReload.addEventListener("click", loadBolsa);
+    if(btnReload) btnReload.addEventListener("click", async ()=>{ if(parsingCv) return; await loadMe(); await loadBolsa(); });
     const btnEdit = el("btnEditBolsa");
-    if(btnEdit) btnEdit.addEventListener("click", ()=>{ okMsg=""; errMsg=""; isEditing = true; render(); });
+    if(btnEdit) btnEdit.addEventListener("click", ()=>{ if(parsingCv) return; okMsg=""; errMsg=""; isEditing = true; detailsState.d1 = true; render(); });
     const btnCancel = el("btnCancelEdit");
-    if(btnCancel) btnCancel.addEventListener("click", async ()=>{ isEditing = false; okMsg=""; errMsg=""; await loadBolsa(); });
+    if(btnCancel) btnCancel.addEventListener("click", async ()=>{ if(parsingCv) return; isEditing = false; okMsg=""; errMsg=""; await loadMe(); await loadBolsa(); });
+    const up = el("cvUploadInput");
+    if(up) up.addEventListener("change", async (ev)=>{ const file = ev.target.files && ev.target.files[0]; if(file) await parseCurriculum(file); up.value = ""; });
   }
 
   function bindBuscar(){
@@ -719,9 +753,59 @@ async function initBolsaCandidato(){
         cand.dni = cand.dni || (r.profile?.dni || "");
         cand.telefono = cand.telefono || (r.profile?.phone || "");
         cand.localidad = cand.localidad || (r.profile?.city || "");
+        cand.direccion = cand.direccion || (r.profile?.address || "");
         cand.correo = cand.correo || (r.user?.email || "");
       }
     }catch(e){}
+  }
+
+  async function parseCurriculum(file){
+    if(!file) return;
+    parsingCv = true;
+    parseProgress = 8;
+    parseMsg = "Subiendo archivo y preparando lectura...";
+    errMsg = "";
+    okMsg = "";
+    detailsState.d5 = true;
+    render();
+    const timer = setInterval(()=>{ if(parseProgress < 88) { parseProgress += 9; render(); } }, 280);
+    try{
+      const fd = new FormData();
+      fd.append("file", file);
+      parseMsg = "Leyendo y resumiendo la experiencia profesional...";
+      render();
+      const r = await apiFetch("/resume/parse", { method:"POST", body: fd });
+      if(!r.ok){
+        throw new Error(r.error || "No se pudo procesar el currículum.");
+      }
+      parseProgress = 95;
+      const summaryText = String(r.summaryText || "").trim();
+      cand.observaciones = summaryText || buildSummaryFromSections(r.sections || {});
+      okMsg = "Resumen curricular generado. Revisalo en el punto 5 antes de guardar.";
+      if(!isEditing) isEditing = true;
+      detailsState.d5 = true;
+    }catch(err){
+      errMsg = err?.message || "No se pudo analizar el currículum cargado.";
+    }finally{
+      clearInterval(timer);
+      parseProgress = 100;
+      render();
+      setTimeout(()=>{ parsingCv = false; parseProgress = 0; parseMsg = ""; render(); }, 350);
+    }
+  }
+
+  function buildSummaryFromSections(sections){
+    const s = sections || {};
+    const clean = (v) => String(v || "").replace(/\s+/g, " ").trim();
+    const pickLines = (txt, max=4) => String(txt || "").split(/\n+/).map(x=>x.trim()).filter(Boolean).slice(0,max);
+    const parts = [];
+    const summary = clean(s.summary);
+    const expLines = pickLines(s.experience, 5);
+    const cert = pickLines(s.certifications, 2);
+    if(summary) parts.push(summary.slice(0, 500));
+    if(expLines.length) parts.push("Experiencia reciente destacada: " + expLines.join(" • "));
+    if(cert.length) parts.push("Capacitaciones / certificaciones: " + cert.join(" • "));
+    return parts.join("\n\n");
   }
 
   async function loadBolsa(){
@@ -735,6 +819,13 @@ async function initBolsaCandidato(){
           herramientasMecanica: r.bolsa.herramientasMecanica || [],
           instrumentosElectrica: r.bolsa.instrumentosElectrica || [],
         };
+        cand.nombre = cand.nombre || splitFullName(me?.fullName || me?.profile?.fullName || "").nombre;
+        cand.apellido = cand.apellido || splitFullName(me?.fullName || me?.profile?.fullName || "").apellido;
+        cand.correo = cand.correo || (me?.user?.email || "");
+        cand.telefono = cand.telefono || (me?.profile?.phone || "");
+        cand.localidad = cand.localidad || (me?.profile?.city || "");
+        cand.direccion = cand.direccion || (me?.profile?.address || "");
+        cand.dni = cand.dni || (me?.profile?.dni || "");
         bolsaLoaded = true;
         isEditing = false;
       } else {
@@ -904,6 +995,11 @@ async function initBolsaCandidato(){
       .field-lock, input[readonly], textarea[readonly]{ background:linear-gradient(180deg, rgba(244,247,252,.96), rgba(238,243,250,.98)); color:#42526b; border:1px solid rgba(91,134,211,.12); }
       select:disabled, input:disabled, textarea:disabled{ opacity:.72; cursor:not-allowed; background:linear-gradient(180deg, rgba(244,247,252,.96), rgba(238,243,250,.98)); }
       .tp-bottom-bar{ padding-top:6px; }
+      .tp-upload-btn{ cursor:pointer; }
+      .tp-progress{ height:10px; border-radius:999px; background:rgba(18,54,110,.12); overflow:hidden; margin-top:12px; }
+      .tp-progress > span{ display:block; height:100%; background:linear-gradient(90deg, #5fd0ff, #1769E0, #f28c28); border-radius:999px; transition:width .25s ease; }
+      .tp-parse-overlay-card{ margin:14px 0 8px; padding:16px 18px; border-radius:18px; border:1px solid rgba(23,105,224,.16); background:rgba(255,255,255,.92); box-shadow:0 14px 32px rgba(14,37,74,.08); }
+      .tp-parse-title{ font-size:15px; font-weight:900; color:#102a56; }
       @media (max-width: 900px){ .tp-intro-grid{ grid-template-columns:1fr; } }
     `;
     document.head.appendChild(st);

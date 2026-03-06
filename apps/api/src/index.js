@@ -681,6 +681,29 @@ function splitByHeadings(text){
   return buckets;
 }
 
+
+function buildResumeSummary(text, sections){
+  const s = sections || {};
+  const clean = (v = "") => String(v || "").replace(/\s+/g, " ").trim();
+  const splitLines = (v = "") => String(v || "").split(/\r?\n+/).map(x => x.trim()).filter(Boolean);
+
+  const summary = clean(s.summary);
+  const expLines = splitLines(s.experience).slice(0, 7);
+  const certLines = splitLines(s.certifications).slice(0, 3);
+  const edu = clean(s.education);
+
+  const parts = [];
+  if (summary) parts.push(`Perfil general: ${summary.slice(0, 700)}`);
+  if (expLines.length) parts.push(`Experiencia profesional reciente: ${expLines.join(' • ')}`);
+  if (certLines.length) parts.push(`Capacitaciones y certificaciones relevantes: ${certLines.join(' • ')}`);
+  if (!summary && !expLines.length && edu) parts.push(`Formación / especialidad detectada: ${edu.slice(0, 500)}`);
+  if (!parts.length) {
+    const raw = clean(text);
+    return raw.slice(0, 1200);
+  }
+  return parts.join("\n\n").slice(0, 6000);
+}
+
 async function extractTextFromUpload(file){
   const name = String(file.originalname || "").toLowerCase();
   const buf = file.buffer;
@@ -704,10 +727,11 @@ app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
     if(!req.file) return res.status(400).json({ error: "Falta adjuntar archivo (PDF/DOCX/TXT)." });
     const text = await extractTextFromUpload(req.file);
     if(!text || text.trim().length < 20){
-      return res.status(400).json({ error: "No pudimos leer texto del archivo. Probá con PDF/DOCX/TXT que contenga texto seleccionable." });
+      return res.status(400).json({ error: "No pudimos leer texto del archivo. Probá con PDF, DOCX o TXT que contenga texto seleccionable." });
     }
     const sections = splitByHeadings(text);
-    return res.json({ ok:true, sections });
+    const summaryText = buildResumeSummary(text, sections);
+    return res.json({ ok:true, sections, summaryText });
   }catch(err){
     console.error("resume/parse error:", err);
     return res.status(500).json({ error: "Error al procesar el archivo." });
@@ -780,12 +804,14 @@ app.post("/bolsa/me", authRequired, async (req, res) => {
         fullName: `${data.nombre} ${data.apellido}`.trim(),
         dni: data.dni,
         city: data.localidad,
+        address: data.direccion || "",
         phone: data.telefono,
       },
       update: {
         fullName: `${data.nombre} ${data.apellido}`.trim(),
         dni: data.dni,
         city: data.localidad,
+        address: data.direccion || "",
         phone: data.telefono,
       }
     });

@@ -7,14 +7,13 @@
 
 importScripts("/config.js?v=4.0.4");
 
-const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "4.0.4";
+const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "4.0.7";
 const CACHE_NAME = `tp-cache-${VERSION}`;
 
 const PRECACHE = [
   "/",
   "/index.html",
   "/perfil.html",
-  "/cv.html",
   "/empleos.html",
   "/buscar.html",
   "/styles.css?v=4.0.4",

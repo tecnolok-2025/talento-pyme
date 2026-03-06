@@ -12,8 +12,7 @@
     <img src="/assets/logo-tp.svg" alt="Talento PyME" />
     <div class="nav">
   <a href="/perfil.html" data-role="CANDIDATE">Mi Perfil</a>
-  <a href="/cv.html" data-role="CANDIDATE">Mi CV</a>
-  <a href="/empleos.html">Empleos</a>
+    <a href="/empleos.html">Empleos</a>
   <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
   <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
   <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
@@ -75,7 +74,7 @@
         } else {
           const p = await apiFetch("/profile/me");
           document.getElementById("info").textContent = "Candidato: " + (p?.fullName || "(sin nombre cargado)");
-          document.getElementById("tips").textContent = "Siguiente paso: Mi Perfil + Mi CV. Luego Empleos → postularte.";
+          document.getElementById("tips").textContent = "Siguiente paso: Mi Perfil. Luego Empleos → postularte.";
         }
       }catch(e){
         document.getElementById("info").textContent = "No se pudo cargar datos: " + e.message;

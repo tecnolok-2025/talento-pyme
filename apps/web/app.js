@@ -1,4 +1,4 @@
-// Shared helpers for Talento PyME (v4.0.3)
+// Shared helpers for Talento PyME (v4.0.7)
 // NOTA: Este archivo puede cargarse en cualquier pantalla.
 // No debe asumir que existen ciertos elementos en el DOM.
 
@@ -14,7 +14,7 @@ window.apiFetch = window.apiFetch || async function apiFetch(path, options = {})
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", "Bearer " + token);
   }
-  if (options.body && !headers.has("Content-Type")) {
+  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
