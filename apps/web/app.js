@@ -7,7 +7,7 @@ function apiBase() {
   return String(base).replace(/\/$/, "");
 }
 
-async function apiFetch(path, options = {}) {
+window.apiFetch = window.apiFetch || async function apiFetch(path, options = {}) {
   const token = (typeof loadToken === "function") ? loadToken() : localStorage.getItem("tp_token");
 
   const headers = new Headers(options.headers || {});
@@ -64,3 +64,6 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
+
+window.setPageError = window.setPageError || setPageError;
+window.escapeHtml = window.escapeHtml || escapeHtml;

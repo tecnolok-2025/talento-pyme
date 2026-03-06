@@ -1,4 +1,4 @@
-# Talento PyME — v4.0.3
+# Talento PyME — v4.0.4
 
 Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**.
 
@@ -26,9 +26,9 @@ Solo existen **2 perfiles**:
 - **Recupero de contraseña:** valida contra los datos de registro (DNI/CUIT, según corresponda).
 
 ## PWA / caché
-La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.0.1`) y un botón en Acceso **“Actualizar versión”** para forzar refresh.
+La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.0.4`) y un botón en Acceso **“Actualizar versión”** para forzar refresh.
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "4.0.1"`
-- API: `apps/api/package.json` → `4.0.1` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "4.0.4"`
+- API: `apps/api/package.json` → `4.0.4` y endpoint `/health`.

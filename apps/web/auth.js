@@ -1,5 +1,7 @@
 function tpToken(){ return localStorage.getItem("tp_token"); }
-function tpRole(){ return localStorage.getItem("tp_role"); }
+function tpRole(){ return normalizeRole(localStorage.getItem("tp_role")); }
+function getRole(){ return tpRole(); }
+function loadToken(){ return tpToken(); }
 function requireAuth(){
   const t = tpToken();
   if(!t){ window.location.href = "/"; return null; }
@@ -27,14 +29,14 @@ function tpVersion(){
 }
 function applyVersionBadges(){
   const v = "v" + tpVersion();
-  document.querySelectorAll(".tp-version").forEach(el => { el.textContent = v; });
+  document.querySelectorAll(".tp-version, .appVersion").forEach(el => { el.textContent = v; });
 }
 document.addEventListener("DOMContentLoaded", applyVersionBadges);
 
 function applyRoleVisibility(){
   const role = tpRole();
   document.querySelectorAll('[data-role]').forEach(el => {
-    const r = el.getAttribute('data-role');
+    const r = normalizeRole(el.getAttribute('data-role'));
     if(r && role && r !== role) el.style.display = 'none';
   });
   return role;

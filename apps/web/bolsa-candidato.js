@@ -1,4 +1,4 @@
-/* Talento PyME - v4.0.1 (candidato) - Mi Perfil = Bolsa de Trabajo (gemela UIC) */
+/* Talento PyME - v4.0.4 (candidato) - Mi Perfil = Bolsa de Trabajo (gemela UIC) */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -210,12 +210,12 @@ async function initBolsaCandidato(){
   if(!root) return;
 
   const role = getRole();
-  if(role !== "candidate"){
+  if(role !== "CANDIDATE"){
     root.innerHTML = `<div class="card"><p>Este panel está disponible por ahora solo para <b>Candidatos</b>.</p></div>`;
     return;
   }
 
-  let mode = localStorage.getItem("tpBolsaMode") || "alta";
+  let mode = "alta";
 
   const empty = {
     nombre:"",
@@ -286,7 +286,7 @@ async function initBolsaCandidato(){
         </div>
         <div class="tp-chip-row">
           <button class="chip ${mode==="alta"?"on":""}" data-mode="alta">Alta / Mi perfil</button>
-          <button class="chip ${mode==="buscar"?"on":""}" data-mode="buscar">Buscar CV</button>
+          
         </div>
       </div>
 
@@ -567,8 +567,8 @@ async function initBolsaCandidato(){
     // bind mode chips
     root.querySelectorAll("[data-mode]").forEach(btn=>{
       btn.addEventListener("click", ()=>{
-        mode = btn.getAttribute("data-mode");
-        localStorage.setItem("tpBolsaMode", mode);
+        mode = "alta";
+        localStorage.setItem("tpBolsaMode", "alta");
         okMsg=""; errMsg=""; searchErr="";
         render();
       });
