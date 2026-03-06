@@ -1,4 +1,4 @@
-/* Talento PyME - v4.0.4 (candidato) - Mi Perfil = Bolsa de Trabajo (gemela UIC) */
+/* Talento PyME - v4.0.5 (candidato) - Mi Perfil = Bolsa de Trabajo (gemela UIC) */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -246,6 +246,7 @@ async function initBolsaCandidato(){
   let cand = { ...empty };
   let me = null;
   let bolsaLoaded = false;
+  let isEditing = false;
 
   let busy = false;
   let okMsg = "";
@@ -266,6 +267,18 @@ async function initBolsaCandidato(){
     instr:[]
   };
 
+  function ro(canEdit = true){
+    return (isEditing && canEdit) ? "" : "readonly";
+  }
+
+  function dis(canEdit = true){
+    return (isEditing && canEdit) ? "" : "disabled";
+  }
+
+  function statusLabel(){
+    return isEditing ? "Modo edición activo" : "Perfil protegido";
+  }
+
   function render(){
     const especialidades = cand.areaTrabajo ? getEspecialidades(cand.areaTrabajo) : [];
     const showNivel = (cand.areaTrabajo === "Eléctrica (Industrial)" || cand.areaTrabajo === "Mecánica (Industrial)");
@@ -279,76 +292,101 @@ async function initBolsaCandidato(){
     const jobsShowInstr = jobs.area === "Eléctrica (Industrial)";
 
     root.innerHTML = `
-      <div class="tp-bolsa-head">
+      <div class="tp-bolsa-head techPanel">
         <div>
+          <div class="tp-overline">Talento PyME · Candidato</div>
           <h2 style="margin:0;">Mi Perfil</h2>
-          <div class="muted">Bolsa de Trabajo (copia gemela estilo UIC) • v${esc(TP_APP_VERSION)}</div>
+          <div class="muted">Bolsa de Trabajo · estilo UIC · v${esc(TP_APP_VERSION)}</div>
         </div>
         <div class="tp-chip-row">
+          <span class="tp-status ${isEditing ? "editing" : "locked"}">${statusLabel()}</span>
           <button class="chip ${mode==="alta"?"on":""}" data-mode="alta">Alta / Mi perfil</button>
-          
         </div>
       </div>
 
-      <div class="card" style="margin-top:12px;">
+      <div class="card techCard" style="margin-top:12px;">
         ${mode==="alta" ? `
-          <div class="rowBetween" style="margin-bottom:10px;">
-            <div class="muted">Completá tu perfil. Los datos del registro se usan como base.</div>
+          <div class="tp-hero">
             <div>
+              <div class="tp-hero-title">Perfil individual protegido</div>
+              <div class="muted">Los datos del registro se cargan por defecto. Solo el usuario autenticado puede editar su información y guardar cambios.</div>
+            </div>
+            <div class="tp-hero-actions">
               <button class="btn secondary" id="btnReloadBolsa" type="button">Recargar</button>
+              ${isEditing ? `
+                <button class="btn secondary" id="btnCancelEdit" type="button">Cancelar</button>
+                <button class="btn" id="btnSaveBolsa" type="button" ${busy?"disabled":""}>${busy?"Guardando...":"Guardar cambios"}</button>
+              ` : `
+                <button class="btn btn-tech" id="btnEditBolsa" type="button">Editar</button>
+              `}
             </div>
           </div>
 
-          <details open class="tp-details">
+          <div class="tp-intro-grid">
+            <div class="tp-mini-card">
+              <div class="tp-mini-label">Acceso</div>
+              <div class="tp-mini-value">Personal e individual</div>
+            </div>
+            <div class="tp-mini-card">
+              <div class="tp-mini-label">Datos base</div>
+              <div class="tp-mini-value">Registro inicial autocompletado</div>
+            </div>
+            <div class="tp-mini-card">
+              <div class="tp-mini-label">Edición</div>
+              <div class="tp-mini-value">Nombre y apellido bloqueados</div>
+            </div>
+          </div>
+
+          <details class="tp-details">
             <summary><b>1) Datos personales</b></summary>
             <div class="formGrid">
               <label>Nombre
-                <input id="c_nombre" value="${esc(cand.nombre)}" placeholder="Ej: Juan" />
+                <input id="c_nombre" value="${esc(cand.nombre)}" placeholder="Ej: Juan" readonly class="field-lock" />
               </label>
               <label>Apellido
-                <input id="c_apellido" value="${esc(cand.apellido)}" placeholder="Ej: Pérez" />
+                <input id="c_apellido" value="${esc(cand.apellido)}" placeholder="Ej: Pérez" readonly class="field-lock" />
               </label>
               <label>DNI
-                <input id="c_dni" value="${esc(cand.dni)}" placeholder="Ej: 12345678" />
+                <input id="c_dni" value="${esc(cand.dni)}" placeholder="Ej: 12345678" ${ro()} />
               </label>
               <label>Nacionalidad
-                <select id="c_nacionalidad">
+                <select id="c_nacionalidad" ${dis()}>
                   <option value="">(seleccionar)</option>
                   ${renderSelectOptions(NACIONALIDAD, cand.nacionalidad)}
                 </select>
               </label>
               <label>Estado civil
-                <select id="c_estadoCivil">
+                <select id="c_estadoCivil" ${dis()}>
                   <option value="">(seleccionar)</option>
                   ${renderSelectOptions(ESTADO_CIVIL, cand.estadoCivil)}
                 </select>
               </label>
               <label>Hijos (cantidad)
-                <input id="c_hijos" value="${esc(cand.hijos)}" placeholder="Ej: 0 / 1 / 2" />
+                <input id="c_hijos" value="${esc(cand.hijos)}" placeholder="Ej: 0 / 1 / 2" ${ro()} />
               </label>
               <label>Teléfono
-                <input id="c_telefono" value="${esc(cand.telefono)}" placeholder="Ej: 11..." />
+                <input id="c_telefono" value="${esc(cand.telefono)}" placeholder="Ej: 11..." ${ro()} />
               </label>
               <label>Email
-                <input id="c_correo" value="${esc(cand.correo)}" placeholder="Ej: correo@..." />
+                <input id="c_correo" value="${esc(cand.correo)}" placeholder="Ej: correo@..." ${ro()} />
               </label>
               <label>Localidad
-                <select id="c_localidad">
+                <select id="c_localidad" ${dis()}>
                   <option value="">(seleccionar)</option>
                   ${renderSelectOptions(LOCALIDADES, cand.localidad)}
                 </select>
               </label>
               <label>Dirección (opcional)
-                <input id="c_direccion" value="${esc(cand.direccion)}" placeholder="Calle y número" />
+                <input id="c_direccion" value="${esc(cand.direccion)}" placeholder="Calle y número" ${ro()} />
               </label>
             </div>
           </details>
 
-          <details open class="tp-details">
+          <details class="tp-details">
             <summary><b>2) Perfil laboral</b></summary>
             <div class="formGrid">
               <label>Área de trabajo
-                <select id="c_areaTrabajo">
+                <select id="c_areaTrabajo" ${dis()}>
                   <option value="">(seleccionar)</option>
                   ${renderSelectOptions(AREA_TRABAJO, cand.areaTrabajo)}
                 </select>
@@ -356,7 +394,7 @@ async function initBolsaCandidato(){
 
               ${showNivel ? `
                 <label>Nivel (solo para Mecánica/Eléctrica Industrial)
-                  <select id="c_nivel">
+                  <select id="c_nivel" ${dis()}>
                     <option value="">(seleccionar)</option>
                     ${renderSelectOptions(NIVEL_ELECTRO_MEC, cand.nivel)}
                   </select>
@@ -370,7 +408,7 @@ async function initBolsaCandidato(){
               `}
 
               <label>Especialidad
-                <select id="c_especialidad" ${cand.areaTrabajo ? "" : "disabled"}>
+                <select id="c_especialidad" ${(cand.areaTrabajo && isEditing) ? "" : "disabled"}>
                   <option value="">(seleccionar)</option>
                   ${renderSelectOptions(especialidades, cand.especialidad)}
                 </select>
@@ -378,7 +416,7 @@ async function initBolsaCandidato(){
 
               ${especIsOtros ? `
                 <label>Si elegiste "Otros", especificá
-                  <input id="c_especialidadOtro" value="${esc(cand.especialidadOtro)}" placeholder="Especificá tu especialidad" />
+                  <input id="c_especialidadOtro" value="${esc(cand.especialidadOtro)}" placeholder="Especificá tu especialidad" ${ro()} />
                 </label>
               ` : `
                 <label style="opacity:.6;">Especialidad (otros)
@@ -390,35 +428,35 @@ async function initBolsaCandidato(){
             ${showHerr ? `
               <div style="margin-top:10px;">
                 <div class="muted" style="margin-bottom:6px;"><b>Herramientas / Máquina-herramienta (Mecánica)</b></div>
-                ${renderCheckboxList({ items: HERRAMIENTAS_MECANICA, selectedSet: new Set(cand.herramientasMecanica), name:"herrMec" })}
+                ${renderCheckboxList({ items: HERRAMIENTAS_MECANICA, selectedSet: new Set(cand.herramientasMecanica), name:"herrMec" }).replaceAll("<input ", `<input ${dis()} `)}
               </div>
             ` : ""}
 
             ${showInstr ? `
               <div style="margin-top:10px;">
                 <div class="muted" style="margin-bottom:6px;"><b>Instrumentos / Electricidad</b></div>
-                ${renderCheckboxList({ items: INSTRUMENTOS_ELECTRICA, selectedSet: new Set(cand.instrumentosElectrica), name:"instrElec" })}
+                ${renderCheckboxList({ items: INSTRUMENTOS_ELECTRICA, selectedSet: new Set(cand.instrumentosElectrica), name:"instrElec" }).replaceAll("<input ", `<input ${dis()} `)}
               </div>
             ` : ""}
           </details>
 
-          <details open class="tp-details">
+          <details class="tp-details">
             <summary><b>3) Experiencia y formación</b></summary>
             <div class="formGrid">
               <label>Rango de experiencia
-                <select id="c_rangoExp">
+                <select id="c_rangoExp" ${dis()}>
                   <option value="">(seleccionar)</option>
                   ${renderSelectOptions(RANGO_EXP, cand.rangoExperiencia)}
                 </select>
               </label>
               <label>Nivel educativo
-                <select id="c_nivelEdu">
+                <select id="c_nivelEdu" ${dis()}>
                   <option value="">(seleccionar)</option>
                   ${renderSelectOptions(NIVEL_EDU, cand.nivelEducativo)}
                 </select>
               </label>
               <label>¿Tenés capacitación/cursos?
-                <select id="c_cap">
+                <select id="c_cap" ${dis()}>
                   <option value="no" ${!cand.tieneCapacitacion?"selected":""}>No</option>
                   <option value="si" ${cand.tieneCapacitacion?"selected":""}>Sí</option>
                 </select>
@@ -426,38 +464,37 @@ async function initBolsaCandidato(){
             </div>
           </details>
 
-          <details open class="tp-details">
+          <details class="tp-details">
             <summary><b>4) Situación y preferencias</b></summary>
             <div class="formGrid">
               <label>¿Trabajás actualmente?
-                <select id="c_trabaja">
+                <select id="c_trabaja" ${dis()}>
                   <option value="no" ${!cand.trabajaActualmente?"selected":""}>No</option>
                   <option value="si" ${cand.trabajaActualmente?"selected":""}>Sí</option>
                 </select>
               </label>
               <label>Sueldo pretendido (opcional)
-                <input id="c_sueldo" value="${esc(cand.sueldoPretendido)}" placeholder="Ej: A convenir / $..." />
+                <input id="c_sueldo" value="${esc(cand.sueldoPretendido)}" placeholder="Ej: A convenir / $..." ${ro()} />
               </label>
               <label>Último trabajo / puesto (opcional)
-                <input id="c_ultimo" value="${esc(cand.ultimoTrabajo)}" placeholder="Ej: Técnico..." />
+                <input id="c_ultimo" value="${esc(cand.ultimoTrabajo)}" placeholder="Ej: Técnico..." ${ro()} />
               </label>
             </div>
           </details>
 
-          <details open class="tp-details">
+          <details class="tp-details">
             <summary><b>5) Observaciones</b></summary>
             <label style="display:block; margin-top:8px;">
-              <textarea id="c_obs" rows="4" placeholder="Información adicional...">${esc(cand.observaciones)}</textarea>
+              <textarea id="c_obs" rows="4" placeholder="Información adicional..." ${ro()}>${esc(cand.observaciones)}</textarea>
             </label>
           </details>
 
-          <div class="rowBetween" style="margin-top:14px; gap:12px;">
+          <div class="rowBetween tp-bottom-bar" style="margin-top:14px; gap:12px;">
             <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-              <button class="btn" id="btnSaveBolsa" type="button" ${busy?"disabled":""}>${busy?"Guardando...":"Guardar"}</button>
               <span class="ok">${esc(okMsg)}</span>
               <span class="error">${esc(errMsg)}</span>
             </div>
-            <div class="muted">${bolsaLoaded ? "Perfil cargado" : "Cargando..."}</div>
+            <div class="muted">${bolsaLoaded ? (isEditing ? "Edición habilitada" : "Perfil cargado · modo lectura") : "Cargando..."}</div>
           </div>
         ` : `
           <div class="rowBetween" style="margin-bottom:10px;">
@@ -632,8 +669,14 @@ async function initBolsaCandidato(){
       i.addEventListener("change", ()=>{ readAltaFromDom(); });
     });
 
-    el("btnSaveBolsa").addEventListener("click", saveAlta);
-    el("btnReloadBolsa").addEventListener("click", loadBolsa);
+    const btnSave = el("btnSaveBolsa");
+    if(btnSave) btnSave.addEventListener("click", saveAlta);
+    const btnReload = el("btnReloadBolsa");
+    if(btnReload) btnReload.addEventListener("click", loadBolsa);
+    const btnEdit = el("btnEditBolsa");
+    if(btnEdit) btnEdit.addEventListener("click", ()=>{ okMsg=""; errMsg=""; isEditing = true; render(); });
+    const btnCancel = el("btnCancelEdit");
+    if(btnCancel) btnCancel.addEventListener("click", async ()=>{ isEditing = false; okMsg=""; errMsg=""; await loadBolsa(); });
   }
 
   function bindBuscar(){
@@ -757,9 +800,9 @@ async function initBolsaCandidato(){
       });
 
       if(r.ok){
-        okMsg = "Guardado.";
+        okMsg = "Datos actualizados correctamente.";
         errMsg = "";
-        // update local state from server
+        isEditing = false;
         if(r.bolsa) cand = { ...cand, ...r.bolsa };
       }else{
         errMsg = r.error === "DNI_MISMATCH_WITH_PROFILE"
@@ -818,15 +861,41 @@ async function initBolsaCandidato(){
     st.id = "tpBolsaStyles";
     st.textContent = `
       .tp-bolsa-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-      .tp-chip-row{ display:flex; gap:8px; flex-wrap:wrap; }
-      .chip{ border:1px solid var(--border, #d0d7e2); background:#fff; padding:8px 12px; border-radius:999px; cursor:pointer; font-weight:600; }
-      .chip.on{ background:#e7f0ff; border-color:#8bb6ff; }
-      .tp-details{ border:1px solid var(--border, #e5e7eb); border-radius:12px; padding:10px 12px; margin:10px 0; background:#fff; }
-      .tp-details summary{ cursor:pointer; }
-      .tp-check-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:6px 10px; }
-      .tp-check{ display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--border, #eef0f3); border-radius:10px; }
+      .tp-overline{ font-size:11px; text-transform:uppercase; letter-spacing:.16em; color:#5e7cb6; margin-bottom:6px; font-weight:800; }
+      .tp-chip-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+      .chip{ border:1px solid rgba(71,116,196,.18); background:rgba(255,255,255,.76); padding:9px 14px; border-radius:999px; cursor:pointer; font-weight:700; color:#153a7a; box-shadow:0 10px 22px rgba(23,105,224,.08); }
+      .chip.on{ background:linear-gradient(135deg, rgba(23,105,224,.18), rgba(242,140,40,.12)); border-color:rgba(23,105,224,.35); }
+      .techPanel{ padding:20px; border-radius:24px; background:linear-gradient(135deg, rgba(255,255,255,.9), rgba(239,245,255,.98)); border:1px solid rgba(91,134,211,.16); box-shadow:0 20px 45px rgba(14,37,74,.10); position:relative; overflow:hidden; }
+      .techPanel::before{ content:""; position:absolute; inset:-40% auto auto 55%; width:320px; height:320px; border-radius:50%; background:radial-gradient(circle, rgba(23,105,224,.18), transparent 65%); pointer-events:none; }
+      .techCard{ border:1px solid rgba(91,134,211,.14); box-shadow:0 22px 48px rgba(14,37,74,.08); background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(247,250,255,.98)); }
+      .tp-status{ display:inline-flex; align-items:center; padding:8px 14px; border-radius:999px; font-size:12px; font-weight:800; letter-spacing:.02em; }
+      .tp-status.locked{ color:#163a74; background:rgba(23,105,224,.10); border:1px solid rgba(23,105,224,.20); }
+      .tp-status.editing{ color:#7c4400; background:rgba(242,140,40,.14); border:1px solid rgba(242,140,40,.25); }
+      .tp-hero{ display:flex; justify-content:space-between; gap:14px; align-items:flex-start; flex-wrap:wrap; padding:14px 16px; border:1px solid rgba(23,105,224,.12); border-radius:18px; background:linear-gradient(135deg, rgba(9,25,52,.98), rgba(23,105,224,.92)); color:#fff; box-shadow:0 18px 38px rgba(13,40,94,.18); }
+      .tp-hero-title{ font-size:18px; font-weight:900; margin-bottom:6px; }
+      .tp-hero .muted{ color:rgba(255,255,255,.78); max-width:760px; }
+      .tp-hero-actions{ display:flex; gap:10px; flex-wrap:wrap; }
+      .btn.secondary{ background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.20); }
+      .btn-tech{ background:linear-gradient(135deg, #5fd0ff, #1769E0); color:#fff; box-shadow:0 12px 28px rgba(10,69,161,.28); }
+      .tp-intro-grid{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin:14px 0 8px; }
+      .tp-mini-card{ border:1px solid rgba(23,105,224,.12); border-radius:16px; padding:14px; background:rgba(255,255,255,.84); box-shadow:0 10px 24px rgba(23,105,224,.06); }
+      .tp-mini-label{ font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:#6b86b6; font-weight:800; }
+      .tp-mini-value{ margin-top:6px; font-size:14px; font-weight:800; color:#102a56; }
+      .tp-details{ border:1px solid rgba(91,134,211,.15); border-radius:18px; padding:0; margin:12px 0; background:rgba(255,255,255,.9); overflow:hidden; box-shadow:0 12px 26px rgba(18,54,110,.05); }
+      .tp-details[open]{ border-color:rgba(23,105,224,.26); box-shadow:0 16px 34px rgba(18,54,110,.08); }
+      .tp-details summary{ cursor:pointer; list-style:none; padding:16px 18px; background:linear-gradient(135deg, rgba(23,105,224,.08), rgba(242,140,40,.05)); font-weight:800; color:#0f2d63; display:flex; align-items:center; justify-content:space-between; }
+      .tp-details summary::-webkit-details-marker{ display:none; }
+      .tp-details summary::after{ content:"＋"; font-size:18px; color:#1769E0; }
+      .tp-details[open] summary::after{ content:"–"; }
+      .tp-details > :not(summary){ padding:14px 18px 18px; }
+      .tp-check-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:8px 10px; }
+      .tp-check{ display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid rgba(91,134,211,.12); border-radius:12px; background:rgba(247,250,255,.92); }
       .tp-check input{ transform: translateY(1px); }
-      .tp-result{ border:1px solid var(--border, #e5e7eb); border-radius:12px; padding:12px; margin:10px 0; background:#fff; }
+      .tp-result{ border:1px solid rgba(91,134,211,.14); border-radius:12px; padding:12px; margin:10px 0; background:#fff; }
+      .field-lock, input[readonly], textarea[readonly]{ background:linear-gradient(180deg, rgba(244,247,252,.96), rgba(238,243,250,.98)); color:#42526b; border:1px solid rgba(91,134,211,.12); }
+      select:disabled, input:disabled, textarea:disabled{ opacity:.72; cursor:not-allowed; background:linear-gradient(180deg, rgba(244,247,252,.96), rgba(238,243,250,.98)); }
+      .tp-bottom-bar{ padding-top:6px; }
+      @media (max-width: 900px){ .tp-intro-grid{ grid-template-columns:1fr; } }
     `;
     document.head.appendChild(st);
   }
