@@ -1,19 +1,4 @@
-im
-app.get("/me", authRequired, async (req, res) => {
-  try{
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { id:true, email:true, role:true, createdAt:true }
-    });
-    const profile = await prisma.profile.findUnique({ where: { userId: req.user.id } });
-    return res.json({ ok:true, user, profile });
-  }catch(err){
-    console.error("GET /me", err);
-    return res.status(500).json({ ok:false, error:"SERVER_ERROR" });
-  }
-});
-
-port express from "express";
+import express from "express";
 import cors from "cors";
 import multer from "multer";
 import jwt from "jsonwebtoken";
@@ -29,7 +14,8 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
-const APP_VERSION = "4.0.0";
+// Version única (proviene de package.json cuando se ejecuta vía `npm start`)
+const APP_VERSION = process.env.npm_package_version || "dev";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
@@ -99,6 +85,34 @@ function auth(req, res, next){
     return res.status(401).json({ error: "Token inválido" });
   }
 }
+
+// Alias para evitar errores por renombre en rutas
+const authRequired = auth;
+
+// Usuario actual
+app.get("/me", authRequired, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      include: { candidateProfile: true, company: true },
+    });
+    if (!user) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
+    return res.json({
+      ok: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+      },
+      fullName: user.candidateProfile?.fullName || null,
+      companyName: user.company?.companyName || null,
+    });
+  } catch (err) {
+    console.error("GET /me", err);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+});
 
 function requireRole(role){
   return (req, res, next) => {
@@ -741,7 +755,7 @@ app.get("/bolsa/me", authRequired, async (req, res) => {
 
 app.post("/bolsa/me", authRequired, async (req, res) => {
   try{
-    if(req.user.role !== "candidate"){
+    if(req.user.role !== "CANDIDATE"){
       return res.status(403).json({ ok:false, error:"FORBIDDEN_ROLE" });
     }
     const data = bolsaSchema.parse(req.body);

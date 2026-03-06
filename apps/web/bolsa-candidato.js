@@ -1,4 +1,4 @@
-/* Talento PyME - v4.0.0 (candidato) - Mi Perfil = Bolsa de Trabajo (gemela UIC) */
+/* Talento PyME - v4.0.1 (candidato) - Mi Perfil = Bolsa de Trabajo (gemela UIC) */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",

@@ -30,6 +30,7 @@ model User {
   createdAt DateTime @default(now())
 
   candidateProfile Profile?
+  candidateBolsa   CandidateBolsa?
   resume    Resume?
   company   CompanyProfile?
   jobs      Job[]
