@@ -261,6 +261,7 @@ async function initBolsaCandidato(){
   let parsingCv = false;
   let parseProgress = 0;
   let parseMsg = "";
+  let parsedMeta = null;
   let detailsState = { d1:false, d2:false, d3:false, d4:false, d5:false };
 
   let jobs = {
@@ -513,8 +514,15 @@ async function initBolsaCandidato(){
 
           <details class="tp-details" ${detailOpen("d5")}>
             <summary data-detail="d5"><b>5) Resumen curricular</b></summary>
+            ${parsedMeta ? `
+              <div class="tp-cv-meta-grid" style="margin-top:8px;">
+                <div class="miniStat"><span class="miniLabel">Profesión detectada</span><strong>${esc(parsedMeta.profession || "Perfil técnico / industrial")}</strong></div>
+                <div class="miniStat"><span class="miniLabel">Experiencia estimada</span><strong>${parsedMeta.yearsExperience ? `+${esc(parsedMeta.yearsExperience)} años` : "No detectada"}</strong></div>
+                <div class="miniStat"><span class="miniLabel">Habilidades clave</span><strong>${esc((parsedMeta.skills || []).join(", ") || "Sin datos")}</strong></div>
+              </div>
+            ` : ""}
             <label style="display:block; margin-top:8px;">
-              <textarea id="c_obs" rows="9" placeholder="Acá se va a mostrar el resumen curricular más importante, priorizando la experiencia más reciente." ${ro()}>${esc(cand.observaciones)}</textarea>
+              <textarea id="c_obs" rows="11" placeholder="Acá se va a mostrar el resumen curricular más importante, priorizando la experiencia más reciente." ${ro()}>${esc(cand.observaciones)}</textarea>
               <small class="muted">Podés cargar un archivo PDF, DOCX o TXT. Las imágenes JPG/PNG quedan sujetas a que el archivo contenga texto legible.</small>
             </label>
           </details>
@@ -780,7 +788,8 @@ async function initBolsaCandidato(){
       }
       parseProgress = 95;
       const summaryText = String(r.summaryText || "").trim();
-      cand.observaciones = summaryText || buildSummaryFromSections(r.sections || {});
+      parsedMeta = r.analysis || null;
+      cand.observaciones = summaryText || buildSummaryFromSections(r.sections || {}, r.analysis || {});
       okMsg = "Resumen curricular generado. Revisalo en el punto 5 antes de guardar.";
       if(!isEditing) isEditing = true;
       detailsState.d5 = true;
@@ -812,6 +821,7 @@ async function initBolsaCandidato(){
     okMsg=""; errMsg="";
     try{
       const r = await apiFetch("/bolsa/me");
+      parsedMeta = null;
       if(r.ok && r.bolsa){
         cand = {
           ...cand,

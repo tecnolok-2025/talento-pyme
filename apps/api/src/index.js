@@ -682,26 +682,169 @@ function splitByHeadings(text){
 }
 
 
-function buildResumeSummary(text, sections){
-  const s = sections || {};
-  const clean = (v = "") => String(v || "").replace(/\s+/g, " ").trim();
-  const splitLines = (v = "") => String(v || "").split(/\r?\n+/).map(x => x.trim()).filter(Boolean);
 
-  const summary = clean(s.summary);
-  const expLines = splitLines(s.experience).slice(0, 7);
-  const certLines = splitLines(s.certifications).slice(0, 3);
-  const edu = clean(s.education);
+function normalizeSpaces(v=""){
+  return String(v || "").replace(/\s+/g, " ").trim();
+}
 
-  const parts = [];
-  if (summary) parts.push(`Perfil general: ${summary.slice(0, 700)}`);
-  if (expLines.length) parts.push(`Experiencia profesional reciente: ${expLines.join(' • ')}`);
-  if (certLines.length) parts.push(`Capacitaciones y certificaciones relevantes: ${certLines.join(' • ')}`);
-  if (!summary && !expLines.length && edu) parts.push(`Formación / especialidad detectada: ${edu.slice(0, 500)}`);
-  if (!parts.length) {
-    const raw = clean(text);
-    return raw.slice(0, 1200);
+function cleanTextForAnalysis(text){
+  return String(text || "")
+    .replace(/[•·]/g, "\n")
+    .replace(/\t/g, " ")
+    .replace(/\u00a0/g, " ")
+    .replace(/\r/g, "")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
+function splitLinesStrong(v = ""){
+  return cleanTextForAnalysis(v)
+    .split(/\n+/)
+    .map(x => normalizeSpaces(x))
+    .filter(Boolean);
+}
+
+function detectProfession(text, sections){
+  const hay = normalizeName(`${sections?.summary || ""}\n${sections?.education || ""}\n${sections?.experience || ""}\n${text || ""}`);
+  const map = [
+    [/(ingenieria electrica|ingeniero electrico|ingeniera electrica)/, "Ingeniería eléctrica"],
+    [/(ingenieria mecanica|ingeniero mecanico|ingeniera mecanica)/, "Ingeniería mecánica"],
+    [/(ingenieria industrial|ingeniero industrial|ingeniera industrial)/, "Ingeniería industrial"],
+    [/(ingenieria en sistemas|ingeniero en sistemas|ingeniera en sistemas)/, "Ingeniería en sistemas"],
+    [/(tecnico superior industrial.*automatizacion y control|automatizacion y control)/, "Técnico superior industrial en automatización y control"],
+    [/(instrumentista|tecnico instrumentista)/, "Instrumentación industrial"],
+    [/(planificacion de mantenimiento|mantenimiento y confiabilidad|gestion de activos)/, "Planificación de mantenimiento y confiabilidad"],
+    [/(mantenimiento industrial)/, "Mantenimiento industrial"],
+    [/(produccion industrial|jefe de operaciones|operacion de planta)/, "Operaciones de planta y producción"],
+    [/(supply chain|abastecimiento|logistica)/, "Supply chain y logística"],
+    [/(representante tecnico comercial|tecnico comercial)/, "Perfil técnico-comercial"],
+  ];
+  for (const [rx, label] of map){
+    if (rx.test(hay)) return label;
   }
-  return parts.join("\n\n").slice(0, 6000);
+  return "Perfil técnico / industrial";
+}
+
+function detectYearsExperience(text, sections){
+  const hay = `${text || ""}\n${sections?.summary || ""}\n${sections?.experience || ""}`;
+  const patterns = [
+    /mas de\s+(\d{1,2})\s+anos\s+de\s+experiencia/i,
+    /más de\s+(\d{1,2})\s+años\s+de\s+experiencia/i,
+    /trayectoria de\s+(\d{1,2})\s+anos/i,
+    /trayectoria de\s+(\d{1,2})\s+años/i,
+  ];
+  const nums = [];
+  for (const rx of patterns){
+    const m = hay.match(rx);
+    if (m) nums.push(Number(m[1]));
+  }
+  return nums.length ? Math.max(...nums) : null;
+}
+
+function detectRecentRoles(text, sections){
+  const lines = splitLinesStrong(sections?.experience || text || "");
+  const roles = [];
+  for (let i = 0; i < lines.length; i++){
+    const line = lines[i];
+    const hasPipe = /\|/.test(line);
+    const hasDate = /(20\d{2}|19\d{2}|presente|actualidad|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/i.test(line);
+    const looksRole = /[A-ZÁÉÍÓÚÑ]/.test(line) && line.length < 180;
+    if (hasPipe && hasDate && looksRole){
+      roles.push(line);
+    }
+  }
+  return roles.slice(0, 4);
+}
+
+function detectCoreSkills(text, sections){
+  const hay = normalizeName(`${text || ""}\n${sections?.summary || ""}\n${sections?.experience || ""}\n${sections?.certifications || ""}\n${sections?.education || ""}`);
+  const skillMap = [
+    ["sap", ["sap pm", "sap mm", "sap ps", "sap"]],
+    ["mantenimiento", ["mantenimiento industrial", "mantenimiento", "mantenimiento preventivo", "mantenimiento predictivo"]],
+    ["confiabilidad", ["confiabilidad operativa", "confiabilidad", "gestion de activos"]],
+    ["proyectos", ["gestion de proyectos", "project management", "proyectos de inversion", "ingenieria de proyectos"]],
+    ["produccion", ["produccion", "operaciones de planta", "supply chain"]],
+    ["automatizacion", ["automatizacion industrial", "automatizacion", "control"]],
+    ["mejora continua", ["six sigma", "tpm", "rcm", "smed", "mejora continua", "idcon"]],
+    ["liderazgo", ["liderazgo", "equipos multidisciplinarios", "gerenciamiento de personas"]],
+    ["seguridad", ["seguridad operativa", "integridad mecanica", "iso", "asme"]],
+    ["comercial", ["crm", "tecnico comercial", "ventas consultivas", "desarrollo de mercado"]],
+  ];
+  const scores = [];
+  for (const [label, terms] of skillMap){
+    let score = 0;
+    for (const term of terms){
+      const rx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+      const matches = hay.match(rx);
+      if (matches) score += matches.length;
+    }
+    if (score > 0) scores.push({ label, score });
+  }
+  return scores.sort((a,b)=>b.score-a.score).slice(0,6).map(s=>s.label);
+}
+
+function detectCareerStrengths(text, sections){
+  const hay = normalizeName(`${text || ""}\n${sections?.summary || ""}\n${sections?.experience || ""}`);
+  const strengths = [];
+  if(/planificacion/.test(hay)) strengths.push("planificación y organización del mantenimiento");
+  if(/confiabilidad|gestion de activos/.test(hay)) strengths.push("confiabilidad operativa y gestión de activos");
+  if(/equipos multidisciplinarios|liderazgo/.test(hay)) strengths.push("liderazgo de equipos multidisciplinarios");
+  if(/sap/.test(hay)) strengths.push("uso intensivo de SAP para gestión industrial");
+  if(/predictiv|preventiv/.test(hay)) strengths.push("estrategias predictivas y preventivas");
+  if(/proyectos|inversion/.test(hay)) strengths.push("gestión de proyectos e inversiones");
+  if(/mejora continua|six sigma|tpm|rcm|smed|idcon/.test(hay)) strengths.push("mejora continua y metodologías de excelencia operativa");
+  return strengths.slice(0,5);
+}
+
+function optimizeProfessionalSummary(text, sections, analysis){
+  const clean = normalizeSpaces;
+  const summary = clean(sections?.summary || "");
+  const roles = analysis.recentRoles || [];
+  const strengths = analysis.strengths || [];
+  const skills = analysis.skills || [];
+  const years = analysis.yearsExperience;
+  const profession = analysis.profession;
+  const lines = [];
+  let intro = profession;
+  if (years) intro += ` con más de ${years} años de experiencia`;
+  intro += " en entornos industriales y técnicos complejos.";
+  lines.push(intro);
+  if (summary){
+    lines.push(summary.slice(0, 700));
+  }
+  if (roles.length){
+    lines.push(`Experiencia reciente destacada: ${roles.join(" • ")}.`);
+  }
+  if (strengths.length){
+    lines.push(`Fortalezas principales: ${strengths.join(", ")}.`);
+  }
+  if (skills.length){
+    lines.push(`Habilidades más relevantes: ${skills.join(", ")}.`);
+  }
+  return lines.join("\n\n").slice(0, 6000);
+}
+
+function analyzeResumeText(text, sections){
+  const analysis = {
+    profession: detectProfession(text, sections),
+    yearsExperience: detectYearsExperience(text, sections),
+    recentRoles: detectRecentRoles(text, sections),
+    skills: detectCoreSkills(text, sections),
+    strengths: detectCareerStrengths(text, sections),
+  };
+  analysis.summary = optimizeProfessionalSummary(text, sections, analysis);
+  return analysis;
+}
+
+function buildResumeSummary(text, sections, analysis){
+  const a = analysis || analyzeResumeText(text, sections);
+  const lines = [];
+  lines.push(`Perfil detectado: ${a.profession || "Perfil técnico / industrial"}`);
+  if (a.yearsExperience) lines.push(`Experiencia estimada: +${a.yearsExperience} años`);
+  if (a.skills?.length) lines.push(`Ranking de habilidades: ${a.skills.map((s, i) => `${i+1}. ${s}`).join(" | ")}`);
+  lines.push("");
+  lines.push("Resumen profesional optimizado:");
+  lines.push(a.summary || "");
+  return lines.join("\n").trim().slice(0, 6000);
 }
 
 async function extractTextFromUpload(file){
@@ -730,8 +873,9 @@ app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "No pudimos leer texto del archivo. Probá con PDF, DOCX o TXT que contenga texto seleccionable." });
     }
     const sections = splitByHeadings(text);
-    const summaryText = buildResumeSummary(text, sections);
-    return res.json({ ok:true, sections, summaryText });
+    const analysis = analyzeResumeText(text, sections);
+    const summaryText = buildResumeSummary(text, sections, analysis);
+    return res.json({ ok:true, sections, analysis, summaryText });
   }catch(err){
     console.error("resume/parse error:", err);
     return res.status(500).json({ error: "Error al procesar el archivo." });
