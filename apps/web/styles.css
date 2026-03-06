@@ -48,6 +48,12 @@ pre{white-space:pre-wrap}
 .small{font-size:12px}
 .hr{height:1px;background:rgba(0,0,0,.08);margin:14px 0}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+.formGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:720px){.formGrid{grid-template-columns:1fr}}
+
+.ok{color:#0a7b2d;font-weight:700}
+.error{color:#b91c1c;font-weight:700}
 @media(max-width:720px){.grid2{grid-template-columns:1fr}}
 
 

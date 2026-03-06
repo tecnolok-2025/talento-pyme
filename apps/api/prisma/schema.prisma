@@ -70,6 +70,55 @@ model Skill {
   @@index([name])
 }
 
+
+model CandidateBolsa {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+
+  // Datos personales
+  nombre            String
+  apellido          String
+  dni               String
+  nacionalidad      String
+  estadoCivil       String
+  hijos             String
+  telefono          String
+  correo            String
+  localidad         String
+  direccion         String?
+
+  // Perfil laboral
+  areaTrabajo       String
+  nivel             String?
+  especialidad      String
+  especialidadOtro  String?
+
+  // Experiencia y formación
+  rangoExperiencia  String
+  nivelEducativo    String
+  tieneCapacitacion Boolean
+
+  // Preferencias
+  trabajaActualmente Boolean
+  sueldoPretendido   String?
+  ultimoTrabajo      String?
+  observaciones      String?
+
+  // Herramientas (según área)
+  herramientasMecanica String[] @default([])
+  instrumentosElectrica String[] @default([])
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User     @relation(fields: [userId], references: [id])
+
+  @@index([areaTrabajo])
+  @@index([localidad])
+  @@index([especialidad])
+  @@index([nivel])
+}
+
 model Resume {
   id             String   @id @default(cuid())
   userId         String   @unique

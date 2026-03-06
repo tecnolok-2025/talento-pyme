@@ -9,5 +9,5 @@
 const TP_GLOBAL = (typeof self !== "undefined") ? self : window;
 
 TP_GLOBAL.TP_API_URL = "https://talento-pyme-api.onrender.com";
-TP_GLOBAL.TP_APP_VERSION = "3.2.8";
-TP_GLOBAL.TP_BUILD_ID = "20260305-231138";
+TP_GLOBAL.TP_APP_VERSION = "4.0.0";
+TP_GLOBAL.TP_BUILD_ID = "202603052353";

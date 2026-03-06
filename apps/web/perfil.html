@@ -1,155 +1,40 @@
 <!doctype html>
 <html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Talento PyME · Mi Perfil</title>
-  <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css" />
-</head>
-<body>
-  <div class="header">
-    <img src="/assets/logo-tp.svg" alt="Talento PyME" />
-    <div class="nav">
-      <a href="/dashboard.html">Panel</a>
-      <a href="/perfil.html" data-role="CANDIDATE">Mi Perfil</a>
-      <a href="/cv.html" data-role="CANDIDATE">Mi CV</a>
-      <a href="/empleos.html">Empleos</a>
-      <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
-      <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
-      <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
-      <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
-      <a href="#" id="btnLogout">Salir</a>
-    </div>
-  </div>
-
-  <div class="wrap">
-    <div class="card">
-      <h2>Mi Perfil</h2>
-      <div class="muted"><span class="tp-version"></span>: base de datos para búsqueda por expertise. Hotelería como sector específico.</div>
-
-      <label>Nombre y apellido / Contacto</label>
-      <input class="input" id="fullName" placeholder="Ej: Fulano Pérez" />
-
-      <div class="row">
-        <div style="flex:1; min-width:220px">
-          <label>Ciudad</label>
-          <input class="input" id="city" placeholder="Ej: Campana" />
-        </div>
-        <div style="flex:1; min-width:220px">
-          <label>Provincia</label>
-          <input class="input" id="province" placeholder="Ej: Buenos Aires" />
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Talento PyME • Mi Perfil</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon-192.png" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img src="/icons/icon-192.png" alt="Talento PyME" />
+        <div>
+          <div class="brandTitle">Talento PyME</div>
+          <div class="brandSub muted">Portal de empleo • <span class="appVersion"></span></div>
         </div>
       </div>
+      <nav class="nav">
+        <a href="/dashboard.html">Panel</a>
+        <a href="/perfil.html" class="active" data-role="candidate">Mi Perfil</a>
+        <a href="/cv.html" data-role="candidate">Mi CV</a>
+        <a href="/empleos.html">Empleos</a>
+        <a href="/empresa.html" data-role="company">Empresa</a>
+        <a href="/buscar.html" data-role="company">Buscar talento</a>
+        <a href="/admin.html" data-role="admin">Admin</a>
+        <button class="btn small secondary" id="logoutBtn">Salir</button>
+      </nav>
+    </header>
 
-      <label>Teléfono</label>
-      <input class="input" id="phone" placeholder="Ej: +54 9 ..." />
+    <main class="container">
+      <div id="bolsaRoot"></div>
+    </main>
 
-      <label>Título breve (headline)</label>
-      <input class="input" id="headline" placeholder="Ej: Supervisor Electromecánico · Mantenimiento" />
-
-      <div class="row">
-        <div style="flex:1; min-width:220px">
-          <label>Sector</label>
-          <select class="input" id="sector">
-            <option value="">(opcional)</option>
-            <option value="Industria">Industria</option>
-            <option value="Servicios">Servicios</option>
-            <option value="Logística">Logística</option>
-            <option value="Construcción">Construcción</option>
-            <option value="Hotelería">Hotelería</option>
-            <option value="Gastronomía">Gastronomía</option>
-            <option value="Comercio">Comercio</option>
-            <option value="Otros">Otros</option>
-          </select>
-        </div>
-        <div style="flex:1; min-width:220px">
-          <label>Sub-sector / Especialidad (ej. Recepción, Housekeeping, Mantenimiento hotelero)</label>
-          <input class="input" id="subSector" placeholder="Ej: Recepción" />
-        </div>
-      </div>
-
-      <label>Skills (una por línea: skill | nivel 1-5 opcional)</label>
-      <textarea id="skills" placeholder="Ej:\nMantenimiento eléctrico | 4\nPLC Siemens | 3\nSoldadura TIG"></textarea>
-
-      <div class="row">
-        <button class="btn btn-primary" id="btnSave">Guardar</button>
-        <span class="muted" id="msg"></span>
-      </div>
-    </div>
-  </div>
-
-  <script src="/config.js"></script>
-  <script src="/auth.js"></script>
-  <script>
-    requireAuth();
-    document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
-
-    const role = applyRoleVisibility();
-    if(role !== "CANDIDATE"){
-      window.location.href = "/empresa.html";
-    }
-
-    const fullName = document.getElementById('fullName');
-    const city = document.getElementById('city');
-    const province = document.getElementById('province');
-    const phone = document.getElementById('phone');
-    const headline = document.getElementById('headline');
-    const sector = document.getElementById('sector');
-    const subSector = document.getElementById('subSector');
-    const skills = document.getElementById('skills');
-    const msg = document.getElementById('msg');
-
-    function parseSkills(text){
-      const lines = (text||"").split("\n").map(l=>l.trim()).filter(Boolean);
-      return lines.map(l=>{
-        const parts = l.split("|").map(p=>p.trim());
-        const name = parts[0];
-        const level = parts[1] ? Number(parts[1]) : null;
-        return { name, level: (level && !Number.isNaN(level)) ? level : null };
-      });
-    }
-    function skillsToText(arr){
-      return (arr||[]).map(s => s.level ? `${s.name} | ${s.level}` : s.name).join("\n");
-    }
-
-    (async ()=>{
-      try{
-        const p = await apiFetch('/profile/me');
-        if(p){
-          fullName.value = p.fullName || '';
-          city.value = p.city || '';
-          province.value = p.province || '';
-          phone.value = p.phone || '';
-          headline.value = p.headline || '';
-          sector.value = p.sector || '';
-          subSector.value = p.subSector || '';
-          skills.value = skillsToText(p.skills);
-        }
-      }catch(e){
-        msg.textContent = e.message;
-      }
-    })();
-
-    document.getElementById('btnSave').onclick = async ()=>{
-      msg.textContent = 'Guardando…';
-      try{
-        const payload = {
-          fullName: fullName.value.trim() || null,
-          city: city.value.trim() || null,
-          province: province.value.trim() || null,
-          phone: phone.value.trim() || null,
-          headline: headline.value.trim() || null,
-          sector: sector.value || null,
-          subSector: subSector.value.trim() || null,
-          skills: parseSkills(skills.value)
-        };
-        await apiFetch('/profile/me', { method:'PUT', body: JSON.stringify(payload) });
-        msg.textContent = 'Guardado OK.';
-      }catch(e){
-        msg.textContent = e.message;
-      }
-    };
-  </script>
-</body>
+    <script src="/config.js"></script>
+    <script src="/auth.js"></script>
+    <script src="/bolsa-candidato.js"></script>
+  </body>
 </html>

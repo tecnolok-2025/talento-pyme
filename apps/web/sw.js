@@ -1,11 +1,11 @@
-/* Talento PyME Service Worker — v3.2.8 (20260305-231138)
+/* Talento PyME Service Worker — v4.0.0 (20260305-231138)
    Cachea SOLO recursos same-origin GET. La API (cross-origin) nunca se intercepta.
    - Navegación: network-first (para actualizar versión).
    - Assets GET: stale-while-revalidate.
 */
-self.importScripts("/config.js?v=3.2.8");
+self.importScripts("/config.js?v=4.0.0");
 
-const VERSION = (self.TP_APP_VERSION || "3.2.8");
+const VERSION = (self.TP_APP_VERSION || "4.0.0");
 const CACHE_NAME = "tp-cache-" + VERSION;
 
 self.addEventListener("install", (event) => {
