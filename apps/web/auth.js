@@ -14,12 +14,17 @@ function logout(){
 }
 async function apiFetch(path, options={}){
   const base = window.TP_API_URL;
-  const headers = Object.assign({ "Content-Type":"application/json" }, options.headers||{});
+  const headers = new Headers(options.headers || {});
   const t = tpToken();
-  if(t) headers["Authorization"] = "Bearer " + t;
+  if(t && !headers.has("Authorization")) headers.set("Authorization", "Bearer " + t);
+  const isFormData = (typeof FormData !== "undefined") && (options.body instanceof FormData);
+  if(options.body && !isFormData && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   const res = await fetch(base + path, Object.assign({}, options, { headers }));
-  const data = await res.json().catch(()=> ({}));
-  if(!res.ok) throw new Error(data?.error || "Error");
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  const data = ct.includes("application/json")
+    ? await res.json().catch(()=> ({}))
+    : await res.text().catch(()=> "");
+  if(!res.ok) throw new Error((data && data.error) || (typeof data === "string" && data) || "Error");
   return data;
 }
 

@@ -7,7 +7,7 @@
 
 importScripts("/config.js?v=4.0.4");
 
-const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "4.0.8";
+const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "4.0.9";
 const CACHE_NAME = `tp-cache-${VERSION}`;
 
 const PRECACHE = [
