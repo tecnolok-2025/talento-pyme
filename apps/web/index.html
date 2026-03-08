@@ -165,6 +165,13 @@
               <button class="btn btn-ghost" id="btnUpdate" type="button">Actualizar</button>
             </div>
             <div class="muted small" id="updateMsg" style="margin-top:8px"></div>
+            <div class="updateRow" style="margin-top:10px">
+              <div>
+                <h3 style="margin:0 0 6px 0">Zoom de pantalla</h3>
+                <div class="muted small">Por defecto el zoom queda bloqueado. Si necesitás ampliarlo, usá este botón.</div>
+              </div>
+              <button class="btn btn-ghost" id="btnZoomToggle" data-zoom-toggle type="button" aria-pressed="false">Desbloquear zoom</button>
+            </div>
             <div class="brandFooter">
               <img src="/assets/logo-talento-pyme.png" alt="Talento PyME" />
             </div>
@@ -175,8 +182,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=4.0.4"></script>
-  <script src="/auth.js?v=4.0.4"></script>
+  <script src="/config.js?v=4.1.6"></script>
+  <script src="/auth.js?v=4.1.6"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));

@@ -29,6 +29,30 @@ async function apiFetch(path, options={}){
 }
 
 
+
+function setZoomLock(unlocked) {
+  try {
+    const vp = document.querySelector('meta[name="viewport"]');
+    if (!vp) return;
+    if (unlocked) {
+      vp.setAttribute('content', 'width=device-width,initial-scale=1');
+      localStorage.setItem('tp_zoom_unlocked', '1');
+    } else {
+      vp.setAttribute('content', 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no');
+      localStorage.removeItem('tp_zoom_unlocked');
+    }
+    document.querySelectorAll('[data-zoom-toggle]').forEach((btn) => {
+      const isUnlocked = !!localStorage.getItem('tp_zoom_unlocked');
+      btn.textContent = isUnlocked ? 'Bloquear zoom' : 'Desbloquear zoom';
+      btn.setAttribute('aria-pressed', isUnlocked ? 'true' : 'false');
+    });
+  } catch (_) {}
+}
+
+function applyZoomPreference() {
+  const unlocked = !!localStorage.getItem('tp_zoom_unlocked');
+  setZoomLock(unlocked);
+}
 function tpVersion(){
   return (window.TP_APP_VERSION || "dev");
 }
@@ -130,8 +154,17 @@ async function hardUpdate() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  applyZoomPreference();
+
   const btn = document.getElementById("btnUpdate");
   if (btn) btn.addEventListener("click", () => hardUpdate());
+
+  document.querySelectorAll('[data-zoom-toggle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const unlocked = !!localStorage.getItem('tp_zoom_unlocked');
+      setZoomLock(!unlocked);
+    });
+  });
 });
 
 // Normaliza roles para evitar errores recurrentes (mayúsculas/minúsculas/ES/EN)
