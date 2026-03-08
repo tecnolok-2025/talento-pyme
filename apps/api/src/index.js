@@ -805,9 +805,9 @@ ${sections?.experience || ""}`;
     /trayectoria de\s+(\d{1,2})\s+anos/gi,
     /trayectoria de\s+(\d{1,2})\s+años/gi,
   ];
-  const nums = [];
+  const explicit = [];
   for (const rx of patterns){
-    for(const m of hay.matchAll(rx)) nums.push(Number(m[1]));
+    for(const m of hay.matchAll(rx)) explicit.push(Number(m[1]));
   }
   const years = [];
   for(const e of (entries || [])){
@@ -815,9 +815,17 @@ ${sections?.experience || ""}`;
   }
   if(years.length >= 2){
     const span = Math.max(...years) - Math.min(...years);
-    if(Number.isFinite(span) && span > 0) nums.push(span);
+    if(Number.isFinite(span) && span > 0){
+      const inclusive = span;
+      if(explicit.length){
+        const top = Math.max(...explicit);
+        if(Math.abs(inclusive - top) <= 10) return Math.max(inclusive, top);
+        return top;
+      }
+      return inclusive;
+    }
   }
-  return nums.length ? Math.max(...nums) : null;
+  return explicit.length ? Math.max(...explicit) : null;
 }
 
 function escapeRegExp(s=""){
@@ -877,16 +885,25 @@ function detectIndustries(entries, text, sections){
   return uniq(found);
 }
 
-function detectCompaniesAndSites(entries){
-  const employers = uniq((entries || []).map(e => e.employer).filter(Boolean));
+function detectCompaniesAndSites(entries, sections){
+  const employers = [];
+  for(const e of (entries || [])){
+    if(looksLikeEmployer(e.employer)) employers.push(normalizeSpaces(e.employer));
+  }
+  employers.push(...extractStandaloneEmployers(sections));
+
   const sites = [];
   for(const e of (entries || [])){
-    if(e.location) sites.push(`${e.employer}: ${e.location}`);
+    if(e.location){
+      for(const part of e.location.split(/,/).map(s => normalizeSpaces(s)).filter(Boolean)){
+        if(part.length >= 3) sites.push(part);
+      }
+    }
     const full = `${e.header} ${e.dateLine} ${(e.bullets||[]).join(' ')}`;
     const matches = full.match(/planta\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+/gi) || [];
-    for(const m of matches) sites.push(`${e.employer}: ${normalizeSpaces(m)}`);
+    for(const m of matches) sites.push(normalizeSpaces(m));
   }
-  return { employers: employers.slice(0,10), sites: uniq(sites).slice(0,10) };
+  return { employers: uniq(employers).slice(0,10), sites: uniq(sites).slice(0,10) };
 }
 
 function detectRecentRoles(entries){
@@ -897,7 +914,7 @@ function detectRecentRoles(entries){
 }
 
 function optimizeProfessionalSummary(text, sections, analysis){
-  const summary = normalizeSpaces(sections?.summary || "");
+  const summary = cleanSummaryText(sections?.summary || "");
   const recent = analysis.recentRoles || [];
   const strengths = analysis.strengths || [];
   const skills = analysis.skills || [];
@@ -946,7 +963,7 @@ function optimizeProfessionalSummary(text, sections, analysis){
 
 function analyzeResumeText(text, sections){
   const entries = extractExperienceEntries(text, sections);
-  const companyData = detectCompaniesAndSites(entries);
+  const companyData = detectCompaniesAndSites(entries, sections);
   const analysis = {
     entries,
     profession: detectProfession(text, sections, entries),
