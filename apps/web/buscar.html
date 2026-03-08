@@ -2,151 +2,355 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Buscar Talento</title>
   <link rel="icon" href="/icon-192.png" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <div class="header">
-    <img src="/assets/logo-tp.svg" alt="Talento PyME" />
+    <div class="brand">
+      <img src="/assets/logo-tp.svg" alt="Talento PyME" />
+      <div>
+        <div class="brandTitle">Talento PyME</div>
+        <div class="muted">Portal de empleo • <span class="tp-version"></span></div>
+      </div>
+    </div>
     <div class="nav">
       <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
       <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
       <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
       <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
-      <a href="/empleos.html">Empleos</a>
       <a href="#" id="btnLogout">Salir</a>
     </div>
   </div>
 
-  <div class="wrap">
-    <div class="card">
-      <h2>Buscar Talento</h2>
-      <div class="muted"><span class="tp-version"></span>: búsqueda por campos (pensado para escalar a miles de perfiles).</div>
+  <div class="wrap wide">
+    <div class="heroPanel">
+      <div class="small" style="letter-spacing:.18em;text-transform:uppercase;font-weight:900;opacity:.9">Talento PyME · Empresas</div>
+      <h2 style="margin:8px 0 6px 0">Buscar talento industrial con filtros profesionales</h2>
+      <div class="muted">Sistema gemelo de Bolsa de Trabajo UIC: filtrá por área, especialidad, experiencia, educación, herramientas, instrumentación y última actualización del perfil.</div>
+      <div class="row" style="margin-top:14px">
+        <span class="tag" style="background:rgba(255,255,255,.16);color:#fff">Paso 1 · elegí filtros</span>
+        <span class="tag" style="background:rgba(255,255,255,.16);color:#fff">Paso 2 · buscá perfiles</span>
+        <span class="tag" style="background:rgba(255,255,255,.16);color:#fff">Paso 3 · abrí detalle técnico</span>
+      </div>
+    </div>
 
-      <div class="hr"></div>
+    <div class="grid3" style="margin-top:16px">
+      <div class="kpiLite">
+        <div class="small muted">CV registrados</div>
+        <div class="num" id="statsTotal">—</div>
+        <div class="filterNote">Base activa para reclutamiento empresa.</div>
+      </div>
+      <div class="kpiLite">
+        <div class="small muted">Área más activa</div>
+        <div class="num" id="statsTopArea" style="font-size:18px">—</div>
+        <div class="filterNote">Se actualiza con el panel de estadísticas.</div>
+      </div>
+      <div class="kpiLite">
+        <div class="small muted">Especialidades por área</div>
+        <div class="num" id="statsTopEsp" style="font-size:18px">—</div>
+        <div class="filterNote">Se recalcula según el área seleccionada.</div>
+      </div>
+    </div>
 
-      <div class="row" style="gap:12px">
-        <div style="flex:1; min-width:220px">
-          <label>Skill / Palabra clave</label>
-          <input class="input" id="qSkill" placeholder="Ej: PLC, soldadura TIG, mantenimiento" />
+    <div class="card" style="margin-top:16px">
+      <div class="toolbarCard">
+        <div>
+          <h2 style="margin:0">Filtros inteligentes de búsqueda</h2>
+          <div class="muted">La búsqueda textual replica la lógica UIC: nombre, apellido, DNI, localidad, área y especialidad.</div>
         </div>
-        <div style="flex:1; min-width:220px">
-          <label>Título (headline)</label>
-          <input class="input" id="qHeadline" placeholder="Ej: supervisor, proyectista eléctrico" />
+        <div class="row" style="margin-top:0">
+          <button class="btn btn-ghost" id="btnRefreshStats">Actualizar stats</button>
+          <button class="btn btn-ghost" id="btnClear">Limpiar filtros</button>
+          <button class="btn btn-primary" id="btnSearch">Buscar</button>
         </div>
       </div>
 
-      <div class="row" style="gap:12px">
-        <div style="flex:1; min-width:220px">
-          <label>Ciudad</label>
-          <input class="input" id="qCity" placeholder="Ej: Campana" />
+      <div class="filtersGrid" style="margin-top:16px">
+        <div>
+          <label>Texto libre</label>
+          <input class="input" id="jobsQ" placeholder="Nombre, DNI, localidad, área o especialidad" />
+          <div class="filterNote">Coincidencia parcial.</div>
         </div>
-        <div style="flex:1; min-width:220px">
-          <label>Provincia</label>
-          <input class="input" id="qProvince" placeholder="Ej: Buenos Aires" />
+        <div>
+          <label>Área de trabajo</label>
+          <select class="input" id="jobsArea"></select>
+        </div>
+        <div>
+          <label>Localidad</label>
+          <select class="input" id="jobsLoc"></select>
+        </div>
+        <div>
+          <label>Nivel</label>
+          <select class="input" id="jobsNivel"></select>
+        </div>
+        <div>
+          <label>Especialidad</label>
+          <select class="input" id="jobsEsp"></select>
+        </div>
+        <div>
+          <label>Rango de experiencia</label>
+          <select class="input" id="jobsExp"></select>
+        </div>
+        <div>
+          <label>Nivel educativo</label>
+          <select class="input" id="jobsEdu"></select>
+        </div>
+        <div>
+          <label>Capacitación</label>
+          <select class="input" id="jobsCap"></select>
+        </div>
+        <div>
+          <label>Trabaja actualmente</label>
+          <select class="input" id="jobsTrab"></select>
+        </div>
+        <div>
+          <label>Categoría soldador</label>
+          <select class="input" id="jobsSoldCat"></select>
+        </div>
+        <div>
+          <label>Máquina / herramienta</label>
+          <select class="input" id="jobsHerr"></select>
+        </div>
+        <div>
+          <label>Instrumento / equipo</label>
+          <select class="input" id="jobsInstr"></select>
+        </div>
+        <div>
+          <label>Última actualización</label>
+          <select class="input" id="jobsFechaReg"></select>
+        </div>
+        <div>
+          <label>Orden</label>
+          <select class="input" id="jobsOrden"></select>
         </div>
       </div>
 
-      <div class="row" style="gap:12px">
-        <div style="flex:1; min-width:220px">
-          <label>Sector</label>
-          <select class="input" id="qSector">
-            <option value="">(cualquiera)</option>
-            <option value="Industria">Industria</option>
-            <option value="Servicios">Servicios</option>
-            <option value="Logística">Logística</option>
-            <option value="Construcción">Construcción</option>
-            <option value="Hotelería">Hotelería</option>
-            <option value="Gastronomía">Gastronomía</option>
-            <option value="Comercio">Comercio</option>
-            <option value="Otros">Otros</option>
-          </select>
+      <div class="statPills" id="areaPills"></div>
+      <div class="muted" id="jobsErr" style="margin-top:12px"></div>
+    </div>
+
+    <div class="resultsLayout">
+      <div class="card">
+        <div class="rowBetween">
+          <h2 style="margin:0">Resultados</h2>
+          <div class="badge" id="resultCount">Sin búsqueda</div>
         </div>
-        <div style="flex:1; min-width:220px">
-          <label>Sub-sector / Especialidad</label>
-          <input class="input" id="qSubSector" placeholder="Ej: Housekeeping, Mantenimiento hotelero" />
-        </div>
+        <div id="resultsList" class="listStack" style="margin-top:16px"></div>
       </div>
 
-      <div class="row" style="gap:10px">
-        <button class="btn btn-primary" id="btnSearch">Buscar</button>
-        <button class="btn" id="btnReset">Limpiar filtros</button>
-        <span class="muted" id="msg"></span>
+      <div class="card detailCard" id="detailPanel">
+        <h2 style="margin:0 0 8px 0">Detalle del candidato</h2>
+        <div class="muted">Seleccioná un resultado para ver la ficha completa con datos personales, perfil laboral y experiencia.</div>
+        <div id="detailBody" style="margin-top:14px" class="muted">Todavía no seleccionaste ningún perfil.</div>
       </div>
-
-      <div id="results"></div>
     </div>
   </div>
 
-  <script src="/config.js?v=4.1.7"></script>
-  <script src="/auth.js?v=4.1.7"></script>
+  <script src="/config.js?v=4.2.0"></script>
+  <script src="/auth.js?v=4.2.0"></script>
   <script>
     requireAuth();
-    document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
-
     applyRoleVisibility();
     requireRole('COMPANY');
+    document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); logout(); };
 
-    const qSkill = document.getElementById('qSkill');
-    const qHeadline = document.getElementById('qHeadline');
-    const qCity = document.getElementById('qCity');
-    const qProvince = document.getElementById('qProvince');
-    const qSector = document.getElementById('qSector');
-    const qSubSector = document.getElementById('qSubSector');
-    const msg = document.getElementById('msg');
-    const results = document.getElementById('results');
+    const AREA_TRABAJO = [
+      "Eléctrica (Industrial)","Mecánica (Industrial)","Operaciones de planta y producción","Mantenimiento industrial (general)","Soldadura, cañerías y montaje","Calderería y recipientes","Climatización / Refrigeración industrial","Mecanizado y fabricación (taller)","Instrumentación, control y automatización (I&C)","Construcción y obra civil industrial","Proyectista / Oficina técnica / CAD-BIM","Calculista / Ingeniería de detalle","Supervisión / Capataz / Jefaturas operativas","Planificación y control (Planificador / Programación / Control de costos)","Calidad e inspección (QA/QC – Ensayos no destructivos)","Seguridad, higiene y ambiente (HSE)","Logística, depósito y abastecimiento","Administrativo / RR.HH. / Finanzas / Comercial","Sustentabilidad y Medio ambiente","Transporte y logística","Comercio exterior","IT / Software"
+    ];
+    const NIVEL_ELECTRO_MEC = ["Ayudante / Auxiliar", "Medio oficial", "Oficial", "Oficial especializado / Senior", "Técnico", "Supervisor"];
+    const RANGO_EXP = ["0–1", "2–5", "6–10", "11–20", "21–30", "31+"];
+    const NIVEL_EDU = ["Primaria", "Secundaria", "Terciaria", "Universitaria", "Otros"];
+    const LOCALIDADES = ["Campana", "Zárate", "Pilar", "Escobar", "Tigre", "Malvinas Argentinas", "San Fernando", "San Isidro", "Vicente López", "San Martín", "Hurlingham", "Morón", "CABA", "La Plata", "Mar del Plata", "Bahía Blanca", "Rosario", "Córdoba", "Mendoza", "San Juan", "Neuquén", "Comodoro Rivadavia", "Río Gallegos", "Salta", "Tucumán", "Otra"];
+    const SOLDADOR_CAT = ["No certificado / Sin certificación", "Soldador 1 (Nivel 1)", "Soldador 2 (Nivel 2)", "Soldador 3 (Nivel 3)", "Otro / No especifica"];
+    const MAQ_HERR_MECANICA = ["Torno paralelo (a tornillo)","Torno CNC","Fresadora universal","Fresadora CNC / Centro de mecanizado","Alesadora","Mandrinadora","Rectificadora (plana/cilíndrica)","Sierra cinta","Sierra circular / tronzadora industrial","Taladro de banco / radial","Mortajadora / chavetero","Prensa hidráulica","Plegadora","Guillotina","Roladora / cilindradora","Corte plasma","Corte oxicorte","Soldadora MIG/MAG (equipo)","Soldadora TIG (equipo)","Soldadora MMA / electrodo (equipo)","Equipo de alineación láser","Equipo de balanceo","Equipo de medición de vibraciones","Instrumental de metrología (comparador, alesómetro, etc.)","Puente grúa / izaje (operación)","Otros"];
+    const INSTR_ELECTRICA = ["Pinza amperométrica TRMS","Megóhmetro (Megger) – aislación","Telurómetro / medidor de puesta a tierra","Analizador de calidad de energía / armónicas","Osciloscopio","Termografía (cámara térmica)","Detector de tensión / fase","Secuencímetro (secuencia de fases)","Medidor de continuidad de puesta a tierra","Multímetro industrial TRMS (avanzado)","Calibrador de lazos 4–20 mA (I&C)","Generador de señal / calibrador","Medidor de aislamiento en MT","Equipo de prueba de relés/protecciones","Registrador de datos (datalogger) eléctrico","Medidor de fugas / diferencial","Luxómetro industrial","Tacómetro / estroboscopio","Otros"];
+    const ESPECIALIDADES = {
+      "Eléctrica (Industrial)": ["Electricista industrial","Oficial electricista","Técnico electricista","Tablerista","Montador de bandejas / canalizaciones","Instrumentista eléctrico","Bobinador de motores","Mantenimiento eléctrico","Guardia eléctrica","Protecciones / relés","Media tensión","Alta tensión","Iluminación industrial","Termografía eléctrica","Líneas y subestaciones","Otros"],
+      "Mecánica (Industrial)": ["Mecánico industrial","Técnico mecánico","Mecánico de mantenimiento","Alineación y balanceo","Bombas y válvulas","Compresores","Turbomáquinas","Motores","Hidráulica","Neumática","Reductores","Rodamientos","Lubricación","Mecánico de planta","Otros"],
+      "Operaciones de planta y producción": ["Operador de planta","Operador de sala de control","Operador de campo","Operador de producción","Operador de proceso","Operador de tratamiento de agua","Operador de caldera","Operador de utilidades","Operador Oil & Gas","Operador de carga/descarga","Otros"],
+      "Mantenimiento industrial (general)": ["Técnico de mantenimiento","Mantenimiento general","Mecánica y eléctrica","Mantenimiento preventivo","Mantenimiento correctivo","Lubricador industrial","Inspector de mantenimiento","Supervisor de mantenimiento","Otros"],
+      "Soldadura, cañerías y montaje": ["Soldador SMAW (electrodo)","Soldador MIG/MAG","Soldador TIG","Soldador 6G","Cañista / cañero","Montador de cañerías","Armador","Montajista","Gomería industrial (mangueras)","Aislación térmica","Otros"],
+      "Calderería y recipientes": ["Calderero","Armador de calderería","Trazador","Soldador calderería","Recipientes a presión","Tanques","Intercambiadores","Otros"],
+      "Climatización / Refrigeración industrial": ["Técnico en refrigeración","Frigorista","Climatización VRV/VRF","Chillers","Cámaras frigoríficas","HVAC industrial","Otros"],
+      "Mecanizado y fabricación (taller)": ["Tornero","Fresador","Alesador","CNC operador","CNC programador","Rectificador","Afilador","Ajustador","Plegador","Guillotinero","Otros"],
+      "Instrumentación, control y automatización (I&C)": ["Instrumentista","Técnico en instrumentación","PLC / SCADA","Automatista","Calibración","Válvulas de control","Lazo de control","DCS","Redes industriales","Otros"],
+      "Construcción y obra civil industrial": ["Albañil","Oficial de obra","Hormigonero","Encofrador","Fierrero","Pintor industrial","Andamiero","Gruista","Operador de excavadora","Operador de retro","Maquinista","Otros"],
+      "Proyectista / Oficina técnica / CAD-BIM": ["Dibujante técnico","Proyectista mecánico","Proyectista eléctrico","Proyectista piping","CADista","BIM modeler","Documentación técnica","Isométricos","Otros"],
+      "Calculista / Ingeniería de detalle": ["Calculista estructuras","Calculista piping","Calculista recipientes","Ingeniería de detalle","Cálculo mecánico","Cálculo eléctrico","Memorias de cálculo","Otros"],
+      "Supervisión / Capataz / Jefaturas operativas": ["Supervisor de obra","Capataz","Jefe de turno","Jefe de mantenimiento","Supervisor de montaje","Supervisor de producción","Inspector de campo","Otros"],
+      "Planificación y control (Planificador / Programación / Control de costos)": ["Planificador","Programador","Control de costos","Planner mantenimiento","Planner obra","MS Project","Primavera P6","Compras técnicas","Otros"],
+      "Calidad e inspección (QA/QC – Ensayos no destructivos)": ["Inspector QA/QC","Inspector soldadura","Inspector piping","Inspector estructuras","END - VT","END - PT","END - MT","END - UT","END - RT","Inspector dimensional","Otros"],
+      "Seguridad, higiene y ambiente (HSE)": ["Técnico en seguridad e higiene","Supervisor HSE","Permisos de trabajo","Auditor HSE","Brigadista","Gestión ambiental","Otros"],
+      "Logística, depósito y abastecimiento": ["Operario de depósito","Clarkista / autoelevador","Picker","Pañolero","Abastecedor de línea","Receptor","Expedición","Inventarios","Compras","Otros"],
+      "Administrativo / RR.HH. / Finanzas / Comercial": ["Administrativo","Asistente","RR.HH.","Liquidación de sueldos","Contabilidad","Tesorería","Facturación","Comercial","Atención al cliente","Otros"],
+      "Sustentabilidad y Medio ambiente": ["Gestión ambiental","Residuos","Sustentabilidad","Huella de carbono","ISO 14001","Reportes ESG","Otros"],
+      "Transporte y logística": ["Chofer camión","Chofer semi / batea","Chofer hidrogrúa","Chofer autoelevador (movimientos)","Despachante / tráfico","Coordinador de transporte","Ruteador","Operador de balanza","Supervisor logística","Otros"],
+      "Comercio exterior": ["Analista Comex","Despachante de aduana","Documentación de exportación","Documentación de importación","Clasificación arancelaria","Logística internacional","Forwarder","Compras internacionales","Otros"],
+      "IT / Software": ["Soporte técnico","Helpdesk","Administrador de sistemas","Redes","Ciberseguridad","Desarrollador frontend","Desarrollador backend","Full stack","QA / Testing","DevOps","Data / BI","Otros"]
+    };
 
-    function esc(s){
-      return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const els = {
+      jobsQ: document.getElementById('jobsQ'), jobsArea: document.getElementById('jobsArea'), jobsLoc: document.getElementById('jobsLoc'), jobsNivel: document.getElementById('jobsNivel'), jobsEsp: document.getElementById('jobsEsp'), jobsExp: document.getElementById('jobsExp'), jobsEdu: document.getElementById('jobsEdu'), jobsCap: document.getElementById('jobsCap'), jobsTrab: document.getElementById('jobsTrab'), jobsSoldCat: document.getElementById('jobsSoldCat'), jobsHerr: document.getElementById('jobsHerr'), jobsInstr: document.getElementById('jobsInstr'), jobsFechaReg: document.getElementById('jobsFechaReg'), jobsOrden: document.getElementById('jobsOrden'), jobsErr: document.getElementById('jobsErr'), resultsList: document.getElementById('resultsList'), detailBody: document.getElementById('detailBody'), resultCount: document.getElementById('resultCount'), areaPills: document.getElementById('areaPills'), statsTotal: document.getElementById('statsTotal'), statsTopArea: document.getElementById('statsTopArea'), statsTopEsp: document.getElementById('statsTopEsp')
+    };
+    let jobsStats = null;
+    let jobsItems = [];
+    let jobsSelected = null;
+
+    function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function formatDate(v){ try{return new Date(v).toLocaleString();}catch(_){return v||'';} }
+    function fillSelect(el, items, placeholder='(todos)') {
+      el.innerHTML = `<option value="">${placeholder}</option>` + items.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
     }
-
-    async function search(){
-      msg.textContent = 'Buscando…';
-      results.innerHTML = '';
-      try{
-        const params = new URLSearchParams();
-        if(qSkill.value.trim()) params.set('skill', qSkill.value.trim());
-        if(qHeadline.value.trim()) params.set('headline', qHeadline.value.trim());
-        if(qCity.value.trim()) params.set('city', qCity.value.trim());
-        if(qProvince.value.trim()) params.set('province', qProvince.value.trim());
-        if(qSector.value) params.set('sector', qSector.value);
-        if(qSubSector.value.trim()) params.set('subSector', qSubSector.value.trim());
-
-        // /search es público en esta etapa (fase 1). Más adelante lo cerramos a empresas.
-        const resp = await apiFetch('/search?' + params.toString());
-        const list = resp?.results || [];
-
-        msg.textContent = list.length ? `${list.length} resultado(s)` : 'Sin resultados';
-
-        if(!list.length) return;
-
-        results.innerHTML = list.map(item => {
-          const p = item || {};
-          const r = item?.user?.resume || {};
-          const skills = (p.skills||[]).slice(0,6).map(s=> s.level ? `${s.name} (${s.level})` : s.name).join(', ');
-          return `
-            <div class="card" style="margin-top:12px">
-              <div style="font-weight:700">${esc(p.fullName || 'Candidato')}</div>
-              <div class="muted">${esc(p.headline || '')}</div>
-              <div class="muted">${esc([p.city, p.province].filter(Boolean).join(', '))}</div>
-              <div class="muted">${esc([p.sector, p.subSector].filter(Boolean).join(' · '))}</div>
-              ${skills ? `<div class="muted"><b>Skills:</b> ${esc(skills)}</div>` : ''}
-              ${r.summary ? `<div class="muted" style="margin-top:6px"><b>Resumen:</b> ${esc(r.summary).slice(0,240)}${r.summary.length>240?'…':''}</div>` : ''}
+    function sortedFacetEntries(obj){ return Object.entries(obj||{}).sort((a,b)=> b[1]-a[1]); }
+    function refreshSpecialties(){
+      const area = els.jobsArea.value;
+      const options = area ? (ESPECIALIDADES[area] || []) : [];
+      fillSelect(els.jobsEsp, options, area ? '(todas las especialidades del área)' : '(seleccioná un área)');
+    }
+    function renderAreaPills(){
+      const areaFacet = sortedFacetEntries(jobsStats?.facets?.area || {}).slice(0,8);
+      els.areaPills.innerHTML = areaFacet.map(([name,count])=> `<button type="button" data-area="${esc(name)}" class="${els.jobsArea.value===name?'active':''}">${esc(name)} · ${count}</button>`).join('');
+      els.areaPills.querySelectorAll('button').forEach(btn=>{
+        btn.onclick = ()=>{ els.jobsArea.value = btn.dataset.area || ''; refreshSpecialties(); renderAreaPills(); };
+      });
+    }
+    function renderStats(){
+      els.statsTotal.textContent = jobsStats?.total ?? '0';
+      const topArea = sortedFacetEntries(jobsStats?.facets?.area || {})[0];
+      els.statsTopArea.textContent = topArea ? `${topArea[0]} (${topArea[1]})` : '—';
+      const area = els.jobsArea.value;
+      const areaMap = area ? (jobsStats?.especialidad_by_area?.[area] || {}) : {};
+      const topEsp = sortedFacetEntries(areaMap)[0];
+      els.statsTopEsp.textContent = topEsp ? `${topEsp[0]} (${topEsp[1]})` : 'Seleccioná un área';
+      renderAreaPills();
+    }
+    function renderDetail(item){
+      if(!item){
+        els.detailBody.innerHTML = '<div class="muted">Todavía no seleccionaste ningún perfil.</div>';
+        return;
+      }
+      const especialidad = item.especialidad === 'Otros' ? (item.especialidad_otro || 'Otros') : (item.especialidad || '');
+      els.detailBody.innerHTML = `
+        <div style="font-size:22px;font-weight:900">${esc(item.apellido)}, ${esc(item.nombre)}</div>
+        <div class="muted" style="margin-top:4px">${esc(item.area_trabajo || '')}${item.nivel ? ` • ${esc(item.nivel)}` : ''}</div>
+        <div class="sectionMini"><b>DNI:</b> ${esc(item.dni || 's/d')}</div>
+        <div><b>Nacionalidad:</b> ${esc(item.nacionalidad || 's/d')} • <b>Estado civil:</b> ${esc(item.estado_civil || 's/d')} • <b>Hijos:</b> ${esc(item.hijos || 's/d')}</div>
+        <div><b>Contacto:</b> ${esc(item.telefono || 's/d')} • ${esc(item.correo || 's/d')}</div>
+        <div><b>Ubicación:</b> ${esc(item.localidad || 's/d')}${item.direccion ? ` • ${esc(item.direccion)}` : ''}</div>
+        <div><b>Especialidad:</b> ${esc(especialidad || 's/d')}</div>
+        ${item.soldador_categoria ? `<div><b>Soldador (cat.):</b> ${esc(item.soldador_categoria)}</div>` : ''}
+        ${Array.isArray(item.herramientas_mecanica) && item.herramientas_mecanica.length ? `<div><b>Máquinas herramienta:</b> ${esc(item.herramientas_mecanica.join(', '))}</div>` : ''}
+        ${Array.isArray(item.instrumentos_electrica) && item.instrumentos_electrica.length ? `<div><b>Instrumentos:</b> ${esc(item.instrumentos_electrica.join(', '))}</div>` : ''}
+        <div><b>Experiencia:</b> ${esc(item.rango_experiencia || 's/d')} • <b>Educación:</b> ${esc(item.nivel_educativo || 's/d')}</div>
+        <div><b>Capacitación:</b> ${item.tiene_capacitacion ? 'Sí' : 'No'} • <b>Trabaja:</b> ${item.trabaja_actualmente ? 'Sí' : 'No'}</div>
+        <div><b>Última actualización:</b> ${esc(formatDate(item.updated_at || item.created_at) || 's/d')}</div>
+        ${item.sueldo_pretendido ? `<div><b>Sueldo:</b> ${esc(item.sueldo_pretendido)}</div>` : ''}
+        ${item.ultimo_trabajo ? `<div><b>Último trabajo:</b> ${esc(item.ultimo_trabajo)}</div>` : ''}
+        ${item.observaciones ? `<div style="margin-top:8px"><b>Observaciones:</b><br>${esc(item.observaciones)}</div>` : ''}
+      `;
+    }
+    function renderResults(){
+      els.resultCount.textContent = jobsItems.length ? `${jobsItems.length} resultado(s)` : 'Sin resultados';
+      if(!jobsItems.length){
+        els.resultsList.innerHTML = '<div class="muted">No hay perfiles para esos filtros. Probá limpiar o ampliar la búsqueda.</div>';
+        renderDetail(null);
+        return;
+      }
+      els.resultsList.innerHTML = jobsItems.map((it, idx)=>{
+        const especialidad = it.especialidad === 'Otros' ? (it.especialidad_otro || 'Otros') : (it.especialidad || '');
+        const isActive = jobsSelected && jobsSelected.id === it.id;
+        return `
+          <div class="talentCard ${isActive?'active':''}" data-id="${it.id}">
+            <div style="font-weight:900;font-size:18px">${esc(it.apellido)}, ${esc(it.nombre)}</div>
+            <div class="muted">${esc(it.area_trabajo || '')}${it.nivel ? ` • ${esc(it.nivel)}` : ''}</div>
+            <div class="talentMeta">
+              <span class="tag">${esc(it.localidad || 'Localidad s/d')}</span>
+              ${especialidad ? `<span class="tag">${esc(especialidad)}</span>` : ''}
+              ${it.rango_experiencia ? `<span class="tag">Exp. ${esc(it.rango_experiencia)}</span>` : ''}
+              ${it.nivel_educativo ? `<span class="tag">${esc(it.nivel_educativo)}</span>` : ''}
             </div>
-          `;
-        }).join('');
+            <div class="muted" style="margin-top:10px">${esc(it.observaciones || it.ultimo_trabajo || 'Perfil sin observaciones cargadas.').slice(0,180)}${(it.observaciones || it.ultimo_trabajo || '').length>180?'…':''}</div>
+            <div class="small muted" style="margin-top:10px">Última actualización: ${esc(formatDate(it.updated_at || it.created_at) || 's/d')}</div>
+          </div>`;
+      }).join('');
+      els.resultsList.querySelectorAll('.talentCard').forEach(card=>{
+        card.onclick = ()=>{
+          jobsSelected = jobsItems.find(x=> x.id === card.dataset.id) || null;
+          renderResults();
+          renderDetail(jobsSelected);
+        };
+      });
+      if(!jobsSelected || !jobsItems.find(x=>x.id===jobsSelected.id)) jobsSelected = jobsItems[0];
+      renderDetail(jobsSelected);
+    }
+    async function loadStats(){
+      els.jobsErr.textContent = 'Actualizando estadísticas…';
+      try{
+        jobsStats = await apiFetch('/jobs/stats');
+        renderStats();
+        els.jobsErr.textContent = '';
+      }catch(e){ els.jobsErr.textContent = e.message; }
+    }
+    async function searchJobs(){
+      els.jobsErr.textContent = 'Buscando perfiles…';
+      const url = new URL(window.TP_API_URL + '/jobs/search');
+      const map = {
+        q: els.jobsQ.value.trim(), area: els.jobsArea.value, localidad: els.jobsLoc.value, nivel: els.jobsNivel.value,
+        especialidad: els.jobsEsp.value, rango_experiencia: els.jobsExp.value, nivel_educativo: els.jobsEdu.value,
+        tiene_capacitacion: els.jobsCap.value, trabaja_actualmente: els.jobsTrab.value, soldador_categoria: els.jobsSoldCat.value,
+        herramienta: els.jobsHerr.value, instrumento: els.jobsInstr.value, ultima_actualizacion: els.jobsFechaReg.value, orden: els.jobsOrden.value
+      };
+      Object.entries(map).forEach(([k,v])=>{ if(v) url.searchParams.set(k,v); });
+      try{
+        const headers = { Authorization: 'Bearer ' + tpToken() };
+        const r = await fetch(url.toString(), { headers });
+        const data = await r.json();
+        if(!r.ok) throw new Error(data?.error || 'No se pudo buscar talento');
+        jobsItems = data.items || [];
+        jobsSelected = jobsItems[0] || null;
+        renderResults();
+        els.jobsErr.textContent = jobsItems.length ? 'Búsqueda realizada correctamente.' : 'Sin coincidencias con los filtros actuales.';
       }catch(e){
-        msg.textContent = e.message;
+        jobsItems = [];
+        renderResults();
+        els.jobsErr.textContent = e.message;
       }
     }
+    function clearFilters(){
+      Object.values(els).forEach(()=>{});
+      ['jobsQ','jobsArea','jobsLoc','jobsNivel','jobsEsp','jobsExp','jobsEdu','jobsCap','jobsTrab','jobsSoldCat','jobsHerr','jobsInstr','jobsFechaReg'].forEach(key=> els[key].value='');
+      els.jobsOrden.value = 'recientes';
+      refreshSpecialties();
+      renderStats();
+      jobsItems=[]; jobsSelected=null; renderResults();
+      els.jobsErr.textContent='Filtros limpiados.';
+    }
 
-    document.getElementById('btnSearch').onclick = search;
-    document.getElementById('btnReset').onclick = ()=>{
-      qSkill.value=''; qHeadline.value=''; qCity.value=''; qProvince.value=''; qSector.value=''; qSubSector.value='';
-      msg.textContent=''; results.innerHTML='';
-    };
+    fillSelect(els.jobsArea, AREA_TRABAJO, '(todas las áreas)');
+    fillSelect(els.jobsLoc, LOCALIDADES, '(todas las localidades)');
+    fillSelect(els.jobsNivel, NIVEL_ELECTRO_MEC, '(todos los niveles)');
+    fillSelect(els.jobsExp, RANGO_EXP, '(cualquier experiencia)');
+    fillSelect(els.jobsEdu, NIVEL_EDU, '(cualquier nivel educativo)');
+    fillSelect(els.jobsCap, ['SI','NO'], '(sí o no)');
+    fillSelect(els.jobsTrab, ['SI','NO'], '(sí o no)');
+    fillSelect(els.jobsSoldCat, SOLDADOR_CAT, '(cualquier categoría)');
+    fillSelect(els.jobsHerr, MAQ_HERR_MECANICA, '(cualquier máquina)');
+    fillSelect(els.jobsInstr, INSTR_ELECTRICA, '(cualquier instrumento)');
+    fillSelect(els.jobsFechaReg, [{toString(){return '7d';}},'30d','90d','365d'].map(x=>typeof x==='string'?x:x.toString()), '(cualquier fecha)');
+    els.jobsFechaReg.innerHTML = '<option value="">(cualquier fecha)</option><option value="7d">Últimos 7 días</option><option value="30d">Últimos 30 días</option><option value="90d">Últimos 3 meses</option><option value="365d">Último año</option>';
+    els.jobsOrden.innerHTML = '<option value="recientes">Más recientes</option><option value="antiguos">Más antiguos</option>';
+    refreshSpecialties();
+
+    els.jobsArea.onchange = ()=>{ refreshSpecialties(); renderStats(); };
+    document.getElementById('btnRefreshStats').onclick = loadStats;
+    document.getElementById('btnSearch').onclick = searchJobs;
+    document.getElementById('btnClear').onclick = clearFilters;
+
+    loadStats();
+    renderResults();
   </script>
 </body>
 </html>

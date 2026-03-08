@@ -2,133 +2,142 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Mi Empresa</title>
   <link rel="icon" href="/icon-192.png" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <div class="header">
-    <img src="/assets/logo-tp.svg" alt="Talento PyME" />
+    <div class="brand">
+      <img src="/assets/logo-tp.svg" alt="Talento PyME" />
+      <div>
+        <div class="brandTitle">Talento PyME</div>
+        <div class="muted">Portal de empleo • <span class="tp-version"></span></div>
+      </div>
+    </div>
     <div class="nav">
       <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
       <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
       <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
       <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
-      <a href="/empleos.html">Empleos</a>
       <a href="#" id="btnLogout">Salir</a>
     </div>
   </div>
 
-  <div class="wrap">
-    <div class="card">
-      <h2>Mi Empresa</h2>
-      <div class="muted"><span class="tp-version"></span>: estos datos se completan al registrarte como empresa y se usan para publicar búsquedas.</div>
+  <div class="wrap wide">
+    <div class="heroPanel">
+      <div class="small" style="letter-spacing:.18em;text-transform:uppercase;font-weight:900;opacity:.9">Empresa · identidad institucional</div>
+      <h2 style="margin:8px 0 6px 0">Mi Empresa</h2>
+      <div class="muted">Completá y mantené actualizados los datos corporativos. Esta información se usa para publicar búsquedas y dar confianza al candidato.</div>
+    </div>
 
-      <label>Nombre de la empresa</label>
-      <input class="input" id="companyName" placeholder="Ej: MiPyme S.A." />
+    <div class="grid3" style="margin-top:16px">
+      <div class="kpiLite"><div class="small muted">Registro base</div><div class="num" style="font-size:18px">Empresa + contacto</div><div class="filterNote">Se precargan datos existentes del registro.</div></div>
+      <div class="kpiLite"><div class="small muted">Dato editable</div><div class="num" style="font-size:18px">Sitio web</div><div class="filterNote">Podés incorporarlo aunque no haya estado en el alta inicial.</div></div>
+      <div class="kpiLite"><div class="small muted">Objetivo</div><div class="num" style="font-size:18px">Ficha clara</div><div class="filterNote">Más claridad para publicar y administrar búsquedas.</div></div>
+    </div>
 
-      <div class="row">
-        <div style="flex:1; min-width:220px">
+    <div class="card" style="margin-top:16px">
+      <div class="toolbarCard">
+        <div>
+          <h2 style="margin:0">Ficha corporativa</h2>
+          <div class="muted">Los campos del registro se levantan por defecto. Revisá, completá y guardá.</div>
+        </div>
+        <div class="badge">Empresa verificada</div>
+      </div>
+
+      <div class="filtersGrid" style="grid-template-columns:repeat(2, minmax(0,1fr)); margin-top:16px">
+        <div>
+          <label>Nombre de la empresa</label>
+          <input class="input" id="companyName" placeholder="Ej: MiPyme S.A." />
+        </div>
+        <div>
           <label>CUIT</label>
           <input class="input" id="cuit" placeholder="Ej: 30-XXXXXXXX-X" />
         </div>
-        <div style="flex:1; min-width:220px">
+        <div>
+          <label>Persona de contacto</label>
+          <input class="input" id="contactName" placeholder="Ej: Juan Pérez" />
+        </div>
+        <div>
+          <label>Mail de contacto</label>
+          <input class="input" id="contactEmail" placeholder="rrhh@empresa.com" />
+        </div>
+        <div>
+          <label>Teléfono de contacto</label>
+          <input class="input" id="phone" placeholder="Ej: +54 9 ..." />
+        </div>
+        <div>
           <label>Sitio web</label>
           <input class="input" id="website" placeholder="https://..." />
         </div>
-      </div>
-
-      <label>Dirección</label>
-      <input class="input" id="address" placeholder="Calle y número" />
-
-      <div class="row">
-        <div style="flex:1; min-width:220px">
-          <label>Ciudad</label>
+        <div>
+          <label>Dirección</label>
+          <input class="input" id="address" placeholder="Calle y número" />
+        </div>
+        <div>
+          <label>Localidad</label>
           <input class="input" id="city" placeholder="Ej: Campana" />
         </div>
-        <div style="flex:1; min-width:220px">
+        <div>
           <label>Provincia</label>
           <input class="input" id="province" placeholder="Ej: Buenos Aires" />
         </div>
       </div>
 
       <div class="row">
-        <div style="flex:1; min-width:220px">
-          <label>Mail de contacto</label>
-          <input class="input" id="contactEmail" placeholder="rrhh@empresa.com" />
-        </div>
-        <div style="flex:1; min-width:220px">
-          <label>Persona de contacto</label>
-          <input class="input" id="contactName" placeholder="Ej: Juan Pérez" />
-        </div>
-      </div>
-
-      <label>Teléfono de contacto</label>
-      <input class="input" id="phone" placeholder="Ej: +54 9 ..." />
-
-      <div class="row">
-        <button class="btn btn-primary" id="btnSave">Guardar</button>
+        <button class="btn btn-primary" id="btnSave">Guardar cambios</button>
+        <button class="btn btn-ghost" id="btnReload">Recargar datos</button>
         <span class="muted" id="msg"></span>
       </div>
     </div>
   </div>
 
-  <script src="/config.js?v=4.1.7"></script>
-  <script src="/auth.js?v=4.1.7"></script>
+  <script src="/config.js?v=4.2.0"></script>
+  <script src="/auth.js?v=4.2.0"></script>
   <script>
     requireAuth();
-    document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
-
     applyRoleVisibility();
     requireRole('COMPANY');
+    document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); logout(); };
 
+    const fields = ['companyName','cuit','address','website','city','province','contactEmail','contactName','phone'].reduce((acc,id)=>{acc[id]=document.getElementById(id);return acc;},{});
     const msg = document.getElementById('msg');
-    const companyName = document.getElementById('companyName');
-    const cuit = document.getElementById('cuit');
-    const address = document.getElementById('address');
-    const website = document.getElementById('website');
-    const city = document.getElementById('city');
-    const province = document.getElementById('province');
-    const contactEmail = document.getElementById('contactEmail');
-    const contactName = document.getElementById('contactName');
-    const phone = document.getElementById('phone');
 
-    (async ()=>{
+    async function loadCompany(){
+      msg.textContent = 'Leyendo datos de empresa…';
       try{
-        const c = await apiFetch('/company/me');
-        if(c){
-          companyName.value = c.companyName || '';
-          cuit.value = c.cuit || '';
-          address.value = c.address || '';
-          website.value = c.website || '';
-          city.value = c.city || '';
-          province.value = c.province || '';
-          contactEmail.value = c.contactEmail || '';
-          contactName.value = c.contactName || '';
-          phone.value = c.phone || '';
-        }
+        const [me, company] = await Promise.all([
+          apiFetch('/me').catch(()=>null),
+          apiFetch('/company/me').catch(()=>null)
+        ]);
+        const c = company || {};
+        fields.companyName.value = c.companyName || me?.companyName || '';
+        fields.cuit.value = c.cuit || '';
+        fields.address.value = c.address || '';
+        fields.website.value = c.website || '';
+        fields.city.value = c.city || '';
+        fields.province.value = c.province || '';
+        fields.contactEmail.value = c.contactEmail || me?.user?.email || '';
+        fields.contactName.value = c.contactName || '';
+        fields.phone.value = c.phone || '';
+        msg.textContent = 'Datos listos para revisar.';
       }catch(e){ msg.textContent = e.message; }
-    })();
+    }
 
+    document.getElementById('btnReload').onclick = loadCompany;
     document.getElementById('btnSave').onclick = async ()=>{
-      msg.textContent = 'Guardando…';
+      msg.textContent = 'Guardando cambios…';
       try{
-        const payload = {
-          companyName: companyName.value.trim(),
-          cuit: cuit.value.trim() || null,
-          address: address.value.trim() || null,
-          website: website.value.trim() || null,
-          city: city.value.trim() || null,
-          province: province.value.trim() || null,
-          contactEmail: contactEmail.value.trim() || null,
-          contactName: contactName.value.trim() || null,
-          phone: phone.value.trim() || null
-        };
+        const payload = Object.fromEntries(Object.entries(fields).map(([k,el])=> [k, el.value.trim() || null]));
+        if(!payload.companyName) throw new Error('Falta nombre de empresa');
         await apiFetch('/company/me', { method:'PUT', body: JSON.stringify(payload) });
-        msg.textContent = 'Guardado OK.';
+        msg.textContent = 'Ficha de empresa guardada correctamente.';
       }catch(e){ msg.textContent = e.message; }
     };
+
+    loadCompany();
   </script>
 </body>
 </html>

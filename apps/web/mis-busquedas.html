@@ -2,59 +2,47 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Mis Búsquedas</title>
   <link rel="icon" href="/icon-192.png" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <div class="header">
-    <img src="/assets/logo-tp.svg" alt="Talento PyME" />
+    <div class="brand"><img src="/assets/logo-tp.svg" alt="Talento PyME" /><div><div class="brandTitle">Talento PyME</div><div class="muted">Portal de empleo • <span class="tp-version"></span></div></div></div>
     <div class="nav">
-  <a href="/perfil.html" data-role="CANDIDATE">Mi Perfil</a>
-    <a href="/empleos.html">Empleos</a>
-  <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
-  <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
-  <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
-  <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
-  <a href="#" id="btnLogout">Salir</a>
-</div>
+      <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
+      <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
+      <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
+      <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
+      <a href="#" id="btnLogout">Salir</a>
+    </div>
   </div>
 
-  <div class="wrap">
+  <div class="wrap wide">
     <div class="card">
-      <h2>Mis Búsquedas</h2>
-      <div class="muted">Listado de publicaciones de tu empresa.</div>
+      <div class="toolbarCard"><div><h2 style="margin:0">Mis Búsquedas</h2><div class="muted">Tus publicaciones quedan listadas en formato desplegable para lectura rápida.</div></div><div class="badge" id="totalBadge">—</div></div>
       <div id="msg" class="muted" style="margin-top:10px"></div>
       <div id="list" style="margin-top:14px"></div>
     </div>
   </div>
 
-  <script src="/config.js?v=4.1.7"></script>
-  <script src="/auth.js?v=4.1.7"></script>
+  <script src="/config.js?v=4.2.0"></script>
+  <script src="/auth.js?v=4.2.0"></script>
   <script>
-    requireAuth();
-    const role = tpRole();
-    if(role !== "COMPANY") window.location.href = "/perfil.html";
-    document.getElementById("btnLogout").onclick = (e)=>{ e.preventDefault(); logout(); };
-    document.querySelectorAll('[data-role]').forEach(a=>{ const r=a.getAttribute('data-role'); if(r && r!==role) a.style.display='none'; });
-
-    function esc(s){ return (s||"").replace(/[&<>"]/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
-
+    requireAuth(); applyRoleVisibility(); requireRole('COMPANY');
+    document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); logout(); };
+    function esc(s){ return String(s||'').replace(/[&<>"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
     (async ()=>{
-      const msg = document.getElementById("msg");
-      const list = document.getElementById("list");
-      msg.textContent = "Cargando...";
+      const msg=document.getElementById('msg'); const list=document.getElementById('list'); const totalBadge=document.getElementById('totalBadge');
+      msg.textContent='Cargando...';
       try{
-        const data = await apiFetch("/jobs/mine");
-        const jobs = data.jobs || [];
-        msg.textContent = jobs.length ? `Total: ${jobs.length}` : "Sin publicaciones aún.";
-        list.innerHTML = jobs.map(j=>`<div class="card" style="margin-top:10px">
-          <div style="font-weight:800">${esc(j.title)}</div>
-          <div class="muted small">${new Date(j.createdAt).toLocaleString()}</div>
-          <div class="muted">${esc(j.location||"")} · ${esc(j.modality||"")}</div>
-        </div>`).join('');
-      }catch(e){ msg.textContent = e.message; }
+        const data=await apiFetch('/jobs/mine'); const jobs=data.jobs||[];
+        totalBadge.textContent = `${jobs.length} publicación(es)`;
+        msg.textContent = jobs.length ? 'Tocá cada ítem para desplegar el detalle técnico.' : 'Sin publicaciones aún.';
+        list.innerHTML = jobs.map((j,idx)=>`<div class="accordionItem ${idx===0?'open':''}"><div class="accordionHead">${esc(j.title)}<span>${idx===0?'−':'+'}</span></div><div class="accordionBody"><div><b>Fecha:</b> ${new Date(j.createdAt).toLocaleString()}</div><div><b>Ubicación:</b> ${esc(j.location||'s/d')} • <b>Modalidad:</b> ${esc(j.modality||'s/d')}</div><div style="margin-top:8px"><b>Descripción:</b><br>${esc(j.description||'')}</div>${j.requirements?`<div style="margin-top:8px"><b>Requisitos:</b><br>${esc(j.requirements)}</div>`:''}</div></div>`).join('');
+        list.querySelectorAll('.accordionItem').forEach(item=>{ item.querySelector('.accordionHead').onclick=()=>{ item.classList.toggle('open'); item.querySelector('.accordionHead span').textContent=item.classList.contains('open')?'−':'+'; }; });
+      }catch(e){ msg.textContent=e.message; }
     })();
   </script>
 </body>

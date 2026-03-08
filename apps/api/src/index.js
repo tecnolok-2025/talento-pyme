@@ -143,7 +143,10 @@ const registerSchema = z.object({
   cuit: z.string().max(40).optional(),
   address: z.string().max(200).optional(),
   city: z.string().max(120).optional(),
-  phone: z.string().max(60).optional()
+  province: z.string().max(120).optional(),
+  phone: z.string().max(60).optional(),
+  contactName: z.string().max(120).optional(),
+  contactEmail: z.string().email().max(180).optional()
 });
 
 const loginSchema = z.object({
@@ -240,7 +243,7 @@ app.post("/auth/register", async (req, res) => {
     if (role === "COMPANY" && !existingUser.company) {
       const cuitNorm = normalizeId(cuit || "");
       const companyNameNorm = normalizeName(companyName || "");
-      const contactNameNorm = normalizeName(contactName || "");
+      const contactNameNorm = normalizeName(contactName || fullName || "");
 
       await prisma.user.update({
         where: { id: existingUser.id },
@@ -251,7 +254,7 @@ app.post("/auth/register", async (req, res) => {
               companyName,
               companyNameNorm,
               cuit: cuitNorm,
-              contactName: contactName || "",
+              contactName: contactName || fullName || "",
               contactNameNorm,
               contactEmail: contactEmail || emailNorm,
               phone: phone || "",
@@ -302,7 +305,7 @@ app.post("/auth/register", async (req, res) => {
     if (role === "COMPANY") {
       const cuitNorm = normalizeId(cuit || "");
       const companyNameNorm = normalizeName(companyName || "");
-      const contactNameNorm = normalizeName(contactName || "");
+      const contactNameNorm = normalizeName(contactName || fullName || "");
 
       const user = await prisma.user.create({
         data: {
@@ -314,7 +317,7 @@ app.post("/auth/register", async (req, res) => {
               companyName,
               companyNameNorm,
               cuit: cuitNorm,
-              contactName: contactName || "",
+              contactName: contactName || fullName || "",
               contactNameNorm,
               contactEmail: contactEmail || emailNorm,
               phone: phone || "",
@@ -1248,11 +1251,186 @@ app.get("/bolsa/search", authRequired, async (req, res) => {
 });
 
 
+function _registeredSinceDate(code) {
+  const now = Date.now();
+  switch (String(code || '').toLowerCase()) {
+    case '7d': return new Date(now - 7 * 24 * 60 * 60 * 1000);
+    case '30d':
+    case '1m': return new Date(now - 30 * 24 * 60 * 60 * 1000);
+    case '90d':
+    case '3m': return new Date(now - 90 * 24 * 60 * 60 * 1000);
+    case '365d':
+    case '12m':
+    case '1y': return new Date(now - 365 * 24 * 60 * 60 * 1000);
+    default: return null;
+  }
+}
+
+function _candidateFreshMs(it) {
+  const dt = it?.updatedAt || it?.createdAt;
+  return dt ? new Date(dt).getTime() : 0;
+}
+
+function localityMatches(candidateValue, filterValue) {
+  const a = String(candidateValue || '').trim().toLowerCase();
+  const b = String(filterValue || '').trim().toLowerCase();
+  if (!b) return true;
+  return a === b || a.startsWith(b);
+}
+
+function toArrayField(value) {
+  if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
+  if (!value) return [];
+  return String(value).split(',').map((x) => x.trim()).filter(Boolean);
+}
+
+function facetStats(items) {
+  const facets = { area: {}, localidad: {}, nivel: {}, rango_experiencia: {}, nivel_educativo: {} };
+  const especialidad_by_area = {};
+  for (const it of items || []) {
+    const area = String(it.areaTrabajo || '').trim();
+    const localidad = String(it.localidad || '').trim();
+    const nivel = String(it.nivel || '').trim();
+    const exp = String(it.rangoExperiencia || '').trim();
+    const edu = String(it.nivelEducativo || '').trim();
+    const esp = String(it.especialidad === 'Otros' ? (it.especialidadOtro || 'Otros') : (it.especialidad || '')).trim();
+    if (area) facets.area[area] = (facets.area[area] || 0) + 1;
+    if (localidad) facets.localidad[localidad] = (facets.localidad[localidad] || 0) + 1;
+    if (nivel) facets.nivel[nivel] = (facets.nivel[nivel] || 0) + 1;
+    if (exp) facets.rango_experiencia[exp] = (facets.rango_experiencia[exp] || 0) + 1;
+    if (edu) facets.nivel_educativo[edu] = (facets.nivel_educativo[edu] || 0) + 1;
+    if (area && esp) {
+      especialidad_by_area[area] = especialidad_by_area[area] || {};
+      especialidad_by_area[area][esp] = (especialidad_by_area[area][esp] || 0) + 1;
+    }
+  }
+  return { facets, especialidad_by_area };
+}
+
+app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
+  try {
+    const items = await prisma.candidateBolsa.findMany({
+      select: {
+        areaTrabajo: true,
+        localidad: true,
+        nivel: true,
+        rangoExperiencia: true,
+        nivelEducativo: true,
+        especialidad: true,
+        especialidadOtro: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 2000,
+    });
+    const total = await prisma.candidateBolsa.count();
+    return res.json({ ok: true, total, ...facetStats(items) });
+  } catch (err) {
+    console.error('GET /jobs/stats', err);
+    return res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
+app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const area = String(req.query.area || '').trim();
+    const localidad = String(req.query.localidad || '').trim();
+    const nivel = String(req.query.nivel || '').trim();
+    const especialidad = String(req.query.especialidad || '').trim();
+    const rangoExperiencia = String(req.query.rango_experiencia || '').trim();
+    const nivelEducativo = String(req.query.nivel_educativo || '').trim();
+    const tieneCapacitacion = String(req.query.tiene_capacitacion || '').trim();
+    const trabajaActualmente = String(req.query.trabaja_actualmente || '').trim();
+    const soldadorCategoria = String(req.query.soldador_categoria || '').trim();
+    const herramienta = String(req.query.herramienta || '').trim();
+    const instrumento = String(req.query.instrumento || '').trim();
+    const ultimaActualizacion = String(req.query.ultima_actualizacion || '').trim();
+    const orden = String(req.query.orden || 'recientes').trim();
+
+    const all = await prisma.candidateBolsa.findMany({
+      select: {
+        id:true, nombre:true, apellido:true, dni:true, nacionalidad:true, estadoCivil:true, hijos:true,
+        telefono:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
+        especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true,
+        tieneCapacitacion:true, trabajaActualmente:true, sueldoPretendido:true, ultimoTrabajo:true,
+        observaciones:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true
+      },
+      take: 2000,
+    });
+
+    const sinceDate = _registeredSinceDate(ultimaActualizacion);
+    const filtered = all.filter((it) => {
+      const esp = it.especialidad === 'Otros' ? (it.especialidadOtro || 'Otros') : (it.especialidad || '');
+      if (q) {
+        const hay = `${it.nombre || ''} ${it.apellido || ''} ${it.dni || ''} ${it.localidad || ''} ${it.areaTrabajo || ''} ${it.especialidad || ''} ${it.especialidadOtro || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (area && String(it.areaTrabajo || '') !== area) return false;
+      if (localidad && !localityMatches(it.localidad, localidad)) return false;
+      if (nivel && String(it.nivel || '') !== nivel) return false;
+      if (especialidad && String(esp || '') !== especialidad) return false;
+      if (rangoExperiencia && String(it.rangoExperiencia || '') !== rangoExperiencia) return false;
+      if (nivelEducativo && String(it.nivelEducativo || '') !== nivelEducativo) return false;
+      if (tieneCapacitacion === 'SI' && !it.tieneCapacitacion) return false;
+      if (tieneCapacitacion === 'NO' && !!it.tieneCapacitacion) return false;
+      if (trabajaActualmente === 'SI' && !it.trabajaActualmente) return false;
+      if (trabajaActualmente === 'NO' && !!it.trabajaActualmente) return false;
+      if (soldadorCategoria && String(it.soldadorCategoria || '') !== soldadorCategoria) return false;
+      if (herramienta && !toArrayField(it.herramientasMecanica).includes(herramienta)) return false;
+      if (instrumento && !toArrayField(it.instrumentosElectrica).includes(instrumento)) return false;
+      if (sinceDate && _candidateFreshMs(it) < sinceDate.getTime()) return false;
+      return true;
+    }).sort((a, b) => {
+      const diff = _candidateFreshMs(b) - _candidateFreshMs(a);
+      return orden === 'antiguos' ? -diff : diff;
+    }).slice(0, 200).map((it) => ({
+      id: it.id,
+      nombre: it.nombre,
+      apellido: it.apellido,
+      dni: it.dni,
+      nacionalidad: it.nacionalidad,
+      estado_civil: it.estadoCivil,
+      hijos: it.hijos,
+      telefono: it.telefono,
+      correo: it.correo,
+      localidad: it.localidad,
+      direccion: it.direccion,
+      area_trabajo: it.areaTrabajo,
+      nivel: it.nivel,
+      especialidad: it.especialidad,
+      especialidad_otro: it.especialidadOtro,
+      soldador_categoria: it.soldadorCategoria || null,
+      rango_experiencia: it.rangoExperiencia,
+      nivel_educativo: it.nivelEducativo,
+      tiene_capacitacion: it.tieneCapacitacion,
+      trabaja_actualmente: it.trabajaActualmente,
+      sueldo_pretendido: it.sueldoPretendido,
+      ultimo_trabajo: it.ultimoTrabajo,
+      observaciones: it.observaciones,
+      herramientas_mecanica: toArrayField(it.herramientasMecanica),
+      instrumentos_electrica: toArrayField(it.instrumentosElectrica),
+      created_at: it.createdAt,
+      updated_at: it.updatedAt,
+    }));
+
+    return res.json({ ok: true, items: filtered });
+  } catch (err) {
+    console.error('GET /jobs/search', err);
+    return res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
+
 
 
 app.get("/company/me", auth, requireRole("COMPANY"), async (req, res) => {
-  const c = await prisma.companyProfile.findUnique({ where: { userId: req.user.id } });
-  res.json(c || null);
+  const user = await prisma.user.findUnique({ where: { id: req.user.id }, include: { company: true } });
+  const c = user?.company || null;
+  if (!c) return res.json(null);
+  res.json({
+    ...c,
+    contactEmail: c.contactEmail || user?.email || null,
+  });
 });
 
 app.put("/company/me", auth, requireRole("COMPANY"), async (req, res) => {
