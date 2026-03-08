@@ -18,6 +18,7 @@
       <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
       <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
       <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
+      <a href="/mis-candidatos.html" data-role="COMPANY">Mis Candidatos</a>
       <a href="#" id="btnLogout">Salir</a>
     </div>
   </div>
@@ -143,8 +144,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=4.3.0"></script>
-  <script src="/auth.js?v=4.3.0"></script>
+  <script src="/config.js?v=4.3.1"></script>
+  <script src="/auth.js?v=4.3.1"></script>
   <script>
     requireAuth(); applyRoleVisibility(); requireRole('COMPANY');
     document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); logout(); };
@@ -172,7 +173,7 @@
     }
 
     async function buildAIDraft(){
-      msg.textContent = 'Generando borrador asistido…';
+      msg.textContent = 'Generando borrador asistido…'; document.getElementById('btnAIDraft').disabled = true;
       try{
         const data = await apiFetch('/jobs/ai-draft', { method:'POST', body: JSON.stringify({
           title: title.value.trim(),
@@ -187,8 +188,8 @@
         }) });
         if(data?.description) responsibilities.value = data.description;
         if(data?.requirements) requirements.value = data.requirements;
-        msg.textContent = 'La IA dejó una versión más completa del aviso.';
-      }catch(e){ msg.textContent = e.message; }
+        msg.textContent = 'La IA dejó una versión más completa del aviso.'; document.getElementById('btnAIDraft').disabled = false;
+      }catch(e){ msg.textContent = e.message; document.getElementById('btnAIDraft').disabled = false; }
     }
 
     btnAIDraft.onclick = async ()=>{ await buildAIDraft(); };
@@ -196,7 +197,7 @@
     btnPost.onclick = async ()=>{
       msg.textContent='Publicando...';
       try{
-        if(!title.value.trim()) throw new Error('Falta el título del puesto');
+        if(!title.value.trim()) throw new Error('Primero completá el título del puesto para activar la asistencia IA y publicar.');
         if(!responsibilities.value.trim()) throw new Error('Completá la descripción del puesto');
         if(document.getElementById('useAI').checked && (!requirements.value.trim() || responsibilities.value.trim().length < 80)){
           await buildAIDraft();

@@ -15,6 +15,7 @@
       <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
       <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
       <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
+      <a href="/mis-candidatos.html" data-role="COMPANY">Mis Candidatos</a>
       <a href="#" id="btnLogout">Salir</a>
     </div>
   </div>
@@ -33,8 +34,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=4.3.0"></script>
-  <script src="/auth.js?v=4.3.0"></script>
+  <script src="/config.js?v=4.3.1"></script>
+  <script src="/auth.js?v=4.3.1"></script>
   <script>
     requireAuth(); applyRoleVisibility(); requireRole('COMPANY');
     document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); logout(); };

@@ -1097,7 +1097,8 @@ const companySchema = z.object({
   phone: z.string().max(40).optional().nullable(),
   website: z.string().max(200).optional().nullable(),
   companySummary: z.string().max(2400).optional().nullable(),
-  showCompanySummary: z.boolean().optional().nullable()
+  showCompanySummary: z.boolean().optional().nullable(),
+  candidateBookmarks: z.array(z.string()).optional().nullable()
 });
 
 // ============================
@@ -1504,6 +1505,95 @@ app.put("/company/me", auth, requireRole("COMPANY"), async (req, res) => {
     create: { userId: req.user.id, ...data }
   });
   res.json(c);
+});
+
+
+app.get('/company/candidates', auth, requireRole('COMPANY'), async (req, res) => {
+  try {
+    const company = await prisma.companyProfile.findUnique({ where: { userId: req.user.id }, select: { candidateBookmarks: true } });
+    const ids = company?.candidateBookmarks || [];
+    if (!ids.length) return res.json({ ok: true, items: [] });
+    const all = await prisma.candidateBolsa.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id:true, nombre:true, apellido:true, dni:true, nacionalidad:true, estadoCivil:true, hijos:true,
+        telefono:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
+        especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true,
+        tieneCapacitacion:true, trabajaActualmente:true, sueldoPretendido:true, ultimoTrabajo:true,
+        observaciones:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true
+      }
+    });
+    const byId = new Map(all.map((it)=>[it.id, it]));
+    const items = ids.map((id)=>byId.get(id)).filter(Boolean).map((it)=>({
+      id: it.id,
+      nombre: it.nombre,
+      apellido: it.apellido,
+      dni: it.dni,
+      nacionalidad: it.nacionalidad,
+      estado_civil: it.estadoCivil,
+      hijos: it.hijos,
+      telefono: it.telefono,
+      correo: it.correo,
+      localidad: it.localidad,
+      direccion: it.direccion,
+      area_trabajo: it.areaTrabajo,
+      nivel: it.nivel,
+      especialidad: it.especialidad,
+      especialidad_otro: it.especialidadOtro,
+      rango_experiencia: it.rangoExperiencia,
+      nivel_educativo: it.nivelEducativo,
+      tiene_capacitacion: it.tieneCapacitacion,
+      trabaja_actualmente: it.trabajaActualmente,
+      sueldo_pretendido: it.sueldoPretendido,
+      ultimo_trabajo: it.ultimoTrabajo,
+      observaciones: it.observaciones,
+      herramientas_mecanica: toArrayField(it.herramientasMecanica),
+      instrumentos_electrica: toArrayField(it.instrumentosElectrica),
+      created_at: it.createdAt,
+      updated_at: it.updatedAt,
+    }));
+    res.json({ ok: true, items });
+  } catch (err) {
+    console.error('GET /company/candidates', err);
+    res.status(500).json({ error: 'No se pudo leer Mis Candidatos' });
+  }
+});
+
+app.post('/company/candidates', auth, requireRole('COMPANY'), async (req, res) => {
+  try {
+    const candidateId = String(req.body?.candidateId || '').trim();
+    if (!candidateId) return res.status(400).json({ error: 'Falta candidateId' });
+    const exists = await prisma.candidateBolsa.findUnique({ where: { id: candidateId }, select: { id: true } });
+    if (!exists) return res.status(404).json({ error: 'Candidato no encontrado' });
+    const current = await prisma.companyProfile.findUnique({ where: { userId: req.user.id }, select: { candidateBookmarks: true } });
+    const next = Array.from(new Set([...(current?.candidateBookmarks || []), candidateId]));
+    await prisma.companyProfile.upsert({
+      where: { userId: req.user.id },
+      update: { candidateBookmarks: next },
+      create: { userId: req.user.id, companyName: 'Empresa', candidateBookmarks: next }
+    });
+    res.json({ ok: true, saved: true, total: next.length });
+  } catch (err) {
+    console.error('POST /company/candidates', err);
+    res.status(500).json({ error: 'No se pudo guardar en Mis Candidatos' });
+  }
+});
+
+app.delete('/company/candidates/:id', auth, requireRole('COMPANY'), async (req, res) => {
+  try {
+    const candidateId = String(req.params.id || '').trim();
+    const current = await prisma.companyProfile.findUnique({ where: { userId: req.user.id }, select: { candidateBookmarks: true } });
+    const next = (current?.candidateBookmarks || []).filter((id)=> id !== candidateId);
+    await prisma.companyProfile.upsert({
+      where: { userId: req.user.id },
+      update: { candidateBookmarks: next },
+      create: { userId: req.user.id, companyName: 'Empresa', candidateBookmarks: next }
+    });
+    res.json({ ok: true, removed: true, total: next.length });
+  } catch (err) {
+    console.error('DELETE /company/candidates/:id', err);
+    res.status(500).json({ error: 'No se pudo quitar de Mis Candidatos' });
+  }
 });
 
 // -----------------------------

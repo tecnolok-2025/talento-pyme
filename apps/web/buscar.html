@@ -21,6 +21,7 @@
       <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
       <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
       <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
+      <a href="/mis-candidatos.html" data-role="COMPANY">Mis Candidatos</a>
       <a href="#" id="btnLogout">Salir</a>
     </div>
   </div>
@@ -149,8 +150,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=4.3.0"></script>
-  <script src="/auth.js?v=4.3.0"></script>
+  <script src="/config.js?v=4.3.1"></script>
+  <script src="/auth.js?v=4.3.1"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -250,6 +251,7 @@
         ${item.sueldo_pretendido ? `<div><b>Sueldo:</b> ${esc(item.sueldo_pretendido)}</div>` : ''}
         ${item.ultimo_trabajo ? `<div><b>Último trabajo:</b> ${esc(item.ultimo_trabajo)}</div>` : ''}
         ${item.observaciones ? `<div style="margin-top:8px"><b>Observaciones:</b><br>${esc(item.observaciones)}</div>` : ''}
+        <div class="row" style="margin-top:14px"><button class="btn btn-primary" id="btnSaveCandidate" type="button">Guardar en Mis Candidatos</button><span class="muted" id="saveCandidateMsg"></span></div>
       `;
     }
     function renderResults(){
@@ -285,6 +287,19 @@
       });
       if(!jobsSelected || !jobsItems.find(x=>x.id===jobsSelected.id)) jobsSelected = jobsItems[0];
       renderDetail(jobsSelected);
+      setTimeout(()=>{
+        const btn = document.getElementById('btnSaveCandidate');
+        if(btn && jobsSelected){
+          btn.onclick = async ()=>{
+            const msg = document.getElementById('saveCandidateMsg');
+            msg.textContent = 'Guardando...';
+            try{
+              const data = await apiFetch('/company/candidates', { method:'POST', body: JSON.stringify({ candidateId: jobsSelected.id }) });
+              msg.textContent = `Candidato guardado. Total en carpeta: ${data.total || ''}`.trim();
+            }catch(e){ msg.textContent = e.message; }
+          };
+        }
+      },0);
     }
     async function loadStats(){
       els.jobsErr.textContent = 'Actualizando estadísticas…';
