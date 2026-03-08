@@ -182,8 +182,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=4.2.0"></script>
-  <script src="/auth.js?v=4.2.0"></script>
+  <script src="/config.js?v=4.2.2"></script>
+  <script src="/auth.js?v=4.2.2"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));
@@ -327,8 +327,8 @@ $("btnRegister").onclick = async () => {
         const data = await post("/auth/login", { fullName, password, roleHint: selectedRole });
         localStorage.setItem("tp_token", data.token);
         localStorage.setItem("tp_role", data.role);
-        msg(`OK. Entrando al Panel (${roleES(data.role)})...`);
-        window.location.href = "/perfil.html";
+        msg(`OK. Entrando a ${data.role === "COMPANY" ? "Buscar Talento" : "Mi Perfil"} (${roleES(data.role)})...`);
+        window.location.href = (normalizeRole(data.role) === "COMPANY") ? "/buscar.html" : "/perfil.html";
       }catch(e){ msg(e.message); }
       finally{ setBusy(false); disable($("btnLogin"), false); }
     };
