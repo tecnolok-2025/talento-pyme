@@ -7,7 +7,7 @@
   <link rel="icon" href="/icon-192.png" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
-<body>
+<body class="appShell">
   <div class="header">
     <div class="brand">
       <img src="/assets/logo-tp.svg" alt="Talento PyME" />
@@ -94,8 +94,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=4.2.0"></script>
-  <script src="/auth.js?v=4.2.0"></script>
+  <script src="/config.js?v=4.2.1"></script>
+  <script src="/auth.js?v=4.2.1"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -105,6 +105,17 @@
     const fields = ['companyName','cuit','address','website','city','province','contactEmail','contactName','phone'].reduce((acc,id)=>{acc[id]=document.getElementById(id);return acc;},{});
     const msg = document.getElementById('msg');
 
+    function humanizeContactFromEmail(email){
+      const local = String(email || '').split('@')[0] || '';
+      if(!local) return '';
+      return local.replace(/[._-]+/g, ' ').replace(/\w/g, (m)=> m.toUpperCase());
+    }
+    function inferProvince(city, province){
+      const c = String(city || '').trim().toLowerCase();
+      if (province) return province;
+      if (c === 'caba' || c.includes('ciudad autonoma de buenos aires') || c.includes('capital federal')) return 'Buenos Aires';
+      return '';
+    }
     async function loadCompany(){
       msg.textContent = 'Leyendo datos de empresa…';
       try{
@@ -113,14 +124,15 @@
           apiFetch('/company/me').catch(()=>null)
         ]);
         const c = company || {};
+        const fallbackEmail = (c.contactEmail && /@/.test(c.contactEmail)) ? c.contactEmail : (me?.user?.email || '');
         fields.companyName.value = c.companyName || me?.companyName || '';
         fields.cuit.value = c.cuit || '';
         fields.address.value = c.address || '';
         fields.website.value = c.website || '';
         fields.city.value = c.city || '';
-        fields.province.value = c.province || '';
-        fields.contactEmail.value = c.contactEmail || me?.user?.email || '';
-        fields.contactName.value = c.contactName || '';
+        fields.province.value = inferProvince(c.city, c.province || '');
+        fields.contactEmail.value = fallbackEmail;
+        fields.contactName.value = c.contactName || humanizeContactFromEmail(fallbackEmail);
         fields.phone.value = c.phone || '';
         msg.textContent = 'Datos listos para revisar.';
       }catch(e){ msg.textContent = e.message; }

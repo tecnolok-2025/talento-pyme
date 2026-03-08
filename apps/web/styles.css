@@ -356,3 +356,28 @@ pre{white-space:pre-wrap}
 .accordionHead{padding:16px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-weight:900}
 .accordionBody{padding:0 18px 18px 18px;display:none;color:var(--tp-muted)}
 .accordionItem.open .accordionBody{display:block}
+
+
+/* Unified shell for internal company pages */
+.appShell{background:
+  radial-gradient(1200px 520px at 0% 0%, rgba(23,105,224,.22), transparent 45%),
+  radial-gradient(900px 520px at 100% 0%, rgba(242,140,40,.12), transparent 42%),
+  linear-gradient(180deg, #08111f 0%, #08111f 260px, #F5F7FB 260px, #F5F7FB 100%);
+  min-height:100vh;
+}
+.appShell .header{
+  max-width:1180px;
+  margin:0 auto;
+  padding:20px 16px 12px 16px;
+  background:transparent;
+  border-bottom:0;
+  position:relative;
+}
+.appShell .header .brand img{height:46px;filter:drop-shadow(0 4px 16px rgba(0,0,0,.18));}
+.appShell .header .brandTitle{color:#fff;font-size:22px;}
+.appShell .header .muted{color:rgba(255,255,255,.80);}
+.appShell .nav a{background:rgba(255,255,255,.10);color:#fff;border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px)}
+.appShell .nav a:hover{background:rgba(255,255,255,.16)}
+.appShell .wrap{margin-top:6px;}
+.appShell .heroPanel{position:relative;overflow:hidden}
+.appShell .heroPanel::after{content:"";position:absolute;right:-80px;top:-90px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.20), transparent 70%)}
