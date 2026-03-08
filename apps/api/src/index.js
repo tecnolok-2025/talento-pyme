@@ -811,7 +811,7 @@ ${sections?.experience || ""}`;
   return nums.length ? Math.max(...nums) : null;
 }
 
-function escapeRegExp(s=""){function escapeRegExp(s=""){
+function escapeRegExp(s=""){
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
@@ -932,12 +932,10 @@ function optimizeProfessionalSummary(text, sections, analysis){
     lines.push(`Habilidades técnicas destacadas: ${skills.join(", ")}.`);
   }
 
-  return lines.join("
-
-").slice(0, 9000);
+  PLACEHOLDER1
 }
 
-function analyzeResumeText(text, sections){function analyzeResumeText(text, sections){
+function analyzeResumeText(text, sections){
   const entries = extractExperienceEntries(text, sections);
   const companyData = detectCompaniesAndSites(entries);
   const analysis = {
@@ -968,8 +966,7 @@ function buildResumeSummary(text, sections, analysis){
   lines.push("");
   lines.push("Resumen profesional optimizado:");
   lines.push(a.summary || "");
-  return lines.join("
-").trim().slice(0, 9000);
+  PLACEHOLDER2
 }
 
 async function extractTextFromUpload(file){
@@ -990,7 +987,7 @@ async function extractTextFromUpload(file){
   return cleanTextForAnalysis(collapseSpacedLetters(raw));
 }
 
-app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
+app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
   try{
     if(!req.file) return res.status(400).json({ error: "Falta adjuntar archivo (PDF/DOCX/TXT)." });
     const text = await extractTextFromUpload(req.file);
