@@ -1,4 +1,4 @@
-/* Talento PyME - v4.0.7 (candidato) - Mi Perfil = Bolsa de Trabajo (gemela UIC) */
+/* Talento PyME - v4.1.7 (candidato) - Mi Perfil = Bolsa de Trabajo (gemela UIC) */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -685,6 +685,7 @@ async function initBolsaCandidato(){
     cand.sueldoPretendido = el("c_sueldo").value.trim();
     cand.ultimoTrabajo = el("c_ultimo").value.trim();
     cand.observaciones = el("c_obs").value.trim();
+    if(cand.observaciones.length > 12000) cand.observaciones = cand.observaciones.slice(0,12000);
 
     // checkboxes
     if(cand.areaTrabajo==="Mecánica (Industrial)") cand.herramientasMecanica = getGroupValues("herrMec");
@@ -724,6 +725,8 @@ async function initBolsaCandidato(){
     if(btnCancel) btnCancel.addEventListener("click", async ()=>{ if(parsingCv) return; isEditing = false; okMsg=""; errMsg=""; await loadMe(); await loadBolsa(); });
     const up = el("cvUploadInput");
     if(up) up.addEventListener("change", async (ev)=>{ const file = ev.target.files && ev.target.files[0]; if(file) await parseCurriculum(file); up.value = ""; });
+    const btnLogout = el("logoutBtn") || el("btnLogout") || el("btnLogoutLink");
+    if(btnLogout) btnLogout.addEventListener("click", (ev)=>{ ev.preventDefault(); logout(); });
   }
 
   function bindBuscar(){
@@ -897,7 +900,7 @@ async function initBolsaCandidato(){
         trabajaActualmente: !!cand.trabajaActualmente,
         sueldoPretendido: cand.sueldoPretendido || null,
         ultimoTrabajo: cand.ultimoTrabajo || null,
-        observaciones: cand.observaciones || null,
+        observaciones: (cand.observaciones || "").slice(0,12000) || null,
 
         herramientasMecanica: cand.herramientasMecanica || [],
         instrumentosElectrica: cand.instrumentosElectrica || []

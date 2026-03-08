@@ -563,7 +563,7 @@ const bolsaSchema = z.object({
   trabajaActualmente: z.boolean(),
   sueldoPretendido: z.string().max(80).optional().nullable(),
   ultimoTrabajo: z.string().max(140).optional().nullable(),
-  observaciones: z.string().max(2000).optional().nullable(),
+  observaciones: z.string().max(12000).optional().nullable(),
 
   herramientasMecanica: z.array(z.string().max(120)).optional().nullable(),
   instrumentosElectrica: z.array(z.string().max(120)).optional().nullable(),
