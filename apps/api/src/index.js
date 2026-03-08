@@ -680,6 +680,15 @@ function normalizeSpaces(v=""){
   return String(v || "").replace(/\s+/g, " ").trim();
 }
 
+
+
+function collapseSpacedLetters(text=""){
+  let out = String(text || "");
+  out = out.replace(/\b(?:[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]\s+){3,}[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]\b/g, (m) => m.replace(/\s+/g, ""));
+  out = out.replace(/-\s*\n\s*/g, "");
+  return out;
+}
+
 function cleanTextForAnalysis(text){
   return String(text || "")
     .replace(/[•·]/g, "\n")
@@ -932,7 +941,7 @@ function optimizeProfessionalSummary(text, sections, analysis){
     lines.push(`Habilidades técnicas destacadas: ${skills.join(", ")}.`);
   }
 
-  PLACEHOLDER1
+  return lines.join("\n\n");
 }
 
 function analyzeResumeText(text, sections){
@@ -966,7 +975,7 @@ function buildResumeSummary(text, sections, analysis){
   lines.push("");
   lines.push("Resumen profesional optimizado:");
   lines.push(a.summary || "");
-  PLACEHOLDER2
+  return lines.join("\n");
 }
 
 async function extractTextFromUpload(file){
