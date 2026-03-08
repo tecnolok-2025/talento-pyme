@@ -782,17 +782,19 @@ function detectProfession(text, sections, entries){
     if(rx.test(roleText) || rx.test(hayExp)) return label;
   }
 
-  if(/profesional senior/.test(haySummary)) return "Profesional senior industrial";
+  if(/profesional senior/.test(haySummary)) return "Profesional senior en mantenimiento, confiabilidad y gestión de activos";
   return "Perfil técnico-industrial senior";
 }
 
 function detectYearsExperience(text, sections, entries){
-  const hay = `${text || ""}\n${sections?.summary || ""}\n${sections?.experience || ""}`;
+  const hay = `${text || ""}
+${sections?.summary || ""}
+${sections?.experience || ""}`;
   const patterns = [
-    /mas de\s+(\d{1,2})\s+anos\s+de\s+experiencia/i,
-    /más de\s+(\d{1,2})\s+años\s+de\s+experiencia/i,
-    /trayectoria de\s+(\d{1,2})\s+anos/i,
-    /trayectoria de\s+(\d{1,2})\s+años/i,
+    /mas de\s+(\d{1,2})\s+anos\s+de\s+experiencia/gi,
+    /más de\s+(\d{1,2})\s+años\s+de\s+experiencia/gi,
+    /trayectoria de\s+(\d{1,2})\s+anos/gi,
+    /trayectoria de\s+(\d{1,2})\s+años/gi,
   ];
   const nums = [];
   for (const rx of patterns){
@@ -803,13 +805,13 @@ function detectYearsExperience(text, sections, entries){
     for(const y of (e.years || [])) years.push(Number(y));
   }
   if(years.length >= 2){
-    const estimated = Math.max(...years) - Math.min(...years);
-    if(Number.isFinite(estimated) && estimated > 0) nums.push(estimated);
+    const span = Math.max(...years) - Math.min(...years);
+    if(Number.isFinite(span) && span > 0) nums.push(span);
   }
   return nums.length ? Math.max(...nums) : null;
 }
 
-function escapeRegExp(s=""){
+function escapeRegExp(s=""){function escapeRegExp(s=""){
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
@@ -872,15 +874,15 @@ function detectCompaniesAndSites(entries){
   for(const e of (entries || [])){
     if(e.location) sites.push(`${e.employer}: ${e.location}`);
     const full = `${e.header} ${e.dateLine} ${(e.bullets||[]).join(' ')}`;
-    const m = full.match(/planta\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+/i);
-    if(m) sites.push(`${e.employer}: ${normalizeSpaces(m[0])}`);
+    const matches = full.match(/planta\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+/gi) || [];
+    for(const m of matches) sites.push(`${e.employer}: ${normalizeSpaces(m)}`);
   }
-  return { employers: employers.slice(0,8), sites: uniq(sites).slice(0,8) };
+  return { employers: employers.slice(0,10), sites: uniq(sites).slice(0,10) };
 }
 
 function detectRecentRoles(entries){
-  return (entries || []).slice(0,4).map(e => {
-    const bits = [e.employer, e.role, e.location].filter(Boolean);
+  return (entries || []).slice(0,5).map(e => {
+    const bits = [e.role || e.header, e.employer, e.location].filter(Boolean);
     return bits.join(" — ");
   });
 }
@@ -903,7 +905,7 @@ function optimizeProfessionalSummary(text, sections, analysis){
   lines.push(intro);
 
   if(summary){
-    lines.push(`Síntesis del CV: ${summary.slice(0, 900)}.`);
+    lines.push(`Síntesis profesional: ${summary.slice(0, 1100)}.`);
   }
 
   if(recent.length){
@@ -930,10 +932,12 @@ function optimizeProfessionalSummary(text, sections, analysis){
     lines.push(`Habilidades técnicas destacadas: ${skills.join(", ")}.`);
   }
 
-  return lines.join("\n\n").slice(0, 6000);
+  return lines.join("
+
+").slice(0, 9000);
 }
 
-function analyzeResumeText(text, sections){
+function analyzeResumeText(text, sections){function analyzeResumeText(text, sections){
   const entries = extractExperienceEntries(text, sections);
   const companyData = detectCompaniesAndSites(entries);
   const analysis = {
@@ -960,30 +964,33 @@ function buildResumeSummary(text, sections, analysis){
   if (a.employers?.length) lines.push(`Empresas detectadas: ${a.employers.join(" | ")}`);
   if (a.sites?.length) lines.push(`Plantas / sedes mencionadas: ${a.sites.join(" | ")}`);
   if (a.skills?.length) lines.push(`Ranking de habilidades: ${a.skills.map((s, i) => `${i+1}. ${s}`).join(" | ")}`);
+  if (a.recentRoles?.length) lines.push(`Cargos recientes detectados: ${a.recentRoles.join(" | ")}`);
   lines.push("");
   lines.push("Resumen profesional optimizado:");
   lines.push(a.summary || "");
-  return lines.join("\n").trim().slice(0, 6000);
+  return lines.join("
+").trim().slice(0, 9000);
 }
+
 async function extractTextFromUpload(file){
   const name = String(file.originalname || "").toLowerCase();
   const buf = file.buffer;
+  let raw = "";
   if(name.endsWith(".txt")){
-    return buf.toString("utf-8");
-  }
-  if(name.endsWith(".pdf")){
+    raw = buf.toString("utf-8");
+  }else if(name.endsWith(".pdf")){
     const data = await pdfParse(buf);
-    return data?.text || "";
-  }
-  if(name.endsWith(".docx")){
+    raw = data?.text || "";
+  }else if(name.endsWith(".docx")){
     const res = await mammoth.extractRawText({ buffer: buf });
-    return res?.value || "";
+    raw = res?.value || "";
+  }else{
+    try{ raw = buf.toString("utf-8"); } catch { raw = ""; }
   }
-  // fallback: intentar como texto
-  try{ return buf.toString("utf-8"); } catch { return ""; }
+  return cleanTextForAnalysis(collapseSpacedLetters(raw));
 }
 
-app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
+app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
   try{
     if(!req.file) return res.status(400).json({ error: "Falta adjuntar archivo (PDF/DOCX/TXT)." });
     const text = await extractTextFromUpload(req.file);
