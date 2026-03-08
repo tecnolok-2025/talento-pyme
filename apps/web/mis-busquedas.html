@@ -20,27 +20,34 @@
   </div>
 
   <div class="wrap wide">
-    <div class="card">
-      <div class="toolbarCard"><div><h2 style="margin:0">Mis Búsquedas</h2><div class="muted">Tus publicaciones quedan listadas en formato desplegable para lectura rápida.</div></div><div class="badge" id="totalBadge">—</div></div>
+    <div class="heroPanel">
+      <div class="small pageEyebrow">Empresa · gestión de avisos</div>
+      <h2 style="margin:8px 0 6px 0">Mis Búsquedas</h2>
+      <div class="muted">Tus búsquedas quedan ordenadas por fecha, con lectura rápida, estado y acceso al detalle desplegable para revisar el contenido técnico publicado.</div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="toolbarCard"><div><h2 style="margin:0">Listado de avisos</h2><div class="muted">Tocá cada publicación para desplegar el contenido completo.</div></div><div class="badge" id="totalBadge">—</div></div>
       <div id="msg" class="muted" style="margin-top:10px"></div>
-      <div id="list" style="margin-top:14px"></div>
+      <div id="list" class="listStack" style="margin-top:14px"></div>
     </div>
   </div>
 
-  <script src="/config.js?v=4.2.2"></script>
-  <script src="/auth.js?v=4.2.2"></script>
+  <script src="/config.js?v=4.3.0"></script>
+  <script src="/auth.js?v=4.3.0"></script>
   <script>
     requireAuth(); applyRoleVisibility(); requireRole('COMPANY');
     document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); logout(); };
     function esc(s){ return String(s||'').replace(/[&<>"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
+    function fmt(d){ try{ return new Date(d).toLocaleDateString('es-AR'); }catch{ return 's/d'; } }
     (async ()=>{
       const msg=document.getElementById('msg'); const list=document.getElementById('list'); const totalBadge=document.getElementById('totalBadge');
       msg.textContent='Cargando...';
       try{
         const data=await apiFetch('/jobs/mine'); const jobs=data.jobs||[];
         totalBadge.textContent = `${jobs.length} publicación(es)`;
-        msg.textContent = jobs.length ? 'Tocá cada ítem para desplegar el detalle técnico.' : 'Sin publicaciones aún.';
-        list.innerHTML = jobs.map((j,idx)=>`<div class="accordionItem ${idx===0?'open':''}"><div class="accordionHead">${esc(j.title)}<span>${idx===0?'−':'+'}</span></div><div class="accordionBody"><div><b>Fecha:</b> ${new Date(j.createdAt).toLocaleString()}</div><div><b>Ubicación:</b> ${esc(j.location||'s/d')} • <b>Modalidad:</b> ${esc(j.modality||'s/d')}</div><div style="margin-top:8px"><b>Descripción:</b><br>${esc(j.description||'')}</div>${j.requirements?`<div style="margin-top:8px"><b>Requisitos:</b><br>${esc(j.requirements)}</div>`:''}</div></div>`).join('');
+        msg.textContent = jobs.length ? 'Tus búsquedas activas aparecen de la más reciente a la más antigua.' : 'Sin publicaciones aún.';
+        list.innerHTML = jobs.map((j,idx)=>`<div class="accordionItem ${idx===0?'open':''}"><div class="accordionHead"><div><div style="font-size:20px">${esc(j.title)}</div><div class="muted small">${fmt(j.createdAt)} • ${esc(j.location||'Ubicación a definir')} • ${esc(j.status||'PUBLISHED')}</div></div><span>${idx===0?'−':'+'}</span></div><div class="accordionBody"><div class="talentMeta"><span class="tag">${esc(j.modality||'Modalidad no indicada')}</span><span class="tag">${j.applicationsCount || 0} CVs sin leer</span></div><div class="sectionMini"><b>Descripción publicada</b><br>${esc(j.description||'')}</div>${j.requirements?`<div class="sectionMini"><b>Requisitos / detalle técnico</b><br>${esc(j.requirements)}</div>`:''}</div></div>`).join('');
         list.querySelectorAll('.accordionItem').forEach(item=>{ item.querySelector('.accordionHead').onclick=()=>{ item.classList.toggle('open'); item.querySelector('.accordionHead span').textContent=item.classList.contains('open')?'−':'+'; }; });
       }catch(e){ msg.textContent=e.message; }
     })();

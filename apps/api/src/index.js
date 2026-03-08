@@ -1095,7 +1095,9 @@ const companySchema = z.object({
   city: z.string().max(80).optional().nullable(),
   province: z.string().max(80).optional().nullable(),
   phone: z.string().max(40).optional().nullable(),
-  website: z.string().max(200).optional().nullable()
+  website: z.string().max(200).optional().nullable(),
+  companySummary: z.string().max(2400).optional().nullable(),
+  showCompanySummary: z.boolean().optional().nullable()
 });
 
 // ============================
@@ -1423,6 +1425,54 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
 
 
 
+function stripHtml(raw) {
+  return String(raw || '').replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function inferCompanyKind(text) {
+  const t = String(text || '').toLowerCase();
+  const scores = [
+    ['servicios', /(servicio|mantenimiento|consultor|outsourcing|ingenier[ií]a|soporte|provisi[oó]n de servicios)/g],
+    ['fabricación', /(f[aá]brica|manufactura|producci[oó]n|planta|industrial|conversi[oó]n|proceso)/g],
+    ['logística', /(log[ií]stica|almac[eé]n|dep[oó]sito|transporte|supply chain|distribuci[oó]n)/g],
+  ].map(([name, re]) => [name, (t.match(re) || []).length]);
+  scores.sort((a,b)=>b[1]-a[1]);
+  return scores[0][1] ? scores[0][0] : 'industrial';
+}
+function summarizeCompanySite({ title, description, bodyText, url }) {
+  const source = [title, description, bodyText].filter(Boolean).join(' · ');
+  const kind = inferCompanyKind(source);
+  const cleanTitle = String(title || '').replace(/\s*[-|–].*$/, '').trim();
+  let summary = '';
+  if (description) {
+    summary = description.trim();
+  } else if (bodyText) {
+    summary = String(bodyText).split(/(?<=[\.!?])\s+/).slice(0, 2).join(' ').trim();
+  }
+  summary = summary.replace(/\s+/g, ' ').slice(0, 700);
+  const lead = cleanTitle ? `${cleanTitle} es una empresa de ${kind}.` : `La empresa se dedica principalmente a ${kind}.`;
+  return { summary: `${lead} ${summary}`.trim(), kind, sourceUrl: url || null };
+}
+
+app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res) => {
+  try {
+    const website = String(req.body?.website || '').trim();
+    if (!website) return res.status(400).json({ error: 'Falta sitio web' });
+    let url = website;
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/4.3.0 (+Render)' } });
+    const html = await response.text();
+    const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [,''])[1].replace(/\s+/g,' ').trim();
+    const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i) || [,''])[1].trim();
+    const ogDesc = (html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([\s\S]*?)["']/i) || [,''])[1].trim();
+    const bodyText = stripHtml(html).slice(0, 2400);
+    const data = summarizeCompanySite({ title, description: metaDesc || ogDesc, bodyText, url });
+    res.json({ ok: true, ...data });
+  } catch (err) {
+    console.error('POST /company/analyze-site', err);
+    res.status(500).json({ error: 'No se pudo analizar el sitio web' });
+  }
+});
+
 app.get("/company/me", auth, requireRole("COMPANY"), async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.user.id }, include: { company: true } });
   const c = user?.company || null;
@@ -1491,6 +1541,38 @@ const jobSchema = z.object({
   description: z.string().min(10).max(12000),
   requirements: z.string().max(8000).optional().nullable(),
   categoryId: z.string().optional().nullable()
+});
+
+app.post('/jobs/ai-draft', auth, requireRole('COMPANY'), async (req, res) => {
+  try {
+    const title = String(req.body?.title || '').trim();
+    const seniority = String(req.body?.seniority || '').trim() || 'semi senior';
+    const area = String(req.body?.area || '').trim() || 'industrial';
+    const companyName = String(req.body?.companyName || '').trim() || 'la empresa';
+    const companySummary = String(req.body?.companySummary || '').trim();
+    const responsibilities = String(req.body?.responsibilities || '').trim();
+    const skills = String(req.body?.skills || '').trim();
+    const modality = String(req.body?.modality || '').trim() || 'presencial';
+    const location = String(req.body?.location || '').trim();
+    if (!title) return res.status(400).json({ error: 'Falta el título del puesto' });
+    const lead = `${companyName} busca incorporar un/a ${title} para su operación ${area}${location ? ` en ${location}` : ''}.`;
+    const context = companySummary ? ` La organización se dedica a ${companySummary.replace(/^\s*La empresa se dedica principalmente a\s*/i,'').trim()}` : '';
+    const description = [
+      lead + context,
+      `La posición está orientada a perfiles ${seniority} con capacidad para liderar, coordinar y ejecutar tareas vinculadas a ${area}, asegurando seguridad, cumplimiento y mejora continua.`,
+      responsibilities || `Entre sus responsabilidades se espera la organización diaria del sector, coordinación con producción y mantenimiento, seguimiento de indicadores, resolución de desvíos y propuesta de mejoras sostenibles.`,
+      `La modalidad de trabajo prevista es ${modality}.`
+    ].join(' ');
+    const requirements = [
+      `Se valorará experiencia previa en roles afines y dominio técnico acorde al nivel ${seniority}.`,
+      skills ? `Conocimientos clave buscados: ${skills}.` : 'Se valorarán conocimientos técnicos del puesto, lectura de procesos, trabajo en equipo y foco en resultados.',
+      'También se considerará positivamente la capacidad de comunicación, liderazgo operativo, orden documental y orientación a mejora continua.'
+    ].join(' ');
+    res.json({ ok: true, description, requirements });
+  } catch (err) {
+    console.error('POST /jobs/ai-draft', err);
+    res.status(500).json({ error: 'No se pudo generar el borrador asistido' });
+  }
 });
 
 app.post("/jobs", auth, requireRole("COMPANY"), async (req, res) => {

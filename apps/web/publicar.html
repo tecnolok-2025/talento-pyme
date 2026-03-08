@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Talento PyME · Publicar</title>
+  <title>Talento PyME · Publicar Búsqueda</title>
   <link rel="icon" href="/icon-192.png" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
@@ -22,48 +22,212 @@
     </div>
   </div>
 
-  <div class="wrap">
-    <div class="card">
-      <h2>Publicar Búsqueda</h2>
-      <div class="muted">Esta etapa se mantiene operativa. En la siguiente revisión la llevamos a un formato más técnico y profesional.</div>
-      <label>Título del puesto</label>
-      <input class="input" id="title" placeholder="Ej: Supervisor Electromecánico" />
-      <div class="grid2">
-        <div><label>Ubicación</label><input class="input" id="location" placeholder="Ej: Campana" /></div>
-        <div><label>Modalidad</label><input class="input" id="modality" placeholder="Ej: Presencial / Híbrido / Remoto" /></div>
+  <div class="wrap wide">
+    <div class="heroPanel">
+      <div class="small pageEyebrow">Empresa · publicar búsqueda</div>
+      <h2 style="margin:8px 0 6px 0">Publicar búsqueda con asistencia inteligente</h2>
+      <div class="muted">Completá el perfil del puesto y, si querés, dejá que la IA te ayude a redactar un aviso más claro, técnico y convincente para el candidato.</div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="toolbarCard">
+        <div>
+          <h2 style="margin:0">Información del aviso</h2>
+          <div class="muted">Los campos marcados construyen el aviso principal. El sistema genera una descripción y requisitos listos para publicar.</div>
+        </div>
+        <div class="row" style="margin-top:0">
+          <button class="btn btn-ghost" id="btnAIDraft" type="button">Corregir con IA</button>
+          <button class="btn btn-primary" id="btnPost" type="button">Completar y Publicar</button>
+        </div>
       </div>
-      <label>Categoría</label>
-      <select class="input" id="category"></select>
-      <label>Descripción</label>
-      <textarea id="description" placeholder="Qué se va a hacer, alcance, contexto..."></textarea>
-      <label>Requisitos</label>
-      <textarea id="requirements" placeholder="Experiencia, skills, estudios, horarios..."></textarea>
-      <div class="row">
-        <button class="btn btn-primary" id="btnPost">Publicar</button>
+
+      <div class="filtersGrid" style="margin-top:18px">
+        <div>
+          <label>Título del puesto</label>
+          <input class="input" id="title" placeholder="Ej: Supervisor de Mantenimiento" />
+        </div>
+        <div>
+          <label>Cantidad de vacantes</label>
+          <input class="input" id="vacancies" placeholder="Ej: 1" inputmode="numeric" />
+        </div>
+        <div>
+          <label>Código interno</label>
+          <input class="input" id="code" placeholder="Ej: MNT-24" />
+        </div>
+        <div>
+          <label>Nivel / seniority</label>
+          <select class="input" id="seniority">
+            <option value="Junior">Junior</option>
+            <option value="Semi Senior" selected>Semi Senior</option>
+            <option value="Senior">Senior</option>
+            <option value="Jefatura">Jefatura</option>
+          </select>
+        </div>
+        <div>
+          <label>Área principal</label>
+          <select class="input" id="area">
+            <option>Mantenimiento</option>
+            <option>Producción</option>
+            <option>Logística</option>
+            <option>Ingeniería</option>
+            <option>Administración</option>
+            <option>Comercial</option>
+          </select>
+        </div>
+        <div>
+          <label>Subárea / especialidad</label>
+          <input class="input" id="specialty" placeholder="Ej: Electromecánica industrial" />
+        </div>
+        <div>
+          <label>Provincia</label>
+          <input class="input" id="province" placeholder="Ej: Buenos Aires" />
+        </div>
+        <div>
+          <label>Ciudad</label>
+          <input class="input" id="location" placeholder="Ej: Campana" />
+        </div>
+      </div>
+
+      <div class="sectionBox" style="margin-top:18px">
+        <div class="sectionTitle">Condiciones del puesto</div>
+        <div class="pillGrid" id="contractPills">
+          <button type="button" data-value="Indeterminado" class="pillBtn active">Indeterminado</button>
+          <button type="button" data-value="Temporal" class="pillBtn">Temporal</button>
+          <button type="button" data-value="Pasantía" class="pillBtn">Pasantía</button>
+          <button type="button" data-value="Autónomo" class="pillBtn">Autónomo</button>
+        </div>
+        <div class="pillGrid" id="shiftPills" style="margin-top:10px">
+          <button type="button" data-value="Part-time" class="pillBtn">Part-time</button>
+          <button type="button" data-value="Full-time" class="pillBtn active">Full-time</button>
+          <button type="button" data-value="Por turnos" class="pillBtn">Por turnos</button>
+          <button type="button" data-value="Nocturno" class="pillBtn">Nocturno</button>
+        </div>
+        <div class="pillGrid" id="modalityPills" style="margin-top:10px">
+          <button type="button" data-value="Presencial" class="pillBtn active">Presencial</button>
+          <button type="button" data-value="Remoto" class="pillBtn">Remoto</button>
+          <button type="button" data-value="Híbrido" class="pillBtn">Híbrido</button>
+        </div>
+      </div>
+
+      <div class="grid2" style="margin-top:18px">
+        <div>
+          <label>Beneficios</label>
+          <input class="input" id="benefits" placeholder="Ej: comedor, prepaga, bono, movilidad" />
+        </div>
+        <div>
+          <label>Competencias / habilidades</label>
+          <input class="input" id="skills" placeholder="Ej: liderazgo técnico, SAP PM, TPM, seguridad" />
+        </div>
+      </div>
+
+      <div class="sectionBox" style="margin-top:18px">
+        <div class="rowBetween" style="align-items:flex-start">
+          <div>
+            <div class="sectionTitle">Descripción y alcance</div>
+            <div class="muted">Podés redactarla vos mismo o pedirle a la IA que la amplíe según el nivel, el área y el resumen de tu empresa.</div>
+          </div>
+          <label class="toggleRow"><input type="checkbox" id="useAI" checked /> Quiero que la IA me ayude a redactar</label>
+        </div>
+        <textarea id="responsibilities" placeholder="Describí las responsabilidades, contexto operativo, indicadores, equipos, seguridad, interacción con otras áreas..."></textarea>
+      </div>
+
+      <div class="sectionBox" style="margin-top:18px">
+        <div class="sectionTitle">Requisitos y perfil buscado</div>
+        <textarea id="requirements" placeholder="Años de experiencia, conocimientos técnicos, estudios, certificaciones, disponibilidad, herramientas, idiomas, etc."></textarea>
+      </div>
+
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <button class="btn btn-ghost" id="btnDiscard" type="button">Descartar</button>
         <span class="muted" id="msg"></span>
       </div>
     </div>
   </div>
 
-  <script src="/config.js?v=4.2.2"></script>
-  <script src="/auth.js?v=4.2.2"></script>
+  <script src="/config.js?v=4.3.0"></script>
+  <script src="/auth.js?v=4.3.0"></script>
   <script>
     requireAuth(); applyRoleVisibility(); requireRole('COMPANY');
     document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); logout(); };
+
     const msg = document.getElementById('msg');
-    const category = document.getElementById('category');
-    (async ()=>{
-      try{ const data = await fetch(window.TP_API_URL + '/categories').then(r=>r.json()); const cats=data.categories||[]; category.innerHTML='<option value="">(Sin categoría)</option>'+cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''); }
-      catch(e){ msg.textContent=e.message; }
-    })();
-    document.getElementById('btnPost').onclick = async ()=>{
+    let company = null;
+    function pickActive(containerId){
+      const active = document.querySelector(`#${containerId} .pillBtn.active`);
+      return active ? active.dataset.value : '';
+    }
+    function bindPills(containerId){
+      document.querySelectorAll(`#${containerId} .pillBtn`).forEach(btn=>{
+        btn.onclick = ()=>{
+          document.querySelectorAll(`#${containerId} .pillBtn`).forEach(x=>x.classList.remove('active'));
+          btn.classList.add('active');
+        };
+      });
+    }
+    ['contractPills','shiftPills','modalityPills'].forEach(bindPills);
+
+    async function loadCompany(){
+      company = await apiFetch('/company/me').catch(()=>null);
+      if(company?.province && !province.value) province.value = company.province;
+      if(company?.city && !location.value) location.value = company.city;
+    }
+
+    async function buildAIDraft(){
+      msg.textContent = 'Generando borrador asistido…';
+      try{
+        const data = await apiFetch('/jobs/ai-draft', { method:'POST', body: JSON.stringify({
+          title: title.value.trim(),
+          seniority: seniority.value,
+          area: `${area.value}${specialty.value.trim() ? ` / ${specialty.value.trim()}` : ''}`,
+          companyName: company?.companyName || '',
+          companySummary: company?.companySummary || '',
+          responsibilities: responsibilities.value.trim(),
+          skills: skills.value.trim(),
+          modality: pickActive('modalityPills'),
+          location: location.value.trim()
+        }) });
+        if(data?.description) responsibilities.value = data.description;
+        if(data?.requirements) requirements.value = data.requirements;
+        msg.textContent = 'La IA dejó una versión más completa del aviso.';
+      }catch(e){ msg.textContent = e.message; }
+    }
+
+    btnAIDraft.onclick = async ()=>{ await buildAIDraft(); };
+    btnDiscard.onclick = ()=>{ document.querySelectorAll('input, textarea').forEach(el=>{ if(el.type !== 'checkbox') el.value=''; }); msg.textContent='Formulario limpiado.'; };
+    btnPost.onclick = async ()=>{
       msg.textContent='Publicando...';
       try{
-        const payload={ title: title.value.trim(), location: location.value.trim()||null, modality: modality.value.trim()||null, categoryId: category.value||null, description: description.value||'', requirements: requirements.value||null };
-        await apiFetch('/jobs', { method:'POST', body: JSON.stringify(payload) });
+        if(!title.value.trim()) throw new Error('Falta el título del puesto');
+        if(!responsibilities.value.trim()) throw new Error('Completá la descripción del puesto');
+        if(document.getElementById('useAI').checked && (!requirements.value.trim() || responsibilities.value.trim().length < 80)){
+          await buildAIDraft();
+        }
+        const modality = `${pickActive('modalityPills')} · ${pickActive('shiftPills')} · ${pickActive('contractPills')}`;
+        const fullDescription = [
+          responsibilities.value.trim(),
+          `Vacantes: ${vacancies.value.trim() || '1'}.`,
+          `Código interno: ${code.value.trim() || 's/d'}.`,
+          `Área: ${area.value}${specialty.value.trim() ? ` · ${specialty.value.trim()}` : ''}.`,
+          `Nivel: ${seniority.value}.`,
+          benefits.value.trim() ? `Beneficios: ${benefits.value.trim()}.` : ''
+        ].filter(Boolean).join('\n\n');
+        const fullRequirements = [
+          requirements.value.trim(),
+          skills.value.trim() ? `Competencias y habilidades: ${skills.value.trim()}.` : '',
+          company?.showCompanySummary !== false && company?.companySummary ? `Resumen institucional visible al candidato: ${company.companySummary}.` : ''
+        ].filter(Boolean).join('\n\n');
+        await apiFetch('/jobs', { method:'POST', body: JSON.stringify({
+          title: title.value.trim(),
+          location: location.value.trim() || null,
+          modality,
+          description: fullDescription,
+          requirements: fullRequirements || null,
+          categoryId: null
+        }) });
         msg.textContent='Publicado OK. Revisalo en Mis Búsquedas.';
       }catch(e){ msg.textContent=e.message; }
     };
+
+    loadCompany();
   </script>
 </body>
 </html>

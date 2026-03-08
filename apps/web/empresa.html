@@ -27,15 +27,20 @@
 
   <div class="wrap wide">
     <div class="heroPanel">
-      <div class="small" style="letter-spacing:.18em;text-transform:uppercase;font-weight:900;opacity:.9">Empresa · identidad institucional</div>
+      <div class="small pageEyebrow">Empresa · identidad institucional</div>
       <h2 style="margin:8px 0 6px 0">Mi Empresa</h2>
-      <div class="muted">Completá y mantené actualizados los datos corporativos. Esta información se usa para publicar búsquedas y dar confianza al candidato.</div>
+      <div class="muted">Completá, verificá y enriquecé la ficha corporativa. Esta base se usa para publicar búsquedas, transmitir confianza y ayudar a la IA a redactar mejor tus avisos.</div>
+      <div class="row" style="margin-top:14px">
+        <span class="tag tagLight">Paso 1 · revisá datos base</span>
+        <span class="tag tagLight">Paso 2 · analizá el sitio web</span>
+        <span class="tag tagLight">Paso 3 · guardá tu ficha</span>
+      </div>
     </div>
 
     <div class="grid3" style="margin-top:16px">
       <div class="kpiLite"><div class="small muted">Registro base</div><div class="num" style="font-size:18px">Empresa + contacto</div><div class="filterNote">Se precargan datos existentes del registro.</div></div>
-      <div class="kpiLite"><div class="small muted">Dato editable</div><div class="num" style="font-size:18px">Sitio web</div><div class="filterNote">Podés incorporarlo aunque no haya estado en el alta inicial.</div></div>
-      <div class="kpiLite"><div class="small muted">Objetivo</div><div class="num" style="font-size:18px">Ficha clara</div><div class="filterNote">Más claridad para publicar y administrar búsquedas.</div></div>
+      <div class="kpiLite"><div class="small muted">IA corporativa</div><div class="num" style="font-size:18px">Resumen desde sitio web</div><div class="filterNote">Ayuda a describir mejor la empresa y sus avisos.</div></div>
+      <div class="kpiLite"><div class="small muted">Visibilidad</div><div class="num" style="font-size:18px">Mostrar resumen al candidato</div><div class="filterNote">Podés mantenerlo visible o dejarlo solo para uso interno.</div></div>
     </div>
 
     <div class="card" style="margin-top:16px">
@@ -70,7 +75,10 @@
         </div>
         <div>
           <label>Sitio web</label>
-          <input class="input" id="website" placeholder="https://..." />
+          <div class="inlineField">
+            <input class="input" id="website" placeholder="https://..." />
+            <button class="btn btn-ghost" id="btnAnalyze" type="button">Analizar web</button>
+          </div>
         </div>
         <div>
           <label>Dirección</label>
@@ -86,6 +94,19 @@
         </div>
       </div>
 
+      <div class="sectionBox" style="margin-top:18px">
+        <div class="rowBetween" style="align-items:flex-start">
+          <div>
+            <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Resumen institucional</div>
+            <div style="font-size:20px;font-weight:900;margin-top:6px">Descripción de la empresa</div>
+            <div class="muted" style="margin-top:4px">La IA puede leer el sitio web y redactar un resumen breve sobre a qué se dedica la empresa.</div>
+          </div>
+          <label class="toggleRow"><input type="checkbox" id="showCompanySummary" checked /> Quiero mostrar esto al candidato</label>
+        </div>
+        <textarea id="companySummary" placeholder="Ej: Somos una empresa industrial dedicada a mantenimiento, fabricación y servicios logísticos."></textarea>
+        <div class="filterNote">Si destildás la opción, el resumen queda guardado para uso interno pero se mostrará atenuado en las vistas públicas.</div>
+      </div>
+
       <div class="row">
         <button class="btn btn-primary" id="btnSave">Guardar cambios</button>
         <button class="btn btn-ghost" id="btnReload">Recargar datos</button>
@@ -94,21 +115,22 @@
     </div>
   </div>
 
-  <script src="/config.js?v=4.2.2"></script>
-  <script src="/auth.js?v=4.2.2"></script>
+  <script src="/config.js?v=4.3.0"></script>
+  <script src="/auth.js?v=4.3.0"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
     requireRole('COMPANY');
     document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); logout(); };
 
-    const fields = ['companyName','cuit','address','website','city','province','contactEmail','contactName','phone'].reduce((acc,id)=>{acc[id]=document.getElementById(id);return acc;},{});
+    const fields = ['companyName','cuit','address','website','city','province','contactEmail','contactName','phone','companySummary'].reduce((acc,id)=>{acc[id]=document.getElementById(id);return acc;},{});
+    const showCompanySummary = document.getElementById('showCompanySummary');
     const msg = document.getElementById('msg');
 
     function humanizeContactFromEmail(email){
       const local = String(email || '').split('@')[0] || '';
       if(!local) return '';
-      return local.replace(/[._-]+/g, ' ').replace(/\w/g, (m)=> m.toUpperCase());
+      return local.replace(/[._-]+/g, ' ').replace(/\b\w/g, (m)=> m.toUpperCase());
     }
     function inferProvince(city, province){
       const c = String(city || '').trim().toLowerCase();
@@ -134,15 +156,30 @@
         fields.contactEmail.value = fallbackEmail;
         fields.contactName.value = c.contactName || humanizeContactFromEmail(fallbackEmail);
         fields.phone.value = c.phone || '';
+        fields.companySummary.value = c.companySummary || '';
+        showCompanySummary.checked = c.showCompanySummary !== false;
         msg.textContent = 'Datos listos para revisar.';
       }catch(e){ msg.textContent = e.message; }
     }
 
     document.getElementById('btnReload').onclick = loadCompany;
+    document.getElementById('btnAnalyze').onclick = async ()=>{
+      const website = fields.website.value.trim();
+      if(!website){ msg.textContent = 'Primero completá el sitio web.'; return; }
+      msg.textContent = 'Analizando sitio web…';
+      try{
+        const data = await apiFetch('/company/analyze-site', { method:'POST', body: JSON.stringify({ website }) });
+        if(data?.summary) fields.companySummary.value = data.summary;
+        showCompanySummary.checked = true;
+        msg.textContent = 'Resumen institucional generado desde el sitio web.';
+      }catch(e){ msg.textContent = e.message; }
+    };
     document.getElementById('btnSave').onclick = async ()=>{
       msg.textContent = 'Guardando cambios…';
       try{
         const payload = Object.fromEntries(Object.entries(fields).map(([k,el])=> [k, el.value.trim() || null]));
+        payload.showCompanySummary = !!showCompanySummary.checked;
+        payload.province = inferProvince(payload.city, payload.province || '');
         if(!payload.companyName) throw new Error('Falta nombre de empresa');
         await apiFetch('/company/me', { method:'PUT', body: JSON.stringify(payload) });
         msg.textContent = 'Ficha de empresa guardada correctamente.';

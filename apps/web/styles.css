@@ -381,3 +381,15 @@ pre{white-space:pre-wrap}
 .appShell .wrap{margin-top:6px;}
 .appShell .heroPanel{position:relative;overflow:hidden}
 .appShell .heroPanel::after{content:"";position:absolute;right:-80px;top:-90px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.20), transparent 70%)}
+
+/* v4.3.0 enterprise design helpers */
+.pageEyebrow{letter-spacing:.18em;text-transform:uppercase;font-weight:900;opacity:.9}
+.tagLight{background:rgba(255,255,255,.16)!important;color:#fff!important}
+.inlineField{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}
+.sectionBox{background:#fff;border:1px solid rgba(23,105,224,.12);border-radius:18px;padding:16px;box-shadow:0 10px 26px rgba(15,23,42,.04)}
+.sectionTitle{font-size:18px;font-weight:900;margin-bottom:8px}
+.toggleRow{display:inline-flex;gap:8px;align-items:center;font-weight:800;color:var(--tp-text)}
+.toggleRow input{accent-color:var(--tp-blue);width:18px;height:18px}
+.pillGrid{display:flex;gap:10px;flex-wrap:wrap}
+.pillBtn{border:1px solid rgba(23,105,224,.35);background:#fff;color:var(--tp-blue-900);padding:10px 14px;border-radius:999px;font-weight:800;cursor:pointer}
+.pillBtn.active{background:var(--tp-blue);color:#fff;box-shadow:0 12px 24px rgba(23,105,224,.18)}

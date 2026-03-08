@@ -148,6 +148,8 @@ model CompanyProfile {
   province    String?
   phone       String?
   website     String?
+  companySummary String?
+  showCompanySummary Boolean @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
