@@ -832,6 +832,39 @@ function escapeRegExp(s=""){
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function looksLikeEmployer(v=""){
+  const s = normalizeSpaces(v);
+  if(!s) return false;
+  if(/^(perfil|experiencia profesional|formacion academica|certificaciones|competencias clave)$/i.test(s)) return false;
+  if(/@|linkedin|hotmail|gmail/i.test(s)) return false;
+  if(/\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|presente|actualidad)\b/i.test(s)) return false;
+  if(/\b(jefe|lider|líder|responsable|representante|supervisor|consultor|planner|project manager|tecnico|técnico|especialista|operaciones)\b/i.test(s) && !/\b(s\.a\.|sa|srl|inc|corp|company|softys|monsanto|big dutchman|dva argentina|tecno logisti-k|bld\+)\b/i.test(s)) return false;
+  return s.length >= 2;
+}
+
+function extractStandaloneEmployers(sections){
+  const src = pickSectionText(sections, ["experience"]) || "";
+  const lines = splitLinesStrong(src);
+  const out = [];
+  for(const line of lines){
+    if(!/\|/.test(line)) continue;
+    const employer = normalizeSpaces(line.split('|')[0] || "");
+    if(looksLikeEmployer(employer)) out.push(employer);
+  }
+  return uniq(out);
+}
+
+function cleanSummaryText(v=""){
+  return splitLinesStrong(v)
+    .filter(line => !/@|linkedin|hotmail|gmail|www\.|http/i.test(line))
+    .filter(line => !/^\+?\d[\d\s\-()]{6,}$/.test(line))
+    .filter(line => !/^(zarate|zárate|campana|pilar|rosario),?/i.test(line))
+    .filter(line => !/^(perfil|experiencia profesional|formacion academica|certificaciones y formacion complementaria|competencias clave)$/i.test(normalizeName(line)))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function detectCoreSkills(text, sections, entries){
   const hay = normalizeName(`${text || ""}\n${sections?.summary || ""}\n${sections?.experience || ""}\n${sections?.certifications || ""}`);
   const skillMap = [
