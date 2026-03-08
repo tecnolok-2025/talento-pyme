@@ -393,3 +393,10 @@ pre{white-space:pre-wrap}
 .pillGrid{display:flex;gap:10px;flex-wrap:wrap}
 .pillBtn{border:1px solid rgba(23,105,224,.35);background:#fff;color:var(--tp-blue-900);padding:10px 14px;border-radius:999px;font-weight:800;cursor:pointer}
 .pillBtn.active{background:var(--tp-blue);color:#fff;box-shadow:0 12px 24px rgba(23,105,224,.18)}
+
+
+.globalBrandFooter{max-width:1280px;margin:18px auto 28px auto;padding:12px 18px;border-top:1px solid rgba(255,255,255,.14);display:flex;justify-content:center;opacity:.96}
+.globalBrandFooter img{max-width:260px;width:100%;height:auto;display:block;filter:drop-shadow(0 10px 24px rgba(0,0,0,.18));}
+.appShell .globalBrandFooter{border-top:1px solid rgba(255,255,255,.10);}
+body:not(.appShell):not(.authBody) .globalBrandFooter{border-top:1px solid rgba(15,23,42,.08);}
+.authBrand .brandLogo, .header .brand img, .topbar .brand img{border-radius:12px;background:rgba(255,255,255,.08);padding:2px;object-fit:contain}

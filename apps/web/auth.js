@@ -60,7 +60,23 @@ function applyVersionBadges(){
   const v = "v" + tpVersion();
   document.querySelectorAll(".tp-version, .appVersion").forEach(el => { el.textContent = v; });
 }
+
+function applyGlobalBranding(){
+  try {
+    document.querySelectorAll('.brand img, .authBrand .brandLogo, .topbar .brand img, .header > a img').forEach((img)=>{
+      img.setAttribute('src','/icon-192.png');
+      img.setAttribute('alt','Talento PyME');
+    });
+    if (!document.querySelector('.globalBrandFooter') && !document.querySelector('.brandFooter')) {
+      const footer = document.createElement('div');
+      footer.className = 'globalBrandFooter';
+      footer.innerHTML = '<img src="/assets/logo-talento-pyme.png" alt="Talento PyME" />';
+      (document.querySelector('.wrap') || document.querySelector('.container') || document.querySelector('.authWrap') || document.body).appendChild(footer);
+    }
+  } catch(_){}
+}
 document.addEventListener("DOMContentLoaded", applyVersionBadges);
+document.addEventListener("DOMContentLoaded", applyGlobalBranding);
 
 function applyRoleVisibility(){
   const role = tpRole();
