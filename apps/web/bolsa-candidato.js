@@ -436,18 +436,19 @@ async function initBolsaCandidato(){
               </div>
               <div class="candidateAvatarWrap">${photoMarkup(cand.photoDataUrl, cand.nombre || cand.apellido || '?')}</div>
               <div class="tp-photo-help">
-                <div><b>Tomar foto</b>: abre la cámara del celular o la webcam de la computadora. Si la vista previa no aparece o la cámara está bloqueada, usá la opción <b>Subir archivo</b>.</div>
-                <div><b>Subir archivo</b>: elegí una imagen guardada en tu celular o en una carpeta del equipo. El sistema la recorta al centro y la optimiza automáticamente.</div>
+                <div><b>Tomar foto</b>: usa la cámara del celular o la webcam de la computadora para sacar una foto nueva.</div>
+                <div><b>Subir archivo</b>: elegí una imagen guardada en tu celular o en una carpeta del equipo.</div>
+                <div><b>Formatos permitidos</b>: JPG, JPEG, PNG, WEBP y HEIC. La imagen se recorta al centro y se optimiza automáticamente.</div>
               </div>
-              <div class="row tp-photo-actions" style="margin-top:12px">
+              <div class="tp-photo-actions" style="margin-top:12px">
                 <button class="btn btn-tech" id="btnOpenCamera" type="button" ${photoBusy?"disabled":""}>📷 Tomar foto</button>
-                <button class="btn secondary tp-btn-secondary" id="btnOpenUpload" type="button" ${photoBusy?"disabled":""}>🖼 Subir archivo</button>
+                <button class="btn btn-tech tp-btn-upload" id="btnOpenUpload" type="button" ${photoBusy?"disabled":""}>🖼 Subir archivo</button>
                 ${cand.photoDataUrl ? `<button class="btn btn-ghost" id="btnRemovePhoto" type="button" ${photoBusy?"disabled":""}>Quitar foto</button>` : ''}
               </div>
-              <div class="muted small" style="margin-top:8px"><b>Tomar foto</b> usa la cámara del dispositivo. <b>Subir archivo</b> te deja elegir una imagen guardada en tu equipo o celular.</div>
-              <input id="profilePhotoInput" type="file" accept="image/*" aria-label="Subir foto de perfil" />
-              <input id="profileCameraInput" type="file" accept="image/*" capture="user" aria-label="Tomar foto con cámara" />
-              <div class="muted small" style="margin-top:8px">Sugerencia: si estás en PC y la cámara no se ve, probá con <b>Subir archivo</b>. La foto siempre se recorta al centro y se optimiza para reducir peso.</div>
+              <div class="muted small" style="margin-top:8px"><b>Tomar foto</b> abre la cámara. <b>Subir archivo</b> deja elegir una imagen ya guardada en tu dispositivo.</div>
+              <input id="profilePhotoInput" type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif" aria-label="Subir foto de perfil" />
+              <input id="profileCameraInput" type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,image/*" capture="user" aria-label="Tomar foto con cámara" />
+              <div class="muted small" style="margin-top:8px">Sugerencia: si estás en PC y la cámara no se ve, usá <b>Subir archivo</b>. La foto siempre se recorta al centro y se optimiza para reducir peso.</div>
               ${cameraOpen ? `
                 <div class="tp-camera-panel">
                   <div class="tp-camera-head"><b>Capturá tu foto</b><span class="muted small">Alineá tu rostro dentro del cuadro y evitá mostrar el cuerpo completo.</span></div>

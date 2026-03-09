@@ -1213,6 +1213,77 @@ app.post("/bolsa/me", authRequired, async (req, res) => {
   }
 });
 
+app.post("/bolsa/photo", authRequired, upload.single("photo"), async (req, res) => {
+  try{
+    if(req.user.role !== "CANDIDATE"){
+      return res.status(403).json({ ok:false, error:"FORBIDDEN_ROLE" });
+    }
+    const file = req.file;
+    if(!file){
+      return res.status(400).json({ ok:false, error:"PHOTO_REQUIRED" });
+    }
+    const allowed = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"]);
+    const mime = String(file.mimetype || "").toLowerCase();
+    if(!allowed.has(mime)){
+      return res.status(400).json({ ok:false, error:"PHOTO_TYPE_NOT_ALLOWED" });
+    }
+    const photoDataUrl = `data:${mime};base64,${file.buffer.toString("base64")}`;
+    const existing = await prisma.candidateBolsa.findUnique({ where: { userId: req.user.id } });
+    const prof = existing ? null : await prisma.profile.findUnique({ where: { userId: req.user.id } });
+    const fullName = String(prof?.fullName || "").trim();
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    const nombreBase = existing?.nombre || parts.slice(0, 1).join(" ") || "Pendiente";
+    const apellidoBase = existing?.apellido || parts.slice(1).join(" ") || "Pendiente";
+    const saved = await prisma.candidateBolsa.upsert({
+      where: { userId: req.user.id },
+      create: {
+        userId: req.user.id,
+        nombre: nombreBase,
+        apellido: apellidoBase,
+        dni: existing?.dni || prof?.dni || "PENDIENTE",
+        nacionalidad: existing?.nacionalidad || "Argentina",
+        estadoCivil: existing?.estadoCivil || "Prefiero no decir",
+        hijos: existing?.hijos || "0",
+        telefono: existing?.telefono || prof?.phone || "Pendiente",
+        correo: existing?.correo || req.user.email || "pendiente@example.com",
+        localidad: existing?.localidad || prof?.city || "Pendiente",
+        areaTrabajo: existing?.areaTrabajo || "Pendiente",
+        especialidad: existing?.especialidad || "Pendiente",
+        rangoExperiencia: existing?.rangoExperiencia || "Pendiente",
+        nivelEducativo: existing?.nivelEducativo || "Pendiente",
+        tieneCapacitacion: existing?.tieneCapacitacion || false,
+        trabajaActualmente: existing?.trabajaActualmente || false,
+        photoDataUrl
+      },
+      update: { photoDataUrl }
+    });
+    return res.json({ ok:true, photoDataUrl: saved.photoDataUrl || photoDataUrl });
+  }catch(err){
+    console.error("POST /bolsa/photo", err);
+    return res.status(500).json({ ok:false, error:"SERVER_ERROR" });
+  }
+});
+
+app.delete("/bolsa/photo", authRequired, async (req, res) => {
+  try{
+    if(req.user.role !== "CANDIDATE"){
+      return res.status(403).json({ ok:false, error:"FORBIDDEN_ROLE" });
+    }
+    const existing = await prisma.candidateBolsa.findUnique({ where: { userId: req.user.id } });
+    if(!existing){
+      return res.json({ ok:true, photoDataUrl: "" });
+    }
+    const saved = await prisma.candidateBolsa.update({
+      where: { userId: req.user.id },
+      data: { photoDataUrl: null }
+    });
+    return res.json({ ok:true, photoDataUrl: saved.photoDataUrl || "" });
+  }catch(err){
+    console.error("DELETE /bolsa/photo", err);
+    return res.status(500).json({ ok:false, error:"SERVER_ERROR" });
+  }
+});
+
 app.get("/bolsa/stats", authRequired, async (req, res) => {
   try{
     const total = await prisma.candidateBolsa.count();
