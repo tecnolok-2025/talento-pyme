@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" /><title>Talento PyME · Mis Oportunidades</title><link rel="icon" href="/icon-192.png" /><link rel="stylesheet" href="/styles.css" /></head><body class="appShell"><div class="header"><div class="brand"><img src="/icon-192.png" alt="Talento PyME" /><div><div class="brandTitle">Talento PyME</div><div class="muted">Portal de empleo • <span class="tp-version"></span></div></div></div><div class="nav"><a href="/perfil.html" data-role="CANDIDATE">Mi Perfil</a><a href="/mis-oportunidades.html" class="active" data-role="CANDIDATE">Mis Oportunidades</a><a href="/mis-postulaciones.html" data-role="CANDIDATE">Mis Postulaciones</a><a href="#" id="btnLogout">Salir</a></div></div>
 <div class="wrap wide"><div class="heroPanel"><div class="small pageEyebrow">Candidato · oportunidades activas</div><h2 style="margin:8px 0 6px 0">Mis Oportunidades</h2><div class="muted">Buscá avisos publicados por empresas y postuláte si aceptás las condiciones del puesto publicadas en el aviso.</div></div>
-<div class="card" style="margin-top:16px"><div class="filtersGrid" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div><label>Puesto o palabra clave</label><input class="input" id="q" placeholder="Ej: supervisor eléctrico" /></div><div><label>Empresa</label><input class="input" id="company" placeholder="Filtrar por empresa" /></div><div><label>Categoría / palabra clave sugerida</label><select class="input" id="kw"><option value="">(todas las categorías)</option></select></div></div><div class="row" style="margin-top:12px"><button class="btn" id="btnSearch">Buscar oportunidades</button><button class="btn secondary" id="btnClear" type="button">Limpiar filtros</button><span class="muted" id="msg">Listo para buscar.</span></div><div id="chips" class="row" style="margin-top:12px; flex-wrap:wrap; gap:8px"></div><div id="list" class="listStack" style="margin-top:16px"></div></div></div>
-<script src="/config.js?v=5.4.3"></script><script src="/auth.js?v=5.4.3"></script><script>
+<div class="card" style="margin-top:16px"><div class="filtersGrid" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div><label>Puesto o palabra clave</label><input class="input" id="q" placeholder="Ej: supervisor eléctrico" autocomplete="off" /></div><div><label>Empresa</label><input class="input" id="company" placeholder="Filtrar por empresa" /></div><div><label>Categoría / palabra clave sugerida</label><select class="input" id="kw"><option value="">(todas las categorías)</option></select></div></div><div class="row" style="margin-top:12px"><button class="btn" id="btnSearch">Buscar oportunidades</button><button class="btn secondary" id="btnClear" type="button">Limpiar búsqueda</button><span class="muted" id="msg">Listo para buscar.</span></div><div id="chips" class="row" style="margin-top:12px; flex-wrap:wrap; gap:8px"></div><div id="list" class="listStack" style="margin-top:16px"></div></div></div>
+<script src="/config.js?v=5.4.4"></script><script src="/auth.js?v=5.4.4"></script><script>
 requireAuth();applyRoleVisibility();requireRole('CANDIDATE');
 document.getElementById('btnLogout').onclick=(e)=>{e.preventDefault();logout();};
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function norm(s){return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();}
+function norm(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\p{L}\p{N}\s.-]/gu,' ').replace(/\s+/g,' ').toLowerCase().trim();}
 function keywordPool(jobs){
   const stop = new Set(['de','del','la','las','el','los','y','para','con','en','o','a','por','part','time','full','sr','ssr','jr']);
   const picked = new Map();
@@ -93,6 +93,8 @@ document.getElementById('btnSearch').onclick=load;
 document.getElementById('btnClear').onclick=()=>{document.getElementById('q').value='';document.getElementById('company').value='';document.getElementById('kw').value='';load();};
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter') load();});
 document.getElementById('company').addEventListener('keydown',e=>{if(e.key==='Enter') load();});
+document.getElementById('q').addEventListener('input',()=>{window.clearTimeout(window.__oppT); window.__oppT=setTimeout(load,180);});
+document.getElementById('company').addEventListener('input',()=>{window.clearTimeout(window.__oppC); window.__oppC=setTimeout(load,180);});
 document.getElementById('kw').addEventListener('change',load);
 bootstrap().then(load).catch(err=>{document.getElementById('msg').textContent=err.message;});
 </script></body></html>
