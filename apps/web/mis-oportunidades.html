@@ -2,7 +2,7 @@
 <html lang="es"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" /><title>Talento PyME · Mis Oportunidades</title><link rel="icon" href="/icon-192.png" /><link rel="stylesheet" href="/styles.css" /></head><body class="appShell"><div class="header"><div class="brand"><img src="/icon-192.png" alt="Talento PyME" /><div><div class="brandTitle">Talento PyME</div><div class="muted">Portal de empleo • <span class="tp-version"></span></div></div></div><div class="nav"><a href="/perfil.html" data-role="CANDIDATE">Mi Perfil</a><a href="/mis-oportunidades.html" class="active" data-role="CANDIDATE">Mis Oportunidades</a><a href="/mis-postulaciones.html" data-role="CANDIDATE">Mis Postulaciones</a><a href="#" id="btnLogout">Salir</a></div></div>
 <div class="wrap wide"><div class="heroPanel"><div class="small pageEyebrow">Candidato · oportunidades activas</div><h2 style="margin:8px 0 6px 0">Mis Oportunidades</h2><div class="muted">Buscá avisos publicados por empresas y postuláte si aceptás las condiciones del puesto publicadas en el aviso.</div></div>
 <div class="card" style="margin-top:16px"><div class="filtersGrid" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div><label>Puesto o palabra clave</label><input class="input" id="q" placeholder="Ej: supervisor eléctrico" /></div><div><label>Empresa</label><input class="input" id="company" placeholder="Filtrar por empresa" /></div><div><label>Categoría / palabra clave sugerida</label><select class="input" id="kw"><option value="">(todas las categorías)</option></select></div></div><div class="row" style="margin-top:12px"><button class="btn" id="btnSearch">Buscar oportunidades</button><button class="btn secondary" id="btnClear" type="button">Limpiar filtros</button><span class="muted" id="msg">Listo para buscar.</span></div><div id="chips" class="row" style="margin-top:12px; flex-wrap:wrap; gap:8px"></div><div id="list" class="listStack" style="margin-top:16px"></div></div></div>
-<script src="/config.js?v=5.4.2"></script><script src="/auth.js?v=5.4.2"></script><script>
+<script src="/config.js?v=5.4.3"></script><script src="/auth.js?v=5.4.3"></script><script>
 requireAuth();applyRoleVisibility();requireRole('CANDIDATE');
 document.getElementById('btnLogout').onclick=(e)=>{e.preventDefault();logout();};
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -45,19 +45,41 @@ async function bootstrap(){
 async function load(){
   const msg=document.getElementById('msg');
   const q=document.getElementById('q').value.trim();
-  const company=document.getElementById('company').value.trim().toLowerCase();
+  const company=document.getElementById('company').value.trim();
   const kw=document.getElementById('kw').value.trim();
   msg.textContent='Buscando…';
   try{
-    const terms = [q, kw].filter(Boolean).join(' ').trim();
-    const url = terms ? `/jobs?q=${encodeURIComponent(terms)}` : '/jobs';
-    const data=await apiFetch(url);
-    let jobs=(data.jobs||[]);
-    if(company) jobs=jobs.filter(j=>String(j.company?.companyName||'').toLowerCase().includes(company));
-    if(kw){
-      const nkw = norm(kw);
+    let jobs=[...ALL_JOBS];
+    const nq = norm(q);
+    const nc = norm(company);
+    const nkw = norm(kw);
+    if(nq){
       jobs = jobs.filter(j=>{
-        const hay = norm(`${j.title||''} ${j.description||''} ${j.requirements||''} ${j.category?.name||''}`);
+        const hay = norm([
+          j.title,
+          j.description,
+          j.requirements,
+          j.category?.name,
+          j.location,
+          j.modality,
+          j.company?.companyName
+        ].filter(Boolean).join(' '));
+        return hay.includes(nq);
+      });
+    }
+    if(nc){
+      jobs = jobs.filter(j=> norm(j.company?.companyName||'').includes(nc));
+    }
+    if(nkw){
+      jobs = jobs.filter(j=>{
+        const hay = norm([
+          j.title,
+          j.description,
+          j.requirements,
+          j.category?.name,
+          j.location,
+          j.modality
+        ].filter(Boolean).join(' '));
         return hay.includes(nkw);
       });
     }
