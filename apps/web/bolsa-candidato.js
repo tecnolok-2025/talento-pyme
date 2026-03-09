@@ -203,7 +203,7 @@ function photoMarkup(url, alt){
   if(url){
     return `<img src="${esc(url)}" alt="${esc(alt || 'Foto de perfil')}" class="candidateAvatarLarge" />`;
   }
-  return `<div class="candidateAvatarLarge placeholder"><span>${esc((alt || '?').slice(0,1).toUpperCase() || '?')}</span></div>`;
+  return `<div class="candidateAvatarLarge placeholder"><span>📷</span></div>`;
 }
 
 function splitFullName(fullName){
@@ -418,12 +418,12 @@ async function initBolsaCandidato(){
             <section class="tp-photo-card">
               <div>
                 <div class="tp-mini-label">Foto del candidato</div>
-                <div class="tp-mini-value">Se muestra primero del lado empresa. Podés subirla, tomarla con cámara y reemplazarla cuando quieras.</div>
+                <div class="tp-mini-value">Agregá una imagen clara de tu rostro para identificarte mejor ante las empresas. Podés usar la cámara o elegir una foto guardada.</div>
               </div>
               <div class="candidateAvatarWrap">${photoMarkup(cand.photoDataUrl, cand.nombre || cand.apellido || '?')}</div>
               <div class="row" style="margin-top:10px">
-                <label class="btn secondary tp-upload-btn" for="profilePhotoInput">Subir foto</label>
-                <label class="btn secondary tp-upload-btn" for="profilePhotoCameraInput">Tomar foto</label>
+                <label class="btn secondary tp-upload-btn" for="profilePhotoInput">Subir archivo</label>
+                <label class="btn secondary tp-upload-btn" for="profilePhotoCameraInput">Abrir cámara</label>
                 ${cand.photoDataUrl ? `<button class="btn btn-ghost" id="btnRemovePhoto" type="button" ${photoBusy?"disabled":""}>Quitar</button>` : ''}
               </div>
               <input id="profilePhotoInput" type="file" accept="image/*" hidden />

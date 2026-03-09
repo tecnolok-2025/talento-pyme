@@ -1566,6 +1566,14 @@ app.get('/company/candidates', auth, requireRole('COMPANY'), async (req, res) =>
       }
     });
     const byId = new Map(all.map((it)=>[it.id, it]));
+    const applications = await prisma.application.findMany({ where: { job: { company: { userId: req.user.id } } }, include: { user: { include: { candidateBolsa: true } }, job: true }, orderBy: { createdAt: 'desc' } }).catch(() => []);
+    const appliedByBolsaId = new Map();
+    for (const app of applications || []) {
+      const bid = app.user?.candidateBolsa?.id;
+      if (!bid) continue;
+      if (!appliedByBolsaId.has(bid)) appliedByBolsaId.set(bid, []);
+      appliedByBolsaId.get(bid).push({ jobId: app.jobId, jobTitle: app.job?.title || '', appliedAt: app.createdAt });
+    }
     const items = ids.map((id)=>byId.get(id)).filter(Boolean).map((it)=>({
       id: it.id,
       nombre: it.nombre,
@@ -1594,6 +1602,8 @@ app.get('/company/candidates', auth, requireRole('COMPANY'), async (req, res) =>
       instrumentos_electrica: toArrayField(it.instrumentosElectrica),
       created_at: it.createdAt,
       updated_at: it.updatedAt,
+      sourceLabel: appliedByBolsaId.has(it.id) ? 'Postulación desde Mis Oportunidades' : 'Guardado por la empresa',
+      applications: appliedByBolsaId.get(it.id) || []
     }));
     res.json({ ok: true, items });
   } catch (err) {
@@ -1795,14 +1805,38 @@ app.post("/jobs/:id/apply", auth, requireRole("CANDIDATE"), async (req, res) => 
   const parsed = applySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const job = await prisma.job.findUnique({ where: { id: jobId } });
+  const job = await prisma.job.findUnique({ where: { id: jobId }, include: { company: true } });
   if (!job) return res.status(404).json({ error: "Búsqueda no encontrada" });
 
   try {
     const row = await prisma.application.create({ data: { jobId, userId: req.user.id, coverNote: parsed.data.coverNote ?? null } });
-    res.json(row);
+    const bolsa = await prisma.candidateBolsa.findUnique({ where: { userId: req.user.id }, select: { id: true } }).catch(() => null);
+    if (bolsa?.id && job.company?.userId) {
+      const current = await prisma.companyProfile.findUnique({ where: { userId: job.company.userId }, select: { candidateBookmarks: true } }).catch(() => null);
+      const next = Array.from(new Set([...(current?.candidateBookmarks || []), bolsa.id]));
+      await prisma.companyProfile.upsert({
+        where: { userId: job.company.userId },
+        update: { candidateBookmarks: next },
+        create: { userId: job.company.userId, companyName: job.company.companyName || 'Empresa', candidateBookmarks: next }
+      });
+    }
+    res.json({ ok: true, application: row, source: 'candidate_portal' });
   } catch {
     res.status(409).json({ error: "Ya postulaste a esta búsqueda" });
+  }
+});
+
+app.get("/jobs/applications/mine", auth, requireRole("CANDIDATE"), async (req, res) => {
+  try {
+    const items = await prisma.application.findMany({
+      where: { userId: req.user.id },
+      include: { job: { include: { company: true, category: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ ok: true, items });
+  } catch (err) {
+    console.error('GET /jobs/applications/mine', err);
+    res.status(500).json({ error: 'No se pudieron leer tus postulaciones' });
   }
 });
 
