@@ -1840,6 +1840,29 @@ app.get("/jobs/applications/mine", auth, requireRole("CANDIDATE"), async (req, r
   }
 });
 
+app.delete("/jobs/applications/:id", auth, requireRole("CANDIDATE"), async (req, res) => {
+  try {
+    const appRow = await prisma.application.findUnique({ where: { id: req.params.id }, include: { job: { include: { company: true } } } });
+    if (!appRow || appRow.userId !== req.user.id) return res.status(404).json({ error: 'Postulación no encontrada' });
+    await prisma.application.delete({ where: { id: appRow.id } });
+    // Si estaba guardado en la carpeta de la empresa por esta postulación, intentamos quitarlo.
+    const bolsa = await prisma.candidateBolsa.findUnique({ where: { userId: req.user.id }, select: { id: true } }).catch(() => null);
+    const companyUserId = appRow.job?.company?.userId;
+    if (bolsa?.id && companyUserId) {
+      const current = await prisma.companyProfile.findUnique({ where: { userId: companyUserId }, select: { candidateBookmarks: true } }).catch(() => null);
+      const applicationsLeft = await prisma.application.findFirst({ where: { userId: req.user.id, job: { company: { userId: companyUserId } } } }).catch(() => null);
+      if (!applicationsLeft && current?.candidateBookmarks?.includes(bolsa.id)) {
+        const next = (current.candidateBookmarks || []).filter(id => id !== bolsa.id);
+        await prisma.companyProfile.update({ where: { userId: companyUserId }, data: { candidateBookmarks: next } }).catch(() => null);
+      }
+    }
+    res.json({ ok: true, deleted: true });
+  } catch (err) {
+    console.error('DELETE /jobs/applications/:id', err);
+    res.status(500).json({ error: 'No se pudo eliminar la postulación' });
+  }
+});
+
 // -----------------------------
 // Search talent (para empresas, gratis)
 // -----------------------------

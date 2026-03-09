@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" /><title>Talento PyME · Mis Oportunidades</title><link rel="icon" href="/icon-192.png" /><link rel="stylesheet" href="/styles.css" /></head><body class="appShell"><div class="header"><div class="brand"><img src="/icon-192.png" alt="Talento PyME" /><div><div class="brandTitle">Talento PyME</div><div class="muted">Portal de empleo • <span class="tp-version"></span></div></div></div><div class="nav"><a href="/perfil.html" data-role="CANDIDATE">Mi Perfil</a><a href="/mis-oportunidades.html" class="active" data-role="CANDIDATE">Mis Oportunidades</a><a href="/mis-postulaciones.html" data-role="CANDIDATE">Mis Postulaciones</a><a href="#" id="btnLogout">Salir</a></div></div>
 <div class="wrap wide"><div class="heroPanel"><div class="small pageEyebrow">Candidato · oportunidades activas</div><h2 style="margin:8px 0 6px 0">Mis Oportunidades</h2><div class="muted">Buscá avisos publicados por empresas y postuláte si aceptás las condiciones del puesto publicadas en el aviso.</div></div>
-<div class="card" style="margin-top:16px"><div class="filtersGrid" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div><label>Puesto o palabra clave</label><input class="input" id="q" placeholder="Ej: supervisor eléctrico" autocomplete="off" /></div><div><label>Empresa</label><input class="input" id="company" placeholder="Filtrar por empresa" /></div><div><label>Categoría / palabra clave sugerida</label><select class="input" id="kw"><option value="">(todas las categorías)</option></select></div></div><div class="row" style="margin-top:12px"><button class="btn" id="btnSearch">Buscar oportunidades</button><button class="btn secondary" id="btnClear" type="button">Limpiar búsqueda</button><span class="muted" id="msg">Listo para buscar.</span></div><div id="chips" class="row" style="margin-top:12px; flex-wrap:wrap; gap:8px"></div><div id="list" class="listStack" style="margin-top:16px"></div></div></div>
-<script src="/config.js?v=5.4.4"></script><script src="/auth.js?v=5.4.4"></script><script>
+<div class="card" style="margin-top:16px"><div class="filtersGrid" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div><label>Puesto o palabra clave</label><input class="input" id="q" placeholder="Ej: supervisor eléctrico" autocomplete="off" /></div><div><label>Empresa</label><input class="input" id="company" placeholder="Filtrar por empresa" /></div><div><label>Categoría / palabra clave sugerida</label><select class="input" id="kw"><option value="">(todas las categorías)</option></select></div></div><div class="row" style="margin-top:12px"><button class="btn" id="btnSearch">Buscar oportunidades</button><button class="btn secondary" id="btnClear" type="button">Limpiar búsqueda</button><span class="muted" id="msg">Realizá una búsqueda para ver oportunidades disponibles.</span></div><div id="chips" class="row" style="margin-top:12px; flex-wrap:wrap; gap:8px"></div><div id="list" class="listStack" style="margin-top:16px"></div></div></div>
+<script src="/config.js?v=5.4.5"></script><script src="/auth.js?v=5.4.5"></script><script>
 requireAuth();applyRoleVisibility();requireRole('CANDIDATE');
 document.getElementById('btnLogout').onclick=(e)=>{e.preventDefault();logout();};
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -42,6 +42,35 @@ async function bootstrap(){
   kw.innerHTML = '<option value="">(todas las categorías)</option>' + pool.map(([k,label])=>`<option value="${esc(label)}">${esc(label)}</option>`).join('');
   renderChips(pool);
 }
+function matchesQuery(jobs, q){
+  const nq = norm(q);
+  if(!nq) return jobs;
+  const tokens = nq.split(/\s+/).filter(Boolean);
+  return jobs.filter(j=>{
+    const hay = norm([
+      j.title,
+      j.description,
+      j.requirements,
+      j.category?.name,
+      j.location,
+      j.modality,
+      j.company?.companyName
+    ].filter(Boolean).join(' '));
+    return tokens.every(t=>hay.includes(t));
+  });
+}
+function renderJobs(jobs){
+  const list=document.getElementById('list');
+  list.innerHTML=jobs.map(j=>`<div class="accordionItem open"><div class="accordionHead"><div><b>${esc(j.title)}</b><div class="muted">${esc(j.company?.companyName||'Empresa')} • ${esc(j.location||'Ubicación a definir')} • ${esc(j.modality||'Modalidad a definir')}</div></div><span>−</span></div><div class="accordionBody"><div class="sectionMini"><b>Información del aviso</b><br>${esc(j.description||'')}</div>${j.requirements?`<div class="sectionMini"><b>Requisitos y condiciones</b><br>${esc(j.requirements)}</div>`:''}<div class="row" style="justify-content:flex-end"><button class="btn btnApply" data-id="${j.id}" type="button">Me interesa postularme</button></div></div></div>`).join('')||'<div class="muted">No hay avisos publicados con esos filtros.</div>';
+  list.querySelectorAll('.btnApply').forEach(btn=>btn.onclick=async()=>{
+    const msg=document.getElementById('msg');
+    msg.textContent='Enviando tu postulación…';
+    try{
+      await apiFetch('/jobs/'+btn.dataset.id+'/apply',{method:'POST',body:JSON.stringify({})});
+      msg.textContent='Tu interés fue enviado. Ya figura en Mis Postulaciones y del lado empresa.';
+    }catch(e){ msg.textContent=e.message; }
+  });
+}
 async function load(){
   const msg=document.getElementById('msg');
   const q=document.getElementById('q').value.trim();
@@ -50,51 +79,26 @@ async function load(){
   msg.textContent='Buscando…';
   try{
     let jobs=[...ALL_JOBS];
-    const nq = norm(q);
+    if(q) jobs = matchesQuery(jobs, q);
     const nc = norm(company);
     const nkw = norm(kw);
-    if(nq){
-      jobs = jobs.filter(j=>{
-        const hay = norm([
-          j.title,
-          j.description,
-          j.requirements,
-          j.category?.name,
-          j.location,
-          j.modality,
-          j.company?.companyName
-        ].filter(Boolean).join(' '));
-        return hay.includes(nq);
-      });
-    }
-    if(nc){
-      jobs = jobs.filter(j=> norm(j.company?.companyName||'').includes(nc));
-    }
-    if(nkw){
-      jobs = jobs.filter(j=>{
-        const hay = norm([
-          j.title,
-          j.description,
-          j.requirements,
-          j.category?.name,
-          j.location,
-          j.modality
-        ].filter(Boolean).join(' '));
-        return hay.includes(nkw);
-      });
-    }
-    const list=document.getElementById('list');
+    if(nc){ jobs = jobs.filter(j=> norm(j.company?.companyName||'').includes(nc)); }
+    if(nkw){ jobs = jobs.filter(j=> matchesQuery([j], kw).length > 0); }
     msg.textContent=jobs.length?`${jobs.length} oportunidad(es)`:'Sin resultados';
-    list.innerHTML=jobs.map(j=>`<div class="accordionItem open"><div class="accordionHead"><div><b>${esc(j.title)}</b><div class="muted">${esc(j.company?.companyName||'Empresa')} • ${esc(j.location||'Ubicación a definir')} • ${esc(j.modality||'Modalidad a definir')}</div></div><span>−</span></div><div class="accordionBody"><div class="sectionMini"><b>Información del aviso</b><br>${esc(j.description||'')}</div>${j.requirements?`<div class="sectionMini"><b>Requisitos y condiciones</b><br>${esc(j.requirements)}</div>`:''}<div class="row" style="justify-content:flex-end"><button class="btn btnApply" data-id="${j.id}" type="button">Me interesa postularme</button></div></div></div>`).join('')||'<div class="muted">No hay avisos publicados con esos filtros.</div>';
-    list.querySelectorAll('.btnApply').forEach(btn=>btn.onclick=async()=>{msg.textContent='Enviando tu postulación…';try{await apiFetch('/jobs/'+btn.dataset.id+'/apply',{method:'POST',body:JSON.stringify({})});msg.textContent='Tu interés fue enviado. Ya figura en Mis Postulaciones y del lado empresa.';}catch(e){msg.textContent=e.message;}});
+    renderJobs(jobs);
   }catch(e){document.getElementById('msg').textContent=e.message;}
 }
+function clearSearch(){
+  document.getElementById('q').value='';
+  document.getElementById('company').value='';
+  document.getElementById('kw').value='';
+  document.getElementById('list').innerHTML='';
+  document.getElementById('msg').textContent='Realizá una búsqueda para ver oportunidades disponibles.';
+}
 document.getElementById('btnSearch').onclick=load;
-document.getElementById('btnClear').onclick=()=>{document.getElementById('q').value='';document.getElementById('company').value='';document.getElementById('kw').value='';load();};
+document.getElementById('btnClear').onclick=clearSearch;
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter') load();});
 document.getElementById('company').addEventListener('keydown',e=>{if(e.key==='Enter') load();});
-document.getElementById('q').addEventListener('input',()=>{window.clearTimeout(window.__oppT); window.__oppT=setTimeout(load,180);});
-document.getElementById('company').addEventListener('input',()=>{window.clearTimeout(window.__oppC); window.__oppC=setTimeout(load,180);});
-document.getElementById('kw').addEventListener('change',load);
-bootstrap().then(load).catch(err=>{document.getElementById('msg').textContent=err.message;});
+document.getElementById('kw').addEventListener('change',()=>{ if(document.getElementById('kw').value) load(); });
+bootstrap().catch(err=>{document.getElementById('msg').textContent=err.message;});
 </script></body></html>
