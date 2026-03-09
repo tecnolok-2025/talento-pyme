@@ -429,3 +429,8 @@ body:not(.appShell):not(.authBody) .globalBrandFooter{border-top:1px solid rgba(
 .tp-details[open] summary{border-bottom:1px solid rgba(23,105,224,.10)}
 .tp-details .formGrid{padding:0 18px 18px 18px}
 .field-lock{background:rgba(15,23,42,.04)!important;color:#3a4f74}
+
+.tp-photo-help{display:grid;gap:8px;margin-top:12px;font-size:13px;color:var(--tp-text)}
+.tp-btn-secondary{background:#eef4ff;color:var(--tp-blue-900);border:1px solid rgba(23,105,224,.18)}
+.tp-btn-secondary:hover{background:#e2ecff}
+.tp-photo-actions .btn{display:inline-flex;align-items:center;justify-content:center}

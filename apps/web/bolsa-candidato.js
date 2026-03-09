@@ -1,4 +1,4 @@
-/* Talento PyME - v5.4.0 (candidato) - Mi Perfil institucional + foto + resumen curricular */
+/* Talento PyME - v5.4.7 (candidato) - Mi Perfil institucional + foto + resumen curricular */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -431,25 +431,30 @@ async function initBolsaCandidato(){
             <section class="tp-photo-card">
               <div>
                 <div class="tp-mini-label">Foto del candidato</div>
-                <div class="tp-mini-value">Agregá una foto clara de tu rostro para que las empresas te identifiquen mejor. Podés tomarla ahora con la cámara o subir una imagen desde tu equipo.</div>
+                <div class="tp-mini-value">Agregá una foto clara de tu rostro para que las empresas te identifiquen mejor. Podés elegir entre sacar una foto nueva con la cámara o subir una imagen que ya tengas guardada.</div>
               </div>
               <div class="candidateAvatarWrap">${photoMarkup(cand.photoDataUrl, cand.nombre || cand.apellido || '?')}</div>
-              <div class="row tp-photo-actions" style="margin-top:10px">
-                <button class="btn secondary" id="btnOpenCamera" type="button" ${photoBusy?"disabled":""}>Tomar foto</button>
-                <label class="btn secondary tp-upload-btn" for="profilePhotoInput">Subir archivo</label>
-                ${cand.photoDataUrl ? `<button class="btn btn-ghost" id="btnRemovePhoto" type="button" ${photoBusy?"disabled":""}>Quitar</button>` : ''}
+              <div class="tp-photo-help">
+                <div><b>Tomar foto</b>: abre la cámara del celular o la webcam de la PC. Enfocá tu rostro, capturá y confirmá con <b>Usar foto</b>.</div>
+                <div><b>Subir archivo</b>: te deja elegir una imagen desde tu galería o una carpeta del equipo. El sistema la recorta al centro y la optimiza automáticamente.</div>
+              </div>
+              <div class="row tp-photo-actions" style="margin-top:12px">
+                <button class="btn btn-tech" id="btnOpenCamera" type="button" ${photoBusy?"disabled":""}>📷 Tomar foto</button>
+                <button class="btn secondary tp-btn-secondary" id="btnOpenUpload" type="button" ${photoBusy?"disabled":""}>🖼 Subir archivo</button>
+                ${cand.photoDataUrl ? `<button class="btn btn-ghost" id="btnRemovePhoto" type="button" ${photoBusy?"disabled":""}>Quitar foto</button>` : ''}
               </div>
               <input id="profilePhotoInput" type="file" accept="image/*" hidden />
-              <div class="muted small" style="margin-top:8px">La imagen se recorta al centro, se optimiza y queda lista para mostrarse primero del lado empresa.</div>
+              <input id="profileCameraInput" type="file" accept="image/*" capture="user" hidden />
+              <div class="muted small" style="margin-top:8px">La imagen se recorta al centro, se optimiza para reducir peso y queda lista para mostrarse primero del lado empresa.</div>
               ${cameraOpen ? `
                 <div class="tp-camera-panel">
-                  <div class="tp-camera-head"><b>Capturá tu foto</b><span class="muted small">Alineá tu rostro y evitá el fondo completo.</span></div>
+                  <div class="tp-camera-head"><b>Capturá tu foto</b><span class="muted small">Alineá tu rostro dentro del cuadro y evitá mostrar el cuerpo completo.</span></div>
                   ${cameraError ? `<div class="error" style="margin-top:8px">${esc(cameraError)}</div>` : ``}
                   ${cameraShotDataUrl ? `
                     <div class="tp-camera-preview-wrap"><img src="${esc(cameraShotDataUrl)}" alt="Vista previa de la foto" class="tp-camera-shot" /></div>
                     <div class="row" style="margin-top:10px">
                       <button class="btn" id="btnUseCameraShot" type="button">Usar foto</button>
-                      <button class="btn secondary" id="btnRetakePhoto" type="button">Tomar otra</button>
+                      <button class="btn secondary tp-btn-secondary" id="btnRetakePhoto" type="button">Tomar otra</button>
                       <button class="btn btn-ghost" id="btnCloseCamera" type="button">Cancelar</button>
                     </div>
                   ` : `
@@ -464,8 +469,8 @@ async function initBolsaCandidato(){
             </section>
             <section class="tp-retention-card">
               <div class="tp-mini-label">Conservación del perfil curricular</div>
-              <div class="tp-mini-value">Tu perfil curricular se conservará por <b>2 años desde su última actualización</b>. Si querés mantenerlo activo, actualizá tus datos periódicamente.</div>
-              <div class="muted small" style="margin-top:10px">No se guarda el PDF del CV. Se conserva el resumen curricular optimizado para acelerar búsquedas y proteger espacio de almacenamiento.</div>
+              <div class="tp-mini-value">Tu perfil curricular se conservará por <b>2 años desde su última actualización</b>. Si querés mantenerlo activo, actualizá tus datos periódicamente para seguir visible en las búsquedas de empresas.</div>
+              <div class="muted small" style="margin-top:10px"><b>Cómo funciona:</b> cuando cargás un CV en PDF, DOCX o TXT, el sistema no guarda el archivo original de forma permanente. Extrae la información más importante, genera un resumen curricular optimizado y conserva solamente ese contenido resumido para acelerar búsquedas, reducir almacenamiento y mantener actualizado tu perfil profesional.</div>
             </section>
           </div>
 
@@ -836,6 +841,14 @@ async function initBolsaCandidato(){
       if(file) await uploadProfilePhoto(file);
       profilePhotoInput.value = "";
     });
+    const profileCameraInput = el("profileCameraInput");
+    if(profileCameraInput) profileCameraInput.addEventListener("change", async (ev)=>{
+      const file = ev.target.files && ev.target.files[0];
+      if(file) await uploadProfilePhoto(file);
+      profileCameraInput.value = "";
+    });
+    const btnOpenUpload = el('btnOpenUpload');
+    if(btnOpenUpload) btnOpenUpload.addEventListener('click', ()=>{ const i = el('profilePhotoInput'); if(i) i.click(); });
     const btnOpenCamera = el('btnOpenCamera');
     if(btnOpenCamera) btnOpenCamera.addEventListener('click', openCameraCapture);
     const btnCapturePhoto = el('btnCapturePhoto');
@@ -913,6 +926,12 @@ async function initBolsaCandidato(){
     cameraShotDataUrl = '';
     stopCameraStream(cameraStream);
     cameraStream = null;
+    const mobileInput = el('profileCameraInput');
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    if(isMobile && mobileInput){
+      mobileInput.click();
+      return;
+    }
     try{
       if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
         throw new Error('Tu navegador no permite usar la cámara desde esta pantalla.');
@@ -922,7 +941,7 @@ async function initBolsaCandidato(){
       render();
     }catch(err){
       cameraOpen = true;
-      cameraError = err?.message || 'No se pudo acceder a la cámara.';
+      cameraError = 'No se pudo abrir la cámara automáticamente. Probá con Subir archivo o revisá los permisos del navegador.';
       render();
     }
   }
