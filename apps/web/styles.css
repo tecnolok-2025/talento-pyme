@@ -357,6 +357,13 @@ pre{white-space:pre-wrap}
 .accordionBody{padding:0 18px 18px 18px;display:none;color:var(--tp-muted)}
 .accordionItem.open .accordionBody{display:block}
 
+.candidateLine,.candidateLineDetail{display:flex;align-items:center;gap:12px}
+.candidateThumb{width:64px;height:64px;border-radius:18px;object-fit:cover;object-position:center;display:block;border:2px solid rgba(23,105,224,.14);background:#fff;box-shadow:0 10px 20px rgba(15,23,42,.10)}
+.candidateThumb.placeholder{display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;color:#0d47a1;background:linear-gradient(135deg, rgba(23,105,224,.10), rgba(79,163,255,.22));}
+.candidateLineDetail .candidateThumb{width:86px;height:86px;border-radius:24px}
+.mutedJob{opacity:.72}
+.mutedJob .accordionHead,.mutedJob .accordionBody{background:rgba(15,23,42,.02)}
+
 
 /* Unified shell for internal company pages */
 .appShell{background:

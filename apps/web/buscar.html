@@ -150,8 +150,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=4.3.2"></script>
-  <script src="/auth.js?v=4.3.2"></script>
+  <script src="/config.js?v=5.4.0"></script>
+  <script src="/auth.js?v=5.4.0"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -202,6 +202,10 @@
 
     function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function formatDate(v){ try{return new Date(v).toLocaleString();}catch(_){return v||'';} }
+    function avatar(url, name){
+      const initial = esc((name || '?').trim().slice(0,1).toUpperCase() || '?');
+      return url ? `<img src="${esc(url)}" alt="${esc(name||'Foto')}" class="candidateThumb" />` : `<div class="candidateThumb placeholder"><span>${initial}</span></div>`;
+    }
     function fillSelect(el, items, placeholder='(todos)') {
       el.innerHTML = `<option value="">${placeholder}</option>` + items.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
     }
@@ -235,8 +239,8 @@
       }
       const especialidad = item.especialidad === 'Otros' ? (item.especialidad_otro || 'Otros') : (item.especialidad || '');
       els.detailBody.innerHTML = `
-        <div style="font-size:22px;font-weight:900">${esc(item.apellido)}, ${esc(item.nombre)}</div>
-        <div class="muted" style="margin-top:4px">${esc(item.area_trabajo || '')}${item.nivel ? ` • ${esc(item.nivel)}` : ''}</div>
+        <div class="candidateLineDetail">${avatar(item.photoDataUrl, `${item.nombre || ''} ${item.apellido || ''}`)}<div><div style="font-size:22px;font-weight:900">${esc(item.apellido)}, ${esc(item.nombre)}</div>
+        <div class="muted" style="margin-top:4px">${esc(item.area_trabajo || '')}${item.nivel ? ` • ${esc(item.nivel)}` : ''}</div></div></div>
         <div class="sectionMini"><b>DNI:</b> ${esc(item.dni || 's/d')}</div>
         <div><b>Nacionalidad:</b> ${esc(item.nacionalidad || 's/d')} • <b>Estado civil:</b> ${esc(item.estado_civil || 's/d')} • <b>Hijos:</b> ${esc(item.hijos || 's/d')}</div>
         <div><b>Contacto:</b> ${esc(item.telefono || 's/d')} • ${esc(item.correo || 's/d')}</div>
@@ -266,8 +270,8 @@
         const isActive = jobsSelected && jobsSelected.id === it.id;
         return `
           <div class="talentCard ${isActive?'active':''}" data-id="${it.id}">
-            <div style="font-weight:900;font-size:18px">${esc(it.apellido)}, ${esc(it.nombre)}</div>
-            <div class="muted">${esc(it.area_trabajo || '')}${it.nivel ? ` • ${esc(it.nivel)}` : ''}</div>
+            <div class="candidateLine">${avatar(it.photoDataUrl, `${it.nombre || ''} ${it.apellido || ''}`)}<div><div style="font-weight:900;font-size:18px">${esc(it.apellido)}, ${esc(it.nombre)}</div>
+            <div class="muted">${esc(it.area_trabajo || '')}${it.nivel ? ` • ${esc(it.nivel)}` : ''}</div></div></div>
             <div class="talentMeta">
               <span class="tag">${esc(it.localidad || 'Localidad s/d')}</span>
               ${especialidad ? `<span class="tag">${esc(especialidad)}</span>` : ''}

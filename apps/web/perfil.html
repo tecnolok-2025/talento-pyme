@@ -8,8 +8,8 @@
     <link rel="icon" href="/icon-192.png" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body>
-    <header class="topbar">
+  <body class="appShell">
+    <header class="header">
       <div class="brand">
         <img src="/icon-192.png" alt="Talento PyME" />
         <div>
@@ -19,19 +19,17 @@
       </div>
       <nav class="nav">
         <a href="/perfil.html" class="active" data-role="CANDIDATE">Mi Perfil</a>
-                        <a href="/empresa.html" data-role="COMPANY">Empresa</a>
-        <a href="/buscar.html" data-role="COMPANY">Buscar talento</a>
-                <button class="btn small secondary" id="logoutBtn">Salir</button>
+        <button class="btn small secondary" id="logoutBtn">Salir</button>
       </nav>
     </header>
 
-    <main class="container">
+    <main class="wrap wide">
       <div id="bolsaRoot"></div>
     </main>
 
-    <script src="/config.js?v=4.3.2"></script>
-    <script src="/auth.js?v=4.3.2"></script>
-    <script src="/app.js?v=4.3.2"></script>
+    <script src="/config.js?v=5.4.0"></script>
+    <script src="/auth.js?v=5.4.0"></script>
+    <script src="/app.js?v=5.4.0"></script>
     
   <script>
     window.addEventListener("error", (e) => {
@@ -44,6 +42,6 @@
     });
   </script>
 
-  <script src="/bolsa-candidato.js?v=4.0.9"></script>
+  <script src="/bolsa-candidato.js?v=5.4.0"></script>
   </body>
 </html>

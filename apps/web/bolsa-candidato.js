@@ -1,4 +1,4 @@
-/* Talento PyME - v4.1.7 (candidato) - Mi Perfil = Bolsa de Trabajo (gemela UIC) */
+/* Talento PyME - v5.4.0 (candidato) - Mi Perfil institucional + foto + resumen curricular */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -158,6 +158,54 @@ function toBoolYesNo(v){
 }
 function fromBoolYesNo(b){ return b ? "si" : "no"; }
 
+function dataUrlToBlob(dataUrl){
+  const [meta, b64] = String(dataUrl || '').split(',');
+  const mime = ((meta || '').match(/data:([^;]+);base64/) || [,'image/jpeg'])[1];
+  const bin = atob(b64 || '');
+  const arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+function loadImage(file){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=>{ URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen.')); };
+    img.src = url;
+  });
+}
+
+async function compressProfileImage(file){
+  const img = await loadImage(file);
+  const side = Math.min(img.width, img.height);
+  const sx = Math.max(0, Math.round((img.width - side) / 2));
+  const sy = Math.max(0, Math.round((img.height - side) / 2));
+  const maxSide = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = maxSide;
+  canvas.height = maxSide;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, sx, sy, side, side, 0, 0, maxSide, maxSide);
+  let quality = 0.86;
+  let dataUrl = canvas.toDataURL('image/jpeg', quality);
+  while(dataUrl.length > 240000 && quality > 0.58){
+    quality -= 0.06;
+    dataUrl = canvas.toDataURL('image/jpeg', quality);
+  }
+  return dataUrl;
+}
+
+function photoMarkup(url, alt){
+  if(url){
+    return `<img src="${esc(url)}" alt="${esc(alt || 'Foto de perfil')}" class="candidateAvatarLarge" />`;
+  }
+  return `<div class="candidateAvatarLarge placeholder"><span>${esc((alt || '?').slice(0,1).toUpperCase() || '?')}</span></div>`;
+}
+
 function splitFullName(fullName){
   const s = String(fullName||"").trim();
   if(!s) return { nombre:"", apellido:"" };
@@ -241,6 +289,7 @@ async function initBolsaCandidato(){
     sueldoPretendido:"",
     ultimoTrabajo:"",
     observaciones:"",
+    photoDataUrl:"",
     herramientasMecanica:[],
     instrumentosElectrica:[]
   };
@@ -262,6 +311,7 @@ async function initBolsaCandidato(){
   let parseProgress = 0;
   let parseMsg = "";
   let parsedMeta = null;
+  let photoBusy = false;
   let detailsState = { d1:false, d2:false, d3:false, d4:false, d5:false };
 
   let jobs = {
@@ -362,6 +412,29 @@ async function initBolsaCandidato(){
               <div class="tp-mini-label">Edición</div>
               <div class="tp-mini-value">Podés editar antes de guardar · luego con Editar</div>
             </div>
+          </div>
+
+          <div class="tp-profile-grid">
+            <section class="tp-photo-card">
+              <div>
+                <div class="tp-mini-label">Foto del candidato</div>
+                <div class="tp-mini-value">Se muestra primero del lado empresa. Podés subirla, tomarla con cámara y reemplazarla cuando quieras.</div>
+              </div>
+              <div class="candidateAvatarWrap">${photoMarkup(cand.photoDataUrl, cand.nombre || cand.apellido || '?')}</div>
+              <div class="row" style="margin-top:10px">
+                <label class="btn secondary tp-upload-btn" for="profilePhotoInput">Subir foto</label>
+                <label class="btn secondary tp-upload-btn" for="profilePhotoCameraInput">Tomar foto</label>
+                ${cand.photoDataUrl ? `<button class="btn btn-ghost" id="btnRemovePhoto" type="button" ${photoBusy?"disabled":""}>Quitar</button>` : ''}
+              </div>
+              <input id="profilePhotoInput" type="file" accept="image/*" hidden />
+              <input id="profilePhotoCameraInput" type="file" accept="image/*" capture="user" hidden />
+              <div class="muted small" style="margin-top:8px">La imagen se centra, reduce y comprime automáticamente para mantener calidad con bajo peso.</div>
+            </section>
+            <section class="tp-retention-card">
+              <div class="tp-mini-label">Conservación del perfil curricular</div>
+              <div class="tp-mini-value">Tu perfil curricular se conservará por <b>2 años desde su última actualización</b>. Si querés mantenerlo activo, actualizá tus datos periódicamente.</div>
+              <div class="muted small" style="margin-top:10px">No se guarda el PDF del CV. Se conserva el resumen curricular optimizado para acelerar búsquedas y proteger espacio de almacenamiento.</div>
+            </section>
           </div>
 
           <details class="tp-details" ${detailOpen("d1")}>
@@ -523,7 +596,7 @@ async function initBolsaCandidato(){
             ` : ""}
             <label style="display:block; margin-top:8px;">
               <textarea id="c_obs" rows="11" placeholder="Acá se va a mostrar el resumen curricular más importante, priorizando la experiencia más reciente." ${ro()}>${esc(cand.observaciones)}</textarea>
-              <small class="muted">Podés cargar un archivo PDF, DOCX o TXT. Las imágenes JPG/PNG quedan sujetas a que el archivo contenga texto legible.</small>
+              <small class="muted">Podés cargar un archivo PDF, DOCX o TXT. Si el CV es extenso, el sistema resume automáticamente lo más relevante para conservar un máximo de 12.000 caracteres útiles.</small>
             </label>
           </details>
 
@@ -725,6 +798,16 @@ async function initBolsaCandidato(){
     if(btnCancel) btnCancel.addEventListener("click", async ()=>{ if(parsingCv) return; isEditing = false; okMsg=""; errMsg=""; await loadMe(); await loadBolsa(); });
     const up = el("cvUploadInput");
     if(up) up.addEventListener("change", async (ev)=>{ const file = ev.target.files && ev.target.files[0]; if(file) await parseCurriculum(file); up.value = ""; });
+    ["profilePhotoInput","profilePhotoCameraInput"].forEach((id)=>{
+      const input = el(id);
+      if(input) input.addEventListener("change", async (ev)=>{
+        const file = ev.target.files && ev.target.files[0];
+        if(file) await uploadProfilePhoto(file);
+        input.value = "";
+      });
+    });
+    const btnRemovePhoto = el("btnRemovePhoto");
+    if(btnRemovePhoto) btnRemovePhoto.addEventListener("click", async ()=>{ await removeProfilePhoto(); });
     const btnLogout = el("logoutBtn") || el("btnLogout") || el("btnLogoutLink");
     if(btnLogout) btnLogout.addEventListener("click", (ev)=>{ ev.preventDefault(); logout(); });
   }
@@ -750,6 +833,38 @@ async function initBolsaCandidato(){
 
     el("btnSearch").addEventListener("click", doSearch);
     el("btnStats").addEventListener("click", loadStats);
+  }
+
+  async function uploadProfilePhoto(file){
+    if(!file) return;
+    photoBusy = true; okMsg = ''; errMsg = ''; render();
+    try{
+      const dataUrl = await compressProfileImage(file);
+      const fd = new FormData();
+      fd.append('photo', dataUrlToBlob(dataUrl), 'perfil.jpg');
+      const r = await apiFetch('/bolsa/photo', { method:'POST', body: fd });
+      cand.photoDataUrl = r.photoDataUrl || dataUrl;
+      okMsg = 'Foto actualizada correctamente.';
+    }catch(err){
+      errMsg = err?.message || 'No se pudo actualizar la foto.';
+    }finally{
+      photoBusy = false;
+      render();
+    }
+  }
+
+  async function removeProfilePhoto(){
+    photoBusy = true; okMsg = ''; errMsg = ''; render();
+    try{
+      await apiFetch('/bolsa/photo', { method:'DELETE' });
+      cand.photoDataUrl = '';
+      okMsg = 'La foto se eliminó del perfil.';
+    }catch(err){
+      errMsg = err?.message || 'No se pudo eliminar la foto.';
+    }finally{
+      photoBusy = false;
+      render();
+    }
   }
 
   async function loadMe(){
@@ -792,7 +907,7 @@ async function initBolsaCandidato(){
       parseProgress = 95;
       const summaryText = String(r.summaryText || "").trim();
       parsedMeta = r.analysis || null;
-      cand.observaciones = summaryText || buildSummaryFromSections(r.sections || {}, r.analysis || {});
+      cand.observaciones = (summaryText || buildSummaryFromSections(r.sections || {}, r.analysis || {})).slice(0, 12000);
       okMsg = "Resumen curricular generado. Revisalo en el punto 5 antes de guardar.";
       if(!isEditing) isEditing = true;
       detailsState.d5 = true;

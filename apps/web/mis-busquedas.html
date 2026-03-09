@@ -34,8 +34,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=4.3.2"></script>
-  <script src="/auth.js?v=4.3.2"></script>
+  <script src="/config.js?v=5.4.0"></script>
+  <script src="/auth.js?v=5.4.0"></script>
   <script>
     requireAuth(); applyRoleVisibility(); requireRole('COMPANY');
     document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); logout(); };
@@ -48,8 +48,10 @@
         const data=await apiFetch('/jobs/mine'); const jobs=data.jobs||[];
         totalBadge.textContent = `${jobs.length} publicación(es)`;
         msg.textContent = jobs.length ? 'Tus búsquedas activas aparecen de la más reciente a la más antigua.' : 'Sin publicaciones aún.';
-        list.innerHTML = jobs.map((j,idx)=>`<div class="accordionItem ${idx===0?'open':''}"><div class="accordionHead"><div><div style="font-size:20px">${esc(j.title)}</div><div class="muted small">${fmt(j.createdAt)} • ${esc(j.location||'Ubicación a definir')} • ${esc(j.status||'PUBLISHED')}</div></div><span>${idx===0?'−':'+'}</span></div><div class="accordionBody"><div class="talentMeta"><span class="tag">${esc(j.modality||'Modalidad no indicada')}</span><span class="tag">${j.applicationsCount || 0} CVs sin leer</span></div><div class="sectionMini"><b>Descripción publicada</b><br>${esc(j.description||'')}</div>${j.requirements?`<div class="sectionMini"><b>Requisitos / detalle técnico</b><br>${esc(j.requirements)}</div>`:''}</div></div>`).join('');
+        list.innerHTML = jobs.map((j,idx)=>`<div class="accordionItem ${idx===0?'open':''} ${j.visibleToCandidates===false?'mutedJob':''}" data-id="${j.id}"><div class="accordionHead"><div><div style="font-size:20px">${esc(j.title)}</div><div class="muted small">${fmt(j.createdAt)} • ${esc(j.location||'Ubicación a definir')} • ${j.visibleToCandidates===false?'Oculta a candidatos':'Visible a candidatos'}</div></div><span>${idx===0?'−':'+'}</span></div><div class="accordionBody"><div class="talentMeta"><span class="tag">${esc(j.modality||'Modalidad no indicada')}</span><span class="tag">${j.applicationsCount || 0} CVs sin leer</span><span class="tag">${j.visibleToCandidates===false?'No mostrar':'Visible'}</span></div><div class="sectionMini"><b>Descripción publicada</b><br>${esc(j.description||'')}</div>${j.requirements?`<div class="sectionMini"><b>Requisitos / detalle técnico</b><br>${esc(j.requirements)}</div>`:''}<div class="row" style="justify-content:flex-end"><button class="btn btn-ghost btnToggleVisibility" data-id="${j.id}" data-visible="${j.visibleToCandidates===false?'0':'1'}" type="button">${j.visibleToCandidates===false?'Mostrar':'No mostrar'}</button><button class="btn btn-ghost btnDeleteJob" data-id="${j.id}" type="button">Eliminar</button></div></div></div>`).join('');
         list.querySelectorAll('.accordionItem').forEach(item=>{ item.querySelector('.accordionHead').onclick=()=>{ item.classList.toggle('open'); item.querySelector('.accordionHead span').textContent=item.classList.contains('open')?'−':'+'; }; });
+        list.querySelectorAll('.btnToggleVisibility').forEach(btn=>{ btn.onclick=async (ev)=>{ ev.stopPropagation(); msg.textContent='Actualizando visibilidad…'; try{ await apiFetch('/jobs/'+btn.dataset.id, { method:'PATCH', body: JSON.stringify({ visibleToCandidates: btn.dataset.visible !== '1' }) }); location.reload(); }catch(e){ msg.textContent=e.message; } }; });
+        list.querySelectorAll('.btnDeleteJob').forEach(btn=>{ btn.onclick=async (ev)=>{ ev.stopPropagation(); msg.textContent='Eliminando publicación…'; try{ await apiFetch('/jobs/'+btn.dataset.id, { method:'DELETE' }); location.reload(); }catch(e){ msg.textContent=e.message; } }; });
       }catch(e){ msg.textContent=e.message; }
     })();
   </script>

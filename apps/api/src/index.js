@@ -7,12 +7,20 @@ import { z } from "zod";
 import { PrismaClient } from "@prisma/client";
 import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
+import fs from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const prisma = new PrismaClient();
 const app = express();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const UPLOADS_DIR = path.resolve(__dirname, "../uploads");
+const PUBLIC_UPLOADS = "/uploads";
 
 app.use(cors());
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "3mb" }));
+app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
 const APP_VERSION = process.env.npm_package_version || "dev";
@@ -69,6 +77,37 @@ function similarity(a, b){
   return 1 - (dist / maxLen);
 }
 
+function clampText(s = "", max = 12000){
+  const str = String(s || "").replace(/\s+/g, " ").trim();
+  if(str.length <= max) return str;
+  const cut = str.slice(0, Math.max(0, max - 1));
+  const last = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("; "), cut.lastIndexOf(", "), cut.lastIndexOf(" "));
+  return (last > max * 0.65 ? cut.slice(0, last) : cut).trim() + "…";
+}
+
+function safeFileName(s = ""){
+  return String(s || "file").replace(/[^a-z0-9._-]+/gi, "-").replace(/-+/g, "-").replace(/^[-.]+|[-.]+$/g, "") || "file";
+}
+
+async function ensureUploadsDir(){
+  await fs.mkdir(UPLOADS_DIR, { recursive: true });
+}
+
+async function saveCandidatePhoto(userId, buffer, ext = "jpg"){
+  await ensureUploadsDir();
+  const filename = safeFileName(`candidate-${userId}-${Date.now()}.${ext}`);
+  const abs = path.join(UPLOADS_DIR, filename);
+  await fs.writeFile(abs, buffer);
+  return `${PUBLIC_UPLOADS}/${filename}`;
+}
+
+async function deleteUploadedFile(fileUrl){
+  if(!fileUrl || !String(fileUrl).startsWith(PUBLIC_UPLOADS + "/")) return;
+  const abs = path.join(UPLOADS_DIR, path.basename(fileUrl));
+  try{ await fs.unlink(abs); }catch{}
+}
+
+
 function signToken(user){
   return jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
 }
@@ -112,6 +151,7 @@ app.get("/me", authRequired, async (req, res) => {
         dni: user.candidateProfile.dni || null,
         phone: user.candidateProfile.phone || null,
         city: user.candidateProfile.city || null,
+        province: user.candidateProfile.province || null,
         address: user.candidateProfile.address || null,
       } : null,
     });
@@ -1121,6 +1161,7 @@ app.post("/bolsa/me", authRequired, async (req, res) => {
       return res.status(403).json({ ok:false, error:"FORBIDDEN_ROLE" });
     }
     const data = bolsaSchema.parse(req.body);
+    if(data.observaciones) data.observaciones = clampText(data.observaciones, 12000);
 
     const existingProfile = await prisma.profile.findUnique({ where: { userId: req.user.id } });
     if(existingProfile?.dni && String(existingProfile.dni) !== String(data.dni)){
@@ -1356,7 +1397,7 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
         telefono:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
         especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true,
         tieneCapacitacion:true, trabajaActualmente:true, sueldoPretendido:true, ultimoTrabajo:true,
-        observaciones:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true
+        observaciones:true, photoDataUrl:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true
       },
       take: 2000,
     });
@@ -1410,6 +1451,7 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
       sueldo_pretendido: it.sueldoPretendido,
       ultimo_trabajo: it.ultimoTrabajo,
       observaciones: it.observaciones,
+      photoDataUrl: it.photoDataUrl,
       herramientas_mecanica: toArrayField(it.herramientasMecanica),
       instrumentos_electrica: toArrayField(it.instrumentosElectrica),
       created_at: it.createdAt,
@@ -1460,7 +1502,7 @@ app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res)
     if (!website) return res.status(400).json({ error: 'Falta sitio web' });
     let url = website;
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/4.3.0 (+Render)' } });
+    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.4.0 (+Render)' } });
     const html = await response.text();
     const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [,''])[1].replace(/\s+/g,' ').trim();
     const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i) || [,''])[1].trim();
@@ -1520,7 +1562,7 @@ app.get('/company/candidates', auth, requireRole('COMPANY'), async (req, res) =>
         telefono:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
         especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true,
         tieneCapacitacion:true, trabajaActualmente:true, sueldoPretendido:true, ultimoTrabajo:true,
-        observaciones:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true
+        observaciones:true, photoDataUrl:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true
       }
     });
     const byId = new Map(all.map((it)=>[it.id, it]));
@@ -1547,6 +1589,7 @@ app.get('/company/candidates', auth, requireRole('COMPANY'), async (req, res) =>
       sueldo_pretendido: it.sueldoPretendido,
       ultimo_trabajo: it.ultimoTrabajo,
       observaciones: it.observaciones,
+      photoDataUrl: it.photoDataUrl,
       herramientas_mecanica: toArrayField(it.herramientasMecanica),
       instrumentos_electrica: toArrayField(it.instrumentosElectrica),
       created_at: it.createdAt,
@@ -1682,7 +1725,8 @@ app.post("/jobs", auth, requireRole("COMPANY"), async (req, res) => {
       description: parsed.data.description,
       requirements: parsed.data.requirements ?? null,
       categoryId: parsed.data.categoryId ?? null,
-      status: "PUBLISHED"
+      status: "PUBLISHED",
+      visibleToCandidates: true
     }
   });
 
@@ -1693,7 +1737,7 @@ app.get("/jobs", async (req, res) => {
   const q = String(req.query.q || "").trim();
   const categoryId = String(req.query.categoryId || "").trim();
 
-  const where = { status: "PUBLISHED" };
+  const where = { status: "PUBLISHED", visibleToCandidates: true };
   if (q) {
     where.OR = [
       { title: { contains: q, mode: "insensitive" } },
@@ -1717,6 +1761,31 @@ app.get("/jobs/mine", auth, requireRole("COMPANY"), async (req, res) => {
   if (!c) return res.json({ jobs: [] });
   const jobs = await prisma.job.findMany({ where: { companyId: c.id }, orderBy: { createdAt: "desc" } });
   res.json({ jobs });
+});
+
+app.patch("/jobs/:id", auth, requireRole("COMPANY"), async (req, res) => {
+  try{
+    const job = await prisma.job.findUnique({ where: { id: req.params.id }, include: { company: true } });
+    if(!job || job.company?.userId !== req.user.id) return res.status(404).json({ error: "Búsqueda no encontrada" });
+    const visibleToCandidates = typeof req.body?.visibleToCandidates === 'boolean' ? req.body.visibleToCandidates : job.visibleToCandidates;
+    const updated = await prisma.job.update({ where: { id: job.id }, data: { visibleToCandidates } });
+    res.json(updated);
+  }catch(err){
+    console.error('PATCH /jobs/:id', err);
+    res.status(500).json({ error: 'No se pudo actualizar la búsqueda' });
+  }
+});
+
+app.delete("/jobs/:id", auth, requireRole("COMPANY"), async (req, res) => {
+  try{
+    const job = await prisma.job.findUnique({ where: { id: req.params.id }, include: { company: true } });
+    if(!job || job.company?.userId !== req.user.id) return res.status(404).json({ error: "Búsqueda no encontrada" });
+    await prisma.job.delete({ where: { id: job.id } });
+    res.json({ ok:true, deleted:true });
+  }catch(err){
+    console.error('DELETE /jobs/:id', err);
+    res.status(500).json({ error: 'No se pudo eliminar la búsqueda' });
+  }
 });
 
 const applySchema = z.object({ coverNote: z.string().max(4000).optional().nullable() });
