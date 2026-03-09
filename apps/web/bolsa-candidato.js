@@ -203,7 +203,16 @@ function photoMarkup(url, alt){
   if(url){
     return `<img src="${esc(url)}" alt="${esc(alt || 'Foto de perfil')}" class="candidateAvatarLarge" />`;
   }
-  return `<div class="candidateAvatarLarge placeholder"><span>📷</span></div>`;
+  return `<div class="candidateAvatarLarge placeholder"><span>👤</span></div>`;
+}
+
+function stopCameraStream(stream){
+  try{ (stream?.getTracks?.() || []).forEach(t=>t.stop()); }catch(_){ }
+}
+
+function fileFromDataUrl(dataUrl, filename='perfil.jpg'){
+  const blob = dataUrlToBlob(dataUrl);
+  return new File([blob], filename, { type: blob.type || 'image/jpeg' });
 }
 
 function splitFullName(fullName){
@@ -312,6 +321,10 @@ async function initBolsaCandidato(){
   let parseMsg = "";
   let parsedMeta = null;
   let photoBusy = false;
+  let cameraOpen = false;
+  let cameraError = "";
+  let cameraShotDataUrl = "";
+  let cameraStream = null;
   let detailsState = { d1:false, d2:false, d3:false, d4:false, d5:false };
 
   let jobs = {
@@ -418,17 +431,36 @@ async function initBolsaCandidato(){
             <section class="tp-photo-card">
               <div>
                 <div class="tp-mini-label">Foto del candidato</div>
-                <div class="tp-mini-value">Agregá una imagen clara de tu rostro para identificarte mejor ante las empresas. Podés usar la cámara o elegir una foto guardada.</div>
+                <div class="tp-mini-value">Agregá una foto clara de tu rostro para que las empresas te identifiquen mejor. Podés tomarla ahora con la cámara o subir una imagen desde tu equipo.</div>
               </div>
               <div class="candidateAvatarWrap">${photoMarkup(cand.photoDataUrl, cand.nombre || cand.apellido || '?')}</div>
-              <div class="row" style="margin-top:10px">
+              <div class="row tp-photo-actions" style="margin-top:10px">
+                <button class="btn secondary" id="btnOpenCamera" type="button" ${photoBusy?"disabled":""}>Tomar foto</button>
                 <label class="btn secondary tp-upload-btn" for="profilePhotoInput">Subir archivo</label>
-                <label class="btn secondary tp-upload-btn" for="profilePhotoCameraInput">Abrir cámara</label>
                 ${cand.photoDataUrl ? `<button class="btn btn-ghost" id="btnRemovePhoto" type="button" ${photoBusy?"disabled":""}>Quitar</button>` : ''}
               </div>
               <input id="profilePhotoInput" type="file" accept="image/*" hidden />
-              <input id="profilePhotoCameraInput" type="file" accept="image/*" capture="user" hidden />
-              <div class="muted small" style="margin-top:8px">La imagen se centra, reduce y comprime automáticamente para mantener calidad con bajo peso.</div>
+              <div class="muted small" style="margin-top:8px">La imagen se recorta al centro, se optimiza y queda lista para mostrarse primero del lado empresa.</div>
+              ${cameraOpen ? `
+                <div class="tp-camera-panel">
+                  <div class="tp-camera-head"><b>Capturá tu foto</b><span class="muted small">Alineá tu rostro y evitá el fondo completo.</span></div>
+                  ${cameraError ? `<div class="error" style="margin-top:8px">${esc(cameraError)}</div>` : ``}
+                  ${cameraShotDataUrl ? `
+                    <div class="tp-camera-preview-wrap"><img src="${esc(cameraShotDataUrl)}" alt="Vista previa de la foto" class="tp-camera-shot" /></div>
+                    <div class="row" style="margin-top:10px">
+                      <button class="btn" id="btnUseCameraShot" type="button">Usar foto</button>
+                      <button class="btn secondary" id="btnRetakePhoto" type="button">Tomar otra</button>
+                      <button class="btn btn-ghost" id="btnCloseCamera" type="button">Cancelar</button>
+                    </div>
+                  ` : `
+                    <div class="tp-camera-preview-wrap"><video id="profileCameraVideo" class="tp-camera-video" autoplay playsinline muted></video></div>
+                    <div class="row" style="margin-top:10px">
+                      <button class="btn" id="btnCapturePhoto" type="button">Capturar</button>
+                      <button class="btn btn-ghost" id="btnCloseCamera" type="button">Cancelar</button>
+                    </div>
+                  `}
+                </div>
+              ` : ``}
             </section>
             <section class="tp-retention-card">
               <div class="tp-mini-label">Conservación del perfil curricular</div>
@@ -798,16 +830,25 @@ async function initBolsaCandidato(){
     if(btnCancel) btnCancel.addEventListener("click", async ()=>{ if(parsingCv) return; isEditing = false; okMsg=""; errMsg=""; await loadMe(); await loadBolsa(); });
     const up = el("cvUploadInput");
     if(up) up.addEventListener("change", async (ev)=>{ const file = ev.target.files && ev.target.files[0]; if(file) await parseCurriculum(file); up.value = ""; });
-    ["profilePhotoInput","profilePhotoCameraInput"].forEach((id)=>{
-      const input = el(id);
-      if(input) input.addEventListener("change", async (ev)=>{
-        const file = ev.target.files && ev.target.files[0];
-        if(file) await uploadProfilePhoto(file);
-        input.value = "";
-      });
+    const profilePhotoInput = el("profilePhotoInput");
+    if(profilePhotoInput) profilePhotoInput.addEventListener("change", async (ev)=>{
+      const file = ev.target.files && ev.target.files[0];
+      if(file) await uploadProfilePhoto(file);
+      profilePhotoInput.value = "";
     });
+    const btnOpenCamera = el('btnOpenCamera');
+    if(btnOpenCamera) btnOpenCamera.addEventListener('click', openCameraCapture);
+    const btnCapturePhoto = el('btnCapturePhoto');
+    if(btnCapturePhoto) btnCapturePhoto.addEventListener('click', captureCameraPhoto);
+    const btnUseCameraShot = el('btnUseCameraShot');
+    if(btnUseCameraShot) btnUseCameraShot.addEventListener('click', useCameraShot);
+    const btnRetakePhoto = el('btnRetakePhoto');
+    if(btnRetakePhoto) btnRetakePhoto.addEventListener('click', openCameraCapture);
+    const btnCloseCamera = el('btnCloseCamera');
+    if(btnCloseCamera) btnCloseCamera.addEventListener('click', closeCameraCapture);
     const btnRemovePhoto = el("btnRemovePhoto");
     if(btnRemovePhoto) btnRemovePhoto.addEventListener("click", async ()=>{ await removeProfilePhoto(); });
+    attachCameraPreview();
     const btnLogout = el("logoutBtn") || el("btnLogout") || el("btnLogoutLink");
     if(btnLogout) btnLogout.addEventListener("click", (ev)=>{ ev.preventDefault(); logout(); });
   }
@@ -865,6 +906,78 @@ async function initBolsaCandidato(){
       photoBusy = false;
       render();
     }
+  }
+
+  async function openCameraCapture(){
+    cameraError = '';
+    cameraShotDataUrl = '';
+    stopCameraStream(cameraStream);
+    cameraStream = null;
+    try{
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        throw new Error('Tu navegador no permite usar la cámara desde esta pantalla.');
+      }
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'user', width:{ideal:720}, height:{ideal:720} }, audio:false });
+      cameraOpen = true;
+      render();
+    }catch(err){
+      cameraOpen = true;
+      cameraError = err?.message || 'No se pudo acceder a la cámara.';
+      render();
+    }
+  }
+
+  function attachCameraPreview(){
+    if(!cameraOpen || cameraShotDataUrl || !cameraStream) return;
+    const video = el('profileCameraVideo');
+    if(video && video.srcObject !== cameraStream){
+      video.srcObject = cameraStream;
+      video.play?.().catch(()=>{});
+    }
+  }
+
+  function closeCameraCapture(){
+    stopCameraStream(cameraStream);
+    cameraStream = null;
+    cameraOpen = false;
+    cameraShotDataUrl = '';
+    cameraError = '';
+    render();
+  }
+
+  function captureCameraPhoto(){
+    const video = el('profileCameraVideo');
+    if(!video || !video.videoWidth || !video.videoHeight){
+      cameraError = 'Todavía no hay imagen disponible de la cámara.';
+      render();
+      return;
+    }
+    const size = Math.min(video.videoWidth, video.videoHeight);
+    const sx = Math.max(0, Math.round((video.videoWidth - size) / 2));
+    const sy = Math.max(0, Math.round((video.videoHeight - size) / 2));
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(video, sx, sy, size, size, 0, 0, 512, 512);
+    cameraShotDataUrl = canvas.toDataURL('image/jpeg', 0.84);
+    stopCameraStream(cameraStream);
+    cameraStream = null;
+    cameraError = '';
+    render();
+  }
+
+  async function useCameraShot(){
+    if(!cameraShotDataUrl) return;
+    await uploadProfilePhoto(fileFromDataUrl(cameraShotDataUrl));
+    cameraOpen = false;
+    cameraShotDataUrl = '';
+    cameraError = '';
+    stopCameraStream(cameraStream);
+    cameraStream = null;
+    render();
   }
 
   async function loadMe(){

@@ -407,3 +407,25 @@ pre{white-space:pre-wrap}
 .appShell .globalBrandFooter{border-top:1px solid rgba(255,255,255,.10);}
 body:not(.appShell):not(.authBody) .globalBrandFooter{border-top:1px solid rgba(15,23,42,.08);}
 .authBrand .brandLogo, .header .brand img, .topbar .brand img{border-radius:12px;background:rgba(255,255,255,.08);padding:2px;object-fit:contain}
+
+
+/* Candidate profile photo / camera */
+.tp-profile-grid{display:grid;grid-template-columns:minmax(320px,.95fr) minmax(280px,1.05fr);gap:16px;margin-top:16px}
+@media(max-width:920px){.tp-profile-grid{grid-template-columns:1fr}}
+.tp-photo-card,.tp-retention-card{background:#fff;border:1px solid rgba(23,105,224,.12);border-radius:20px;padding:18px;box-shadow:0 10px 26px rgba(15,23,42,.05)}
+.tp-mini-label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:#6b7ca1;margin-bottom:6px}
+.tp-mini-value{font-weight:800;color:#0f2b63;line-height:1.4}
+.candidateAvatarWrap{display:flex;justify-content:flex-start;margin-top:14px}
+.candidateAvatarLarge{width:148px;height:148px;border-radius:26px;object-fit:cover;object-position:center;border:3px solid rgba(23,105,224,.14);background:#fff;box-shadow:0 12px 28px rgba(15,23,42,.12);display:block}
+.candidateAvatarLarge.placeholder{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg, rgba(23,105,224,.08), rgba(79,163,255,.18));color:#0d47a1;font-size:54px;font-weight:900}
+.tp-camera-panel{margin-top:14px;border:1px solid rgba(23,105,224,.14);border-radius:18px;padding:14px;background:linear-gradient(180deg, rgba(23,105,224,.04), rgba(255,255,255,.96))}
+.tp-camera-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.tp-camera-preview-wrap{margin-top:12px;display:flex;justify-content:center}
+.tp-camera-video,.tp-camera-shot{width:min(100%, 360px);aspect-ratio:1/1;border-radius:24px;object-fit:cover;object-position:center;background:#0b1220;box-shadow:0 12px 28px rgba(15,23,42,.16);border:2px solid rgba(23,105,224,.14)}
+.tp-photo-actions .btn,.tp-camera-panel .btn{min-width:120px}
+.tp-details{margin-top:10px;background:#fff;border:1px solid rgba(23,105,224,.12);border-radius:18px;overflow:hidden;box-shadow:0 10px 26px rgba(15,23,42,.04)}
+.tp-details summary{list-style:none;cursor:pointer;padding:16px 18px;font-weight:900;color:#0f2b63;display:flex;justify-content:space-between;align-items:center}
+.tp-details summary::-webkit-details-marker{display:none}
+.tp-details[open] summary{border-bottom:1px solid rgba(23,105,224,.10)}
+.tp-details .formGrid{padding:0 18px 18px 18px}
+.field-lock{background:rgba(15,23,42,.04)!important;color:#3a4f74}
