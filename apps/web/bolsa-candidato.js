@@ -1,4 +1,4 @@
-/* Talento PyME - v5.4.7 (candidato) - Mi Perfil institucional + foto + resumen curricular */
+/* Talento PyME - v5.4.8 (candidato) - Mi Perfil institucional + foto + resumen curricular */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -325,6 +325,7 @@ async function initBolsaCandidato(){
   let cameraError = "";
   let cameraShotDataUrl = "";
   let cameraStream = null;
+  let cameraStatus = "";
   let detailsState = { d1:false, d2:false, d3:false, d4:false, d5:false };
 
   let jobs = {
@@ -435,21 +436,21 @@ async function initBolsaCandidato(){
               </div>
               <div class="candidateAvatarWrap">${photoMarkup(cand.photoDataUrl, cand.nombre || cand.apellido || '?')}</div>
               <div class="tp-photo-help">
-                <div><b>Tomar foto</b>: abre la cámara del celular o la webcam de la PC. Enfocá tu rostro, capturá y confirmá con <b>Usar foto</b>.</div>
-                <div><b>Subir archivo</b>: te deja elegir una imagen desde tu galería o una carpeta del equipo. El sistema la recorta al centro y la optimiza automáticamente.</div>
+                <div><b>Tomar foto</b>: usá la cámara del celular o la webcam de la computadora para sacar una foto nueva. Si la vista previa no aparece o la cámara está bloqueada, usá la opción <b>Subir archivo</b>.</div>
+                <div><b>Subir archivo</b>: elegí una imagen guardada en tu celular o en una carpeta del equipo. El sistema la recorta al centro y la optimiza automáticamente.</div>
               </div>
               <div class="row tp-photo-actions" style="margin-top:12px">
                 <button class="btn btn-tech" id="btnOpenCamera" type="button" ${photoBusy?"disabled":""}>📷 Tomar foto</button>
-                <button class="btn secondary tp-btn-secondary" id="btnOpenUpload" type="button" ${photoBusy?"disabled":""}>🖼 Subir archivo</button>
+                <label class="btn secondary tp-btn-secondary" for="profilePhotoInput">🖼 Subir archivo</label>
                 ${cand.photoDataUrl ? `<button class="btn btn-ghost" id="btnRemovePhoto" type="button" ${photoBusy?"disabled":""}>Quitar foto</button>` : ''}
               </div>
-              <input id="profilePhotoInput" type="file" accept="image/*" hidden />
-              <input id="profileCameraInput" type="file" accept="image/*" capture="user" hidden />
-              <div class="muted small" style="margin-top:8px">La imagen se recorta al centro, se optimiza para reducir peso y queda lista para mostrarse primero del lado empresa.</div>
+              <input id="profilePhotoInput" type="file" accept="image/*" aria-label="Subir foto de perfil" />
+              <input id="profileCameraInput" type="file" accept="image/*" capture="user" aria-label="Tomar foto con cámara" />
+              <div class="muted small" style="margin-top:8px">Sugerencia: si estás en PC y la cámara no se ve, probá con <b>Subir archivo</b>. La foto siempre se recorta al centro y se optimiza para reducir peso.</div>
               ${cameraOpen ? `
                 <div class="tp-camera-panel">
                   <div class="tp-camera-head"><b>Capturá tu foto</b><span class="muted small">Alineá tu rostro dentro del cuadro y evitá mostrar el cuerpo completo.</span></div>
-                  ${cameraError ? `<div class="error" style="margin-top:8px">${esc(cameraError)}</div>` : ``}
+                  ${cameraError ? `<div class="error" style="margin-top:8px">${esc(cameraError)}</div>` : ``}${cameraStatus ? `<div class="muted small" style="margin-top:8px">${esc(cameraStatus)}</div>` : ``}
                   ${cameraShotDataUrl ? `
                     <div class="tp-camera-preview-wrap"><img src="${esc(cameraShotDataUrl)}" alt="Vista previa de la foto" class="tp-camera-shot" /></div>
                     <div class="row" style="margin-top:10px">
@@ -845,6 +846,7 @@ async function initBolsaCandidato(){
     if(profileCameraInput) profileCameraInput.addEventListener("change", async (ev)=>{
       const file = ev.target.files && ev.target.files[0];
       if(file) await uploadProfilePhoto(file);
+      cameraOpen = false; cameraStatus=''; cameraError=''; cameraShotDataUrl='';
       profileCameraInput.value = "";
     });
     const btnOpenUpload = el('btnOpenUpload');
@@ -923,25 +925,38 @@ async function initBolsaCandidato(){
 
   async function openCameraCapture(){
     cameraError = '';
+    cameraStatus = 'Preparando cámara...';
     cameraShotDataUrl = '';
     stopCameraStream(cameraStream);
     cameraStream = null;
     const mobileInput = el('profileCameraInput');
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
     if(isMobile && mobileInput){
+      cameraStatus = 'Se abrirá la cámara del dispositivo. Si no aparece, usá Subir archivo.';
+      render();
       mobileInput.click();
       return;
     }
+    cameraOpen = true;
+    render();
     try{
       if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
         throw new Error('Tu navegador no permite usar la cámara desde esta pantalla.');
       }
-      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'user', width:{ideal:720}, height:{ideal:720} }, audio:false });
-      cameraOpen = true;
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'user', width:{ideal:960}, height:{ideal:960} }, audio:false });
+      cameraStatus = 'Cámara activada. Alineá tu rostro y presioná Capturar.';
       render();
+      setTimeout(()=>{
+        const video = el('profileCameraVideo');
+        if(cameraOpen && video && (!video.videoWidth || !video.videoHeight)){
+          cameraError = 'No pudimos mostrar la imagen de la cámara. Revisá permisos del navegador o usá Subir archivo.';
+          cameraStatus = '';
+          render();
+        }
+      }, 1800);
     }catch(err){
-      cameraOpen = true;
       cameraError = 'No se pudo abrir la cámara automáticamente. Probá con Subir archivo o revisá los permisos del navegador.';
+      cameraStatus = '';
       render();
     }
   }
@@ -951,6 +966,14 @@ async function initBolsaCandidato(){
     const video = el('profileCameraVideo');
     if(video && video.srcObject !== cameraStream){
       video.srcObject = cameraStream;
+      video.onloadedmetadata = ()=>{
+        cameraStatus = 'Cámara lista. Cuando te veas en pantalla, presioná Capturar.';
+        video.play?.().catch(()=>{});
+        render();
+      };
+      video.oncanplay = ()=>{
+        cameraStatus = 'Cámara lista. Cuando te veas en pantalla, presioná Capturar.';
+      };
       video.play?.().catch(()=>{});
     }
   }
@@ -961,6 +984,7 @@ async function initBolsaCandidato(){
     cameraOpen = false;
     cameraShotDataUrl = '';
     cameraError = '';
+    cameraStatus = '';
     render();
   }
 

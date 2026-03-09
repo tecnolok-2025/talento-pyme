@@ -434,3 +434,5 @@ body:not(.appShell):not(.authBody) .globalBrandFooter{border-top:1px solid rgba(
 .tp-btn-secondary{background:#eef4ff;color:var(--tp-blue-900);border:1px solid rgba(23,105,224,.18)}
 .tp-btn-secondary:hover{background:#e2ecff}
 .tp-photo-actions .btn{display:inline-flex;align-items:center;justify-content:center}
+
+#profilePhotoInput,#profileCameraInput{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}.tp-photo-actions label.btn{display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
