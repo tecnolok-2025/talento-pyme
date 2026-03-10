@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Buscar Talento</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.5.6" />
+  <link rel="stylesheet" href="/styles.css?v=5.5.7" />
   <style>
     .talentCard{padding:0;overflow:hidden;cursor:default}
     .talentCardHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px;cursor:pointer}
@@ -19,6 +19,13 @@
     .talentInlineGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
     .talentMini{padding:10px 12px;border-radius:14px;background:#fff;border:1px solid rgba(23,105,224,.12)}
     .talentMini b{display:block;margin-bottom:4px;color:#0d47a1}
+    .salarySpot{margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:16px;border:1px solid rgba(16,185,129,.22);background:linear-gradient(135deg, rgba(16,185,129,.18), rgba(59,130,246,.08));box-shadow:0 10px 22px rgba(16,185,129,.10)}
+    .salarySpotLabel{font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:900;color:#047857}
+    .salarySpotValue{font-size:18px;font-weight:900;color:#0f172a}
+    .salarySpotHint{font-size:12px;color:#475569;font-weight:700}
+    .salarySpot.is-missing{border-style:dashed;background:rgba(148,163,184,.08);box-shadow:none}
+    .salarySpot.is-missing .salarySpotLabel{color:#475569}
+    .salarySpot.is-missing .salarySpotValue{font-size:15px;color:#475569}
     .talentHint{margin-top:12px;padding:12px 14px;border-radius:14px;background:rgba(14,165,233,.08);border:1px dashed rgba(14,165,233,.35);font-weight:700;color:#0f172a}
     .detailCard.is-collapsed #detailBody{opacity:.72}
     @media(max-width:760px){.talentCardHead{flex-direction:column}.talentToggle{width:100%;justify-content:center}.talentInlineGrid{grid-template-columns:1fr}}
@@ -167,8 +174,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.5.6"></script>
-  <script src="/auth.js?v=5.5.6"></script>
+  <script src="/config.js?v=5.5.7"></script>
+  <script src="/auth.js?v=5.5.7"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -292,6 +299,7 @@
         const isActive = jobsSelected && jobsSelected.id === it.id;
         const isOpen = jobsOpenId && jobsOpenId === it.id;
         const resumenBase = it.observaciones || it.ultimo_trabajo || 'Perfil sin observaciones cargadas.';
+        const sueldoVisible = (it.sueldo_pretendido || '').trim();
         return `
           <div class="talentCard ${isActive?'active':''} ${isOpen?'is-open':''}" data-id="${it.id}">
             <div class="talentCardHead" data-action="toggle" data-id="${it.id}">
@@ -303,6 +311,13 @@
                   ${especialidad ? `<span class="tag">${esc(especialidad)}</span>` : ''}
                   ${it.rango_experiencia ? `<span class="tag">Exp. ${esc(it.rango_experiencia)}</span>` : ''}
                   ${it.nivel_educativo ? `<span class="tag">${esc(it.nivel_educativo)}</span>` : ''}
+                </div>
+                <div class="salarySpot ${sueldoVisible ? '' : 'is-missing'}">
+                  <div>
+                    <div class="salarySpotLabel">Pretensión salarial</div>
+                    <div class="salarySpotValue">${esc(sueldoVisible || 'No informada')}</div>
+                  </div>
+                  <div class="salarySpotHint">${sueldoVisible ? 'Visible aun con la ficha cerrada.' : 'Conviene pedir este dato en Mi Perfil para una preselección más rápida.'}</div>
                 </div>
                 <div class="muted" style="margin-top:10px">${esc(resumenBase).slice(0,180)}${resumenBase.length>180?'…':''}</div>
                 <div class="small muted" style="margin-top:10px">Última actualización: ${esc(formatDate(it.updated_at || it.created_at) || 's/d')}</div>
