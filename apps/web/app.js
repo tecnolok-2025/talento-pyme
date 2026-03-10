@@ -1,4 +1,4 @@
-// Shared helpers for Talento PyME (v4.0.9)
+// Shared helpers for Talento PyME (v5.5.3)
 // NOTA: Este archivo puede cargarse en cualquier pantalla.
 // No debe asumir que existen ciertos elementos en el DOM.
 

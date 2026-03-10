@@ -1,4 +1,4 @@
-/* Talento PyME - v5.4.8 (candidato) - Mi Perfil institucional + foto + resumen curricular */
+/* Talento PyME - v5.5.3 (candidato) - Mi Perfil institucional + foto + resumen curricular */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -442,7 +442,7 @@ async function initBolsaCandidato(){
               </div>
               <div class="tp-photo-actions" style="margin-top:12px">
                 <button class="btn btn-tech" id="btnOpenCamera" type="button" ${photoBusy?"disabled":""}>📷 Tomar foto</button>
-                <label class="btn btn-tech tp-upload-btn" for="profilePhotoInput" ${photoBusy?"aria-disabled="true"":""}>🖼 Subir archivo</label>
+                <label class="btn btn-tech tp-upload-btn" for="profilePhotoInput" ${photoBusy ? 'aria-disabled="true"' : ""}>🖼 Subir archivo</label>
                 ${cand.photoDataUrl ? `<button class="btn btn-ghost" id="btnRemovePhoto" type="button" ${photoBusy?"disabled":""}>Quitar foto</button>` : ''}
               </div>
               <div class="muted small" style="margin-top:8px"><b>Tomar foto</b> abre la cámara del celular o la webcam. <b>Subir archivo</b> permite elegir una imagen guardada. <b>Formatos permitidos</b>: JPG, JPEG, PNG, WEBP y HEIC.</div>
