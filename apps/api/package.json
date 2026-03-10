@@ -1,6 +1,6 @@
 {
   "name": "talento-pyme-api",
-  "version": "5.5.4",
+  "version": "5.5.5",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
