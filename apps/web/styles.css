@@ -422,7 +422,7 @@ body:not(.appShell):not(.authBody) .globalBrandFooter{border-top:1px solid rgba(
 .tp-camera-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
 .tp-camera-preview-wrap{margin-top:12px;display:flex;justify-content:center}
 .tp-camera-video,.tp-camera-shot{width:min(100%, 360px);aspect-ratio:1/1;border-radius:24px;object-fit:cover;object-position:center;background:#0b1220;box-shadow:0 12px 28px rgba(15,23,42,.16);border:2px solid rgba(23,105,224,.14)}
-.tp-photo-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:stretch}.tp-photo-actions .btn,.tp-camera-panel .btn{min-width:0;width:100%;min-height:46px}.tp-btn-upload{background:#eef4ff;color:var(--tp-blue-900);border:1px solid rgba(23,105,224,.22)}.tp-btn-upload:hover{background:#e2ecff}.tp-photo-actions .btn-ghost{grid-column:1/-1}.tp-camera-panel .row{flex-wrap:wrap}.tp-camera-panel .row .btn{flex:1 1 140px}
+.tp-photo-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:stretch}.tp-photo-actions .btn,.tp-photo-actions .tp-upload-btn,.tp-camera-panel .btn{min-width:0;width:100%;min-height:48px;border-radius:14px;font-size:15px;font-weight:800}.tp-photo-actions .btn-ghost{grid-column:1/-1}.tp-camera-panel .row{flex-wrap:wrap}.tp-camera-panel .row .btn{flex:1 1 140px}
 @media(max-width:640px){.tp-photo-actions{grid-template-columns:1fr}}
 .tp-details{margin-top:10px;background:#fff;border:1px solid rgba(23,105,224,.12);border-radius:18px;overflow:hidden;box-shadow:0 10px 26px rgba(15,23,42,.04)}
 .tp-details summary{list-style:none;cursor:pointer;padding:16px 18px;font-weight:900;color:#0f2b63;display:flex;justify-content:space-between;align-items:center}
@@ -436,4 +436,4 @@ body:not(.appShell):not(.authBody) .globalBrandFooter{border-top:1px solid rgba(
 .tp-btn-secondary:hover{background:#e2ecff}
 .tp-photo-actions .btn{display:inline-flex;align-items:center;justify-content:center}
 
-#profilePhotoInput,#profileCameraInput{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}.tp-photo-actions label.btn{display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+#profilePhotoInput,#profileCameraInput{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}.tp-photo-actions label.btn,.tp-photo-actions .tp-upload-btn{display:inline-flex;align-items:center;justify-content:center;cursor:pointer;text-decoration:none}.tp-upload-btn[aria-disabled="true"]{opacity:.6;pointer-events:none}

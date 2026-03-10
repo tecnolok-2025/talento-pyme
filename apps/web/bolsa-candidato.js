@@ -442,10 +442,10 @@ async function initBolsaCandidato(){
               </div>
               <div class="tp-photo-actions" style="margin-top:12px">
                 <button class="btn btn-tech" id="btnOpenCamera" type="button" ${photoBusy?"disabled":""}>📷 Tomar foto</button>
-                <button class="btn btn-tech tp-btn-upload" id="btnOpenUpload" type="button" ${photoBusy?"disabled":""}>🖼 Subir archivo</button>
+                <label class="btn btn-tech tp-upload-btn" for="profilePhotoInput" ${photoBusy?"aria-disabled="true"":""}>🖼 Subir archivo</label>
                 ${cand.photoDataUrl ? `<button class="btn btn-ghost" id="btnRemovePhoto" type="button" ${photoBusy?"disabled":""}>Quitar foto</button>` : ''}
               </div>
-              <div class="muted small" style="margin-top:8px"><b>Tomar foto</b> abre la cámara. <b>Subir archivo</b> deja elegir una imagen ya guardada en tu dispositivo.</div>
+              <div class="muted small" style="margin-top:8px"><b>Tomar foto</b> abre la cámara del celular o la webcam. <b>Subir archivo</b> permite elegir una imagen guardada. <b>Formatos permitidos</b>: JPG, JPEG, PNG, WEBP y HEIC.</div>
               <input id="profilePhotoInput" type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif" aria-label="Subir foto de perfil" />
               <input id="profileCameraInput" type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,image/*" capture="user" aria-label="Tomar foto con cámara" />
               <div class="muted small" style="margin-top:8px">Sugerencia: si estás en PC y la cámara no se ve, usá <b>Subir archivo</b>. La foto siempre se recorta al centro y se optimiza para reducir peso.</div>
@@ -852,8 +852,7 @@ async function initBolsaCandidato(){
       profileCameraInput.value = "";
     });
     const btnOpenUpload = el('btnOpenUpload');
-    if(btnOpenUpload) btnOpenUpload.addEventListener('click', ()=>{ const i = el('profilePhotoInput'); if(i) i.click(); });
-    const btnOpenCamera = el('btnOpenCamera');
+        const btnOpenCamera = el('btnOpenCamera');
     if(btnOpenCamera) btnOpenCamera.addEventListener('click', openCameraCapture);
     const btnCapturePhoto = el('btnCapturePhoto');
     if(btnCapturePhoto) btnCapturePhoto.addEventListener('click', captureCameraPhoto);
@@ -904,7 +903,9 @@ async function initBolsaCandidato(){
       cand.photoDataUrl = r.photoDataUrl || dataUrl;
       okMsg = 'Foto actualizada correctamente.';
     }catch(err){
-      errMsg = err?.message || 'No se pudo actualizar la foto.';
+      let m = err?.message || 'No se pudo actualizar la foto.';
+      if(/Cannot POST \/bolsa\/photo/i.test(m) || /<!DOCTYPE html>/i.test(m)) m = 'La API todavía no tiene habilitada la subida de foto. Actualizá el backend a esta versión y volvé a intentar.';
+      errMsg = m;
     }finally{
       photoBusy = false;
       render();
