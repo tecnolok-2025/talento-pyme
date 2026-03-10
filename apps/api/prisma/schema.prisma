@@ -22,6 +22,14 @@ enum JobStatus {
   CLOSED
 }
 
+enum BillingOrderStatus {
+  DRAFT
+  PENDING_PAYMENT
+  VERIFIED
+  PAID
+  CANCELLED
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -157,6 +165,9 @@ model CompanyProfile {
 
   user        User     @relation(fields: [userId], references: [id])
   jobs        Job[]
+  billingOrders BillingOrder[]
+  couponRedemptions BillingCouponRedemption[]
+  candidateAccesses CompanyCandidateAccess[]
 
   @@index([companyNameNorm])
   @@index([contactNameNorm])
@@ -203,4 +214,91 @@ model Application {
   user        User     @relation(fields: [userId], references: [id])
 
   @@unique([jobId, userId])
+}
+
+model BillingOrder {
+  id                 String             @id @default(cuid())
+  companyId          String
+  status             BillingOrderStatus @default(PENDING_PAYMENT)
+  companyNameSnapshot String?
+  cuitSnapshot       String?
+  contactEmailSnapshot String?
+  billingName        String?
+  billingTaxId       String?
+  billingTaxCondition String?
+  billingProvince    String?
+  billingCity        String?
+  billingAddress     String?
+  billingAddressNumber String?
+  billingFloor       String?
+  billingDept        String?
+  billingPostalCode  String?
+  billingEmail       String?
+  couponCode         String?
+  couponDiscountPct  Int?               @default(0)
+  subtotal           Int                @default(0)
+  discountAmount     Int                @default(0)
+  vatAmount          Int                @default(0)
+  total              Int                @default(0)
+  totalDays          Int                @default(0)
+  totalOpenings      Int                @default(0)
+  cardBrand          String?
+  cardLast4          String?
+  paymentNote        String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  company            CompanyProfile     @relation(fields: [companyId], references: [id])
+  items              BillingOrderItem[]
+
+  @@index([companyId, createdAt])
+  @@index([status])
+}
+
+model BillingOrderItem {
+  id          String       @id @default(cuid())
+  orderId      String
+  planCode     String
+  planName     String
+  days         Int
+  unitPrice    Int
+  quantity     Int         @default(1)
+  subtotal     Int         @default(0)
+  openingsIncluded Int     @default(0)
+  createdAt    DateTime    @default(now())
+
+  order        BillingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  candidateAccesses CompanyCandidateAccess[]
+
+  @@index([orderId])
+}
+
+
+model CompanyCandidateAccess {
+  id          String         @id @default(cuid())
+  companyId    String
+  candidateId  String
+  orderItemId  String
+  expiresAt    DateTime
+  createdAt    DateTime      @default(now())
+
+  company      CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orderItem     BillingOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, expiresAt])
+  @@index([candidateId, expiresAt])
+  @@index([orderItemId])
+}
+
+model BillingCouponRedemption {
+  id          String         @id @default(cuid())
+  companyId   String
+  code        String
+  discountPct Int
+  createdAt   DateTime       @default(now())
+
+  company     CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId, createdAt])
 }

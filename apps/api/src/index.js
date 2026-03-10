@@ -27,6 +27,20 @@ const APP_VERSION = process.env.npm_package_version || "dev";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
+const FACTORY_PLANS = [
+  { code: 'P7', name: 'Publicación 7 días', days: 7, price: 50000, openings: 15, highlight: 'Entrada ágil para búsquedas puntuales.' },
+  { code: 'P14', name: 'Publicación 14 días', days: 14, price: 95000, openings: 25, highlight: 'Más tiempo de exposición sin sobredimensionar la inversión.' },
+  { code: 'P30', name: 'Publicación 30 días', days: 30, price: 190000, openings: 45, highlight: 'Ideal para búsquedas técnicas y profesionales con más recorrido.' },
+  { code: 'P60', name: 'Publicación 60 días', days: 60, price: 340000, openings: 70, highlight: 'Pensado para procesos complejos o búsquedas recurrentes.' },
+];
+
+const FACTORY_COUPONS = {
+  FACTORY100: 100,
+  FACTORY50: 50,
+  CAMARA100: 100,
+  CAMARA50: 50,
+};
+
 // -----------------------------
 // Helpers
 // -----------------------------
@@ -87,6 +101,214 @@ function clampText(s = "", max = 12000){
 
 function safeFileName(s = ""){
   return String(s || "file").replace(/[^a-z0-9._-]+/gi, "-").replace(/-+/g, "-").replace(/^[-.]+|[-.]+$/g, "") || "file";
+}
+
+
+function moneyInt(value){
+  const n = Number(value || 0);
+  if(!Number.isFinite(n)) return 0;
+  return Math.round(n);
+}
+
+function planByCode(code){
+  return FACTORY_PLANS.find((it)=> it.code === String(code || '').trim().toUpperCase()) || null;
+}
+
+function companyCodeFrom(company){
+  const raw = normalizeId(company?.cuit || '');
+  if(raw) return raw.slice(-8);
+  return String(company?.id || '').slice(-8).toUpperCase() || '00000000';
+}
+
+function orderItemExpiresAt(order, item){
+  const base = new Date(order?.createdAt || Date.now());
+  const days = Number(item?.days || 0);
+  base.setDate(base.getDate() + Math.max(0, days));
+  return base;
+}
+
+async function getCompanyOpeningUsage(companyId){
+  const now = new Date();
+  const activeOrders = await prisma.billingOrder.findMany({
+    where: {
+      companyId,
+      status: { in: ['VERIFIED', 'PAID'] },
+      items: { some: {} }
+    },
+    include: { items: true },
+    orderBy: { createdAt: 'asc' }
+  }).catch(() => []);
+
+  const activeItems = [];
+  let totalOpenings = 0;
+  for(const order of activeOrders){
+    for(const item of order.items || []){
+      const expiresAt = orderItemExpiresAt(order, item);
+      const included = Number(item.openingsIncluded || 0);
+      if(included <= 0 || expiresAt <= now) continue;
+      totalOpenings += included;
+      activeItems.push({
+        orderId: order.id,
+        orderItemId: item.id,
+        createdAt: order.createdAt,
+        expiresAt,
+        planCode: item.planCode,
+        planName: item.planName,
+        days: item.days,
+        openingsIncluded: included,
+      });
+    }
+  }
+
+  const activeAccesses = await prisma.companyCandidateAccess.findMany({
+    where: { companyId, expiresAt: { gt: now } },
+    orderBy: { createdAt: 'asc' }
+  }).catch(() => []);
+
+  const remaining = Math.max(0, totalOpenings - activeAccesses.length);
+  return {
+    now,
+    totalOpenings,
+    usedOpenings: activeAccesses.length,
+    remainingOpenings: remaining,
+    activeItems,
+    activeAccesses,
+  };
+}
+
+async function ensureCompanyCandidateAccess(companyId, candidateId){
+  const now = new Date();
+  const existing = await prisma.companyCandidateAccess.findFirst({
+    where: { companyId, candidateId, expiresAt: { gt: now } },
+    orderBy: { expiresAt: 'desc' }
+  }).catch(() => null);
+
+  const usage = await getCompanyOpeningUsage(companyId);
+  if(existing){
+    return { ok: true, consumed: false, access: existing, usage };
+  }
+  if(usage.remainingOpenings <= 0){
+    return { ok: false, consumed: false, error: 'No tenés aperturas disponibles en tu plan actual. Contratá más tiempo desde Factory para seguir abriendo fichas completas.', usage };
+  }
+
+  const consumptionByItem = usage.activeAccesses.reduce((acc, row) => {
+    acc[row.orderItemId] = (acc[row.orderItemId] || 0) + 1;
+    return acc;
+  }, {});
+  const target = usage.activeItems.find((item) => (consumptionByItem[item.orderItemId] || 0) < item.openingsIncluded);
+  if(!target){
+    return { ok: false, consumed: false, error: 'No se encontró un cupo activo para esta apertura. Revisá Factory y actualizá tu compra.', usage };
+  }
+
+  const access = await prisma.companyCandidateAccess.create({
+    data: {
+      companyId,
+      candidateId,
+      orderItemId: target.orderItemId,
+      expiresAt: target.expiresAt,
+    }
+  });
+  const refreshedUsage = await getCompanyOpeningUsage(companyId);
+  return { ok: true, consumed: true, access, usage: refreshedUsage, sourceItem: target };
+}
+
+async function getCompanyContextByUserId(userId){
+  let company = await prisma.companyProfile.findUnique({ where: { userId } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+  if(!company){
+    company = await prisma.companyProfile.create({ data: { userId, companyName: 'Empresa', contactEmail: user?.email || null } });
+  }
+  return { company, user };
+}
+
+async function couponPreviewForCompany(companyId, couponCode){
+  const code = String(couponCode || '').trim().toUpperCase();
+  if(!code) return { code: '', discountPct: 0, valid: false, alreadyUsed: false, message: '' };
+  const discountPct = FACTORY_COUPONS[code] || 0;
+  if(!discountPct) return { code, discountPct: 0, valid: false, alreadyUsed: false, message: 'Código no reconocido.' };
+  const used = await prisma.billingCouponRedemption.findUnique({ where: { companyId_code: { companyId, code } } }).catch(() => null);
+  if(used) return { code, discountPct: 0, valid: false, alreadyUsed: true, message: 'Este beneficio ya fue utilizado por esta empresa.' };
+  return { code, discountPct, valid: true, alreadyUsed: false, message: `${discountPct}% aplicado en esta compra.` };
+}
+
+async function buildFactoryQuote(companyId, items = [], couponCode = ''){
+  const cleanItems = Array.isArray(items) ? items : [];
+  const normalized = cleanItems.map((item)=>{
+    const plan = planByCode(item?.planCode);
+    const quantity = Math.max(1, Math.min(50, Number(item?.quantity || 1) || 1));
+    if(!plan) return null;
+    const openingsIncluded = Number(plan.openings || 0) * quantity;
+    return {
+      planCode: plan.code,
+      planName: plan.name,
+      days: plan.days,
+      unitPrice: plan.price,
+      quantity,
+      subtotal: plan.price * quantity,
+      openingsIncluded,
+      openingsPerUnit: Number(plan.openings || 0),
+    };
+  }).filter(Boolean);
+  const subtotal = normalized.reduce((acc, it)=> acc + it.subtotal, 0);
+  const totalDays = normalized.reduce((acc, it)=> acc + (it.days * it.quantity), 0);
+  const totalOpenings = normalized.reduce((acc, it)=> acc + it.openingsIncluded, 0);
+  const coupon = await couponPreviewForCompany(companyId, couponCode);
+  const discountAmount = coupon.valid ? Math.round(subtotal * (coupon.discountPct / 100)) : 0;
+  const taxableBase = Math.max(0, subtotal - discountAmount);
+  const vatAmount = Math.round(taxableBase * 0.21);
+  const total = taxableBase + vatAmount;
+  return {
+    items: normalized,
+    subtotal,
+    totalDays,
+    totalOpenings,
+    coupon,
+    discountAmount,
+    vatAmount,
+    total,
+    currency: 'ARS',
+  };
+}
+
+function orderToSummary(order){
+  return {
+    id: order.id,
+    companyName: order.companyNameSnapshot || order.company?.companyName || 'Empresa',
+    companyCode: companyCodeFrom(order.company || { cuit: order.cuitSnapshot, id: order.companyId }),
+    docType: 'Factura',
+    documentNo: `FAC-${String(order.id).slice(-8).toUpperCase()}`,
+    date: order.createdAt,
+    dueDate: order.createdAt,
+    status: order.status,
+    amount: order.total,
+    currency: 'ARS',
+    paymentLabel: order.status === 'PAID' ? 'Pagado' : (order.status === 'VERIFIED' ? 'Verificado' : 'Pendiente'),
+    days: order.totalDays || 0,
+    totalOpenings: order.totalOpenings || 0,
+    couponCode: order.couponCode || null,
+    couponDiscountPct: order.couponDiscountPct || 0,
+    billingName: order.billingName || null,
+    billingTaxId: order.billingTaxId || null,
+    billingEmail: order.billingEmail || null,
+    cardLast4: order.cardLast4 || null,
+    createdAt: order.createdAt,
+    items: (order.items || []).map((it)=> ({
+      id: it.id,
+      planCode: it.planCode,
+      planName: it.planName,
+      days: it.days,
+      quantity: it.quantity,
+      unitPrice: it.unitPrice,
+      subtotal: it.subtotal,
+      openingsIncluded: it.openingsIncluded || 0,
+    })),
+    totals: {
+      subtotal: order.subtotal || 0,
+      discountAmount: order.discountAmount || 0,
+      vatAmount: order.vatAmount || 0,
+      total: order.total || 0,
+    }
+  };
 }
 
 async function ensureUploadsDir(){
@@ -164,6 +386,14 @@ app.get("/me", authRequired, async (req, res) => {
 function requireRole(role){
   return (req, res, next) => {
     if(req.user?.role !== role) return res.status(403).json({ error: "No autorizado" });
+    next();
+  };
+}
+
+function requireAnyRole(roles){
+  const allowed = Array.isArray(roles) ? roles : [roles];
+  return (req, res, next) => {
+    if(!allowed.includes(req.user?.role)) return res.status(403).json({ error: "No autorizado" });
     next();
   };
 }
@@ -1502,14 +1732,7 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
       id: it.id,
       nombre: it.nombre,
       apellido: it.apellido,
-      dni: it.dni,
-      nacionalidad: it.nacionalidad,
-      estado_civil: it.estadoCivil,
-      hijos: it.hijos,
-      telefono: it.telefono,
-      correo: it.correo,
       localidad: it.localidad,
-      direccion: it.direccion,
       area_trabajo: it.areaTrabajo,
       nivel: it.nivel,
       especialidad: it.especialidad,
@@ -1527,14 +1750,78 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
       instrumentos_electrica: toArrayField(it.instrumentosElectrica),
       created_at: it.createdAt,
       updated_at: it.updatedAt,
+      access_locked: true,
     }));
 
-    return res.json({ ok: true, items: filtered });
+    const { company } = await getCompanyContextByUserId(req.user.id);
+    const openingUsage = await getCompanyOpeningUsage(company.id);
+    return res.json({ ok: true, items: filtered, openingUsage });
   } catch (err) {
     console.error('GET /jobs/search', err);
     return res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
   }
 });
+
+app.get('/jobs/candidate/:id/detail', auth, requireRole('COMPANY'), async (req, res) => {
+  try {
+    const candidateId = String(req.params.id || '').trim();
+    if(!candidateId) return res.status(400).json({ error: 'Falta candidateId' });
+    const { company } = await getCompanyContextByUserId(req.user.id);
+    const accessResult = await ensureCompanyCandidateAccess(company.id, candidateId);
+    if(!accessResult.ok){
+      return res.status(402).json({ error: accessResult.error, openingUsage: accessResult.usage || null });
+    }
+    const it = await prisma.candidateBolsa.findUnique({
+      where: { id: candidateId },
+      select: {
+        id:true, nombre:true, apellido:true, dni:true, nacionalidad:true, estadoCivil:true, hijos:true,
+        telefono:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
+        especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true,
+        tieneCapacitacion:true, trabajaActualmente:true, sueldoPretendido:true, ultimoTrabajo:true,
+        observaciones:true, photoDataUrl:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true
+      }
+    });
+    if(!it) return res.status(404).json({ error: 'Candidato no encontrado' });
+    return res.json({
+      ok: true,
+      consumed: accessResult.consumed,
+      openingUsage: accessResult.usage,
+      item: {
+        id: it.id,
+        nombre: it.nombre,
+        apellido: it.apellido,
+        dni: it.dni,
+        nacionalidad: it.nacionalidad,
+        estado_civil: it.estadoCivil,
+        hijos: it.hijos,
+        telefono: it.telefono,
+        correo: it.correo,
+        localidad: it.localidad,
+        direccion: it.direccion,
+        area_trabajo: it.areaTrabajo,
+        nivel: it.nivel,
+        especialidad: it.especialidad,
+        especialidad_otro: it.especialidadOtro,
+        rango_experiencia: it.rangoExperiencia,
+        nivel_educativo: it.nivelEducativo,
+        tiene_capacitacion: it.tieneCapacitacion,
+        trabaja_actualmente: it.trabajaActualmente,
+        sueldo_pretendido: it.sueldoPretendido,
+        ultimo_trabajo: it.ultimoTrabajo,
+        observaciones: it.observaciones,
+        photoDataUrl: it.photoDataUrl,
+        herramientas_mecanica: toArrayField(it.herramientasMecanica),
+        instrumentos_electrica: toArrayField(it.instrumentosElectrica),
+        created_at: it.createdAt,
+        updated_at: it.updatedAt,
+      }
+    });
+  } catch (err) {
+    console.error('GET /jobs/candidate/:id/detail', err);
+    return res.status(500).json({ error: err?.message || 'No se pudo abrir el detalle del candidato' });
+  }
+});
+
 
 
 
@@ -1573,7 +1860,7 @@ app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res)
     if (!website) return res.status(400).json({ error: 'Falta sitio web' });
     let url = website;
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.5.7 (+Render)' } });
+    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.5.9 (+Render)' } });
     const html = await response.text();
     const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [,''])[1].replace(/\s+/g,' ').trim();
     const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i) || [,''])[1].trim();
@@ -1618,6 +1905,167 @@ app.put("/company/me", auth, requireRole("COMPANY"), async (req, res) => {
     create: { userId: req.user.id, ...data }
   });
   res.json(c);
+});
+
+app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), async (req, res) => {
+  try {
+    const { company, user } = await getCompanyContextByUserId(req.user.id);
+    const orders = await prisma.billingOrder.findMany({
+      where: { companyId: company.id },
+      include: { company: true, items: true },
+      orderBy: { createdAt: 'desc' }
+    }).catch(() => []);
+    const recentOrders = orders.map(orderToSummary);
+    const totals = recentOrders.reduce((acc, it) => {
+      acc.total += it.totals.total;
+      acc.pending += (it.status === 'PENDING_PAYMENT' || it.status === 'VERIFIED') ? it.totals.total : 0;
+      acc.paid += it.status === 'PAID' ? it.totals.total : 0;
+      acc.orders += 1;
+      return acc;
+    }, { total: 0, pending: 0, paid: 0, orders: 0 });
+    const openingUsage = await getCompanyOpeningUsage(company.id);
+    res.json({
+      ok: true,
+      role: req.user.role,
+      company: {
+        id: company.id,
+        companyName: company.companyName,
+        cuit: company.cuit,
+        address: company.address,
+        city: company.city,
+        province: company.province,
+        contactEmail: company.contactEmail || user?.email || null,
+        contactName: company.contactName || null,
+        phone: company.phone || null,
+        companyCode: companyCodeFrom(company),
+      },
+      supportEmail: 'factory@gmail.com',
+      plans: FACTORY_PLANS,
+      orders: recentOrders,
+      totals,
+      openingUsage,
+      couponCatalog: Object.keys(FACTORY_COUPONS).map((code)=> ({ code, discountPct: FACTORY_COUPONS[code] })),
+    });
+  } catch (err) {
+    console.error('GET /factory/bootstrap', err);
+    res.status(500).json({ error: 'No se pudo cargar Factory' });
+  }
+});
+
+app.post('/factory/quote', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), async (req, res) => {
+  try {
+    const { company } = await getCompanyContextByUserId(req.user.id);
+    const quote = await buildFactoryQuote(company.id, req.body?.items || [], req.body?.couponCode || '');
+    res.json({ ok: true, ...quote });
+  } catch (err) {
+    console.error('POST /factory/quote', err);
+    res.status(500).json({ error: 'No se pudo calcular el presupuesto' });
+  }
+});
+
+app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), async (req, res) => {
+  try {
+    const { company, user } = await getCompanyContextByUserId(req.user.id);
+    const billing = req.body?.billing || {};
+    const payment = req.body?.payment || {};
+    const quote = await buildFactoryQuote(company.id, req.body?.items || [], req.body?.couponCode || '');
+    if(!quote.items.length) return res.status(400).json({ error: 'El carrito está vacío.' });
+    const billingName = String(billing.razonSocial || company.companyName || '').trim();
+    const billingTaxId = normalizeId(billing.cuit || company.cuit || '');
+    const billingEmail = normalizeEmail(billing.email || company.contactEmail || user?.email || '');
+    const cardNumber = String(payment.cardNumber || '').replace(/\D/g, '');
+    if(!billingName) return res.status(400).json({ error: 'Falta la razón social.' });
+    if(!billingTaxId) return res.status(400).json({ error: 'Falta el CUIT para la factura.' });
+    if(!billingEmail) return res.status(400).json({ error: 'Falta el e-mail de facturación.' });
+    if(cardNumber.length < 12) return res.status(400).json({ error: 'Ingresá una tarjeta válida para continuar.' });
+
+    if(quote.coupon.valid && quote.coupon.code){
+      await prisma.billingCouponRedemption.create({
+        data: { companyId: company.id, code: quote.coupon.code, discountPct: quote.coupon.discountPct }
+      }).catch(async (err) => {
+        const again = await prisma.billingCouponRedemption.findUnique({ where: { companyId_code: { companyId: company.id, code: quote.coupon.code } } }).catch(() => null);
+        if(again) throw new Error('Este beneficio ya fue utilizado por esta empresa.');
+        throw err;
+      });
+    }
+
+    const order = await prisma.billingOrder.create({
+      data: {
+        companyId: company.id,
+        status: 'VERIFIED',
+        companyNameSnapshot: company.companyName,
+        cuitSnapshot: company.cuit,
+        contactEmailSnapshot: company.contactEmail || user?.email || null,
+        billingName,
+        billingTaxId,
+        billingTaxCondition: String(billing.condicionFiscal || '').trim() || null,
+        billingProvince: String(billing.provincia || '').trim() || null,
+        billingCity: String(billing.localidad || '').trim() || null,
+        billingAddress: String(billing.calle || '').trim() || null,
+        billingAddressNumber: String(billing.numero || '').trim() || null,
+        billingFloor: String(billing.piso || '').trim() || null,
+        billingDept: String(billing.depto || '').trim() || null,
+        billingPostalCode: String(billing.codigoPostal || '').trim() || null,
+        billingEmail,
+        couponCode: quote.coupon.valid ? quote.coupon.code : null,
+        couponDiscountPct: quote.coupon.valid ? quote.coupon.discountPct : 0,
+        subtotal: quote.subtotal,
+        discountAmount: quote.discountAmount,
+        vatAmount: quote.vatAmount,
+        total: quote.total,
+        totalDays: quote.totalDays,
+        totalOpenings: quote.totalOpenings,
+        cardBrand: String(payment.cardBrand || '').trim() || null,
+        cardLast4: cardNumber.slice(-4),
+        paymentNote: 'Checkout verificado. Integración de pago pendiente.',
+        items: {
+          create: quote.items.map((it)=> ({
+            planCode: it.planCode,
+            planName: it.planName,
+            days: it.days,
+            unitPrice: it.unitPrice,
+            quantity: it.quantity,
+            subtotal: it.subtotal,
+            openingsIncluded: it.openingsIncluded,
+          }))
+        }
+      },
+      include: { company: true, items: true }
+    });
+    res.json({ ok: true, message: 'Datos verificados. La compra quedó preparada para la integración de pago.', order: orderToSummary(order) });
+  } catch (err) {
+    console.error('POST /factory/checkout', err);
+    res.status(500).json({ error: err?.message || 'No se pudo registrar la compra' });
+  }
+});
+
+app.get('/factory/admin/orders', auth, requireAnyRole(['SUPERADMIN','ADMIN']), async (req, res) => {
+  try {
+    const q = String(req.query?.q || '').trim().toLowerCase();
+    const days = req.query?.days ? Number(req.query.days) : null;
+    const sort = String(req.query?.sort || 'newest');
+    const rows = await prisma.billingOrder.findMany({
+      include: { company: true, items: true },
+      orderBy: { createdAt: sort === 'oldest' ? 'asc' : 'desc' }
+    });
+    const filtered = rows.filter((row) => {
+      const name = String(row.company?.companyName || row.companyNameSnapshot || '').toLowerCase();
+      const cuit = String(row.company?.cuit || row.cuitSnapshot || '').toLowerCase();
+      const matchQ = !q || name.includes(q) || cuit.includes(q);
+      const matchDays = !days || (row.totalDays || 0) === days;
+      return matchQ && matchDays;
+    }).map(orderToSummary);
+    const grouped = Object.values(filtered.reduce((acc, row) => {
+      const key = row.companyName;
+      if(!acc[key]) acc[key] = { companyName: row.companyName, companyCode: row.companyCode, documents: [] };
+      acc[key].documents.push(row);
+      return acc;
+    }, {})).sort((a,b)=> a.companyName.localeCompare(b.companyName, 'es'));
+    res.json({ ok: true, items: grouped });
+  } catch (err) {
+    console.error('GET /factory/admin/orders', err);
+    res.status(500).json({ error: 'No se pudo leer el panel administrador' });
+  }
 });
 
 

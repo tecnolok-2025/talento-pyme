@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Buscar Talento</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.5.7" />
+  <link rel="stylesheet" href="/styles.css?v=5.5.9" />
   <style>
     .talentCard{padding:0;overflow:hidden;cursor:default}
     .talentCardHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px;cursor:pointer}
@@ -22,12 +22,15 @@
     .salarySpot{margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:16px;border:1px solid rgba(16,185,129,.22);background:linear-gradient(135deg, rgba(16,185,129,.18), rgba(59,130,246,.08));box-shadow:0 10px 22px rgba(16,185,129,.10)}
     .salarySpotLabel{font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:900;color:#047857}
     .salarySpotValue{font-size:18px;font-weight:900;color:#0f172a}
-    .salarySpotHint{font-size:12px;color:#475569;font-weight:700}
-    .salarySpot.is-missing{border-style:dashed;background:rgba(148,163,184,.08);box-shadow:none}
+        .salarySpot.is-missing{border-style:dashed;background:rgba(148,163,184,.08);box-shadow:none}
     .salarySpot.is-missing .salarySpotLabel{color:#475569}
     .salarySpot.is-missing .salarySpotValue{font-size:15px;color:#475569}
     .talentHint{margin-top:12px;padding:12px 14px;border-radius:14px;background:rgba(14,165,233,.08);border:1px dashed rgba(14,165,233,.35);font-weight:700;color:#0f172a}
     .detailCard.is-collapsed #detailBody{opacity:.72}
+.openingBadge{margin-top:12px;display:inline-flex;gap:10px;align-items:center;padding:10px 14px;border-radius:999px;background:rgba(23,105,224,.08);border:1px solid rgba(23,105,224,.18);font-weight:900;color:#0f172a;flex-wrap:wrap}
+.openingBadge strong{color:#0d47a1}
+.openingBadge.is-alert{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.24);color:#7f1d1d}
+.lockedPanel{padding:14px 16px;border-radius:18px;background:rgba(239,68,68,.06);border:1px dashed rgba(239,68,68,.35);color:#7f1d1d;font-weight:700}
     @media(max-width:760px){.talentCardHead{flex-direction:column}.talentToggle{width:100%;justify-content:center}.talentInlineGrid{grid-template-columns:1fr}}
   </style>
 </head>
@@ -46,6 +49,7 @@
       <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
       <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
       <a href="/mis-candidatos.html" data-role="COMPANY">Mis Candidatos</a>
+      <a href="/factory.html" data-role="COMPANY">Factory</a>
       <a href="#" id="btnLogout">Salir</a>
     </div>
   </div>
@@ -169,13 +173,14 @@
       <div class="card detailCard" id="detailPanel">
         <h2 style="margin:0 0 8px 0">Detalle del candidato</h2>
         <div class="muted">Abrí el detalle desde la flecha del resultado que te interese. El panel derecho se abre y se cierra en espejo con la tarjeta de la izquierda.</div>
+        <div id="openingBadge" class="openingBadge">Aperturas disponibles: <strong>0</strong></div>
         <div id="detailBody" style="margin-top:14px" class="muted">Todavía no seleccionaste ningún perfil.</div>
       </div>
     </div>
   </div>
 
-  <script src="/config.js?v=5.5.7"></script>
-  <script src="/auth.js?v=5.5.7"></script>
+  <script src="/config.js?v=5.5.9"></script>
+  <script src="/auth.js?v=5.5.9"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -218,12 +223,14 @@
     };
 
     const els = {
-      jobsQ: document.getElementById('jobsQ'), jobsArea: document.getElementById('jobsArea'), jobsLoc: document.getElementById('jobsLoc'), jobsNivel: document.getElementById('jobsNivel'), jobsEsp: document.getElementById('jobsEsp'), jobsExp: document.getElementById('jobsExp'), jobsEdu: document.getElementById('jobsEdu'), jobsCap: document.getElementById('jobsCap'), jobsTrab: document.getElementById('jobsTrab'), jobsSoldCat: document.getElementById('jobsSoldCat'), jobsHerr: document.getElementById('jobsHerr'), jobsInstr: document.getElementById('jobsInstr'), jobsFechaReg: document.getElementById('jobsFechaReg'), jobsOrden: document.getElementById('jobsOrden'), jobsErr: document.getElementById('jobsErr'), resultsList: document.getElementById('resultsList'), detailBody: document.getElementById('detailBody'), resultCount: document.getElementById('resultCount'), areaPills: document.getElementById('areaPills'), statsTotal: document.getElementById('statsTotal'), statsTopArea: document.getElementById('statsTopArea'), statsTopEsp: document.getElementById('statsTopEsp')
+      jobsQ: document.getElementById('jobsQ'), jobsArea: document.getElementById('jobsArea'), jobsLoc: document.getElementById('jobsLoc'), jobsNivel: document.getElementById('jobsNivel'), jobsEsp: document.getElementById('jobsEsp'), jobsExp: document.getElementById('jobsExp'), jobsEdu: document.getElementById('jobsEdu'), jobsCap: document.getElementById('jobsCap'), jobsTrab: document.getElementById('jobsTrab'), jobsSoldCat: document.getElementById('jobsSoldCat'), jobsHerr: document.getElementById('jobsHerr'), jobsInstr: document.getElementById('jobsInstr'), jobsFechaReg: document.getElementById('jobsFechaReg'), jobsOrden: document.getElementById('jobsOrden'), jobsErr: document.getElementById('jobsErr'), resultsList: document.getElementById('resultsList'), detailBody: document.getElementById('detailBody'), resultCount: document.getElementById('resultCount'), areaPills: document.getElementById('areaPills'), statsTotal: document.getElementById('statsTotal'), statsTopArea: document.getElementById('statsTopArea'), statsTopEsp: document.getElementById('statsTopEsp'), openingBadge: document.getElementById('openingBadge')
     };
     let jobsStats = null;
     let jobsItems = [];
     let jobsSelected = null;
     let jobsOpenId = null;
+    let jobsOpeningUsage = null;
+    let jobsDetailsCache = {};
 
     function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function formatDate(v){ try{return new Date(v).toLocaleString();}catch(_){return v||'';} }
@@ -257,11 +264,28 @@
       els.statsTopEsp.textContent = topEsp ? `${topEsp[0]} (${topEsp[1]})` : 'Seleccioná un área';
       renderAreaPills();
     }
+    function renderOpeningBadge(){
+      const usage = jobsOpeningUsage || {};
+      const remaining = Number(usage.remainingOpenings || 0);
+      const total = Number(usage.totalOpenings || 0);
+      const used = Number(usage.usedOpenings || 0);
+      els.openingBadge.classList.toggle('is-alert', remaining <= 0);
+      els.openingBadge.innerHTML = `Aperturas disponibles: <strong>${remaining}</strong><span class="muted">Usadas: ${used} · Cupo activo: ${total}</span>`;
+    }
     function renderDetail(item){
+      renderOpeningBadge();
       const isOpen = !!(item && jobsOpenId && item.id === jobsOpenId);
       document.getElementById('detailPanel').classList.toggle('is-collapsed', !isOpen);
       if(!isOpen){
         els.detailBody.innerHTML = '<div class="muted">Usá la flecha del resultado que te interese para abrir su ficha completa acá, sin convertir la lista en una sábana larga.</div>';
+        return;
+      }
+      if(item.__loading){
+        els.detailBody.innerHTML = '<div class="muted">Abriendo ficha completa…</div>';
+        return;
+      }
+      if(item.__blockedMessage){
+        els.detailBody.innerHTML = `<div class="lockedPanel">${esc(item.__blockedMessage)}</div>`;
         return;
       }
       const especialidad = item.especialidad === 'Otros' ? (item.especialidad_otro || 'Otros') : (item.especialidad || '');
@@ -282,6 +306,7 @@
         ${item.sueldo_pretendido ? `<div><b>Sueldo:</b> ${esc(item.sueldo_pretendido)}</div>` : ''}
         ${item.ultimo_trabajo ? `<div><b>Último trabajo:</b> ${esc(item.ultimo_trabajo)}</div>` : ''}
         ${item.observaciones ? `<div style="margin-top:8px"><b>Observaciones:</b><br>${esc(item.observaciones)}</div>` : ''}
+        ${item.__consumedMessage ? `<div class="talentHint" style="margin-top:12px">${esc(item.__consumedMessage)}</div>` : ''}
         <div class="row" style="margin-top:14px"><button class="btn btn-primary" id="btnSaveCandidate" type="button">Guardar en Mis Candidatos</button><span class="muted" id="saveCandidateMsg"></span></div>
       `;
     }
@@ -317,7 +342,6 @@
                     <div class="salarySpotLabel">Pretensión salarial</div>
                     <div class="salarySpotValue">${esc(sueldoVisible || 'No informada')}</div>
                   </div>
-                  <div class="salarySpotHint">${sueldoVisible ? 'Visible aun con la ficha cerrada.' : 'Conviene pedir este dato en Mi Perfil para una preselección más rápida.'}</div>
                 </div>
                 <div class="muted" style="margin-top:10px">${esc(resumenBase).slice(0,180)}${resumenBase.length>180?'…':''}</div>
                 <div class="small muted" style="margin-top:10px">Última actualización: ${esc(formatDate(it.updated_at || it.created_at) || 's/d')}</div>
@@ -337,25 +361,63 @@
           </div>`;
       }).join('');
       els.resultsList.querySelectorAll('[data-action="toggle"]').forEach(node=>{
-        node.onclick = (ev)=>{
+        node.onclick = async (ev)=>{
           ev.preventDefault();
           ev.stopPropagation();
           const id = node.dataset.id;
           if(jobsOpenId === id){
             jobsOpenId = null;
             jobsSelected = null;
-          }else{
-            jobsOpenId = id;
-            jobsSelected = jobsItems.find(x=> x.id === id) || null;
+            renderResults();
+            renderDetail(null);
+            return;
           }
+          jobsOpenId = id;
+          const preview = jobsItems.find(x=> x.id === id) || null;
+          jobsSelected = jobsDetailsCache[id] || Object.assign({}, preview || {}, { __loading: true });
           renderResults();
           renderDetail(jobsSelected);
+          if(jobsDetailsCache[id]){
+            jobsSelected = jobsDetailsCache[id];
+            renderDetail(jobsSelected);
+            bindSaveButton();
+            return;
+          }
+          try{
+            const headers = { Authorization: 'Bearer ' + tpToken() };
+            const resp = await fetch(window.TP_API_URL + '/jobs/candidate/' + encodeURIComponent(id) + '/detail', { headers });
+            const data = await resp.json().catch(()=>({}));
+            if(!resp.ok){
+              if(data && data.openingUsage) jobsOpeningUsage = data.openingUsage;
+              throw new Error(data?.error || 'No se pudo abrir la ficha completa');
+            }
+            jobsOpeningUsage = data.openingUsage || jobsOpeningUsage;
+            const merged = Object.assign({}, preview || {}, data.item || {}, {
+              access_locked: false,
+              __consumedMessage: data.consumed ? 'Esta apertura quedó contabilizada para tu empresa dentro del cupo activo.' : ''
+            });
+            jobsDetailsCache[id] = merged;
+            if(jobsOpenId === id){
+              jobsSelected = merged;
+              renderResults();
+              renderDetail(jobsSelected);
+              bindSaveButton();
+            }
+          }catch(e){
+            const blocked = Object.assign({}, preview || {}, { __blockedMessage: e.message });
+            jobsSelected = blocked;
+            renderDetail(jobsSelected);
+          }
         };
       });
       renderDetail(jobsSelected);
+      bindSaveButton();
+    }
+
+    function bindSaveButton(){
       setTimeout(()=>{
         const btn = document.getElementById('btnSaveCandidate');
-        if(btn && jobsSelected && jobsOpenId === jobsSelected.id){
+        if(btn && jobsSelected && jobsOpenId === jobsSelected.id && !jobsSelected.__blockedMessage){
           btn.onclick = async ()=>{
             const msg = document.getElementById('saveCandidateMsg');
             msg.textContent = 'Guardando...';
@@ -391,6 +453,8 @@
         const data = await r.json();
         if(!r.ok) throw new Error(data?.error || 'No se pudo buscar talento');
         jobsItems = data.items || [];
+        jobsOpeningUsage = data.openingUsage || jobsOpeningUsage;
+        jobsDetailsCache = {};
         jobsSelected = null;
         jobsOpenId = null;
         renderResults();
@@ -407,7 +471,7 @@
       els.jobsOrden.value = 'recientes';
       refreshSpecialties();
       renderStats();
-      jobsItems=[]; jobsSelected=null; jobsOpenId=null; renderResults();
+      jobsItems=[]; jobsDetailsCache={}; jobsSelected=null; jobsOpenId=null; renderResults();
       els.jobsErr.textContent='Filtros limpiados.';
     }
 
@@ -432,6 +496,7 @@
     document.getElementById('btnClear').onclick = clearFilters;
 
     loadStats();
+    renderOpeningBadge();
     renderResults();
   </script>
 </body>

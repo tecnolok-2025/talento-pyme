@@ -1,4 +1,4 @@
-# Talento PyME — v5.5.7
+# Talento PyME — v5.5.9
 
 Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**.
 
@@ -12,7 +12,7 @@ Solo existen **2 perfiles**:
 - **CANDIDATE (Candidato)**
 - **COMPANY (Empresa)**
 
-> En el panel de acceso ya **no** existen Admins/Superadmin.
+> En el panel de acceso siguen vigentes los perfiles candidato y empresa. Factory deja preparada una vista de superadministración para uso interno futuro.
 
 > Importante: el PDF que venías adjuntando es una **exportación** (foto en el tiempo). Para que el PDF “muestre” la nueva versión, hay que volver a exportarlo. El origen de la versión es este README + la versión que muestra la app.
 
