@@ -1,4 +1,4 @@
-/* Talento PyME - v5.5.4 (candidato) - Mi Perfil institucional + asistente visual de completitud */
+/* Talento PyME - v5.5.6 (candidato) - Mi Perfil institucional + foto + resumen curricular */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -327,8 +327,6 @@ async function initBolsaCandidato(){
   let cameraStream = null;
   let cameraStatus = "";
   let detailsState = { d1:false, d2:false, d3:false, d4:false, d5:false };
-  let attentionAcknowledged = false;
-  let savedProfileSignature = "";
 
   let jobs = {
     q:"",
@@ -362,231 +360,12 @@ async function initBolsaCandidato(){
     render();
   }
 
-  function isMeaningfulText(v, min = 2){
-    return String(v || "").trim().length >= min;
-  }
-
-  function getProfileCompletion(){
-    const items = [
-      {
-        key:"d1",
-        short:"1) Datos personales",
-        title:"1) Datos personales",
-        detail:"Nombre, apellido, DNI, teléfono, email y localidad.",
-        done: !!(cand.nombre && cand.apellido && cand.dni && cand.telefono && cand.correo && cand.localidad)
-      },
-      {
-        key:"d2",
-        short:"2) Perfil laboral",
-        title:"2) Perfil laboral y especialidad",
-        detail:"Área de trabajo, especialidad y nivel cuando corresponda.",
-        done: !!(cand.areaTrabajo && cand.especialidad && (!(["Eléctrica (Industrial)","Mecánica (Industrial)"].includes(cand.areaTrabajo)) || cand.nivel) && (cand.especialidad !== "Otros" || isMeaningfulText(cand.especialidadOtro, 3)))
-      },
-      {
-        key:"d3",
-        short:"3) Experiencia y formación",
-        title:"3) Experiencia y formación",
-        detail:"Rango de experiencia, nivel educativo y cursos si los tenés.",
-        done: !!(cand.rangoExperiencia && cand.nivelEducativo)
-      },
-      {
-        key:"d4",
-        short:"4) Situación y preferencias",
-        title:"4) Situación y preferencias",
-        detail:"Indicá si trabajás hoy y completá tus preferencias laborales.",
-        done: cand.trabajaActualmente === true || cand.trabajaActualmente === false
-      },
-      {
-        key:"d5",
-        short:"5) Resumen curricular",
-        title:"5) Resumen curricular / observaciones",
-        detail:"Describí tu alcance curricular en Observaciones o cargá tu CV para generar el resumen.",
-        done: String(cand.observaciones || "").trim().length >= 80
-      }
-    ];
-    const doneCount = items.filter(i => i.done).length;
-    const percent = Math.round((doneCount / items.length) * 100);
-    return {
-      items,
-      doneCount,
-      total: items.length,
-      percent,
-      isComplete: doneCount === items.length,
-      missing: items.filter(i => !i.done)
-    };
-  }
-
-  function profileSnapshot(){
-    return JSON.stringify({
-      nombre: cand.nombre || "",
-      apellido: cand.apellido || "",
-      dni: cand.dni || "",
-      nacionalidad: cand.nacionalidad || "",
-      estadoCivil: cand.estadoCivil || "",
-      hijos: cand.hijos || "",
-      telefono: cand.telefono || "",
-      correo: cand.correo || "",
-      localidad: cand.localidad || "",
-      direccion: cand.direccion || "",
-      areaTrabajo: cand.areaTrabajo || "",
-      nivel: cand.nivel || "",
-      especialidad: cand.especialidad || "",
-      especialidadOtro: cand.especialidadOtro || "",
-      rangoExperiencia: cand.rangoExperiencia || "",
-      nivelEducativo: cand.nivelEducativo || "",
-      tieneCapacitacion: !!cand.tieneCapacitacion,
-      trabajaActualmente: cand.trabajaActualmente,
-      sueldoPretendido: cand.sueldoPretendido || "",
-      ultimoTrabajo: cand.ultimoTrabajo || "",
-      observaciones: cand.observaciones || "",
-      photoDataUrl: cand.photoDataUrl || "",
-      herramientasMecanica: cand.herramientasMecanica || [],
-      instrumentosElectrica: cand.instrumentosElectrica || []
-    });
-  }
-
-  function isProfileDirty(){
-    return profileSnapshot() !== savedProfileSignature;
-  }
-
-  function assistPanelClass(status){
-    if(status.isComplete) return "is-complete";
-    return attentionAcknowledged ? "is-muted" : "is-alert";
-  }
-
-  function assistPrimaryMessage(status){
-    if(status.isComplete) return "Excelente: tu perfil ya está completo y listo para mostrarse con más fuerza en las búsquedas de empresas.";
-    if(attentionAcknowledged) return "Buen avance: ya empezaste a completarlo. Antes de salir, revisá los puntos pendientes para que tu perfil no quede a mitad de camino.";
-    return "Importante: el registro inicial solo habilita tu acceso. Para que una empresa pueda evaluarte de verdad, necesitás completar este perfil y revisarlo antes de salir.";
-  }
-
-  function assistSecondaryMessage(status){
-    const missingText = status.missing.map(i => i.short).join(" · ");
-    if(status.isComplete) return "Podés mantener tus datos activos actualizando tu perfil, adjuntando tu CV cuando lo mejores y revisando Observaciones cada vez que cambie tu experiencia.";
-    return `Todavía falta revisar/completar: ${esc(missingText)}. También podés adjuntar tu CV en PDF, DOCX o TXT para generar un resumen curricular optimizado.`;
-  }
-
-  function renderAssistChecklist(status){
-    return status.items.map(item => `
-      <div class="tp-assist-item ${item.done ? "done" : "pending"}">
-        <div class="tp-assist-item-icon">${item.done ? "✓" : "•"}</div>
-        <div>
-          <div class="tp-assist-item-title">${esc(item.title)}</div>
-          <div class="tp-assist-item-detail">${esc(item.detail)}</div>
-        </div>
-      </div>
-    `).join("");
-  }
-
-  function renderAssistPanel(status){
-    const lights = `<div class="tp-wave-lights" aria-hidden="true">${Array.from({length:6}).map((_,i)=>`<span style="--d:${i};"></span>`).join("")}</div>`;
-    return `
-      <div id="tpProfileAssist" class="tp-profile-assist ${assistPanelClass(status)}" data-complete="${status.isComplete ? "1" : "0"}">
-        <div class="tp-assist-topline">Recordatorio importante del perfil</div>
-        <div class="tp-assist-head">
-          <div>
-            <div class="tp-assist-title">Completá, revisá y fortalecé tu formulario antes de salir de Mi Perfil.</div>
-            <div class="tp-assist-copy">${assistPrimaryMessage(status)}</div>
-          </div>
-          ${lights}
-        </div>
-        <div class="tp-assist-progress-wrap">
-          <div class="tp-assist-progress-bar"><span id="tpAssistBar" style="width:${status.percent}%"></span></div>
-          <div class="tp-assist-progress-meta">
-            <strong id="tpAssistPct">Formulario ${status.percent}% completo</strong>
-            <span id="tpAssistMeta">${status.doneCount} de ${status.total} bloques revisados</span>
-          </div>
-        </div>
-        <div class="tp-assist-copy tp-assist-copy-strong" id="tpAssistSecondary">${assistSecondaryMessage(status)}</div>
-        <div class="tp-assist-grid" id="tpAssistGrid">${renderAssistChecklist(status)}</div>
-        <div class="tp-assist-note" id="tpAssistNote">Tip: además de completar los puntos 1 a 5, en <b>Observaciones</b> podés detallar tu alcance curricular y adjuntar tu CV para que el sistema lo resuma y mejore tu visibilidad.</div>
-      </div>
-    `;
-  }
-
-  function refreshAssistDom(){
-    const panel = el("tpProfileAssist");
-    if(!panel) return;
-    const status = getProfileCompletion();
-    panel.className = `tp-profile-assist ${assistPanelClass(status)}`;
-    panel.setAttribute('data-complete', status.isComplete ? '1' : '0');
-    const bar = el('tpAssistBar');
-    if(bar) bar.style.width = `${status.percent}%`;
-    const pct = el('tpAssistPct');
-    if(pct) pct.textContent = `Formulario ${status.percent}% completo`;
-    const meta = el('tpAssistMeta');
-    if(meta) meta.textContent = `${status.doneCount} de ${status.total} bloques revisados`;
-    const secondary = el('tpAssistSecondary');
-    if(secondary) secondary.textContent = status.isComplete
-      ? 'Podés mantener tus datos activos actualizando tu perfil, adjuntando tu CV cuando lo mejores y revisando Observaciones cada vez que cambie tu experiencia.'
-      : `Todavía falta revisar/completar: ${status.missing.map(i => i.short).join(' · ')}. También podés adjuntar tu CV en PDF, DOCX o TXT para generar un resumen curricular optimizado.`;
-    const grid = el('tpAssistGrid');
-    if(grid) grid.innerHTML = renderAssistChecklist(status);
-    const note = el('tpAssistNote');
-    if(note) note.innerHTML = 'Tip: además de completar los puntos 1 a 5, en <b>Observaciones</b> podés detallar tu alcance curricular y adjuntar tu CV para que el sistema lo resuma y mejore tu visibilidad.';
-    const bottom = document.querySelector('.tp-bottom-bar .muted');
-    if(bottom){
-      if(status.isComplete) bottom.textContent = 'Perfil completo · listo para empresas';
-      else if(isEditing) bottom.textContent = `Edición habilitada · ${status.percent}% completo`;
-      else bottom.textContent = `Mi perfil cargado · ${status.percent}% completo`;
-    }
-  }
-
-  function acknowledgeAssist(){
-    if(attentionAcknowledged) return;
-    attentionAcknowledged = true;
-    refreshAssistDom();
-  }
-
-  function shouldWarnBeforeLeaving(){
-    const status = getProfileCompletion();
-    return mode === "alta" && (isProfileDirty() || !status.isComplete);
-  }
-
-  function leaveProfileMessage(){
-    const status = getProfileCompletion();
-    const parts = [];
-    if(!status.isComplete) parts.push(`tu formulario todavía está al ${status.percent}%`);
-    if(isProfileDirty()) parts.push('hay cambios sin guardar');
-    const pending = status.missing.map(i => i.short).join(', ');
-    return `¿Estás seguro de salir de Mi Perfil?\n\n${parts.length ? 'Detectamos que ' + parts.join(' y ') + '.' : ''}\n${pending ? 'Falta revisar/completar: ' + pending + '.' : ''}\n\nTe recomendamos completar los puntos 1 a 5, adjuntar tu CV si lo tenés y detallar tu alcance curricular en Observaciones antes de continuar.`;
-  }
-
-  function guardProfileExit(next){
-    if(!shouldWarnBeforeLeaving()) return next();
-    if(window.confirm(leaveProfileMessage())) next();
-  }
-
-  function bindLeaveGuards(){
-    document.querySelectorAll('header .nav a[href]').forEach(link => {
-      if(link.dataset.profileGuardBound === '1') return;
-      link.dataset.profileGuardBound = '1';
-      link.addEventListener('click', (ev) => {
-        const href = link.getAttribute('href') || '';
-        if(!href || href === '/perfil.html') return;
-        if(!shouldWarnBeforeLeaving()) return;
-        ev.preventDefault();
-        guardProfileExit(() => { window.location.href = href; });
-      });
-    });
-    const logoutBtn = document.getElementById('logoutBtn');
-    if(logoutBtn && logoutBtn.dataset.profileGuardBound !== '1'){
-      logoutBtn.dataset.profileGuardBound = '1';
-      logoutBtn.addEventListener('click', (ev) => {
-        if(!shouldWarnBeforeLeaving()) return;
-        ev.preventDefault();
-        guardProfileExit(() => logout());
-      }, true);
-    }
-  }
-
   function render(){
     const especialidades = cand.areaTrabajo ? getEspecialidades(cand.areaTrabajo) : [];
     const showNivel = (cand.areaTrabajo === "Eléctrica (Industrial)" || cand.areaTrabajo === "Mecánica (Industrial)");
     const showHerr = cand.areaTrabajo === "Mecánica (Industrial)";
     const showInstr = cand.areaTrabajo === "Eléctrica (Industrial)";
     const especIsOtros = cand.especialidad === "Otros";
-    const profileStatus = getProfileCompletion();
 
     const jobsEspecialidades = jobs.area ? getEspecialidades(jobs.area) : [];
     const jobsShowNivel = (jobs.area === "Eléctrica (Industrial)" || jobs.area === "Mecánica (Industrial)");
@@ -691,11 +470,10 @@ async function initBolsaCandidato(){
                 </div>
               ` : ``}
             </section>
-            <section class="tp-retention-card tp-guidance-card">
+            <section class="tp-retention-card">
               <div class="tp-mini-label">Conservación del perfil curricular</div>
               <div class="tp-mini-value">Tu perfil curricular se conservará por <b>2 años desde su última actualización</b>. Si querés mantenerlo activo, actualizá tus datos periódicamente para seguir visible en las búsquedas de empresas.</div>
               <div class="muted small" style="margin-top:10px"><b>Cómo funciona:</b> cuando cargás un CV en PDF, DOCX o TXT, el sistema no guarda el archivo original de forma permanente. Extrae la información más importante, genera un resumen curricular optimizado y conserva solamente ese contenido resumido para acelerar búsquedas, reducir almacenamiento y mantener actualizado tu perfil profesional.</div>
-              ${renderAssistPanel(profileStatus)}
             </section>
           </div>
 
@@ -867,7 +645,7 @@ async function initBolsaCandidato(){
               <span class="ok">${esc(okMsg)}</span>
               <span class="error">${esc(errMsg)}</span>
             </div>
-            <div class="muted">${profileStatus.isComplete ? "Perfil completo · listo para empresas" : (isEditing ? `${bolsaLoaded ? "Edición habilitada" : "Completá tu perfil inicial"} · ${profileStatus.percent}% completo` : `Mi perfil cargado · ${profileStatus.percent}% completo`)}</div>
+            <div class="muted">${isEditing ? (bolsaLoaded ? "Edición habilitada" : "Completá tu perfil inicial") : "Mi perfil cargado · modo lectura"}</div>
           </div>
         ` : `
           <div class="rowBetween" style="margin-bottom:10px;">
@@ -1035,23 +813,19 @@ async function initBolsaCandidato(){
     const reRenderIds = ["c_areaTrabajo","c_especialidad"];
     reRenderIds.forEach(id=>{
       const e = el(id);
-      if(e) e.addEventListener("change", ()=>{ readAltaFromDom(); acknowledgeAssist(); render(); });
+      if(e) e.addEventListener("change", ()=>{ readAltaFromDom(); render(); });
     });
 
     // update state on inputs without rerender
     ["c_nombre","c_apellido","c_dni","c_nacionalidad","c_estadoCivil","c_hijos","c_telefono","c_correo","c_localidad","c_direccion","c_nivel","c_especialidadOtro","c_rangoExp","c_nivelEdu","c_cap","c_trabaja","c_sueldo","c_ultimo","c_obs"].forEach(id=>{
       const e=el(id);
-      if(e) e.addEventListener("input", ()=>{ readAltaFromDom(); acknowledgeAssist(); refreshAssistDom(); });
-      if(e) e.addEventListener("change", ()=>{ readAltaFromDom(); acknowledgeAssist(); refreshAssistDom(); });
+      if(e) e.addEventListener("input", ()=>{ readAltaFromDom(); });
+      if(e) e.addEventListener("change", ()=>{ readAltaFromDom(); });
     });
 
     // checkbox change
     root.querySelectorAll('input[type="checkbox"][data-cb-group]').forEach(i=>{
-      i.addEventListener("change", ()=>{ readAltaFromDom(); acknowledgeAssist(); refreshAssistDom(); });
-    });
-
-    root.querySelectorAll('input:not([type="hidden"]):not([type="file"]), select, textarea').forEach(node=>{
-      node.addEventListener('focus', acknowledgeAssist, { once:true });
+      i.addEventListener("change", ()=>{ readAltaFromDom(); });
     });
 
     const btnSave = el("btnSaveBolsa");
@@ -1077,6 +851,7 @@ async function initBolsaCandidato(){
       cameraOpen = false; cameraStatus=''; cameraError=''; cameraShotDataUrl='';
       profileCameraInput.value = "";
     });
+    const btnOpenUpload = el('btnOpenUpload');
         const btnOpenCamera = el('btnOpenCamera');
     if(btnOpenCamera) btnOpenCamera.addEventListener('click', openCameraCapture);
     const btnCapturePhoto = el('btnCapturePhoto');
@@ -1090,6 +865,8 @@ async function initBolsaCandidato(){
     const btnRemovePhoto = el("btnRemovePhoto");
     if(btnRemovePhoto) btnRemovePhoto.addEventListener("click", async ()=>{ await removeProfilePhoto(); });
     attachCameraPreview();
+    const btnLogout = el("logoutBtn") || el("btnLogout") || el("btnLogoutLink");
+    if(btnLogout) btnLogout.addEventListener("click", (ev)=>{ ev.preventDefault(); logout(); });
   }
 
   function bindBuscar(){
@@ -1292,7 +1069,6 @@ async function initBolsaCandidato(){
       cand.observaciones = (summaryText || buildSummaryFromSections(r.sections || {}, r.analysis || {})).slice(0, 12000);
       okMsg = "Resumen curricular generado. Revisalo en el punto 5 antes de guardar.";
       if(!isEditing) isEditing = true;
-      attentionAcknowledged = true;
       detailsState.d5 = true;
     }catch(err){
       errMsg = err?.message || "No se pudo analizar el currículum cargado.";
@@ -1343,17 +1119,12 @@ async function initBolsaCandidato(){
         bolsaLoaded = false;
         isEditing = true;
       }
-      savedProfileSignature = profileSnapshot();
-      attentionAcknowledged = getProfileCompletion().isComplete;
       render();
-      refreshAssistDom();
     }catch(err){
       bolsaLoaded = false;
       isEditing = true;
       errMsg = "No se pudo cargar tu perfil guardado. Podés completar uno nuevo.";
-      savedProfileSignature = profileSnapshot();
       render();
-      refreshAssistDom();
     }
   }
 
@@ -1420,8 +1191,6 @@ async function initBolsaCandidato(){
         errMsg = "";
         isEditing = false;
         if(r.bolsa) cand = { ...cand, ...r.bolsa };
-        savedProfileSignature = profileSnapshot();
-        attentionAcknowledged = getProfileCompletion().isComplete;
       }else{
         errMsg = r.error === "DNI_MISMATCH_WITH_PROFILE"
           ? "El DNI no coincide con el DNI registrado."
@@ -1432,7 +1201,6 @@ async function initBolsaCandidato(){
     }finally{
       busy = false;
       render();
-      refreshAssistDom();
     }
   }
 

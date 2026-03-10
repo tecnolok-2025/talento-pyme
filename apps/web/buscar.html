@@ -5,7 +5,24 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Buscar Talento</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.css?v=5.5.6" />
+  <style>
+    .talentCard{padding:0;overflow:hidden;cursor:default}
+    .talentCardHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px;cursor:pointer}
+    .talentCardHeadMain{flex:1;min-width:0}
+    .talentToggle{border:1px solid rgba(23,105,224,.16);background:rgba(23,105,224,.06);color:#0d47a1;border-radius:999px;padding:10px 14px;font-weight:900;display:inline-flex;align-items:center;gap:8px;cursor:pointer;box-shadow:0 8px 18px rgba(23,105,224,.08)}
+    .talentToggle:hover{transform:translateY(-1px)}
+    .talentChevron{display:inline-block;transition:transform .22s ease}
+    .talentCard.is-open .talentChevron{transform:rotate(180deg)}
+    .talentInlineBody{display:none;padding:0 16px 16px 16px;border-top:1px solid rgba(0,0,0,.08);background:linear-gradient(180deg, rgba(23,105,224,.03), rgba(23,105,224,.01))}
+    .talentCard.is-open .talentInlineBody{display:block}
+    .talentInlineGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+    .talentMini{padding:10px 12px;border-radius:14px;background:#fff;border:1px solid rgba(23,105,224,.12)}
+    .talentMini b{display:block;margin-bottom:4px;color:#0d47a1}
+    .talentHint{margin-top:12px;padding:12px 14px;border-radius:14px;background:rgba(14,165,233,.08);border:1px dashed rgba(14,165,233,.35);font-weight:700;color:#0f172a}
+    .detailCard.is-collapsed #detailBody{opacity:.72}
+    @media(max-width:760px){.talentCardHead{flex-direction:column}.talentToggle{width:100%;justify-content:center}.talentInlineGrid{grid-template-columns:1fr}}
+  </style>
 </head>
 <body class="appShell">
   <div class="header">
@@ -144,14 +161,14 @@
 
       <div class="card detailCard" id="detailPanel">
         <h2 style="margin:0 0 8px 0">Detalle del candidato</h2>
-        <div class="muted">Seleccioná un resultado para ver la ficha completa con datos personales, perfil laboral y experiencia.</div>
+        <div class="muted">Abrí el detalle desde la flecha del resultado que te interese. El panel derecho se abre y se cierra en espejo con la tarjeta de la izquierda.</div>
         <div id="detailBody" style="margin-top:14px" class="muted">Todavía no seleccionaste ningún perfil.</div>
       </div>
     </div>
   </div>
 
-  <script src="/config.js?v=5.5.4"></script>
-  <script src="/auth.js?v=5.5.4"></script>
+  <script src="/config.js?v=5.5.6"></script>
+  <script src="/auth.js?v=5.5.6"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -199,6 +216,7 @@
     let jobsStats = null;
     let jobsItems = [];
     let jobsSelected = null;
+    let jobsOpenId = null;
 
     function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function formatDate(v){ try{return new Date(v).toLocaleString();}catch(_){return v||'';} }
@@ -233,8 +251,10 @@
       renderAreaPills();
     }
     function renderDetail(item){
-      if(!item){
-        els.detailBody.innerHTML = '<div class="muted">Todavía no seleccionaste ningún perfil.</div>';
+      const isOpen = !!(item && jobsOpenId && item.id === jobsOpenId);
+      document.getElementById('detailPanel').classList.toggle('is-collapsed', !isOpen);
+      if(!isOpen){
+        els.detailBody.innerHTML = '<div class="muted">Usá la flecha del resultado que te interese para abrir su ficha completa acá, sin convertir la lista en una sábana larga.</div>';
         return;
       }
       const especialidad = item.especialidad === 'Otros' ? (item.especialidad_otro || 'Otros') : (item.especialidad || '');
@@ -262,38 +282,65 @@
       els.resultCount.textContent = jobsItems.length ? `${jobsItems.length} resultado(s)` : 'Sin resultados';
       if(!jobsItems.length){
         els.resultsList.innerHTML = '<div class="muted">No hay perfiles para esos filtros. Probá limpiar o ampliar la búsqueda.</div>';
+        jobsSelected = null;
+        jobsOpenId = null;
         renderDetail(null);
         return;
       }
-      els.resultsList.innerHTML = jobsItems.map((it, idx)=>{
+      els.resultsList.innerHTML = jobsItems.map((it)=>{
         const especialidad = it.especialidad === 'Otros' ? (it.especialidad_otro || 'Otros') : (it.especialidad || '');
         const isActive = jobsSelected && jobsSelected.id === it.id;
+        const isOpen = jobsOpenId && jobsOpenId === it.id;
+        const resumenBase = it.observaciones || it.ultimo_trabajo || 'Perfil sin observaciones cargadas.';
         return `
-          <div class="talentCard ${isActive?'active':''}" data-id="${it.id}">
-            <div class="candidateLine">${avatar(it.photoDataUrl, `${it.nombre || ''} ${it.apellido || ''}`)}<div><div style="font-weight:900;font-size:18px">${esc(it.apellido)}, ${esc(it.nombre)}</div>
-            <div class="muted">${esc(it.area_trabajo || '')}${it.nivel ? ` • ${esc(it.nivel)}` : ''}</div></div></div>
-            <div class="talentMeta">
-              <span class="tag">${esc(it.localidad || 'Localidad s/d')}</span>
-              ${especialidad ? `<span class="tag">${esc(especialidad)}</span>` : ''}
-              ${it.rango_experiencia ? `<span class="tag">Exp. ${esc(it.rango_experiencia)}</span>` : ''}
-              ${it.nivel_educativo ? `<span class="tag">${esc(it.nivel_educativo)}</span>` : ''}
+          <div class="talentCard ${isActive?'active':''} ${isOpen?'is-open':''}" data-id="${it.id}">
+            <div class="talentCardHead" data-action="toggle" data-id="${it.id}">
+              <div class="talentCardHeadMain">
+                <div class="candidateLine">${avatar(it.photoDataUrl, `${it.nombre || ''} ${it.apellido || ''}`)}<div><div style="font-weight:900;font-size:18px">${esc(it.apellido)}, ${esc(it.nombre)}</div>
+                <div class="muted">${esc(it.area_trabajo || '')}${it.nivel ? ` • ${esc(it.nivel)}` : ''}</div></div></div>
+                <div class="talentMeta">
+                  <span class="tag">${esc(it.localidad || 'Localidad s/d')}</span>
+                  ${especialidad ? `<span class="tag">${esc(especialidad)}</span>` : ''}
+                  ${it.rango_experiencia ? `<span class="tag">Exp. ${esc(it.rango_experiencia)}</span>` : ''}
+                  ${it.nivel_educativo ? `<span class="tag">${esc(it.nivel_educativo)}</span>` : ''}
+                </div>
+                <div class="muted" style="margin-top:10px">${esc(resumenBase).slice(0,180)}${resumenBase.length>180?'…':''}</div>
+                <div class="small muted" style="margin-top:10px">Última actualización: ${esc(formatDate(it.updated_at || it.created_at) || 's/d')}</div>
+              </div>
+              <button class="talentToggle" type="button" data-action="toggle" data-id="${it.id}" aria-expanded="${isOpen ? 'true' : 'false'}">
+                ${isOpen ? 'Ocultar detalle' : 'Ver detalle'}
+                <span class="talentChevron">▾</span>
+              </button>
             </div>
-            <div class="muted" style="margin-top:10px">${esc(it.observaciones || it.ultimo_trabajo || 'Perfil sin observaciones cargadas.').slice(0,180)}${(it.observaciones || it.ultimo_trabajo || '').length>180?'…':''}</div>
-            <div class="small muted" style="margin-top:10px">Última actualización: ${esc(formatDate(it.updated_at || it.created_at) || 's/d')}</div>
+            <div class="talentInlineBody">
+              <div class="talentInlineGrid">
+                <div class="talentMini"><b>Estado del panel</b>${isOpen ? 'Detalle completo abierto a la derecha.' : 'Toque “Ver detalle” para abrir la ficha completa.'}</div>
+                <div class="talentMini"><b>Lectura rápida</b>${esc(especialidad || it.area_trabajo || 'Perfil general')} • ${esc(it.rango_experiencia || 'Experiencia s/d')}</div>
+              </div>
+              <div class="talentHint">Este resultado quedó hermanado con el panel derecho. Si volvés a tocar la flecha, se cierra en ambos lados.</div>
+            </div>
           </div>`;
       }).join('');
-      els.resultsList.querySelectorAll('.talentCard').forEach(card=>{
-        card.onclick = ()=>{
-          jobsSelected = jobsItems.find(x=> x.id === card.dataset.id) || null;
+      els.resultsList.querySelectorAll('[data-action="toggle"]').forEach(node=>{
+        node.onclick = (ev)=>{
+          ev.preventDefault();
+          ev.stopPropagation();
+          const id = node.dataset.id;
+          if(jobsOpenId === id){
+            jobsOpenId = null;
+            jobsSelected = null;
+          }else{
+            jobsOpenId = id;
+            jobsSelected = jobsItems.find(x=> x.id === id) || null;
+          }
           renderResults();
           renderDetail(jobsSelected);
         };
       });
-      if(!jobsSelected || !jobsItems.find(x=>x.id===jobsSelected.id)) jobsSelected = jobsItems[0];
       renderDetail(jobsSelected);
       setTimeout(()=>{
         const btn = document.getElementById('btnSaveCandidate');
-        if(btn && jobsSelected){
+        if(btn && jobsSelected && jobsOpenId === jobsSelected.id){
           btn.onclick = async ()=>{
             const msg = document.getElementById('saveCandidateMsg');
             msg.textContent = 'Guardando...';
@@ -329,7 +376,8 @@
         const data = await r.json();
         if(!r.ok) throw new Error(data?.error || 'No se pudo buscar talento');
         jobsItems = data.items || [];
-        jobsSelected = jobsItems[0] || null;
+        jobsSelected = null;
+        jobsOpenId = null;
         renderResults();
         els.jobsErr.textContent = jobsItems.length ? 'Búsqueda realizada correctamente.' : 'Sin coincidencias con los filtros actuales.';
       }catch(e){
@@ -344,7 +392,7 @@
       els.jobsOrden.value = 'recientes';
       refreshSpecialties();
       renderStats();
-      jobsItems=[]; jobsSelected=null; renderResults();
+      jobsItems=[]; jobsSelected=null; jobsOpenId=null; renderResults();
       els.jobsErr.textContent='Filtros limpiados.';
     }
 
