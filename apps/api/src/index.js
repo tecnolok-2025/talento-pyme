@@ -114,6 +114,78 @@ function moneyInt(value){
   return Math.round(n);
 }
 
+function digitsOnly(value = ''){
+  return String(value || '').replace(/\D/g, '');
+}
+
+function luhnCheck(cardNumber = ''){
+  const digits = digitsOnly(cardNumber);
+  let sum = 0;
+  let shouldDouble = false;
+  for(let i = digits.length - 1; i >= 0; i -= 1){
+    let digit = Number(digits[i]);
+    if(shouldDouble){
+      digit *= 2;
+      if(digit > 9) digit -= 9;
+    }
+    sum += digit;
+    shouldDouble = !shouldDouble;
+  }
+  return digits.length >= 13 && digits.length <= 19 && (sum % 10) === 0;
+}
+
+function detectCardBrand(cardNumber = ''){
+  const num = digitsOnly(cardNumber);
+  if(/^4\d{12}(\d{3})?(\d{3})?$/.test(num)) return 'VISA';
+  if(/^(5[1-5]\d{14}|2(2[2-9]\d{12}|[3-6]\d{13}|7[01]\d{12}|720\d{12}))$/.test(num)) return 'MASTERCARD';
+  if(/^3[47]\d{13}$/.test(num)) return 'AMEX';
+  if(/^3(0[0-5]|[68]\d)\d{11}$/.test(num)) return 'DINERS';
+  return '';
+}
+
+function parseExpiry(expiry = ''){
+  const raw = String(expiry || '').trim();
+  const match = raw.match(/^(\d{2})\/(\d{2}|\d{4})$/);
+  if(!match) return { ok: false, error: 'Ingresá el vencimiento en formato MM/AA.' };
+  const month = Number(match[1]);
+  let year = Number(match[2]);
+  if(month < 1 || month > 12) return { ok: false, error: 'El mes de vencimiento no es válido.' };
+  if(year < 100) year += 2000;
+  const expiresAt = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  if(expiresAt < new Date()) return { ok: false, error: 'La tarjeta ingresada está vencida para esta simulación.' };
+  return { ok: true, month, year, normalized: `${String(month).padStart(2, '0')}/${String(year).slice(-2)}` };
+}
+
+function simulateFactoryPayment({ amount = 0, cardNumber = '', cardHolder = '', cardHolderDni = '', cardBrand = '', expiry = '', cvv = '' } = {}){
+  const brand = String(cardBrand || '').trim().toUpperCase();
+  const detectedBrand = detectCardBrand(cardNumber);
+  const digits = digitsOnly(cardNumber);
+  if(!brand) return { ok: false, error: 'Seleccioná la marca de la tarjeta.' };
+  if(!digits || !luhnCheck(digits)) return { ok: false, error: 'Ingresá una tarjeta de prueba válida.' };
+  if(detectedBrand && detectedBrand !== brand) return { ok: false, error: 'La marca seleccionada no coincide con el número ingresado.' };
+  if(!String(cardHolder || '').trim()) return { ok: false, error: 'Ingresá el nombre del titular.' };
+  if(digitsOnly(cardHolderDni).length < 7) return { ok: false, error: 'Ingresá el DNI del titular para la simulación.' };
+  const expiryInfo = parseExpiry(expiry);
+  if(!expiryInfo.ok) return expiryInfo;
+  const cvvDigits = digitsOnly(cvv);
+  const requiredCvv = brand === 'AMEX' ? 4 : 3;
+  if(cvvDigits.length !== requiredCvv) return { ok: false, error: `El código de seguridad debe tener ${requiredCvv} dígitos para ${brand}.` };
+  if(Number(amount || 0) <= 0) return { ok: false, error: 'El importe a autorizar no es válido.' };
+  const authorizationCode = String(Math.floor(100000 + Math.random() * 900000));
+  const gatewayRef = `SIM-${Date.now().toString(36).toUpperCase()}`;
+  return {
+    ok: true,
+    approved: true,
+    brand,
+    last4: digits.slice(-4),
+    authorizationCode,
+    gatewayRef,
+    gatewayMessage: 'Pago virtual aprobado en entorno de prueba.',
+    secureNote: 'Se almacenaron únicamente la marca y los últimos 4 dígitos. El número completo y el CVV nunca se guardaron en la base.',
+    normalizedExpiry: expiryInfo.normalized,
+  };
+}
+
 async function ensureFactoryPlanSeed(){
   const count = await prisma.factoryPlanConfig.count().catch(() => 0);
   if(count > 0) return;
@@ -2158,11 +2230,20 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
     const billingName = String(billing.razonSocial || company.companyName || '').trim();
     const billingTaxId = normalizeId(billing.cuit || company.cuit || '');
     const billingEmail = normalizeEmail(billing.email || company.contactEmail || user?.email || '');
-    const cardNumber = String(payment.cardNumber || '').replace(/\D/g, '');
     if(!billingName) return res.status(400).json({ error: 'Falta la razón social.' });
     if(!billingTaxId) return res.status(400).json({ error: 'Falta el CUIT para la factura.' });
     if(!billingEmail) return res.status(400).json({ error: 'Falta el e-mail de facturación.' });
-    if(cardNumber.length < 12) return res.status(400).json({ error: 'Ingresá una tarjeta válida para continuar.' });
+
+    const paymentResult = simulateFactoryPayment({
+      amount: quote.total,
+      cardNumber: payment.cardNumber,
+      cardHolder: payment.cardHolder,
+      cardHolderDni: payment.cardHolderDni,
+      cardBrand: payment.cardBrand,
+      expiry: payment.expiry,
+      cvv: payment.cvv,
+    });
+    if(!paymentResult.ok) return res.status(400).json({ error: paymentResult.error || 'No se pudo autorizar el pago virtual.' });
 
     if(quote.coupon.valid && quote.coupon.code){
       await prisma.billingCouponRedemption.create({
@@ -2177,7 +2258,7 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
     const order = await prisma.billingOrder.create({
       data: {
         companyId: company.id,
-        status: 'VERIFIED',
+        status: 'PAID',
         companyNameSnapshot: company.companyName,
         cuitSnapshot: company.cuit,
         contactEmailSnapshot: company.contactEmail || user?.email || null,
@@ -2200,9 +2281,9 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
         total: quote.total,
         totalDays: quote.totalDays,
         totalOpenings: quote.totalOpenings,
-        cardBrand: String(payment.cardBrand || '').trim() || null,
-        cardLast4: cardNumber.slice(-4),
-        paymentNote: 'Checkout verificado. Integración de pago pendiente.',
+        cardBrand: paymentResult.brand,
+        cardLast4: paymentResult.last4,
+        paymentNote: `${paymentResult.gatewayMessage} Autorización ${paymentResult.authorizationCode}. ${paymentResult.secureNote}`,
         items: {
           create: quote.items.map((it)=> ({
             planCode: it.planCode,
@@ -2218,7 +2299,22 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
       },
       include: { company: true, items: true }
     });
-    res.json({ ok: true, message: 'Datos verificados. La compra quedó preparada para la integración de pago.', order: orderToSummary(order) });
+    const operationUsage = await getCompanyOperationUsage(company.id);
+    res.json({
+      ok: true,
+      message: `Compra virtual aprobada. Ya tenés habilitados ${quote.totalDays} días, ${quote.totalPublications} publicaciones y ${quote.totalOpenings} búsquedas.`,
+      order: orderToSummary(order),
+      operationUsage,
+      payment: {
+        approved: true,
+        brand: paymentResult.brand,
+        last4: paymentResult.last4,
+        authorizationCode: paymentResult.authorizationCode,
+        gatewayRef: paymentResult.gatewayRef,
+        secureNote: paymentResult.secureNote,
+      },
+      quote,
+    });
   } catch (err) {
     console.error('POST /factory/checkout', err);
     res.status(500).json({ error: err?.message || 'No se pudo registrar la compra' });
