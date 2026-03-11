@@ -30,6 +30,14 @@ const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
 const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
 const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || 'factory@gmail.com').trim();
+const FACTORY_ADMIN_ALLOWED_COMPANIES = String(
+  process.env.FACTORY_ADMIN_ALLOWED_COMPANIES ||
+  process.env.FACTORY_ADMIN_ALLOWED_COMPANY ||
+  'Mengabo SA,Mengabo Sociedad Anonima,Mengabo Sociedad Anónima,Mengavo SA'
+)
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 const FACTORY_PLAN_DEFAULTS = [
   { code: 'P7', name: 'Publicación 7 días', days: 7, price: 50000, publications: 7, searches: 7, highlight: '7 días · 7 publicaciones · 7 búsquedas.' },
@@ -157,31 +165,33 @@ function parseExpiry(expiry = ''){
 }
 
 function simulateFactoryPayment({ amount = 0, cardNumber = '', cardHolder = '', cardHolderDni = '', cardBrand = '', expiry = '', cvv = '' } = {}){
-  const brand = String(cardBrand || '').trim().toUpperCase();
-  const detectedBrand = detectCardBrand(cardNumber);
+  const selectedBrand = String(cardBrand || '').trim().toUpperCase();
   const digits = digitsOnly(cardNumber);
-  if(!brand) return { ok: false, error: 'Seleccioná la marca de la tarjeta.' };
-  if(!digits || !luhnCheck(digits)) return { ok: false, error: 'Ingresá una tarjeta de prueba válida.' };
-  if(detectedBrand && detectedBrand !== brand) return { ok: false, error: 'La marca seleccionada no coincide con el número ingresado.' };
+  const detectedBrand = detectCardBrand(cardNumber);
+  const effectiveBrand = detectedBrand || selectedBrand;
+  if(!effectiveBrand) return { ok: false, error: 'Seleccioná una marca o usá una tarjeta de prueba reconocible.' };
+  if(digits.length < 13 || digits.length > 19) return { ok: false, error: 'Ingresá una tarjeta de prueba con entre 13 y 19 dígitos.' };
   if(!String(cardHolder || '').trim()) return { ok: false, error: 'Ingresá el nombre del titular.' };
   if(digitsOnly(cardHolderDni).length < 7) return { ok: false, error: 'Ingresá el DNI del titular para la simulación.' };
   const expiryInfo = parseExpiry(expiry);
   if(!expiryInfo.ok) return expiryInfo;
   const cvvDigits = digitsOnly(cvv);
-  const requiredCvv = brand === 'AMEX' ? 4 : 3;
-  if(cvvDigits.length !== requiredCvv) return { ok: false, error: `El código de seguridad debe tener ${requiredCvv} dígitos para ${brand}.` };
+  if(cvvDigits.length < 3 || cvvDigits.length > 4) return { ok: false, error: 'El código de seguridad debe tener 3 o 4 dígitos.' };
   if(Number(amount || 0) <= 0) return { ok: false, error: 'El importe a autorizar no es válido.' };
   const authorizationCode = String(Math.floor(100000 + Math.random() * 900000));
   const gatewayRef = `SIM-${Date.now().toString(36).toUpperCase()}`;
+  const validationNote = detectedBrand && selectedBrand && detectedBrand !== selectedBrand
+    ? `Se priorizó la marca detectada (${detectedBrand}) sobre la marca elegida manualmente (${selectedBrand}) para esta simulación.`
+    : 'La validación virtual aceptó una tarjeta de prueba consistente para este entorno.';
   return {
     ok: true,
     approved: true,
-    brand,
+    brand: effectiveBrand,
     last4: digits.slice(-4),
     authorizationCode,
     gatewayRef,
     gatewayMessage: 'Pago virtual aprobado en entorno de prueba.',
-    secureNote: 'Se almacenaron únicamente la marca y los últimos 4 dígitos. El número completo y el CVV nunca se guardaron en la base.',
+    secureNote: `Se almacenaron únicamente la marca y los últimos 4 dígitos. El número completo y el CVV nunca se guardaron en la base. ${validationNote}`,
     normalizedExpiry: expiryInfo.normalized,
   };
 }
@@ -407,7 +417,20 @@ async function ensureCompanyPublicationAccess(companyId, jobId){
   return { ok: true, consumed: true, publication, usage: await getCompanyOperationUsage(companyId), sourceItem: quota.sourceItem };
 }
 
-function isFactoryAdminAuthorized(req){
+function factoryAdminCompanyMatches(company){
+  if(!FACTORY_ADMIN_ALLOWED_COMPANIES.length) return true;
+  const current = normalizeName(company?.companyName || '');
+  if(!current) return false;
+  return FACTORY_ADMIN_ALLOWED_COMPANIES.some((name) => normalizeName(name) === current);
+}
+
+function factoryAdminVisibilityMessage(company){
+  if(factoryAdminCompanyMatches(company)) return '';
+  const allowed = FACTORY_ADMIN_ALLOWED_COMPANIES[0] || 'la empresa habilitada';
+  return `Factory Admin solo está disponible para la empresa virtual habilitada (${allowed}).`;
+}
+
+function isFactoryAdminCredentialsAuthorized(req){
   if(['SUPERADMIN', 'ADMIN'].includes(String(req.user?.role || '').toUpperCase())) return true;
   const sentLegacy = String(req.headers['x-factory-admin-key'] || '').trim();
   if(FACTORY_SUPERADMIN_KEY && sentLegacy && sentLegacy === FACTORY_SUPERADMIN_KEY) return true;
@@ -416,8 +439,10 @@ function isFactoryAdminAuthorized(req){
   return !!FACTORY_ADMIN_ALIAS && !!FACTORY_ADMIN_PASSWORD && sentAlias === FACTORY_ADMIN_ALIAS && sentPassword === FACTORY_ADMIN_PASSWORD;
 }
 
-function requireFactoryAdmin(req, res, next){
-  if(isFactoryAdminAuthorized(req)) return next();
+async function requireFactoryAdmin(req, res, next){
+  const { company } = await getCompanyContextByUserId(req.user.id);
+  if(!factoryAdminCompanyMatches(company)) return res.status(403).json({ error: factoryAdminVisibilityMessage(company) || 'Factory Admin no está habilitado para esta empresa.' });
+  if(isFactoryAdminCredentialsAuthorized(req)) return next();
   return res.status(403).json({ error: 'Acceso Factory Admin no habilitado.' });
 }
 
@@ -2153,10 +2178,11 @@ app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
     const operationUsage = await getCompanyOperationUsage(company.id);
     const plans = await getFactoryPlans();
     const coupons = await prisma.factoryCoupon.findMany({ where: { isActive: true }, orderBy: { createdAt: 'desc' }, take: 50 }).catch(() => []);
+    const adminVisible = factoryAdminCompanyMatches(company);
     res.json({
       ok: true,
       role: req.user.role,
-      adminUnlocked: isFactoryAdminAuthorized(req),
+      adminUnlocked: adminVisible && isFactoryAdminCredentialsAuthorized(req),
       company: {
         id: company.id,
         companyName: company.companyName,
@@ -2171,8 +2197,11 @@ app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
       },
       supportEmail: FACTORY_SUPPORT_EMAIL,
       factoryAdmin: {
-        aliasHint: FACTORY_ADMIN_ALIAS || '',
+        aliasHint: adminVisible ? (FACTORY_ADMIN_ALIAS || '') : '',
         configured: !!((FACTORY_ADMIN_ALIAS && FACTORY_ADMIN_PASSWORD) || FACTORY_SUPERADMIN_KEY),
+        visible: adminVisible,
+        visibilityMessage: factoryAdminVisibilityMessage(company),
+        allowedCompanies: FACTORY_ADMIN_ALLOWED_COMPANIES,
       },
       plans,
       orders: recentOrders,
@@ -2322,6 +2351,10 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
 });
 
 app.post('/factory/admin/unlock', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), async (req, res) => {
+  const { company } = await getCompanyContextByUserId(req.user.id);
+  if(!factoryAdminCompanyMatches(company)){
+    return res.status(403).json({ error: factoryAdminVisibilityMessage(company) || 'Factory Admin no está habilitado para esta empresa.' });
+  }
   const alias = String(req.body?.alias || '').trim();
   const password = String(req.body?.password || '').trim();
   const legacyKey = String(req.body?.key || '').trim();

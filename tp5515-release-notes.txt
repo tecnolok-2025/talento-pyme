@@ -1,0 +1,7 @@
+Talento PyME v5.5.15
+
+- Factory Admin deja de recordar la clave al salir: el acceso administrativo vale solo para la sesión actual.
+- Factory Admin queda visible y usable únicamente para la empresa virtual habilitada.
+- Nueva variable de Render: FACTORY_ADMIN_ALLOWED_COMPANIES.
+- La matriz comercial de Factory Admin ahora muestra y permite editar claramente: plan, días, precio, publicaciones y búsquedas.
+- Se mantiene la compra virtual simulada de la v5.5.14.

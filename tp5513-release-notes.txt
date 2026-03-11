@@ -1,4 +1,4 @@
-Talento PyME v5.5.13
+Talento PyME v5.5.15
 - Factory con pago virtual simulado y aprobación inmediata.
 - Portal seguro de pago virtual con marcas, monto a autorizar y resguardo de tarjeta (solo marca y últimos 4).
 - Planes y admin con nota de precio sin IVA.
