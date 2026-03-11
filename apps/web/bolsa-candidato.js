@@ -1,4 +1,4 @@
-/* Talento PyME - v5.5.15 (candidato) - Mi Perfil institucional + foto + resumen curricular */
+/* Talento PyME - v5.5.16 (candidato) - Mi Perfil institucional + foto + resumen curricular */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",

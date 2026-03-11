@@ -461,7 +461,10 @@ async function couponPreviewForCompany(companyId, couponCode){
   if(!code) return { code: '', discountPct: 0, valid: false, alreadyUsed: false, message: '' };
   const stored = await prisma.factoryCoupon.findUnique({ where: { code } }).catch(() => null);
   const legacyPct = LEGACY_FACTORY_COUPONS[code] || 0;
-  const discountPct = stored?.isActive ? Number(stored.discountPct || 0) : legacyPct;
+  if(stored && !stored.isActive){
+    return { code, discountPct: 0, valid: false, alreadyUsed: true, message: 'Este código ya fue utilizado o desactivado.' };
+  }
+  const discountPct = stored ? Number(stored.discountPct || 0) : legacyPct;
   if(stored && stored.companyId && stored.companyId !== companyId){
     return { code, discountPct: 0, valid: false, alreadyUsed: false, message: 'Este código fue emitido para otra empresa.' };
   }
@@ -469,9 +472,8 @@ async function couponPreviewForCompany(companyId, couponCode){
     return { code, discountPct: 0, valid: false, alreadyUsed: false, message: 'Este código habilita acceso total. Activálo desde el bloque de acceso especial.' };
   }
   if(!discountPct) return { code, discountPct: 0, valid: false, alreadyUsed: false, message: 'Código no reconocido.' };
-  const used = await prisma.billingCouponRedemption.findUnique({ where: { companyId_code: { companyId, code } } }).catch(() => null);
-  const singleUsePerCompany = stored ? stored.singleUsePerCompany !== false : true;
-  if(singleUsePerCompany && used) return { code, discountPct: 0, valid: false, alreadyUsed: true, message: 'Este beneficio ya fue utilizado por esta empresa.' };
+  const usedAnywhere = await prisma.billingCouponRedemption.findFirst({ where: { code } }).catch(() => null);
+  if(usedAnywhere) return { code, discountPct: 0, valid: false, alreadyUsed: true, message: 'Este código ya fue utilizado y quedó desactivado.' };
   return { code, discountPct, valid: true, alreadyUsed: false, message: `${discountPct}% aplicado en esta compra.` };
 }
 
@@ -2230,6 +2232,7 @@ app.post('/factory/redeem-access-code', auth, requireAnyRole(['COMPANY','SUPERAD
       update: { fullAccessUntil: coupon.fullAccessUntil },
       create: { companyId: company.id, code, fullAccessUntil: coupon.fullAccessUntil }
     });
+    await prisma.factoryCoupon.update({ where: { code }, data: { isActive: false } }).catch(() => null);
     const operationUsage = await getCompanyOperationUsage(company.id);
     res.json({ ok: true, message: `Acceso total habilitado hasta ${new Date(coupon.fullAccessUntil).toLocaleDateString('es-AR')}.`, operationUsage });
   } catch (err) {
@@ -2278,10 +2281,11 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
       await prisma.billingCouponRedemption.create({
         data: { companyId: company.id, code: quote.coupon.code, discountPct: quote.coupon.discountPct }
       }).catch(async (err) => {
-        const again = await prisma.billingCouponRedemption.findUnique({ where: { companyId_code: { companyId: company.id, code: quote.coupon.code } } }).catch(() => null);
-        if(again) throw new Error('Este beneficio ya fue utilizado por esta empresa.');
+        const again = await prisma.billingCouponRedemption.findFirst({ where: { code: quote.coupon.code } }).catch(() => null);
+        if(again) throw new Error('Este beneficio ya fue utilizado y quedó desactivado.');
         throw err;
       });
+      await prisma.factoryCoupon.update({ where: { code: quote.coupon.code }, data: { isActive: false } }).catch(() => null);
     }
 
     const order = await prisma.billingOrder.create({
@@ -2382,7 +2386,15 @@ app.get('/factory/admin/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN'
     const companies = await prisma.companyProfile.findMany({ orderBy: { companyName: 'asc' }, select: { id: true, companyName: true, cuit: true, contactEmail: true } }).catch(() => []);
     const coupons = await prisma.factoryCoupon.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }).catch(() => []);
     const grants = await prisma.companyFactoryGrant.findMany({ include: { company: { select: { companyName: true, cuit: true } } }, orderBy: { fullAccessUntil: 'desc' }, take: 100 }).catch(() => []);
-    res.json({ ok: true, plans, companies, coupons, grants, supportEmail: FACTORY_SUPPORT_EMAIL });
+    res.json({
+      ok: true,
+      plans,
+      companies,
+      coupons: coupons.filter((row)=> row.isActive),
+      usedCoupons: coupons.filter((row)=> !row.isActive),
+      grants,
+      supportEmail: FACTORY_SUPPORT_EMAIL,
+    });
   } catch (err) {
     console.error('GET /factory/admin/bootstrap', err);
     res.status(500).json({ error: 'No se pudo cargar la consola Factory Admin.' });
