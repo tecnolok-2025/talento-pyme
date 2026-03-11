@@ -26,15 +26,17 @@ app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 const APP_VERSION = process.env.npm_package_version || "dev";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
+const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
+const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || 'factory@gmail.com').trim();
 
-const FACTORY_PLANS = [
-  { code: 'P7', name: 'Publicación 7 días', days: 7, price: 50000, openings: 15, highlight: 'Entrada ágil para búsquedas puntuales.' },
-  { code: 'P14', name: 'Publicación 14 días', days: 14, price: 95000, openings: 25, highlight: 'Más tiempo de exposición sin sobredimensionar la inversión.' },
-  { code: 'P30', name: 'Publicación 30 días', days: 30, price: 190000, openings: 45, highlight: 'Ideal para búsquedas técnicas y profesionales con más recorrido.' },
-  { code: 'P60', name: 'Publicación 60 días', days: 60, price: 340000, openings: 70, highlight: 'Pensado para procesos complejos o búsquedas recurrentes.' },
+const FACTORY_PLAN_DEFAULTS = [
+  { code: 'P7', name: 'Publicación 7 días', days: 7, price: 50000, publications: 7, searches: 7, highlight: '7 días · 7 publicaciones · 7 búsquedas.' },
+  { code: 'P14', name: 'Publicación 14 días', days: 14, price: 95000, publications: 12, searches: 12, highlight: '14 días · 12 publicaciones · 12 búsquedas.' },
+  { code: 'P30', name: 'Publicación 30 días', days: 30, price: 190000, publications: 20, searches: 20, highlight: '30 días · 20 publicaciones · 20 búsquedas.' },
+  { code: 'P60', name: 'Publicación 60 días', days: 60, price: 340000, publications: 35, searches: 35, highlight: '60 días · 35 publicaciones · 35 búsquedas.' },
 ];
 
-const FACTORY_COUPONS = {
+const LEGACY_FACTORY_COUPONS = {
   FACTORY100: 100,
   FACTORY50: 50,
   CAMARA100: 100,
@@ -110,8 +112,53 @@ function moneyInt(value){
   return Math.round(n);
 }
 
-function planByCode(code){
-  return FACTORY_PLANS.find((it)=> it.code === String(code || '').trim().toUpperCase()) || null;
+async function ensureFactoryPlanSeed(){
+  const count = await prisma.factoryPlanConfig.count().catch(() => 0);
+  if(count > 0) return;
+  await prisma.$transaction(FACTORY_PLAN_DEFAULTS.map((plan, idx) => prisma.factoryPlanConfig.upsert({
+    where: { code: plan.code },
+    update: {
+      name: plan.name,
+      days: plan.days,
+      price: plan.price,
+      publicationsLimit: plan.publications,
+      searchesLimit: plan.searches,
+      sortOrder: idx,
+      active: true,
+    },
+    create: {
+      code: plan.code,
+      name: plan.name,
+      days: plan.days,
+      price: plan.price,
+      publicationsLimit: plan.publications,
+      searchesLimit: plan.searches,
+      sortOrder: idx,
+      active: true,
+    }
+  }))).catch(() => null);
+}
+
+async function getFactoryPlans(){
+  await ensureFactoryPlanSeed();
+  const rows = await prisma.factoryPlanConfig.findMany({ where: { active: true }, orderBy: [{ sortOrder: 'asc' }, { days: 'asc' }] }).catch(() => []);
+  if(!rows.length){
+    return FACTORY_PLAN_DEFAULTS.map((plan)=> ({ ...plan }));
+  }
+  return rows.map((row) => ({
+    code: row.code,
+    name: row.name,
+    days: row.days,
+    price: row.price,
+    publications: row.publicationsLimit || 0,
+    searches: row.searchesLimit || 0,
+    highlight: `${row.days} días · ${row.publicationsLimit || 0} publicaciones · ${row.searchesLimit || 0} búsquedas.`,
+  }));
+}
+
+async function planByCode(code){
+  const plans = await getFactoryPlans();
+  return plans.find((it)=> it.code === String(code || '').trim().toUpperCase()) || null;
 }
 
 function companyCodeFrom(company){
@@ -127,7 +174,7 @@ function orderItemExpiresAt(order, item){
   return base;
 }
 
-async function getCompanyOpeningUsage(companyId){
+async function getCompanyOperationUsage(companyId){
   const now = new Date();
   const activeOrders = await prisma.billingOrder.findMany({
     where: {
@@ -139,14 +186,25 @@ async function getCompanyOpeningUsage(companyId){
     orderBy: { createdAt: 'asc' }
   }).catch(() => []);
 
+  const activeGrants = await prisma.companyFactoryGrant.findMany({
+    where: { companyId, fullAccessUntil: { gt: now } },
+    orderBy: { fullAccessUntil: 'desc' }
+  }).catch(() => []);
+
   const activeItems = [];
-  let totalOpenings = 0;
+  let totalSearches = 0;
+  let totalPublications = 0;
+  let latestPrivilegeUntil = null;
   for(const order of activeOrders){
     for(const item of order.items || []){
       const expiresAt = orderItemExpiresAt(order, item);
-      const included = Number(item.openingsIncluded || 0);
-      if(included <= 0 || expiresAt <= now) continue;
-      totalOpenings += included;
+      if(expiresAt <= now) continue;
+      latestPrivilegeUntil = !latestPrivilegeUntil || expiresAt > latestPrivilegeUntil ? expiresAt : latestPrivilegeUntil;
+      const searchesIncluded = Number(item.openingsIncluded || 0);
+      const publicationsIncluded = Number(item.publicationsIncluded || 0);
+      if(searchesIncluded <= 0 && publicationsIncluded <= 0) continue;
+      totalSearches += searchesIncluded;
+      totalPublications += publicationsIncluded;
       activeItems.push({
         orderId: order.id,
         orderItemId: item.id,
@@ -155,25 +213,76 @@ async function getCompanyOpeningUsage(companyId){
         planCode: item.planCode,
         planName: item.planName,
         days: item.days,
-        openingsIncluded: included,
+        searchesIncluded,
+        publicationsIncluded,
       });
     }
   }
 
-  const activeAccesses = await prisma.companyCandidateAccess.findMany({
+  const searchAccesses = await prisma.companyCandidateAccess.findMany({
     where: { companyId, expiresAt: { gt: now } },
     orderBy: { createdAt: 'asc' }
   }).catch(() => []);
 
-  const remaining = Math.max(0, totalOpenings - activeAccesses.length);
+  const jobPublications = await prisma.companyJobPublication.findMany({
+    where: { companyId, expiresAt: { gt: now } },
+    orderBy: { createdAt: 'asc' }
+  }).catch(() => []);
+
+  const fullAccess = activeGrants.length > 0;
+  const fullAccessUntil = activeGrants.reduce((acc, row)=> (!acc || row.fullAccessUntil > acc) ? row.fullAccessUntil : acc, latestPrivilegeUntil);
+
+  const remainingSearches = fullAccess ? 999999 : Math.max(0, totalSearches - searchAccesses.length);
+  const remainingPublications = fullAccess ? 999999 : Math.max(0, totalPublications - jobPublications.length);
+
   return {
     now,
-    totalOpenings,
-    usedOpenings: activeAccesses.length,
-    remainingOpenings: remaining,
+    totalSearches,
+    usedSearches: searchAccesses.length,
+    remainingSearches,
+    totalOpenings: totalSearches,
+    usedOpenings: searchAccesses.length,
+    remainingOpenings: remainingSearches,
+    totalPublications,
+    usedPublications: jobPublications.length,
+    remainingPublications,
     activeItems,
-    activeAccesses,
+    activeAccesses: searchAccesses,
+    jobPublications,
+    fullAccess,
+    fullAccessUntil,
+    activeGrants,
   };
+}
+
+async function consumeCompanyQuota(companyId, kind){
+  const usage = await getCompanyOperationUsage(companyId);
+  if(usage.fullAccess){
+    return { ok: true, consumed: false, usage, fullAccess: true, expiresAt: usage.fullAccessUntil || null };
+  }
+  const itemUsage = {};
+  const sourceRows = kind === 'publication' ? usage.jobPublications : usage.activeAccesses;
+  for(const row of sourceRows){
+    const key = row.orderItemId;
+    itemUsage[key] = (itemUsage[key] || 0) + 1;
+  }
+  const quotaField = kind === 'publication' ? 'publicationsIncluded' : 'searchesIncluded';
+  const remainingField = kind === 'publication' ? 'remainingPublications' : 'remainingSearches';
+  if((usage[remainingField] || 0) <= 0){
+    return {
+      ok: false,
+      consumed: false,
+      usage,
+      error: kind === 'publication'
+        ? 'No tenés publicaciones disponibles en tu plan actual. Contratá más capacidad desde Factory para seguir publicando avisos.'
+        : 'No tenés búsquedas disponibles en tu plan actual. Contratá más capacidad desde Factory para seguir abriendo fichas completas.'
+    };
+  }
+  const target = usage.activeItems.find((item) => (itemUsage[item.orderItemId] || 0) < Number(item[quotaField] || 0));
+  if(!target){
+    return { ok: false, consumed: false, usage, error: 'No se encontró un cupo activo para continuar. Revisá Factory y actualizá tu plan.' };
+  }
+  return { ok: true, consumed: true, usage, sourceItem: target, expiresAt: target.expiresAt, fullAccess: false };
 }
 
 async function ensureCompanyCandidateAccess(companyId, candidateId){
@@ -183,36 +292,60 @@ async function ensureCompanyCandidateAccess(companyId, candidateId){
     orderBy: { expiresAt: 'desc' }
   }).catch(() => null);
 
-  const usage = await getCompanyOpeningUsage(companyId);
-  if(existing){
+  const usage = await getCompanyOperationUsage(companyId);
+  if(existing || usage.fullAccess){
     return { ok: true, consumed: false, access: existing, usage };
   }
-  if(usage.remainingOpenings <= 0){
-    return { ok: false, consumed: false, error: 'No tenés aperturas disponibles en tu plan actual. Contratá más tiempo desde Factory para seguir abriendo fichas completas.', usage };
-  }
 
-  const consumptionByItem = usage.activeAccesses.reduce((acc, row) => {
-    acc[row.orderItemId] = (acc[row.orderItemId] || 0) + 1;
-    return acc;
-  }, {});
-  const target = usage.activeItems.find((item) => (consumptionByItem[item.orderItemId] || 0) < item.openingsIncluded);
-  if(!target){
-    return { ok: false, consumed: false, error: 'No se encontró un cupo activo para esta apertura. Revisá Factory y actualizá tu compra.', usage };
+  const quota = await consumeCompanyQuota(companyId, 'search');
+  if(!quota.ok){
+    return { ok: false, consumed: false, error: quota.error, usage: quota.usage || usage };
   }
 
   const access = await prisma.companyCandidateAccess.create({
     data: {
       companyId,
       candidateId,
-      orderItemId: target.orderItemId,
-      expiresAt: target.expiresAt,
+      orderItemId: quota.sourceItem.orderItemId,
+      expiresAt: quota.expiresAt,
     }
   });
-  const refreshedUsage = await getCompanyOpeningUsage(companyId);
-  return { ok: true, consumed: true, access, usage: refreshedUsage, sourceItem: target };
+  const refreshedUsage = await getCompanyOperationUsage(companyId);
+  return { ok: true, consumed: true, access, usage: refreshedUsage, sourceItem: quota.sourceItem };
+}
+
+async function ensureCompanyPublicationAccess(companyId, jobId){
+  const existing = await prisma.companyJobPublication.findUnique({ where: { jobId } }).catch(() => null);
+  if(existing) return { ok: true, consumed: false, publication: existing, usage: await getCompanyOperationUsage(companyId) };
+  const quota = await consumeCompanyQuota(companyId, 'publication');
+  if(!quota.ok) return { ok: false, consumed: false, usage: quota.usage, error: quota.error };
+  if(quota.fullAccess){
+    return { ok: true, consumed: false, publication: null, usage: quota.usage };
+  }
+  const publication = await prisma.companyJobPublication.create({
+    data: {
+      companyId,
+      jobId,
+      orderItemId: quota.sourceItem.orderItemId,
+      expiresAt: quota.expiresAt,
+    }
+  });
+  return { ok: true, consumed: true, publication, usage: await getCompanyOperationUsage(companyId), sourceItem: quota.sourceItem };
+}
+
+function isFactoryAdminAuthorized(req){
+  if(['SUPERADMIN', 'ADMIN'].includes(String(req.user?.role || '').toUpperCase())) return true;
+  const sent = String(req.headers['x-factory-admin-key'] || '').trim();
+  return !!FACTORY_SUPERADMIN_KEY && sent && sent === FACTORY_SUPERADMIN_KEY;
+}
+
+function requireFactoryAdmin(req, res, next){
+  if(isFactoryAdminAuthorized(req)) return next();
+  return res.status(403).json({ error: 'Acceso Factory Admin no habilitado.' });
 }
 
 async function getCompanyContextByUserId(userId){
+
   let company = await prisma.companyProfile.findUnique({ where: { userId } });
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
   if(!company){
@@ -224,34 +357,48 @@ async function getCompanyContextByUserId(userId){
 async function couponPreviewForCompany(companyId, couponCode){
   const code = String(couponCode || '').trim().toUpperCase();
   if(!code) return { code: '', discountPct: 0, valid: false, alreadyUsed: false, message: '' };
-  const discountPct = FACTORY_COUPONS[code] || 0;
+  const stored = await prisma.factoryCoupon.findUnique({ where: { code } }).catch(() => null);
+  const legacyPct = LEGACY_FACTORY_COUPONS[code] || 0;
+  const discountPct = stored?.isActive ? Number(stored.discountPct || 0) : legacyPct;
+  if(stored && stored.companyId && stored.companyId !== companyId){
+    return { code, discountPct: 0, valid: false, alreadyUsed: false, message: 'Este código fue emitido para otra empresa.' };
+  }
+  if(stored?.grantsFullAccess){
+    return { code, discountPct: 0, valid: false, alreadyUsed: false, message: 'Este código habilita acceso total. Activálo desde el bloque de acceso especial.' };
+  }
   if(!discountPct) return { code, discountPct: 0, valid: false, alreadyUsed: false, message: 'Código no reconocido.' };
   const used = await prisma.billingCouponRedemption.findUnique({ where: { companyId_code: { companyId, code } } }).catch(() => null);
-  if(used) return { code, discountPct: 0, valid: false, alreadyUsed: true, message: 'Este beneficio ya fue utilizado por esta empresa.' };
+  const singleUsePerCompany = stored ? stored.singleUsePerCompany !== false : true;
+  if(singleUsePerCompany && used) return { code, discountPct: 0, valid: false, alreadyUsed: true, message: 'Este beneficio ya fue utilizado por esta empresa.' };
   return { code, discountPct, valid: true, alreadyUsed: false, message: `${discountPct}% aplicado en esta compra.` };
 }
 
 async function buildFactoryQuote(companyId, items = [], couponCode = ''){
   const cleanItems = Array.isArray(items) ? items : [];
-  const normalized = cleanItems.map((item)=>{
-    const plan = planByCode(item?.planCode);
+  const normalized = [];
+  for(const item of cleanItems){
+    const plan = await planByCode(item?.planCode);
     const quantity = Math.max(1, Math.min(50, Number(item?.quantity || 1) || 1));
-    if(!plan) return null;
-    const openingsIncluded = Number(plan.openings || 0) * quantity;
-    return {
+    if(!plan) continue;
+    const searchesIncluded = Number(plan.searches || 0) * quantity;
+    const publicationsIncluded = Number(plan.publications || 0) * quantity;
+    normalized.push({
       planCode: plan.code,
       planName: plan.name,
       days: plan.days,
       unitPrice: plan.price,
       quantity,
       subtotal: plan.price * quantity,
-      openingsIncluded,
-      openingsPerUnit: Number(plan.openings || 0),
-    };
-  }).filter(Boolean);
+      openingsIncluded: searchesIncluded,
+      publicationsIncluded,
+      searchesPerUnit: Number(plan.searches || 0),
+      publicationsPerUnit: Number(plan.publications || 0),
+    });
+  }
   const subtotal = normalized.reduce((acc, it)=> acc + it.subtotal, 0);
   const totalDays = normalized.reduce((acc, it)=> acc + (it.days * it.quantity), 0);
   const totalOpenings = normalized.reduce((acc, it)=> acc + it.openingsIncluded, 0);
+  const totalPublications = normalized.reduce((acc, it)=> acc + it.publicationsIncluded, 0);
   const coupon = await couponPreviewForCompany(companyId, couponCode);
   const discountAmount = coupon.valid ? Math.round(subtotal * (coupon.discountPct / 100)) : 0;
   const taxableBase = Math.max(0, subtotal - discountAmount);
@@ -262,6 +409,7 @@ async function buildFactoryQuote(companyId, items = [], couponCode = ''){
     subtotal,
     totalDays,
     totalOpenings,
+    totalPublications,
     coupon,
     discountAmount,
     vatAmount,
@@ -301,6 +449,8 @@ function orderToSummary(order){
       unitPrice: it.unitPrice,
       subtotal: it.subtotal,
       openingsIncluded: it.openingsIncluded || 0,
+      searchesIncluded: it.openingsIncluded || 0,
+      publicationsIncluded: it.publicationsIncluded || 0,
     })),
     totals: {
       subtotal: order.subtotal || 0,
@@ -1754,7 +1904,7 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
     }));
 
     const { company } = await getCompanyContextByUserId(req.user.id);
-    const openingUsage = await getCompanyOpeningUsage(company.id);
+    const openingUsage = await getCompanyOperationUsage(company.id);
     return res.json({ ok: true, items: filtered, openingUsage });
   } catch (err) {
     console.error('GET /jobs/search', err);
@@ -1860,7 +2010,7 @@ app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res)
     if (!website) return res.status(400).json({ error: 'Falta sitio web' });
     let url = website;
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.5.10 (+Render)' } });
+    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.5.11 (+Render)' } });
     const html = await response.text();
     const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [,''])[1].replace(/\s+/g,' ').trim();
     const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i) || [,''])[1].trim();
@@ -1923,10 +2073,13 @@ app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
       acc.orders += 1;
       return acc;
     }, { total: 0, pending: 0, paid: 0, orders: 0 });
-    const openingUsage = await getCompanyOpeningUsage(company.id);
+    const operationUsage = await getCompanyOperationUsage(company.id);
+    const plans = await getFactoryPlans();
+    const coupons = await prisma.factoryCoupon.findMany({ where: { isActive: true }, orderBy: { createdAt: 'desc' }, take: 50 }).catch(() => []);
     res.json({
       ok: true,
       role: req.user.role,
+      adminUnlocked: isFactoryAdminAuthorized(req),
       company: {
         id: company.id,
         companyName: company.companyName,
@@ -1939,16 +2092,39 @@ app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
         phone: company.phone || null,
         companyCode: companyCodeFrom(company),
       },
-      supportEmail: 'factory@gmail.com',
-      plans: FACTORY_PLANS,
+      supportEmail: FACTORY_SUPPORT_EMAIL,
+      plans,
       orders: recentOrders,
       totals,
-      openingUsage,
-      couponCatalog: Object.keys(FACTORY_COUPONS).map((code)=> ({ code, discountPct: FACTORY_COUPONS[code] })),
+      operationUsage,
+      openingUsage: operationUsage,
+      couponCatalog: coupons.map((row)=> ({ code: row.code, discountPct: row.discountPct, companyId: row.companyId || null, grantsFullAccess: !!row.grantsFullAccess, fullAccessUntil: row.fullAccessUntil || null })),
     });
   } catch (err) {
     console.error('GET /factory/bootstrap', err);
     res.status(500).json({ error: 'No se pudo cargar Factory' });
+  }
+});
+
+app.post('/factory/redeem-access-code', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), async (req, res) => {
+  try {
+    const { company } = await getCompanyContextByUserId(req.user.id);
+    const code = String(req.body?.code || '').trim().toUpperCase();
+    if(!code) return res.status(400).json({ error: 'Ingresá un código válido.' });
+    const coupon = await prisma.factoryCoupon.findUnique({ where: { code } }).catch(() => null);
+    if(!coupon || !coupon.isActive || !coupon.grantsFullAccess || !coupon.fullAccessUntil) return res.status(404).json({ error: 'El código ingresado no habilita acceso total.' });
+    if(coupon.companyId && coupon.companyId !== company.id) return res.status(403).json({ error: 'Este código fue emitido para otra empresa.' });
+    if(new Date(coupon.fullAccessUntil) <= new Date()) return res.status(400).json({ error: 'Este código ya está vencido.' });
+    await prisma.companyFactoryGrant.upsert({
+      where: { companyId_code: { companyId: company.id, code } },
+      update: { fullAccessUntil: coupon.fullAccessUntil },
+      create: { companyId: company.id, code, fullAccessUntil: coupon.fullAccessUntil }
+    });
+    const operationUsage = await getCompanyOperationUsage(company.id);
+    res.json({ ok: true, message: `Acceso total habilitado hasta ${new Date(coupon.fullAccessUntil).toLocaleDateString('es-AR')}.`, operationUsage });
+  } catch (err) {
+    console.error('POST /factory/redeem-access-code', err);
+    res.status(500).json({ error: 'No se pudo activar el acceso especial.' });
   }
 });
 
@@ -2027,6 +2203,7 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
             quantity: it.quantity,
             subtotal: it.subtotal,
             openingsIncluded: it.openingsIncluded,
+            publicationsIncluded: it.publicationsIncluded,
           }))
         }
       },
@@ -2039,7 +2216,103 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
   }
 });
 
-app.get('/factory/admin/orders', auth, requireAnyRole(['SUPERADMIN','ADMIN']), async (req, res) => {
+app.post('/factory/admin/unlock', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), async (req, res) => {
+  const key = String(req.body?.key || '').trim();
+  if(!FACTORY_SUPERADMIN_KEY) return res.status(503).json({ error: 'FACTORY_SUPERADMIN_KEY no está configurada en Render.' });
+  if(!key || key !== FACTORY_SUPERADMIN_KEY) return res.status(403).json({ error: 'Clave de superadministración incorrecta.' });
+  return res.json({ ok: true, unlocked: true });
+});
+
+app.get('/factory/admin/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), requireFactoryAdmin, async (req, res) => {
+  try {
+    const plans = await getFactoryPlans();
+    const companies = await prisma.companyProfile.findMany({ orderBy: { companyName: 'asc' }, select: { id: true, companyName: true, cuit: true, contactEmail: true } }).catch(() => []);
+    const coupons = await prisma.factoryCoupon.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }).catch(() => []);
+    const grants = await prisma.companyFactoryGrant.findMany({ include: { company: { select: { companyName: true, cuit: true } } }, orderBy: { fullAccessUntil: 'desc' }, take: 100 }).catch(() => []);
+    res.json({ ok: true, plans, companies, coupons, grants, supportEmail: FACTORY_SUPPORT_EMAIL });
+  } catch (err) {
+    console.error('GET /factory/admin/bootstrap', err);
+    res.status(500).json({ error: 'No se pudo cargar la consola Factory Admin.' });
+  }
+});
+
+app.post('/factory/admin/plans', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), requireFactoryAdmin, async (req, res) => {
+  try {
+    const plans = Array.isArray(req.body?.plans) ? req.body.plans : [];
+    if(!plans.length) return res.status(400).json({ error: 'Faltan planes para guardar.' });
+    await prisma.$transaction(plans.map((plan, idx) => {
+      const code = String(plan.code || '').trim().toUpperCase();
+      if(!code) throw new Error('Cada plan debe tener código.');
+      return prisma.factoryPlanConfig.upsert({
+        where: { code },
+        update: {
+          name: String(plan.name || '').trim() || `Plan ${code}`,
+          days: Math.max(1, Number(plan.days || 0)),
+          price: moneyInt(plan.price || 0),
+          publicationsLimit: Math.max(0, Number(plan.publications || 0)),
+          searchesLimit: Math.max(0, Number(plan.searches || 0)),
+          sortOrder: idx,
+          active: true,
+        },
+        create: {
+          code,
+          name: String(plan.name || '').trim() || `Plan ${code}`,
+          days: Math.max(1, Number(plan.days || 0)),
+          price: moneyInt(plan.price || 0),
+          publicationsLimit: Math.max(0, Number(plan.publications || 0)),
+          searchesLimit: Math.max(0, Number(plan.searches || 0)),
+          sortOrder: idx,
+          active: true,
+        }
+      });
+    }));
+    res.json({ ok: true, plans: await getFactoryPlans() });
+  } catch (err) {
+    console.error('POST /factory/admin/plans', err);
+    res.status(500).json({ error: err?.message || 'No se pudo guardar la matriz de planes.' });
+  }
+});
+
+app.post('/factory/admin/coupons', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), requireFactoryAdmin, async (req, res) => {
+  try {
+    const code = String(req.body?.code || '').trim().toUpperCase();
+    const discountPct = Math.max(10, Math.min(100, Number(req.body?.discountPct || 0)));
+    const companyId = String(req.body?.companyId || '').trim() || null;
+    if(!code) return res.status(400).json({ error: 'Ingresá un código para la bonificación.' });
+    await prisma.factoryCoupon.upsert({
+      where: { code },
+      update: { label: `Bonificación ${discountPct}%`, discountPct, companyId, grantsFullAccess: false, fullAccessUntil: null, isActive: true, singleUsePerCompany: true },
+      create: { code, label: `Bonificación ${discountPct}%`, discountPct, companyId, grantsFullAccess: false, fullAccessUntil: null, isActive: true, singleUsePerCompany: true }
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('POST /factory/admin/coupons', err);
+    res.status(500).json({ error: 'No se pudo guardar el código de bonificación.' });
+  }
+});
+
+app.post('/factory/admin/full-access', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), requireFactoryAdmin, async (req, res) => {
+  try {
+    const code = String(req.body?.code || '').trim().toUpperCase();
+    const companyId = String(req.body?.companyId || '').trim();
+    const untilMonth = String(req.body?.untilMonth || '').trim();
+    if(!code || !companyId || !untilMonth) return res.status(400).json({ error: 'Completá empresa, código y mes de vigencia.' });
+    const until = new Date(`${untilMonth}-01T00:00:00.000Z`);
+    if(Number.isNaN(until.getTime())) return res.status(400).json({ error: 'Mes inválido.' });
+    const end = new Date(Date.UTC(until.getUTCFullYear(), until.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+    await prisma.factoryCoupon.upsert({
+      where: { code },
+      update: { label: `Acceso total hasta ${untilMonth}`, discountPct: 100, companyId, grantsFullAccess: true, fullAccessUntil: end, isActive: true, singleUsePerCompany: true },
+      create: { code, label: `Acceso total hasta ${untilMonth}`, discountPct: 100, companyId, grantsFullAccess: true, fullAccessUntil: end, isActive: true, singleUsePerCompany: true }
+    });
+    res.json({ ok: true, until: end });
+  } catch (err) {
+    console.error('POST /factory/admin/full-access', err);
+    res.status(500).json({ error: 'No se pudo guardar el código de acceso total.' });
+  }
+});
+
+app.get('/factory/admin/orders', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), requireFactoryAdmin, async (req, res) => {
   try {
     const q = String(req.query?.q || '').trim().toLowerCase();
     const days = req.query?.days ? Number(req.query.days) : null;
@@ -2244,6 +2517,9 @@ app.post("/jobs", auth, requireRole("COMPANY"), async (req, res) => {
   const c = await prisma.companyProfile.findUnique({ where: { userId: req.user.id } });
   if (!c) return res.status(400).json({ error: "Empresa no configurada" });
 
+  const quota = await consumeCompanyQuota(c.id, 'publication');
+  if(!quota.ok) return res.status(402).json({ error: quota.error, operationUsage: quota.usage || null });
+
   const job = await prisma.job.create({
     data: {
       companyId: c.id,
@@ -2259,7 +2535,21 @@ app.post("/jobs", auth, requireRole("COMPANY"), async (req, res) => {
     }
   });
 
-  res.json(job);
+  if(quota.sourceItem && quota.expiresAt){
+    await prisma.companyJobPublication.create({
+      data: {
+        companyId: c.id,
+        jobId: job.id,
+        orderItemId: quota.sourceItem.orderItemId,
+        expiresAt: quota.expiresAt,
+      }
+    }).catch(async (err) => {
+      await prisma.job.delete({ where: { id: job.id } }).catch(() => null);
+      throw err;
+    });
+  }
+
+  res.json({ ...job, operationUsage: await getCompanyOperationUsage(c.id) });
 });
 
 app.get("/jobs", async (req, res) => {
@@ -2288,8 +2578,24 @@ app.get("/jobs", async (req, res) => {
 app.get("/jobs/mine", auth, requireRole("COMPANY"), async (req, res) => {
   const c = await prisma.companyProfile.findUnique({ where: { userId: req.user.id } });
   if (!c) return res.json({ jobs: [] });
-  const jobs = await prisma.job.findMany({ where: { companyId: c.id }, orderBy: { createdAt: "desc" } });
-  res.json({ jobs });
+  const jobs = await prisma.job.findMany({
+    where: { companyId: c.id },
+    orderBy: { createdAt: "desc" },
+    include: {
+      applications: { include: { user: { include: { candidateBolsa: true } } } }
+    }
+  });
+  const mapped = jobs.map((job)=> {
+    const salaries = (job.applications || []).map((app)=> String(app.user?.candidateBolsa?.sueldoPretendido || '').trim()).filter(Boolean);
+    const uniqueSalaries = Array.from(new Set(salaries));
+    return {
+      ...job,
+      applicationsCount: (job.applications || []).length,
+      salaryPretensions: uniqueSalaries.slice(0, 4),
+      salaryPretensionsCount: uniqueSalaries.length,
+    };
+  });
+  res.json({ jobs: mapped, operationUsage: await getCompanyOperationUsage(c.id) });
 });
 
 app.patch("/jobs/:id", auth, requireRole("COMPANY"), async (req, res) => {

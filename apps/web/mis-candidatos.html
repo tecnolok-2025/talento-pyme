@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Mis Candidatos</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.5.10" />
+  <link rel="stylesheet" href="/styles.css?v=5.5.11" />
 </head>
 <body class="appShell">
   <div class="header">
@@ -39,13 +39,14 @@
       <div id="list" class="listStack" style="margin-top:16px"></div>
     </div>
   </div>
-  <script src="/config.js?v=5.5.10"></script>
-  <script src="/auth.js?v=5.5.10"></script>
+  <script src="/config.js?v=5.5.11"></script>
+  <script src="/auth.js?v=5.5.11"></script>
   <script>
     requireAuth(); applyRoleVisibility(); requireRole('COMPANY');
     document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); logout(); };
     function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function formatDate(v){ try{return new Date(v).toLocaleDateString();}catch(_){return v||'';} }
+    function formatSalary(v){ const digits = String(v||'').replace(/\D/g,''); if(!digits) return 'No informada'; return '$' + Number(digits).toLocaleString('es-AR'); }
     function avatar(url, name){ const initial = esc((name||'?').trim().slice(0,1).toUpperCase() || '?'); return url ? `<img src="${esc(url)}" alt="${esc(name||'Foto')}" class="candidateThumb" />` : `<div class="candidateThumb placeholder"><span>${initial}</span></div>`; }
     function countBy(items, key){ const o={}; items.forEach(it=>{ const k=it[key]||'Sin dato'; o[k]=(o[k]||0)+1; }); return Object.entries(o).sort((a,b)=>b[1]-a[1])[0]; }
     (async ()=>{
@@ -62,7 +63,7 @@
         if(!items.length){ list.innerHTML = '<div class="muted">Todavía no guardaste candidatos. Desde Buscar Talento podés enviar perfiles a esta carpeta.</div>'; return; }
         list.innerHTML = items.map((it)=>{
           const especialidad = it.especialidad === 'Otros' ? (it.especialidad_otro || 'Otros') : (it.especialidad || '');
-          return `<div class="accordionItem"><div class="accordionHead"><div class="candidateLine">${avatar(it.photoDataUrl, `${it.nombre || ''} ${it.apellido || ''}`)}<div><b>${esc(it.apellido)}, ${esc(it.nombre)}</b><div class="muted">${esc(it.area_trabajo||'')} • ${esc(it.localidad||'')}</div></div></div><span>+</span></div><div class="accordionBody"><div class="talentMeta"><span class="tag">${esc(especialidad || 'Especialidad s/d')}</span><span class="tag">${esc(it.nivel || 'Nivel s/d')}</span><span class="tag">${esc(it.sourceLabel || 'Guardado por la empresa')}</span><span class="tag">Actualizado ${esc(formatDate(it.updated_at || it.created_at))}</span></div>${(it.applications&&it.applications.length)?`<div class="sectionMini"><b>Interés manifestado</b><br>${esc(it.applications[0].jobTitle || 'Se postuló a una búsqueda de tu empresa')}</div>`:''}<div class="sectionMini"><b>Contacto</b><br>${esc(it.telefono || 's/d')} • ${esc(it.correo || 's/d')}</div>${it.ultimo_trabajo?`<div class="sectionMini"><b>Último trabajo</b><br>${esc(it.ultimo_trabajo)}</div>`:''}${it.observaciones?`<div class="sectionMini"><b>Resumen curricular</b><br>${esc(it.observaciones)}</div>`:''}<div class="row" style="justify-content:flex-end"><button class="btn btn-ghost btnRemove" data-id="${it.id}" type="button">Quitar de carpeta</button></div></div></div>`;
+          return `<div class="accordionItem"><div class="accordionHead"><div class="candidateLine">${avatar(it.photoDataUrl, `${it.nombre || ''} ${it.apellido || ''}`)}<div><b>${esc(it.apellido)}, ${esc(it.nombre)}</b><div class="muted">${esc(it.area_trabajo||'')} • ${esc(it.localidad||'')}</div></div></div><span>+</span></div><div class="accordionBody"><div class="talentMeta"><span class="tag">${esc(especialidad || 'Especialidad s/d')}</span><span class="tag">${esc(it.nivel || 'Nivel s/d')}</span><span class="tag">${esc(it.sourceLabel || 'Guardado por la empresa')}</span><span class="tag">Pretensión ${esc(formatSalary(it.sueldo_pretendido))}</span><span class="tag">Actualizado ${esc(formatDate(it.updated_at || it.created_at))}</span></div>${(it.applications&&it.applications.length)?`<div class="sectionMini"><b>Interés manifestado</b><br>${esc(it.applications[0].jobTitle || 'Se postuló a una búsqueda de tu empresa')}</div>`:''}<div class="sectionMini"><b>Pretensión económica</b><br>${esc(formatSalary(it.sueldo_pretendido))}</div><div class="sectionMini"><b>Contacto</b><br>${esc(it.telefono || 's/d')} • ${esc(it.correo || 's/d')}</div>${it.ultimo_trabajo?`<div class="sectionMini"><b>Último trabajo</b><br>${esc(it.ultimo_trabajo)}</div>`:''}${it.observaciones?`<div class="sectionMini"><b>Resumen curricular</b><br>${esc(it.observaciones)}</div>`:''}<div class="row" style="justify-content:flex-end"><button class="btn btn-ghost btnRemove" data-id="${it.id}" type="button">Quitar de carpeta</button></div></div></div>`;
         }).join('');
         list.querySelectorAll('.accordionItem').forEach(item=>{ item.querySelector('.accordionHead').onclick=()=>{ item.classList.toggle('open'); item.querySelector('.accordionHead span').textContent=item.classList.contains('open')?'−':'+'; }; });
         list.querySelectorAll('.btnRemove').forEach(btn=>{ btn.onclick=async (e)=>{ e.stopPropagation(); statusMsg.textContent='Quitando…'; try{ await apiFetch('/company/candidates/'+btn.dataset.id, { method:'DELETE' }); location.reload(); }catch(err){ statusMsg.textContent=err.message; } }; });

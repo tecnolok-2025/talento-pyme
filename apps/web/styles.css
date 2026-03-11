@@ -439,7 +439,7 @@ body:not(.appShell):not(.authBody) .globalBrandFooter{border-top:1px solid rgba(
 #profilePhotoInput,#profileCameraInput{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}.tp-photo-actions label.btn,.tp-photo-actions .tp-upload-btn{display:inline-flex;align-items:center;justify-content:center;cursor:pointer;text-decoration:none}.tp-upload-btn[aria-disabled="true"]{opacity:.6;pointer-events:none}
 
 /* ==============================
-   Factory / Facturación (v5.5.10)
+   Factory / Facturación (v5.5.11)
    ============================== */
 .factoryShell{display:grid;grid-template-columns:minmax(0,1.4fr) 360px;gap:18px;align-items:start}
 @media(max-width:1100px){.factoryShell{grid-template-columns:1fr}}

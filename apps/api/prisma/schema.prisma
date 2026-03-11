@@ -168,6 +168,9 @@ model CompanyProfile {
   billingOrders BillingOrder[]
   couponRedemptions BillingCouponRedemption[]
   candidateAccesses CompanyCandidateAccess[]
+  jobPublications CompanyJobPublication[]
+  factoryCoupons FactoryCoupon[]
+  factoryGrants CompanyFactoryGrant[]
 
   @@index([companyNameNorm])
   @@index([contactNameNorm])
@@ -265,14 +268,30 @@ model BillingOrderItem {
   quantity     Int         @default(1)
   subtotal     Int         @default(0)
   openingsIncluded Int     @default(0)
+  publicationsIncluded Int @default(0)
   createdAt    DateTime    @default(now())
 
   order        BillingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   candidateAccesses CompanyCandidateAccess[]
+  jobPublications CompanyJobPublication[]
 
   @@index([orderId])
 }
 
+model CompanyJobPublication {
+  id          String         @id @default(cuid())
+  companyId   String
+  jobId       String         @unique
+  orderItemId String?
+  expiresAt   DateTime
+  createdAt   DateTime       @default(now())
+
+  company     CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orderItem   BillingOrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, expiresAt])
+  @@index([orderItemId])
+}
 
 model CompanyCandidateAccess {
   id          String         @id @default(cuid())
@@ -301,4 +320,48 @@ model BillingCouponRedemption {
 
   @@unique([companyId, code])
   @@index([companyId, createdAt])
+}
+
+
+model FactoryPlanConfig {
+  code               String   @id
+  name               String
+  days               Int
+  price              Int
+  publicationsLimit  Int      @default(0)
+  searchesLimit      Int      @default(0)
+  active             Boolean  @default(true)
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model FactoryCoupon {
+  code             String         @id
+  label            String?
+  discountPct      Int            @default(0)
+  companyId        String?
+  grantsFullAccess Boolean        @default(false)
+  fullAccessUntil  DateTime?
+  isActive         Boolean        @default(true)
+  singleUsePerCompany Boolean     @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  company          CompanyProfile? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, isActive])
+}
+
+model CompanyFactoryGrant {
+  id              String         @id @default(cuid())
+  companyId       String
+  code            String
+  fullAccessUntil DateTime
+  createdAt       DateTime       @default(now())
+
+  company         CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId, fullAccessUntil])
 }
