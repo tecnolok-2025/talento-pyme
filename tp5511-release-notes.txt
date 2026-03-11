@@ -1,4 +1,4 @@
-Talento PyME · v5.5.11
+Talento PyME · v5.5.12
 
 Cambios principales
 - lado empresa: Mis Candidatos muestra pretensión económica formateada como $2.000.000

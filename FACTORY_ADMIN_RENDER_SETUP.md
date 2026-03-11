@@ -1,48 +1,36 @@
-# Factory Admin · configuración en Render
+# Factory Admin · configuración en Render (v5.5.12)
 
-## Variables de entorno a crear
+Configurá estas variables en el servicio **API** de Render:
 
-En el servicio API de Render, agregá estas variables:
-
-- `FACTORY_SUPERADMIN_KEY`
-  - ejemplo: `TalentoPyME-Factory-2026!`
-  - esta clave habilita la consola **Factory Admin** desde el lado empresa.
-
+- `FACTORY_ADMIN_ALIAS`
+- `FACTORY_ADMIN_PASSWORD`
 - `FACTORY_SUPPORT_EMAIL`
-  - ejemplo: `factory@gmail.com`
-  - este mail se muestra en el panel Factory para consultas.
 
-## Cómo cargarla en Render
+## Sugerencia práctica
 
-1. Entrá a tu servicio API en Render.
-2. Abrí **Environment**.
-3. Elegí **Add Environment Variable**.
-4. Creá `FACTORY_SUPERADMIN_KEY` con la clave que quieras usar.
-5. Creá `FACTORY_SUPPORT_EMAIL` con el mail de soporte.
-6. Guardá los cambios.
-7. Ejecutá un **Manual Deploy** o esperá el redeploy automático.
+- `FACTORY_ADMIN_ALIAS=TalentoPyme`
+- `FACTORY_ADMIN_PASSWORD=tu_clave_superadmin`
+- `FACTORY_SUPPORT_EMAIL=factory@gmail.com`
 
-## Cómo usarla en la app
+## Pasos
 
-1. Ingresá con la empresa.
+1. Entrá a Render.
+2. Abrí el servicio `talento-pyme-api`.
+3. Entrá a **Environment**.
+4. Creá `FACTORY_ADMIN_ALIAS` con el nombre de fantasía que quieras usar.
+5. Creá `FACTORY_ADMIN_PASSWORD` con la clave que quieras usar.
+6. Creá `FACTORY_SUPPORT_EMAIL` con el mail de soporte.
+7. Guardá.
+8. Hacé **Redeploy**.
+
+## Cómo ingresar
+
+1. Entrá a Talento PyME como **Empresa**.
 2. Abrí **Factory**.
-3. En el bloque **Superadministración**, escribí la clave.
-4. Tocá **Habilitar**.
-5. Se abrirá la pestaña **Factory Admin**.
+3. En el bloque **Factory Admin** escribí el nombre Factory y la clave de acceso.
+4. Tocá **Ingresar**.
+5. Se habilita el panel **Factory Admin**.
 
-## Qué permite Factory Admin
+## Compatibilidad
 
-- modificar la matriz de planes:
-  - días
-  - precio
-  - publicaciones
-  - búsquedas
-- crear códigos de bonificación
-- crear códigos de acceso total free por empresa con vencimiento por mes
-- revisar empresas y facturación agrupada
-
-## Importante
-
-- si no cargás `FACTORY_SUPERADMIN_KEY`, la consola admin no se habilita
-- los cambios de planes y códigos se guardan en base de datos
-- esta revisión requiere correr `npx prisma generate` y `npx prisma db push --accept-data-loss`
+`FACTORY_SUPERADMIN_KEY` queda soportada solo como compatibilidad, pero desde esta revisión la forma recomendada es usar alias + clave.

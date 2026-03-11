@@ -1,10 +1,10 @@
-Auditoría v5.5.11
+Auditoría v5.5.12
 
 Verificado
-- apps/api/package.json = 5.5.11
-- apps/web/config.js = 5.5.11
-- apps/web/*.html con cache busting 5.5.11
-- apps/web/sw.js = 5.5.11
+- apps/api/package.json = 5.5.12
+- apps/web/config.js = 5.5.12
+- apps/web/*.html con cache busting 5.5.12
+- apps/web/sw.js = 5.5.12
 - sintaxis JS validada con node --check en frontend y backend
 - Factory Admin documentado en FACTORY_ADMIN_RENDER_SETUP.md
 

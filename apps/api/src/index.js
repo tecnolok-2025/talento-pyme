@@ -27,6 +27,8 @@ const APP_VERSION = process.env.npm_package_version || "dev";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
+const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
+const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
 const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || 'factory@gmail.com').trim();
 
 const FACTORY_PLAN_DEFAULTS = [
@@ -335,8 +337,11 @@ async function ensureCompanyPublicationAccess(companyId, jobId){
 
 function isFactoryAdminAuthorized(req){
   if(['SUPERADMIN', 'ADMIN'].includes(String(req.user?.role || '').toUpperCase())) return true;
-  const sent = String(req.headers['x-factory-admin-key'] || '').trim();
-  return !!FACTORY_SUPERADMIN_KEY && sent && sent === FACTORY_SUPERADMIN_KEY;
+  const sentLegacy = String(req.headers['x-factory-admin-key'] || '').trim();
+  if(FACTORY_SUPERADMIN_KEY && sentLegacy && sentLegacy === FACTORY_SUPERADMIN_KEY) return true;
+  const sentAlias = String(req.headers['x-factory-admin-alias'] || '').trim();
+  const sentPassword = String(req.headers['x-factory-admin-password'] || '').trim();
+  return !!FACTORY_ADMIN_ALIAS && !!FACTORY_ADMIN_PASSWORD && sentAlias === FACTORY_ADMIN_ALIAS && sentPassword === FACTORY_ADMIN_PASSWORD;
 }
 
 function requireFactoryAdmin(req, res, next){
@@ -2010,7 +2015,7 @@ app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res)
     if (!website) return res.status(400).json({ error: 'Falta sitio web' });
     let url = website;
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.5.11 (+Render)' } });
+    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.5.12 (+Render)' } });
     const html = await response.text();
     const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [,''])[1].replace(/\s+/g,' ').trim();
     const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i) || [,''])[1].trim();
@@ -2093,6 +2098,10 @@ app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
         companyCode: companyCodeFrom(company),
       },
       supportEmail: FACTORY_SUPPORT_EMAIL,
+      factoryAdmin: {
+        aliasHint: FACTORY_ADMIN_ALIAS || '',
+        configured: !!((FACTORY_ADMIN_ALIAS && FACTORY_ADMIN_PASSWORD) || FACTORY_SUPERADMIN_KEY),
+      },
       plans,
       orders: recentOrders,
       totals,
@@ -2217,10 +2226,25 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
 });
 
 app.post('/factory/admin/unlock', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), async (req, res) => {
-  const key = String(req.body?.key || '').trim();
-  if(!FACTORY_SUPERADMIN_KEY) return res.status(503).json({ error: 'FACTORY_SUPERADMIN_KEY no está configurada en Render.' });
-  if(!key || key !== FACTORY_SUPERADMIN_KEY) return res.status(403).json({ error: 'Clave de superadministración incorrecta.' });
-  return res.json({ ok: true, unlocked: true });
+  const alias = String(req.body?.alias || '').trim();
+  const password = String(req.body?.password || '').trim();
+  const legacyKey = String(req.body?.key || '').trim();
+
+  if(FACTORY_ADMIN_ALIAS && FACTORY_ADMIN_PASSWORD){
+    if(!alias) return res.status(400).json({ error: 'Ingresá el nombre Factory.' });
+    if(!password) return res.status(400).json({ error: 'Ingresá la clave Factory.' });
+    if(alias !== FACTORY_ADMIN_ALIAS || password !== FACTORY_ADMIN_PASSWORD){
+      return res.status(403).json({ error: 'Nombre Factory o clave incorrectos.' });
+    }
+    return res.json({ ok: true, unlocked: true, mode: 'alias_password' });
+  }
+
+  if(FACTORY_SUPERADMIN_KEY){
+    if(!legacyKey || legacyKey !== FACTORY_SUPERADMIN_KEY) return res.status(403).json({ error: 'Clave de superadministración incorrecta.' });
+    return res.json({ ok: true, unlocked: true, mode: 'legacy_key' });
+  }
+
+  return res.status(503).json({ error: 'Factory Admin no está configurado en Render.' });
 });
 
 app.get('/factory/admin/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), requireFactoryAdmin, async (req, res) => {
