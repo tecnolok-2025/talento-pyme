@@ -1,0 +1,6 @@
+Talento PyME v5.5.10
+- Factory: se removieron los textos comerciales solicitados.
+- Factory: el código de bonificación ahora se ingresa debajo del total en carrito y checkout.
+- Si el código no es válido o ya fue usado, se limpia el campo y el total vuelve al estado inicial.
+- Buscar Talento: se reemplazó la leyenda “Sistema gemelo de Bolsa de Trabajo UIC...”.
+- Mi Perfil candidato: se rehabilitó el botón Salir en la barra superior con formato de enlace.

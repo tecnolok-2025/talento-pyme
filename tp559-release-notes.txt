@@ -1,4 +1,4 @@
-Talento PyME v5.5.9
+Talento PyME v5.5.10
 
 Cambios principales:
 - Factory ahora muestra aperturas incluidas por plan.
@@ -13,7 +13,7 @@ Cambios principales:
 - Si la empresa no tiene aperturas disponibles, el sistema bloquea la apertura y muestra el mensaje correspondiente.
 - Pretensión salarial sigue visible en la ficha cerrada.
 - Se eliminó el texto "Visible aun con la ficha cerrada" del bloque salarial.
-- Versionado unificado a 5.5.9.
+- Versionado unificado a 5.5.10.
 
 Nota técnica:
 - Esta revisión agrega el modelo Prisma CompanyCandidateAccess y nuevos campos de aperturas en BillingOrder/BillingOrderItem.

@@ -1,6 +1,3 @@
-
-
-
     requireAuth();
     applyRoleVisibility();
     const role = tpRole();
@@ -14,7 +11,8 @@
       quote: null,
       selectedOrderId: null,
       adminItems: [],
-      couponCode: localStorage.getItem('tp_factory_coupon') || ''
+      couponCode: localStorage.getItem('tp_factory_coupon') || '',
+      couponFeedback: ''
     };
 
     const moneyFmt = new Intl.NumberFormat('es-AR');
@@ -28,7 +26,6 @@
       kpiOrders: document.getElementById('kpiOrders'),
       kpiPending: document.getElementById('kpiPending'),
       kpiTotal: document.getElementById('kpiTotal'),
-      kpiOpenings: document.getElementById('kpiOpenings'),
       summaryBadge: document.getElementById('summaryBadge'),
       ordersBody: document.getElementById('ordersBody'),
       orderDetailBox: document.getElementById('orderDetailBox'),
@@ -39,6 +36,9 @@
       couponCode: document.getElementById('couponCode'),
       couponMsg: document.getElementById('couponMsg'),
       btnApplyCoupon: document.getElementById('btnApplyCoupon'),
+      checkoutCouponCode: document.getElementById('checkoutCouponCode'),
+      checkoutCouponMsg: document.getElementById('checkoutCouponMsg'),
+      btnApplyCheckoutCoupon: document.getElementById('btnApplyCheckoutCoupon'),
       btnOpenCheckout: document.getElementById('btnOpenCheckout'),
       btnContinueShopping: document.getElementById('btnContinueShopping'),
       checkoutCard: document.getElementById('checkoutCard'),
@@ -66,6 +66,47 @@
     function loadCart(){
       try{ return JSON.parse(localStorage.getItem('tp_factory_cart') || '[]'); }catch(_){ return []; }
     }
+    function syncCouponInputs(){
+      if(els.couponCode) els.couponCode.value = state.couponCode || '';
+      if(els.checkoutCouponCode) els.checkoutCouponCode.value = state.couponCode || '';
+    }
+    async function applyCouponCode(rawCode){
+      const code = String(rawCode || '').trim().toUpperCase();
+      state.couponFeedback = '';
+      if(!code){
+        state.couponCode = '';
+        localStorage.removeItem('tp_factory_coupon');
+        state.couponFeedback = 'Ingresá un código de bonificación.';
+        await refreshQuote();
+        return;
+      }
+      try{
+        const quote = await apiFetch('/factory/quote', { method:'POST', body: JSON.stringify({ items: getQuoteItems(), couponCode: code }) });
+        if(!quote.coupon?.valid){
+          state.couponCode = '';
+          localStorage.removeItem('tp_factory_coupon');
+          state.quote = quote;
+          state.couponFeedback = (quote.coupon?.message || 'Código no válido.') + ' Se restableció el total inicial.';
+          syncCouponInputs();
+          renderCart();
+          renderCheckout();
+          return;
+        }
+        state.couponCode = code;
+        localStorage.setItem('tp_factory_coupon', state.couponCode);
+        state.quote = quote;
+        state.couponFeedback = quote.coupon?.message || 'Bonificación aplicada correctamente.';
+        syncCouponInputs();
+        renderCart();
+        renderCheckout();
+      }catch(e){
+        state.couponCode = '';
+        localStorage.removeItem('tp_factory_coupon');
+        state.couponFeedback = e.message || 'No se pudo validar el código.';
+        syncCouponInputs();
+        await refreshQuote();
+      }
+    }
     function saveCart(){
       localStorage.setItem('tp_factory_cart', JSON.stringify(state.cart));
     }
@@ -87,7 +128,7 @@
     }
 
     async function refreshQuote(){
-      els.couponCode.value = state.couponCode;
+      syncCouponInputs();
       if(!state.cart.length){
         state.quote = { items: [], subtotal: 0, discountAmount: 0, vatAmount: 0, total: 0, coupon: { message: '' }, totalDays: 0 };
         renderCart();
@@ -107,6 +148,7 @@
       return (state.bootstrap?.plans || []).find((it)=> it.code === code) || null;
     }
     function addPlan(code){
+      state.couponFeedback = '';
       const row = state.cart.find((it)=> it.planCode === code);
       if(row) row.quantity += 1;
       else state.cart.push({ planCode: code, quantity: 1 });
@@ -114,6 +156,7 @@
       refreshQuote();
     }
     function changeQty(code, delta){
+      state.couponFeedback = '';
       const row = state.cart.find((it)=> it.planCode === code);
       if(!row) return;
       row.quantity = Math.max(1, row.quantity + delta);
@@ -121,6 +164,7 @@
       refreshQuote();
     }
     function removeFromCart(code){
+      state.couponFeedback = '';
       state.cart = state.cart.filter((it)=> it.planCode !== code);
       saveCart();
       refreshQuote();
@@ -138,7 +182,6 @@
       els.kpiOrders.textContent = String(boot.totals?.orders || 0);
       els.kpiPending.textContent = money(boot.totals?.pending || 0);
       els.kpiTotal.textContent = money(boot.totals?.total || 0);
-      els.kpiOpenings.textContent = String(boot.openingUsage?.remainingOpenings || 0);
       const orders = boot.orders || [];
       els.summaryBadge.textContent = orders.length ? `${orders.length} documento(s)` : 'Sin documentos todavía';
       if(!orders.length){
@@ -180,7 +223,6 @@
             <div>
               <div><b>Empresa:</b> ${esc(active.companyName)}</div>
               <div><b>Días contratados:</b> ${esc(active.days || 0)}</div>
-              <div><b>Aperturas incluidas:</b> ${esc(active.totalOpenings || 0)}</div>
               <div><b>Tarjeta:</b> ${active.cardLast4 ? '•••• ' + esc(active.cardLast4) : 'Pendiente'}</div>
             </div>
             <div>
@@ -191,8 +233,8 @@
           </div>
           <div class="factoryTableWrap">
             <table class="factoryTable" style="min-width:520px">
-              <thead><tr><th>Plan</th><th>Días</th><th>Aperturas</th><th>Cantidad</th><th>Subtotal</th></tr></thead>
-              <tbody>${(active.items || []).map((it)=> `<tr><td>${esc(it.planName)}</td><td>${esc(it.days)}</td><td>${esc(it.openingsIncluded || 0)}</td><td>${esc(it.quantity)}</td><td>${money(it.subtotal)}</td></tr>`).join('')}</tbody>
+              <thead><tr><th>Plan</th><th>Días</th><th>Cantidad</th><th>Subtotal</th></tr></thead>
+              <tbody>${(active.items || []).map((it)=> `<tr><td>${esc(it.planName)}</td><td>${esc(it.days)}</td><td>${esc(it.quantity)}</td><td>${money(it.subtotal)}</td></tr>`).join('')}</tbody>
             </table>
           </div>
           <div class="cartTotals">
@@ -210,9 +252,9 @@
         <div class="planCard">
           <div class="planDays">${plan.days} días</div>
           <div class="planName">${esc(plan.name)}</div>
-          <div class="planPrice">${money(plan.price)}</div>
+          <div class="planPrice">${money(plan.price)}<small> ARS</small></div>
           <div class="planLead">${esc(plan.highlight || '')}</div>
-          <div class="timelineNote">Podrás publicar avisos durante ${plan.days} días y abrir hasta ${plan.openings || 0} fichas completas dentro del plan activo.</div>
+          <div class="timelineNote">Podrás publicar avisos durante ${plan.days} días con el mismo nivel de servicio que el resto de los planes.</div>
           <div class="planFoot">
             <span class="planBadge">Contratación por tiempo</span>
             <button class="btn btn-primary" type="button" data-plan="${plan.code}">Agregar al carrito</button>
@@ -227,7 +269,8 @@
       if(!state.cart.length){
         els.cartItems.innerHTML = '<div class="emptyStateFactory" style="margin-top:14px">Todavía no agregaste planes. Elegí uno de los tiempos de publicación para armar la compra.</div>';
         els.cartTotals.innerHTML = '<div class="cartLine"><span>Subtotal</span><b>$ 0</b></div><div class="cartLine total"><span>Total</span><b>$ 0</b></div>';
-        els.couponMsg.textContent = 'Ingresá un código de bonificación para intentar aplicarlo al total.';
+        els.couponMsg.textContent = state.couponFeedback || 'Ingresá un código de bonificación para intentar aplicarlo al total.';
+        if(els.checkoutCouponMsg) els.checkoutCouponMsg.textContent = state.couponFeedback || 'Si el código es válido, el total se recalcula automáticamente.';
         return;
       }
       els.cartItems.innerHTML = state.cart.map((row)=> {
@@ -237,7 +280,7 @@
             <div class="cartItemHead">
               <div>
                 <div style="font-weight:900;font-size:18px">${esc(plan.name)}</div>
-                <div class="muted">${plan.days} días de publicación · ${plan.openings || 0} aperturas por unidad</div>
+                <div class="muted">${plan.days} días de publicación</div>
               </div>
               <button class="btn btn-ghost" type="button" data-remove="${plan.code}">Quitar</button>
             </div>
@@ -254,13 +297,13 @@
       els.cartItems.querySelectorAll('[data-remove]').forEach((btn)=> btn.onclick = ()=> removeFromCart(btn.dataset.remove));
       els.cartItems.querySelectorAll('[data-qty]').forEach((btn)=> btn.onclick = ()=> changeQty(btn.dataset.qty, Number(btn.dataset.delta || 0)));
       const q = state.quote || { subtotal: 0, discountAmount: 0, vatAmount: 0, total: 0, coupon: { message: '' }, totalDays: 0 };
-      els.couponMsg.textContent = q.coupon?.message || 'Podés aplicar una bonificación del 50% o 100% con códigos promocionales de un solo uso.';
+      els.couponMsg.textContent = state.couponFeedback || q.coupon?.message || 'Ingresá un código de bonificación para intentar aplicarlo al total.';
+      if(els.checkoutCouponMsg) els.checkoutCouponMsg.textContent = state.couponFeedback || q.coupon?.message || 'Si el código es válido, el total se recalcula automáticamente.';
       els.cartTotals.innerHTML = `
         <div class="cartLine"><span>Subtotal</span><b>${money(q.subtotal)}</b></div>
         <div class="cartLine"><span>Bonificaciones</span><b>${money(q.discountAmount)}</b></div>
         <div class="cartLine"><span>IVA (21%)</span><b>${money(q.vatAmount)}</b></div>
         <div class="cartLine"><span>Días acumulados</span><b>${q.totalDays || 0}</b></div>
-        <div class="cartLine"><span>Aperturas incluidas</span><b>${q.totalOpenings || 0}</b></div>
         <div class="cartLine total"><span>Total</span><b>${money(q.total)}</b></div>`;
     }
 
@@ -291,14 +334,13 @@
       els.checkoutItems.innerHTML = (q.items || []).map((it)=> `
         <div class="cartItem" style="margin-top:0;margin-bottom:12px">
           <div style="font-weight:900">${esc(it.planName)}</div>
-          <div class="muted">${it.quantity} unidad(es) · ${it.days} días · ${it.openingsIncluded || 0} aperturas</div>
+          <div class="muted">${it.quantity} unidad(es) · ${it.days} días</div>
           <div style="margin-top:8px;font-size:22px;font-weight:950">${money(it.subtotal)}</div>
         </div>`).join('') || '<div class="emptyStateFactory">Todavía no hay items en el resumen.</div>';
       els.checkoutTotals.innerHTML = `
         <div class="cartLine"><span>Subtotal</span><b>${money(q.subtotal || 0)}</b></div>
         <div class="cartLine"><span>Bonificaciones</span><b>${money(q.discountAmount || 0)}</b></div>
         <div class="cartLine"><span>IVA (21%)</span><b>${money(q.vatAmount || 0)}</b></div>
-        <div class="cartLine"><span>Aperturas incluidas</span><b>${q.totalOpenings || 0}</b></div>
         <div class="cartLine total"><span>Total</span><b>${money(q.total || 0)}</b></div>`;
     }
 
@@ -320,8 +362,8 @@
             <summary>${esc(group.companyName)} <span class="muted monoData">· ${esc(group.companyCode || '')}</span></summary>
             <div class="factoryTableWrap" style="margin-top:12px">
               <table class="factoryTable" style="min-width:720px">
-                <thead><tr><th>Documento</th><th>Fecha</th><th>Días</th><th>Aperturas</th><th>Estado</th><th>Total</th></tr></thead>
-                <tbody>${(group.documents || []).map((doc)=> `<tr><td>${esc(doc.documentNo)}</td><td>${when(doc.date)}</td><td>${doc.days || 0}</td><td>${doc.totalOpenings || 0}</td><td><span class="statusPill ${esc(doc.status)}">${esc(statusLabel(doc.status))}</span></td><td>${money(doc.totals.total)}</td></tr>`).join('')}</tbody>
+                <thead><tr><th>Documento</th><th>Fecha</th><th>Días</th><th>Estado</th><th>Total</th></tr></thead>
+                <tbody>${(group.documents || []).map((doc)=> `<tr><td>${esc(doc.documentNo)}</td><td>${when(doc.date)}</td><td>${doc.days || 0}</td><td><span class="statusPill ${esc(doc.status)}">${esc(statusLabel(doc.status))}</span></td><td>${money(doc.totals.total)}</td></tr>`).join('')}</tbody>
               </table>
             </div>
           </details>`).join('');
@@ -339,11 +381,8 @@
       await refreshQuote();
     }
 
-    els.btnApplyCoupon.onclick = async ()=> {
-      state.couponCode = els.couponCode.value.trim().toUpperCase();
-      localStorage.setItem('tp_factory_coupon', state.couponCode);
-      await refreshQuote();
-    };
+    els.btnApplyCoupon.onclick = async ()=> { await applyCouponCode(els.couponCode.value); };
+    if(els.btnApplyCheckoutCoupon) els.btnApplyCheckoutCoupon.onclick = async ()=> { await applyCouponCode(els.checkoutCouponCode.value); };
     els.btnContinueShopping.onclick = ()=> setTab('plans');
     els.btnOpenCheckout.onclick = ()=> {
       if(!state.cart.length){ els.couponMsg.textContent = 'Primero agregá al menos un plan al carrito.'; return; }
@@ -389,8 +428,9 @@
         state.cart = [];
         saveCart();
         state.couponCode = '';
+        state.couponFeedback = '';
         localStorage.removeItem('tp_factory_coupon');
-        els.couponCode.value = '';
+        syncCouponInputs();
         els.checkoutCard.style.display = 'none';
         state.selectedOrderId = data.order?.id || null;
         await loadBootstrap();
@@ -405,4 +445,3 @@
       els.summaryBadge.textContent = e.message;
       els.ordersBody.innerHTML = `<tr><td colspan="9"><div class="emptyStateFactory">${esc(e.message)}</div></td></tr>`;
     });
-  

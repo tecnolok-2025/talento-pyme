@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Factory</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.5.9" />
+  <link rel="stylesheet" href="/styles.css?v=5.5.10" />
 </head>
 <body class="appShell">
   <div class="header">
@@ -31,7 +31,7 @@
     <div class="heroPanel factoryHero">
       <div class="small pageEyebrow">Empresa · publicaciones, facturación y control</div>
       <h2 style="margin:8px 0 6px 0">Factory</h2>
-      <div class="muted">Concentrá en un solo lugar el resumen de cuenta, la contratación por tiempo para publicar avisos y la instancia previa al pago. El candidato sigue siendo gratuito: este portal es exclusivo para empresas.</div>
+      <div class="muted">Gestioná facturación, publicaciones y validación previa al pago desde un único panel empresarial.</div>
       <div class="factoryGlow">
         <span>Resumen de cuenta y facturación</span>
         <span>Planes por tiempo sin discriminar servicio</span>
@@ -222,6 +222,11 @@
                 <div style="font-size:22px;font-weight:900;margin:6px 0 12px 0">Resumen</div>
                 <div id="checkoutItems"></div>
                 <div class="cartTotals" id="checkoutTotals"></div>
+                <div class="couponRow" style="margin-top:12px">
+                  <input class="input" id="checkoutCouponCode" placeholder="Código de bonificación" />
+                  <button class="btn btn-ghost" type="button" id="btnApplyCheckoutCoupon">Habilitar</button>
+                </div>
+                <div class="timelineNote" id="checkoutCouponMsg">Si el código es válido, el total se recalcula automáticamente.</div>
               </aside>
             </div>
           </div>
@@ -277,12 +282,12 @@
             <div class="badge" id="cartCount">0 ítem</div>
           </div>
           <div id="cartItems"></div>
-          <div class="couponRow">
-            <input class="input" id="couponCode" placeholder="Aplicar cupón de descuento" />
-            <button class="btn btn-ghost" type="button" id="btnApplyCoupon">Aplicar</button>
-          </div>
-          <div class="timelineNote" id="couponMsg">Bonificaciones de una sola vez por empresa. Se validan al confirmar la compra.</div>
           <div class="cartTotals" id="cartTotals"></div>
+          <div class="couponRow" style="margin-top:12px">
+            <input class="input" id="couponCode" placeholder="Código de bonificación" />
+            <button class="btn btn-ghost" type="button" id="btnApplyCoupon">Habilitar</button>
+          </div>
+          <div class="timelineNote" id="couponMsg">Ingresá un código de bonificación para intentar aplicarlo al total.</div>
           <div class="row" style="margin-top:18px">
             <button class="btn btn-ghost" type="button" id="btnContinueShopping">Seguir comprando</button>
             <button class="btn btn-primary" type="button" id="btnOpenCheckout">Confirmar compra</button>
@@ -292,8 +297,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.5.9"></script>
-  <script src="/auth.js?v=5.5.9"></script>
+  <script src="/config.js?v=5.5.10"></script>
+  <script src="/auth.js?v=5.5.10"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -308,7 +313,8 @@
       quote: null,
       selectedOrderId: null,
       adminItems: [],
-      couponCode: localStorage.getItem('tp_factory_coupon') || ''
+      couponCode: localStorage.getItem('tp_factory_coupon') || '',
+      couponFeedback: ''
     };
 
     const moneyFmt = new Intl.NumberFormat('es-AR');
@@ -332,6 +338,9 @@
       couponCode: document.getElementById('couponCode'),
       couponMsg: document.getElementById('couponMsg'),
       btnApplyCoupon: document.getElementById('btnApplyCoupon'),
+      checkoutCouponCode: document.getElementById('checkoutCouponCode'),
+      checkoutCouponMsg: document.getElementById('checkoutCouponMsg'),
+      btnApplyCheckoutCoupon: document.getElementById('btnApplyCheckoutCoupon'),
       btnOpenCheckout: document.getElementById('btnOpenCheckout'),
       btnContinueShopping: document.getElementById('btnContinueShopping'),
       checkoutCard: document.getElementById('checkoutCard'),
@@ -359,6 +368,47 @@
     function loadCart(){
       try{ return JSON.parse(localStorage.getItem('tp_factory_cart') || '[]'); }catch(_){ return []; }
     }
+    function syncCouponInputs(){
+      if(els.couponCode) els.couponCode.value = state.couponCode || '';
+      if(els.checkoutCouponCode) els.checkoutCouponCode.value = state.couponCode || '';
+    }
+    async function applyCouponCode(rawCode){
+      const code = String(rawCode || '').trim().toUpperCase();
+      state.couponFeedback = '';
+      if(!code){
+        state.couponCode = '';
+        localStorage.removeItem('tp_factory_coupon');
+        state.couponFeedback = 'Ingresá un código de bonificación.';
+        await refreshQuote();
+        return;
+      }
+      try{
+        const quote = await apiFetch('/factory/quote', { method:'POST', body: JSON.stringify({ items: getQuoteItems(), couponCode: code }) });
+        if(!quote.coupon?.valid){
+          state.couponCode = '';
+          localStorage.removeItem('tp_factory_coupon');
+          state.quote = quote;
+          state.couponFeedback = (quote.coupon?.message || 'Código no válido.') + ' Se restableció el total inicial.';
+          syncCouponInputs();
+          renderCart();
+          renderCheckout();
+          return;
+        }
+        state.couponCode = code;
+        localStorage.setItem('tp_factory_coupon', state.couponCode);
+        state.quote = quote;
+        state.couponFeedback = quote.coupon?.message || 'Bonificación aplicada correctamente.';
+        syncCouponInputs();
+        renderCart();
+        renderCheckout();
+      }catch(e){
+        state.couponCode = '';
+        localStorage.removeItem('tp_factory_coupon');
+        state.couponFeedback = e.message || 'No se pudo validar el código.';
+        syncCouponInputs();
+        await refreshQuote();
+      }
+    }
     function saveCart(){
       localStorage.setItem('tp_factory_cart', JSON.stringify(state.cart));
     }
@@ -380,7 +430,7 @@
     }
 
     async function refreshQuote(){
-      els.couponCode.value = state.couponCode;
+      syncCouponInputs();
       if(!state.cart.length){
         state.quote = { items: [], subtotal: 0, discountAmount: 0, vatAmount: 0, total: 0, coupon: { message: '' }, totalDays: 0 };
         renderCart();
@@ -400,6 +450,7 @@
       return (state.bootstrap?.plans || []).find((it)=> it.code === code) || null;
     }
     function addPlan(code){
+      state.couponFeedback = '';
       const row = state.cart.find((it)=> it.planCode === code);
       if(row) row.quantity += 1;
       else state.cart.push({ planCode: code, quantity: 1 });
@@ -407,6 +458,7 @@
       refreshQuote();
     }
     function changeQty(code, delta){
+      state.couponFeedback = '';
       const row = state.cart.find((it)=> it.planCode === code);
       if(!row) return;
       row.quantity = Math.max(1, row.quantity + delta);
@@ -414,6 +466,7 @@
       refreshQuote();
     }
     function removeFromCart(code){
+      state.couponFeedback = '';
       state.cart = state.cart.filter((it)=> it.planCode !== code);
       saveCart();
       refreshQuote();
@@ -518,7 +571,8 @@
       if(!state.cart.length){
         els.cartItems.innerHTML = '<div class="emptyStateFactory" style="margin-top:14px">Todavía no agregaste planes. Elegí uno de los tiempos de publicación para armar la compra.</div>';
         els.cartTotals.innerHTML = '<div class="cartLine"><span>Subtotal</span><b>$ 0</b></div><div class="cartLine total"><span>Total</span><b>$ 0</b></div>';
-        els.couponMsg.textContent = 'Bonificaciones de una sola vez por empresa. Se validan al confirmar la compra.';
+        els.couponMsg.textContent = state.couponFeedback || 'Ingresá un código de bonificación para intentar aplicarlo al total.';
+        if(els.checkoutCouponMsg) els.checkoutCouponMsg.textContent = state.couponFeedback || 'Si el código es válido, el total se recalcula automáticamente.';
         return;
       }
       els.cartItems.innerHTML = state.cart.map((row)=> {
@@ -545,7 +599,8 @@
       els.cartItems.querySelectorAll('[data-remove]').forEach((btn)=> btn.onclick = ()=> removeFromCart(btn.dataset.remove));
       els.cartItems.querySelectorAll('[data-qty]').forEach((btn)=> btn.onclick = ()=> changeQty(btn.dataset.qty, Number(btn.dataset.delta || 0)));
       const q = state.quote || { subtotal: 0, discountAmount: 0, vatAmount: 0, total: 0, coupon: { message: '' }, totalDays: 0 };
-      els.couponMsg.textContent = q.coupon?.message || 'Podés aplicar una bonificación del 50% o 100% con códigos promocionales de un solo uso.';
+      els.couponMsg.textContent = state.couponFeedback || q.coupon?.message || 'Ingresá un código de bonificación para intentar aplicarlo al total.';
+      if(els.checkoutCouponMsg) els.checkoutCouponMsg.textContent = state.couponFeedback || q.coupon?.message || 'Si el código es válido, el total se recalcula automáticamente.';
       els.cartTotals.innerHTML = `
         <div class="cartLine"><span>Subtotal</span><b>${money(q.subtotal)}</b></div>
         <div class="cartLine"><span>Bonificaciones</span><b>${money(q.discountAmount)}</b></div>
@@ -628,11 +683,8 @@
       await refreshQuote();
     }
 
-    els.btnApplyCoupon.onclick = async ()=> {
-      state.couponCode = els.couponCode.value.trim().toUpperCase();
-      localStorage.setItem('tp_factory_coupon', state.couponCode);
-      await refreshQuote();
-    };
+    els.btnApplyCoupon.onclick = async ()=> { await applyCouponCode(els.couponCode.value); };
+    if(els.btnApplyCheckoutCoupon) els.btnApplyCheckoutCoupon.onclick = async ()=> { await applyCouponCode(els.checkoutCouponCode.value); };
     els.btnContinueShopping.onclick = ()=> setTab('plans');
     els.btnOpenCheckout.onclick = ()=> {
       if(!state.cart.length){ els.couponMsg.textContent = 'Primero agregá al menos un plan al carrito.'; return; }
@@ -678,8 +730,9 @@
         state.cart = [];
         saveCart();
         state.couponCode = '';
+        state.couponFeedback = '';
         localStorage.removeItem('tp_factory_coupon');
-        els.couponCode.value = '';
+        syncCouponInputs();
         els.checkoutCard.style.display = 'none';
         state.selectedOrderId = data.order?.id || null;
         await loadBootstrap();

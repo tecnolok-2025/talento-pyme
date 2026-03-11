@@ -1,10 +1,10 @@
-Auditoría v5.5.9
+Auditoría v5.5.10
 
 Verificado:
-- apps/api/package.json -> 5.5.9
-- apps/web/config.js -> 5.5.9 / build 20260310_06
-- README.md -> v5.5.9
-- sw.js y HTMLs -> ?v=5.5.9
+- apps/api/package.json -> 5.5.10
+- apps/web/config.js -> 5.5.10 / build 20260310_06
+- README.md -> v5.5.10
+- sw.js y HTMLs -> ?v=5.5.10
 - Sintaxis OK: index.js, app.js, auth.js, bolsa-candidato.js, config.js, sw.js, factory-inline.js
 - Script inline OK: buscar.html, factory.html
 
