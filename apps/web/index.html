@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Talento PyME</title>
   <meta name="theme-color" content="#0B1220" />
-  <link rel="manifest" href="/manifest.webmanifest?v=5.5.16" />
+  <link rel="manifest" href="/manifest.webmanifest?v=5.5.17" />
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.5.16" />
+  <link rel="stylesheet" href="/styles.css?v=5.5.17" />
 </head>
 <body class="authBody">
   <div class="authTop">
@@ -55,7 +55,7 @@
             <div id="loginForm">
               <label id="loginIdLabel">Nombre y apellido</label>
               <input class="input" id="loginName" placeholder="Ej: Fulano Pérez" />
-              <div class="muted small">Tip: si escribís con errores, se acepta coincidencia aproximada (≈70%).</div>
+              
 
               <label>Contraseña</label>
               <div class="pw"><input class="input" id="loginPassword" type="password" placeholder="Tu clave" /><button type="button" class="pwToggle" data-target="loginPassword" aria-label="Ver contraseña">👁</button></div>
@@ -182,8 +182,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.5.16"></script>
-  <script src="/auth.js?v=5.5.16"></script>
+  <script src="/config.js?v=5.5.17"></script>
+  <script src="/auth.js?v=5.5.17"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));
