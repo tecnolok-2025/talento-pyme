@@ -1028,7 +1028,7 @@ app.post("/auth/login", async (req, res) => {
 
   // criterio 70%
   if(best.score < 0.70){
-    return res.status(401).json({ error: "Nombre no coincide lo suficiente (mínimo 70%). Probá escribir tu nombre completo." });
+    return res.status(401).json({ error: "Nombre no coincide lo suficiente." });
   }
 
   // si hay otro muy cerca (ambigüedad), pedimos más precisión
@@ -2919,17 +2919,26 @@ app.get("/search", async (req, res) => {
 
 
 
+
 const SUPPORT_KNOWLEDGE_SEEDS = [
-  { scope: 'GLOBAL', keywords: ['registro perfil completar datos formulario candidato cv observaciones'], questionSample: '¿Qué tengo que completar en mi perfil?', answer: 'Después del registro inicial tenés que completar tu perfil laboral, revisar observaciones y, si querés, adjuntar tu CV para mejorar la visibilidad en las búsquedas.' },
-  { scope: 'COMPANY', keywords: ['factory planes publicaciones busquedas compra bonificacion iva'], questionSample: '¿Cómo funcionan los planes de Factory?', answer: 'Factory permite contratar capacidad por tiempo. Cada plan habilita días, publicaciones y búsquedas. El precio publicado no incluye IVA y puede bonificarse con códigos válidos de una sola vez.' },
-  { scope: 'COMPANY', keywords: ['abrir ficha candidato aperturas creditos saldo'], questionSample: '¿Cómo se consumen los créditos?', answer: 'La empresa puede ver los resultados resumidos sin consumir crédito. Cada ficha completa que se abre por primera vez consume una apertura del cupo vigente. El panel muestra el saldo disponible.' },
-  { scope: 'CANDIDATE', keywords: ['mis oportunidades postulaciones cv perfil'], questionSample: '¿Cómo uso mi portal de candidato?', answer: 'Completá Mi Perfil, revisá Observaciones, adjuntá CV si lo tenés y luego usá Mis Oportunidades para postularte. Las postulaciones quedan registradas en Mis Postulaciones.' }
+  { scope: 'GLOBAL', keywords: ['registro perfil completar datos formulario candidato cv observaciones resumen curricular foto'], questionSample: '¿Qué tengo que completar en mi perfil?', answer: 'Después del registro inicial conviene completar los datos personales, el perfil laboral, la experiencia, la pretensión económica, el resumen curricular en observaciones y, si querés, adjuntar una foto y tu CV para mejorar la visibilidad en búsquedas.' },
+  { scope: 'CANDIDATE', keywords: ['mi perfil candidato foto cv observaciones resumen curricular guardar editar'], questionSample: '¿Cómo completo Mi Perfil?', answer: 'En Mi Perfil podés editar tus datos laborales, cargar una foto, adjuntar el CV para extraer un resumen curricular y revisar el punto de observaciones antes de guardar. Lo importante es dejar completo el perfil para aparecer mejor en las búsquedas de empresas.' },
+  { scope: 'CANDIDATE', keywords: ['mis oportunidades postularme postulaciones eliminar postulación'], questionSample: '¿Cómo me postulo?', answer: 'Desde Mis Oportunidades buscás avisos y, cuando un puesto te interesa, lo pasás a Mis Postulaciones. Ahí queda registrada tu postulación y podés revisarla o eliminarla si ya no querés seguir en ese proceso.' },
+  { scope: 'COMPANY', keywords: ['buscar talento filtros texto libre resumen curricular observaciones herramientas instrumentacion'], questionSample: '¿Cómo funciona Buscar Talento?', answer: 'Buscar Talento permite filtrar por área, especialidad, experiencia, educación, herramientas, instrumentación y texto libre. El texto libre también revisa el resumen curricular, observaciones, último trabajo y otros datos clave del perfil para ampliar coincidencias útiles.' },
+  { scope: 'COMPANY', keywords: ['mis candidatos guardados postulaciones recibidas pretension economica sueldo'], questionSample: '¿Qué veo en Mis Candidatos?', answer: 'En Mis Candidatos se listan los perfiles guardados o recibidos desde postulaciones. Vas a ver datos resumidos del perfil, la pretensión económica en formato contable y, al abrir una ficha completa, se consume capacidad si corresponde según el plan vigente.' },
+  { scope: 'COMPANY', keywords: ['mis busquedas publicar busqueda publicaciones cupo plan'], questionSample: '¿Cómo se consume la capacidad de publicaciones?', answer: 'Cada vez que publicás una búsqueda se descuenta capacidad del plan activo de la empresa. El sistema muestra el saldo operativo para que puedas controlar cuántas publicaciones y búsquedas te quedan disponibles.' },
+  { scope: 'COMPANY', keywords: ['factory planes publicaciones busquedas compra bonificacion iva carrito checkout'], questionSample: '¿Cómo funcionan los planes de Factory?', answer: 'Factory permite contratar capacidad por tiempo. Cada plan habilita días, publicaciones y búsquedas. El precio publicado es sin IVA, el impuesto se suma al confirmar la compra y los códigos de bonificación válidos se aplican una sola vez.' },
+  { scope: 'COMPANY', keywords: ['abrir ficha candidato aperturas creditos saldo capacidad operativa'], questionSample: '¿Cómo se consumen los créditos?', answer: 'La empresa puede ver resultados resumidos sin consumir crédito. La apertura completa de una ficha consume capacidad según el plan activo o el acceso especial vigente. El panel comercial muestra el saldo disponible para operar.' },
+  { scope: 'COMPANY', keywords: ['factory admin matriz planes precio dias publicaciones busquedas bonificaciones acceso free'], questionSample: '¿Para qué sirve Factory Admin?', answer: 'Factory Admin permite editar la matriz comercial de días, publicaciones, búsquedas y precio, generar códigos de bonificación, crear accesos especiales free y revisar la operatoria comercial desde la empresa habilitada para administración.' },
+  { scope: 'SUPERADMIN', keywords: ['panel general empresas candidatos estadisticas chat operador conocimiento'], questionSample: '¿Qué muestra el Panel General?', answer: 'El Panel General reúne estadísticas globales del sistema, listados de empresas y candidatos, actividad comercial y el centro de conversaciones para operador. Desde ahí también se administra el conocimiento reutilizable del chat de ayuda.' }
 ];
 
 async function ensureSupportKnowledgeSeed(){
-  const count = await prisma.supportKnowledge.count().catch(() => 0);
-  if(count > 0) return;
-  await prisma.$transaction(SUPPORT_KNOWLEDGE_SEEDS.map((row)=> prisma.supportKnowledge.create({ data: row }))).catch(() => null);
+  const existing = await prisma.supportKnowledge.findMany({ select: { questionSample: true } }).catch(() => []);
+  const known = new Set(existing.map((row) => String(row.questionSample || '').trim()).filter(Boolean));
+  const missing = SUPPORT_KNOWLEDGE_SEEDS.filter((row) => !known.has(String(row.questionSample || '').trim()));
+  if(!missing.length) return;
+  await prisma.$transaction(missing.map((row)=> prisma.supportKnowledge.create({ data: row }))).catch(() => null);
 }
 
 async function getOrCreateSupportThreadForUser(req){
@@ -2960,21 +2969,91 @@ function scoreKnowledgeMatch(message, knowledge){
   return score;
 }
 
+function extractSupportName(message=''){
+  const raw = String(message || '').trim();
+  const patterns = [
+    /(?:mi nombre es|me llamo|soy)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}){0,2})/i,
+    /^(?:hola|buenas|buen dia|buen día|buenas tardes|buenas noches)[,\s]+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,})/i
+  ];
+  for(const re of patterns){
+    const m = raw.match(re);
+    if(m?.[1]){
+      const clean = m[1].trim().split(/\s+/).slice(0,2).map((w)=> w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      if(clean) return clean;
+    }
+  }
+  return '';
+}
+
+function isGreetingMessage(message=''){
+  const hay = normalizeName(message);
+  return ['hola','buen dia','buen dia equipo','buenas','buenas tardes','buenas noches','que tal','como va'].some((g)=> hay === g || hay.startsWith(g + ' '));
+}
+
+function isInsultMessage(message=''){
+  const hay = normalizeName(message);
+  return ['idiota','pelotudo','pelotuda','boludo','boluda','imbecil','imbécil','inutil','inútil','estupido','estúpido','forro','mierda'].some((w)=> hay.includes(normalizeName(w)));
+}
+
+function buildSupportClosing(role, needsHuman){
+  if(needsHuman) return 'Gracias por tu consulta. Si querés, puedo dejarla marcada para revisión del operador.';
+  return String(role || '').toUpperCase() === 'CANDIDATE'
+    ? 'Gracias por tu consulta. Seguimos acá para ayudarte con tu perfil y tus postulaciones.'
+    : 'Gracias por tu consulta. Seguimos acá para ayudarte con la operatoria del portal.';
+}
+
+function buildRoleFallback(role){
+  const scope = String(role || '').toUpperCase();
+  if(scope === 'CANDIDATE'){
+    return 'Puedo orientarte con Mi Perfil, carga de foto, resumen curricular, CV, Mis Oportunidades y Mis Postulaciones. Contame qué paso querés resolver y te lo explico de forma concreta.';
+  }
+  if(scope === 'COMPANY'){
+    return 'Puedo ayudarte con Buscar Talento, filtros, publicaciones, Mis Búsquedas, Mis Candidatos, planes de Factory, bonificaciones y capacidad operativa. Decime qué acción querés hacer y te indico el recorrido.';
+  }
+  return 'Puedo orientarte con el funcionamiento general del sistema, la administración comercial y el centro de ayuda. Decime qué punto querés revisar y te doy una guía concreta.';
+}
+
 async function generateSupportAssistantReply(message, role){
   await ensureSupportKnowledgeSeed();
   const scope = String(role || '').toUpperCase() === 'COMPANY' ? ['GLOBAL','COMPANY'] : String(role || '').toUpperCase() === 'CANDIDATE' ? ['GLOBAL','CANDIDATE'] : ['GLOBAL','COMPANY','CANDIDATE','SUPERADMIN'];
-  const rows = await prisma.supportKnowledge.findMany({ where: { isActive: true, scope: { in: scope } }, orderBy: { updatedAt: 'desc' }, take: 200 }).catch(() => []);
+  const rows = await prisma.supportKnowledge.findMany({ where: { isActive: true, scope: { in: scope } }, orderBy: { updatedAt: 'desc' }, take: 300 }).catch(() => []);
+  const personName = extractSupportName(message);
+  const greeting = isGreetingMessage(message);
+  const insulting = isInsultMessage(message);
+
+  if(insulting){
+    const head = personName ? `Hola ${personName}.` : 'Hola.';
+    return {
+      answer: `${head} Puedo ayudarte mejor si mantenemos un trato respetuoso. Contame qué necesitás resolver en Talento PyME y te respondo con claridad. ${buildSupportClosing(role, false)}`,
+      needsHuman: false,
+      source: 'moderation'
+    };
+  }
+
   let best = null;
   let bestScore = 0;
   for(const row of rows){
     const score = scoreKnowledgeMatch(message, row);
     if(score > bestScore){ bestScore = score; best = row; }
   }
-  if(best && bestScore >= 1){
-    return { answer: best.answer, needsHuman: false, source: best.source || 'knowledge' };
+
+  if(greeting && bestScore === 0){
+    const head = personName ? `Hola ${personName}.` : 'Hola.';
+    return {
+      answer: `${head} Estoy listo para ayudarte con el uso de Talento PyME. ${buildRoleFallback(role)} ${buildSupportClosing(role, false)}`,
+      needsHuman: false,
+      source: 'greeting'
+    };
   }
+
+  if(best && bestScore >= 1){
+    const head = personName ? `Hola ${personName}. ` : '';
+    return { answer: `${head}${best.answer} ${buildSupportClosing(role, false)}`.trim(), needsHuman: false, source: best.source || 'knowledge' };
+  }
+
+  const head = personName ? `Hola ${personName}. ` : '';
   return {
-    answer: 'Gracias por tu consulta. Ya la registré en el centro de ayuda. En esta primera etapa el asistente responde con conocimiento del sistema y, cuando no alcanza, deja la conversación disponible para revisión del operador dentro del panel general.',
+    answer: `${head}${buildRoleFallback(role)} ${buildSupportClosing(role, true)}`.trim(),
     needsHuman: true,
     source: 'fallback'
   };

@@ -510,10 +510,14 @@ body:not(.appShell):not(.authBody) .globalBrandFooter{border-top:1px solid rgba(
 .adminCompanyGroup{margin-top:14px;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:18px;padding:16px}
 .adminCompanyGroup summary{cursor:pointer;font-weight:900;font-size:18px}
 .adminCompanyGroup details+details{margin-top:12px}
-.heroPanel.factoryHero{background:linear-gradient(180deg,#fff,rgba(23,105,224,.05));border:1px solid rgba(23,105,224,.10)}
+.heroPanel.factoryHero{background:linear-gradient(180deg,#ffffff 0%, #f4f8ff 100%);border:1px solid rgba(23,105,224,.10);color:var(--tp-text);box-shadow:0 18px 40px rgba(15,23,42,.08)}
 .factoryGlow{display:inline-flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .factoryGlow span{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;background:linear-gradient(90deg,rgba(23,105,224,.12),rgba(242,140,40,.14),rgba(46,173,74,.12));font-weight:800;color:#0B1220}
 .monoData{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
 
 .secureHelperRow{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
 .btn-mini{ padding:8px 12px; font-size:13px; }
+
+.heroPanel.factoryHero .muted{color:#475569}
+.heroPanel.factoryHero .pageEyebrow{color:#1e3a8a;opacity:1}
+.heroPanel.factoryHero h2{color:var(--tp-text)}

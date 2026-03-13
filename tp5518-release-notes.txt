@@ -1,4 +1,4 @@
-Talento PyME v5.5.18
+Talento PyME v5.5.19
 
 Cambios principales
 - Nuevo acceso directo al Panel General: si ingresás como Empresa con el alias Factory definido en Render y la clave administrativa, el sistema entra al panel general de administración.
@@ -11,7 +11,7 @@ Cambios principales
 Deploy
 - Esta versión agrega modelos nuevos en Prisma para soporte/chat.
 - En Render se debe redeployar con prisma generate + prisma db push.
-- La API debe quedar en v5.5.18 y el frontend también.
+- La API debe quedar en v5.5.19 y el frontend también.
 
 Variables relevantes
 - FACTORY_ADMIN_ALIAS=Talento PyME

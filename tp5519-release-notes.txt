@@ -1,0 +1,8 @@
+Talento PyME v5.5.19
+
+- Restituido el panel visual de revisión curricular en Mi Perfil del candidato, con barra de progreso y luces tipo ola.
+- Simplificado el mensaje de acceso cuando el nombre no coincide: ahora muestra solo "Nombre no coincide lo suficiente.".
+- Mejorado el asistente de Ayuda IA con respuestas más útiles, saludo inicial, personalización por nombre cuando se informa, manejo respetuoso ante insultos y base de conocimiento ampliada.
+- Humanizado el estado del hilo de soporte y los mensajes del chat.
+- Corregida la estética del encabezado de Factory para recuperar contraste y alineación del texto.
+- Versionado unificado a 5.5.19.

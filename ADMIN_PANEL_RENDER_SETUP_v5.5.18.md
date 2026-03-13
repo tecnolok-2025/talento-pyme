@@ -1,4 +1,4 @@
-Panel General + Factory Admin v5.5.18
+Panel General + Factory Admin v5.5.19
 
 1. En Render, dentro del servicio API, definir estas variables:
    FACTORY_ADMIN_ALIAS=Talento PyME

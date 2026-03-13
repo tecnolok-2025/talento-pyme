@@ -1,4 +1,4 @@
-/* Talento PyME - v5.5.18 (candidato) - Mi Perfil institucional + foto + resumen curricular */
+/* Talento PyME - v5.5.19 (candidato) - Mi Perfil institucional + foto + resumen curricular */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -213,6 +213,90 @@ function stopCameraStream(stream){
 function fileFromDataUrl(dataUrl, filename='perfil.jpg'){
   const blob = dataUrlToBlob(dataUrl);
   return new File([blob], filename, { type: blob.type || 'image/jpeg' });
+}
+
+
+function hasMeaningfulValue(v){
+  if(Array.isArray(v)) return v.length > 0;
+  if(v === null || v === undefined) return false;
+  if(typeof v === 'boolean') return v;
+  return String(v).trim().length > 0;
+}
+
+function buildCandidateCompleteness(candidate){
+  const blocks = [
+    {
+      key: 'datos',
+      label: 'Datos personales',
+      hint: 'DNI, teléfono, email y localidad',
+      complete: ['dni','telefono','correo','localidad'].every((k)=> hasMeaningfulValue(candidate[k]))
+    },
+    {
+      key: 'perfil',
+      label: 'Perfil laboral',
+      hint: 'Área, especialidad, experiencia y educación',
+      complete: hasMeaningfulValue(candidate.areaTrabajo) && hasMeaningfulValue(candidate.rangoExperiencia) && hasMeaningfulValue(candidate.nivelEducativo) && (hasMeaningfulValue(candidate.especialidad) || hasMeaningfulValue(candidate.especialidadOtro))
+    },
+    {
+      key: 'economico',
+      label: 'Pretensión y trayectoria',
+      hint: 'Sueldo pretendido y último trabajo',
+      complete: hasMeaningfulValue(candidate.sueldoPretendido) && hasMeaningfulValue(candidate.ultimoTrabajo)
+    },
+    {
+      key: 'cv',
+      label: 'Resumen curricular',
+      hint: 'Observaciones o resumen generado desde CV',
+      complete: hasMeaningfulValue(candidate.observaciones)
+    },
+    {
+      key: 'foto',
+      label: 'Foto de perfil',
+      hint: 'Foto visible para identificarte mejor',
+      complete: hasMeaningfulValue(candidate.photoDataUrl)
+    }
+  ];
+  const done = blocks.filter((b)=> b.complete).length;
+  const percent = Math.max(8, Math.round((done / blocks.length) * 100));
+  const pending = blocks.filter((b)=> !b.complete);
+  return { blocks, done, percent, pending };
+}
+
+function renderCompletenessPanel(candidate){
+  const status = buildCandidateCompleteness(candidate);
+  const intro = status.pending.length
+    ? 'Completá y revisá tu formulario antes de salir. El registro inicial no alcanza: para que las empresas te encuentren, necesitás dejar completo el perfil laboral, la pretensión económica, el resumen curricular y los datos de contacto.'
+    : 'Tu formulario está completo y listo para destacarse en las búsquedas. Aun así, revisalo cada tanto para mantener actualizados el perfil, la pretensión económica y el resumen curricular.';
+  const secondary = status.pending.length
+    ? 'También podés adjuntar tu CV para generar el resumen curricular y ampliar la información que verán las empresas. En Observaciones se concentra el alcance curricular más importante.'
+    : 'Podés seguir actualizando tu CV, observaciones y foto cuando quieras para mejorar tu presentación profesional.';
+  const waveClass = status.pending.length ? 'is-active' : 'is-calm';
+  return `
+    <div class="tp-attention-panel ${waveClass}">
+      <div class="tp-attention-head">
+        <div>
+          <div class="tp-mini-label">Revisá tu perfil antes de salir</div>
+          <div class="tp-attention-title">${status.pending.length ? 'Todavía faltan datos para completar tu formulario al 100%.' : 'Perfil completo y visible para empresas.'}</div>
+        </div>
+        <div class="tp-attention-badge">${status.percent}% completo</div>
+      </div>
+      <div class="tp-attention-copy">${intro}</div>
+      <div class="tp-attention-copy secondary">${secondary}</div>
+      <div class="tp-progress tp-progress-strong"><span style="width:${status.percent}%;"></span></div>
+      <div class="tp-attention-wave" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="tp-attention-grid">
+        ${status.blocks.map((block)=> `
+          <div class="tp-attention-item ${block.complete ? 'ok' : 'pending'}">
+            <div class="tp-attention-dot"></div>
+            <div>
+              <div class="tp-attention-item-title">${esc(block.label)}</div>
+              <div class="tp-attention-item-copy">${esc(block.hint)}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
 }
 
 function splitFullName(fullName){
@@ -474,6 +558,7 @@ async function initBolsaCandidato(){
               <div class="tp-mini-label">Conservación del perfil curricular</div>
               <div class="tp-mini-value">Tu perfil curricular se conservará por <b>2 años desde su última actualización</b>. Si querés mantenerlo activo, actualizá tus datos periódicamente para seguir visible en las búsquedas de empresas.</div>
               <div class="muted small" style="margin-top:10px"><b>Cómo funciona:</b> cuando cargás un CV en PDF, DOCX o TXT, el sistema no guarda el archivo original de forma permanente. Extrae la información más importante, genera un resumen curricular optimizado y conserva solamente ese contenido resumido para acelerar búsquedas, reducir almacenamiento y mantener actualizado tu perfil profesional.</div>
+              ${renderCompletenessPanel(cand)}
             </section>
           </div>
 
@@ -1287,7 +1372,32 @@ async function initBolsaCandidato(){
       .tp-progress > span{ display:block; height:100%; background:linear-gradient(90deg, #5fd0ff, #1769E0, #f28c28); border-radius:999px; transition:width .25s ease; }
       .tp-parse-overlay-card{ margin:14px 0 8px; padding:16px 18px; border-radius:18px; border:1px solid rgba(23,105,224,.16); background:rgba(255,255,255,.92); box-shadow:0 14px 32px rgba(14,37,74,.08); }
       .tp-parse-title{ font-size:15px; font-weight:900; color:#102a56; }
-      @media (max-width: 900px){ .tp-intro-grid{ grid-template-columns:1fr; } }
+            .tp-attention-panel{ margin-top:16px; padding:18px; border-radius:22px; border:1px solid rgba(23,105,224,.14); background:linear-gradient(180deg, rgba(248,251,255,.98), rgba(255,255,255,.98)); box-shadow:0 16px 34px rgba(15,23,42,.08); position:relative; overflow:hidden; }
+      .tp-attention-head{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+      .tp-attention-title{ margin-top:6px; font-size:22px; line-height:1.2; font-weight:950; color:#0f2d63; }
+      .tp-attention-badge{ display:inline-flex; align-items:center; justify-content:center; padding:10px 14px; border-radius:999px; background:rgba(23,105,224,.10); color:#0f2d63; font-weight:900; box-shadow:0 10px 24px rgba(23,105,224,.12); }
+      .tp-attention-copy{ margin-top:10px; color:#12315f; font-weight:700; line-height:1.5; }
+      .tp-attention-copy.secondary{ font-weight:600; color:#42526b; }
+      .tp-progress-strong{ height:12px; margin-top:16px; background:rgba(15,23,42,.08); }
+      .tp-attention-wave{ display:flex; gap:8px; align-items:center; margin-top:14px; }
+      .tp-attention-wave span{ width:14px; height:14px; border-radius:50%; background:#cbd5e1; box-shadow:0 0 0 4px rgba(203,213,225,.22); }
+      .tp-attention-panel.is-active .tp-attention-wave span:nth-child(1){ background:#1769E0; animation:tpPulse 1.8s infinite ease-in-out; }
+      .tp-attention-panel.is-active .tp-attention-wave span:nth-child(2){ background:#5fd0ff; animation:tpPulse 1.8s .18s infinite ease-in-out; }
+      .tp-attention-panel.is-active .tp-attention-wave span:nth-child(3){ background:#f28c28; animation:tpPulse 1.8s .36s infinite ease-in-out; }
+      .tp-attention-panel.is-active .tp-attention-wave span:nth-child(4){ background:#2ead4a; animation:tpPulse 1.8s .54s infinite ease-in-out; }
+      .tp-attention-panel.is-active .tp-attention-wave span:nth-child(5){ background:#1769E0; animation:tpPulse 1.8s .72s infinite ease-in-out; }
+      .tp-attention-panel.is-calm .tp-attention-wave span{ background:#2ead4a; box-shadow:0 0 0 4px rgba(46,173,74,.18); }
+      .tp-attention-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px; margin-top:16px; }
+      .tp-attention-item{ display:flex; gap:10px; align-items:flex-start; padding:12px; border-radius:16px; border:1px solid rgba(91,134,211,.12); background:#fff; }
+      .tp-attention-item.ok{ border-color:rgba(46,173,74,.20); background:linear-gradient(180deg, rgba(46,173,74,.06), rgba(255,255,255,.98)); }
+      .tp-attention-item.pending{ border-color:rgba(242,140,40,.22); background:linear-gradient(180deg, rgba(242,140,40,.08), rgba(255,255,255,.98)); }
+      .tp-attention-dot{ width:12px; height:12px; border-radius:50%; margin-top:5px; flex:0 0 auto; }
+      .tp-attention-item.ok .tp-attention-dot{ background:#2ead4a; box-shadow:0 0 0 4px rgba(46,173,74,.16); }
+      .tp-attention-item.pending .tp-attention-dot{ background:#f28c28; box-shadow:0 0 0 4px rgba(242,140,40,.16); }
+      .tp-attention-item-title{ font-weight:900; color:#0f2d63; }
+      .tp-attention-item-copy{ margin-top:4px; color:#475569; font-size:13px; line-height:1.4; }
+      @keyframes tpPulse{ 0%,100%{ transform:translateY(0) scale(.92); opacity:.68; } 50%{ transform:translateY(-4px) scale(1.08); opacity:1; } }
+@media (max-width: 900px){ .tp-intro-grid{ grid-template-columns:1fr; } }
     `;
     document.head.appendChild(st);
   }
