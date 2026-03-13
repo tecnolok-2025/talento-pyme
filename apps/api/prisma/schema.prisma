@@ -30,6 +30,21 @@ enum BillingOrderStatus {
   CANCELLED
 }
 
+
+enum SupportThreadStatus {
+  OPEN
+  WAITING_USER
+  WAITING_OPERATOR
+  RESOLVED
+}
+
+enum SupportActor {
+  USER
+  ASSISTANT
+  OPERATOR
+  SYSTEM
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -43,6 +58,7 @@ model User {
   company   CompanyProfile?
   jobs      Job[]
   applications Application[]
+  supportThreads SupportThread[]
 }
 
 model Profile {
@@ -171,6 +187,7 @@ model CompanyProfile {
   jobPublications CompanyJobPublication[]
   factoryCoupons FactoryCoupon[]
   factoryGrants CompanyFactoryGrant[]
+  supportThreads SupportThread[]
 
   @@index([companyNameNorm])
   @@index([contactNameNorm])
@@ -364,4 +381,54 @@ model CompanyFactoryGrant {
 
   @@unique([companyId, code])
   @@index([companyId, fullAccessUntil])
+}
+
+
+model SupportThread {
+  id              String              @id @default(cuid())
+  role            UserRole
+  userId          String?
+  companyId       String?
+  subject         String?
+  status          SupportThreadStatus @default(OPEN)
+  needsHuman      Boolean             @default(false)
+  lastUserMessage String?
+  lastAiMessage   String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  user            User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  company         CompanyProfile?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  messages        SupportMessage[]
+
+  @@index([role, updatedAt])
+  @@index([companyId, updatedAt])
+  @@index([userId, updatedAt])
+}
+
+model SupportMessage {
+  id         String        @id @default(cuid())
+  threadId    String
+  actor       SupportActor
+  content     String
+  reusable    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+
+  thread      SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+}
+
+model SupportKnowledge {
+  id             String   @id @default(cuid())
+  scope          String   @default("GLOBAL")
+  keywords       String[] @default([])
+  questionSample String?
+  answer         String
+  source         String?  @default("seed")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([scope, isActive])
 }

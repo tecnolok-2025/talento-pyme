@@ -1,3 +1,3 @@
-Talento PyME v5.5.17
+Talento PyME v5.5.18
 - Se eliminó el texto de ayuda sobre coincidencia aproximada en la pantalla de inicio del login.
-- Versionado actualizado a 5.5.17 para forzar recarga del frontend y service worker.
+- Versionado actualizado a 5.5.18 para forzar recarga del frontend y service worker.

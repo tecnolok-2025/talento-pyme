@@ -30,6 +30,8 @@ const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
 const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
 const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || 'factory@gmail.com').trim();
+const VIRTUAL_ADMIN_USER_ID = '__factory_admin__';
+const VIRTUAL_ADMIN_ROLE = 'SUPERADMIN';
 const FACTORY_ADMIN_ALLOWED_COMPANIES = String(
   process.env.FACTORY_ADMIN_ALLOWED_COMPANIES ||
   process.env.FACTORY_ADMIN_ALLOWED_COMPANY ||
@@ -440,6 +442,8 @@ function isFactoryAdminCredentialsAuthorized(req){
 }
 
 async function requireFactoryAdmin(req, res, next){
+  const role = String(req.user?.role || '').toUpperCase();
+  if(['SUPERADMIN','ADMIN'].includes(role)) return next();
   const { company } = await getCompanyContextByUserId(req.user.id);
   if(!factoryAdminCompanyMatches(company)) return res.status(403).json({ error: factoryAdminVisibilityMessage(company) || 'Factory Admin no está habilitado para esta empresa.' });
   if(isFactoryAdminCredentialsAuthorized(req)) return next();
@@ -447,6 +451,9 @@ async function requireFactoryAdmin(req, res, next){
 }
 
 async function getCompanyContextByUserId(userId){
+  if (userId === VIRTUAL_ADMIN_USER_ID) {
+    return { company: { id: 'virtual-admin-company', companyName: 'Talento PyME', contactEmail: FACTORY_SUPPORT_EMAIL, companyCode: 'TP-ADMIN' }, user: { email: FACTORY_SUPPORT_EMAIL } };
+  }
 
   let company = await prisma.companyProfile.findUnique({ where: { userId } });
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
@@ -607,6 +614,15 @@ const authRequired = auth;
 // Usuario actual
 app.get("/me", authRequired, async (req, res) => {
   try {
+    if (req.user?.id === VIRTUAL_ADMIN_USER_ID) {
+      return res.json({
+        ok: true,
+        user: { id: VIRTUAL_ADMIN_USER_ID, email: null, role: VIRTUAL_ADMIN_ROLE, createdAt: new Date().toISOString() },
+        fullName: 'Talento PyME',
+        companyName: 'Talento PyME',
+        profile: null,
+      });
+    }
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
       include: { candidateProfile: true, company: true },
@@ -871,6 +887,13 @@ app.post("/auth/login", async (req, res) => {
   const { fullName, password, roleHint } = parsed.data;
 
   const identifier = fullName.trim();
+
+  const normalizedIdentifier = normalizeName(identifier);
+  if (roleHint === 'COMPANY' && FACTORY_ADMIN_ALIAS && FACTORY_ADMIN_PASSWORD && normalizedIdentifier === normalizeName(FACTORY_ADMIN_ALIAS)) {
+    const okAdmin = password === FACTORY_ADMIN_PASSWORD;
+    if (!okAdmin) return res.status(401).json({ error: 'Clave incorrecta' });
+    return res.json({ token: signToken({ id: VIRTUAL_ADMIN_USER_ID, role: VIRTUAL_ADMIN_ROLE }), role: VIRTUAL_ADMIN_ROLE, admin: true });
+  }
 
   // Soporte: si el usuario pega su email, permitimos login directo por email (más robusto).
   if(identifier.includes("@")){
@@ -1952,7 +1975,8 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
         telefono:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
         especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true,
         tieneCapacitacion:true, trabajaActualmente:true, sueldoPretendido:true, ultimoTrabajo:true,
-        observaciones:true, photoDataUrl:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true
+        observaciones:true, photoDataUrl:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true,
+        user: { select: { resume: { select: { summary: true, experience: true, education: true, observations: true } } } }
       },
       take: 2000,
     });
@@ -1961,8 +1985,10 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
     const filtered = all.filter((it) => {
       const esp = it.especialidad === 'Otros' ? (it.especialidadOtro || 'Otros') : (it.especialidad || '');
       if (q) {
-        const hay = `${it.nombre || ''} ${it.apellido || ''} ${it.dni || ''} ${it.localidad || ''} ${it.areaTrabajo || ''} ${it.especialidad || ''} ${it.especialidadOtro || ''}`.toLowerCase();
-        if (!hay.includes(q)) return false;
+        const summary = `${it.user?.resume?.summary || ''} ${it.user?.resume?.experience || ''} ${it.user?.resume?.education || ''} ${it.user?.resume?.observations || ''}`;
+        const hay = normalizeName(`${it.nombre || ''} ${it.apellido || ''} ${it.dni || ''} ${it.localidad || ''} ${it.areaTrabajo || ''} ${it.especialidad || ''} ${it.especialidadOtro || ''} ${it.observaciones || ''} ${it.ultimoTrabajo || ''} ${summary} ${(toArrayField(it.herramientasMecanica) || []).join(' ')} ${(toArrayField(it.instrumentosElectrica) || []).join(' ')}`);
+        const qTokens = normalizeName(q).split(' ').filter(Boolean);
+        if (!qTokens.every((tok) => hay.includes(tok))) return false;
       }
       if (area && String(it.areaTrabajo || '') !== area) return false;
       if (localidad && !localityMatches(it.localidad, localidad)) return false;
@@ -1998,7 +2024,8 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
       trabaja_actualmente: it.trabajaActualmente,
       sueldo_pretendido: it.sueldoPretendido,
       ultimo_trabajo: it.ultimoTrabajo,
-      observaciones: it.observaciones,
+      observaciones: it.observaciones || it.user?.resume?.summary || '',
+      resume_summary: it.user?.resume?.summary || '',
       photoDataUrl: it.photoDataUrl,
       herramientas_mecanica: toArrayField(it.herramientasMecanica),
       instrumentos_electrica: toArrayField(it.instrumentosElectrica),
@@ -2888,6 +2915,165 @@ app.get("/search", async (req, res) => {
   });
 
   res.json({ results });
+});
+
+
+
+const SUPPORT_KNOWLEDGE_SEEDS = [
+  { scope: 'GLOBAL', keywords: ['registro perfil completar datos formulario candidato cv observaciones'], questionSample: '¿Qué tengo que completar en mi perfil?', answer: 'Después del registro inicial tenés que completar tu perfil laboral, revisar observaciones y, si querés, adjuntar tu CV para mejorar la visibilidad en las búsquedas.' },
+  { scope: 'COMPANY', keywords: ['factory planes publicaciones busquedas compra bonificacion iva'], questionSample: '¿Cómo funcionan los planes de Factory?', answer: 'Factory permite contratar capacidad por tiempo. Cada plan habilita días, publicaciones y búsquedas. El precio publicado no incluye IVA y puede bonificarse con códigos válidos de una sola vez.' },
+  { scope: 'COMPANY', keywords: ['abrir ficha candidato aperturas creditos saldo'], questionSample: '¿Cómo se consumen los créditos?', answer: 'La empresa puede ver los resultados resumidos sin consumir crédito. Cada ficha completa que se abre por primera vez consume una apertura del cupo vigente. El panel muestra el saldo disponible.' },
+  { scope: 'CANDIDATE', keywords: ['mis oportunidades postulaciones cv perfil'], questionSample: '¿Cómo uso mi portal de candidato?', answer: 'Completá Mi Perfil, revisá Observaciones, adjuntá CV si lo tenés y luego usá Mis Oportunidades para postularte. Las postulaciones quedan registradas en Mis Postulaciones.' }
+];
+
+async function ensureSupportKnowledgeSeed(){
+  const count = await prisma.supportKnowledge.count().catch(() => 0);
+  if(count > 0) return;
+  await prisma.$transaction(SUPPORT_KNOWLEDGE_SEEDS.map((row)=> prisma.supportKnowledge.create({ data: row }))).catch(() => null);
+}
+
+async function getOrCreateSupportThreadForUser(req){
+  if(req.user?.role === 'CANDIDATE'){
+    const existing = await prisma.supportThread.findFirst({ where: { userId: req.user.id, role: 'CANDIDATE' }, orderBy: { updatedAt: 'desc' } }).catch(() => null);
+    if(existing) return existing;
+    return prisma.supportThread.create({ data: { role: 'CANDIDATE', userId: req.user.id, subject: 'Chat de ayuda candidato' } });
+  }
+  if(req.user?.id === VIRTUAL_ADMIN_USER_ID || ['ADMIN','SUPERADMIN'].includes(String(req.user?.role || '').toUpperCase())){
+    const existing = await prisma.supportThread.findFirst({ where: { role: 'SUPERADMIN', subject: 'Chat interno admin' }, orderBy: { updatedAt: 'desc' } }).catch(() => null);
+    if(existing) return existing;
+    return prisma.supportThread.create({ data: { role: 'SUPERADMIN', subject: 'Chat interno admin' } });
+  }
+  const { company } = await getCompanyContextByUserId(req.user.id);
+  const existing = await prisma.supportThread.findFirst({ where: { companyId: company.id, role: 'COMPANY' }, orderBy: { updatedAt: 'desc' } }).catch(() => null);
+  if(existing) return existing;
+  return prisma.supportThread.create({ data: { role: 'COMPANY', companyId: company.id, userId: req.user.id, subject: `Chat empresa ${company.companyName || 'Empresa'}` } });
+}
+
+function scoreKnowledgeMatch(message, knowledge){
+  const hay = normalizeName(message);
+  const keys = Array.isArray(knowledge?.keywords) ? knowledge.keywords : String(knowledge?.keywords || '').split(' ');
+  let score = 0;
+  for(const raw of keys){
+    const tok = normalizeName(raw);
+    if(tok && hay.includes(tok)) score += Math.max(1, tok.length > 7 ? 2 : 1);
+  }
+  return score;
+}
+
+async function generateSupportAssistantReply(message, role){
+  await ensureSupportKnowledgeSeed();
+  const scope = String(role || '').toUpperCase() === 'COMPANY' ? ['GLOBAL','COMPANY'] : String(role || '').toUpperCase() === 'CANDIDATE' ? ['GLOBAL','CANDIDATE'] : ['GLOBAL','COMPANY','CANDIDATE','SUPERADMIN'];
+  const rows = await prisma.supportKnowledge.findMany({ where: { isActive: true, scope: { in: scope } }, orderBy: { updatedAt: 'desc' }, take: 200 }).catch(() => []);
+  let best = null;
+  let bestScore = 0;
+  for(const row of rows){
+    const score = scoreKnowledgeMatch(message, row);
+    if(score > bestScore){ bestScore = score; best = row; }
+  }
+  if(best && bestScore >= 1){
+    return { answer: best.answer, needsHuman: false, source: best.source || 'knowledge' };
+  }
+  return {
+    answer: 'Gracias por tu consulta. Ya la registré en el centro de ayuda. En esta primera etapa el asistente responde con conocimiento del sistema y, cuando no alcanza, deja la conversación disponible para revisión del operador dentro del panel general.',
+    needsHuman: true,
+    source: 'fallback'
+  };
+}
+
+app.get('/support/bootstrap', auth, async (req, res) => {
+  try {
+    const thread = await getOrCreateSupportThreadForUser(req);
+    const messages = await prisma.supportMessage.findMany({ where: { threadId: thread.id }, orderBy: { createdAt: 'asc' }, take: 100 }).catch(() => []);
+    const suggested = (await prisma.supportKnowledge.findMany({ where: { isActive: true }, orderBy: { updatedAt: 'desc' }, take: 6 }).catch(() => [])).map((it)=> it.questionSample).filter(Boolean);
+    return res.json({ ok: true, thread, messages, suggested });
+  } catch (err) {
+    console.error('GET /support/bootstrap', err);
+    return res.status(500).json({ error: 'No se pudo abrir el chat de ayuda.' });
+  }
+});
+
+app.post('/support/message', auth, async (req, res) => {
+  try {
+    const content = clampText(String(req.body?.content || ''), 4000);
+    if(!content) return res.status(400).json({ error: 'Escribí tu consulta para continuar.' });
+    const thread = await getOrCreateSupportThreadForUser(req);
+    await prisma.supportMessage.create({ data: { threadId: thread.id, actor: 'USER', content } });
+    const ai = await generateSupportAssistantReply(content, thread.role);
+    const assistantMsg = await prisma.supportMessage.create({ data: { threadId: thread.id, actor: 'ASSISTANT', content: ai.answer } });
+    await prisma.supportThread.update({ where: { id: thread.id }, data: { lastUserMessage: content, lastAiMessage: ai.answer, needsHuman: !!ai.needsHuman, status: ai.needsHuman ? 'WAITING_OPERATOR' : 'WAITING_USER' } }).catch(() => null);
+    const messages = await prisma.supportMessage.findMany({ where: { threadId: thread.id }, orderBy: { createdAt: 'asc' }, take: 100 });
+    return res.json({ ok: true, threadId: thread.id, assistant: assistantMsg, messages, needsHuman: !!ai.needsHuman });
+  } catch (err) {
+    console.error('POST /support/message', err);
+    return res.status(500).json({ error: 'No se pudo enviar la consulta.' });
+  }
+});
+
+app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    await ensureSupportKnowledgeSeed();
+    const [candidateCount, companyCount, jobsCount, applicationCount, orderCount, paidTotal, candidates, companies, recentThreads] = await Promise.all([
+      prisma.candidateBolsa.count(),
+      prisma.companyProfile.count(),
+      prisma.job.count(),
+      prisma.application.count(),
+      prisma.billingOrder.count(),
+      prisma.billingOrder.aggregate({ _sum: { total: true }, where: { status: { in: ['PAID','VERIFIED'] } } }).catch(() => ({ _sum: { total: 0 } })),
+      prisma.candidateBolsa.findMany({ orderBy: { updatedAt: 'desc' }, take: 80, select: { id:true, nombre:true, apellido:true, areaTrabajo:true, especialidad:true, localidad:true, updatedAt:true, sueldoPretendido:true } }),
+      prisma.companyProfile.findMany({ orderBy: { updatedAt: 'desc' }, take: 80, select: { id:true, companyName:true, cuit:true, contactEmail:true, city:true, province:true, updatedAt:true } }),
+      prisma.supportThread.findMany({ orderBy: { updatedAt: 'desc' }, take: 40, include: { company: { select: { companyName: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'desc' }, take: 1 } } }).catch(() => []),
+    ]);
+    return res.json({
+      ok: true,
+      summary: { candidateCount, companyCount, jobsCount, applicationCount, orderCount, paidTotal: Number(paidTotal?._sum?.total || 0) },
+      candidates, companies, threads: recentThreads
+    });
+  } catch (err) {
+    console.error('GET /admin/bootstrap', err);
+    return res.status(500).json({ error: 'No se pudo cargar el panel general.' });
+  }
+});
+
+app.get('/admin/chat/threads', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const rows = await prisma.supportThread.findMany({ orderBy: { updatedAt: 'desc' }, take: 100, include: { company: { select: { companyName: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'asc' }, take: 100 } } }).catch(() => []);
+    return res.json({ ok: true, items: rows });
+  } catch (err) {
+    console.error('GET /admin/chat/threads', err);
+    return res.status(500).json({ error: 'No se pudo cargar el chat operador.' });
+  }
+});
+
+app.post('/admin/chat/reply', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const threadId = String(req.body?.threadId || '').trim();
+    const content = clampText(String(req.body?.content || ''), 4000);
+    const reusable = !!req.body?.reusable;
+    if(!threadId || !content) return res.status(400).json({ error: 'Faltan datos para responder.' });
+    const thread = await prisma.supportThread.findUnique({ where: { id: threadId }, include: { messages: { orderBy: { createdAt: 'desc' }, take: 10 } } });
+    if(!thread) return res.status(404).json({ error: 'Conversación no encontrada.' });
+    await prisma.supportMessage.create({ data: { threadId, actor: 'OPERATOR', content, reusable } });
+    await prisma.supportThread.update({ where: { id: threadId }, data: { needsHuman: false, status: 'WAITING_USER', lastAiMessage: content } }).catch(() => null);
+    if(reusable){
+      const userPrompt = thread.messages.find((m)=> m.actor === 'USER')?.content || thread.lastUserMessage || content;
+      const keywords = Array.from(new Set(normalizeName(userPrompt).split(' ').filter((tok)=> tok.length >= 4))).slice(0,12);
+      await prisma.supportKnowledge.create({ data: { scope: thread.role, keywords, questionSample: userPrompt.slice(0,180), answer: content, source: 'operator', isActive: true } }).catch(() => null);
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('POST /admin/chat/reply', err);
+    return res.status(500).json({ error: 'No se pudo enviar la respuesta del operador.' });
+  }
+});
+
+app.get('/admin/knowledge', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const items = await prisma.supportKnowledge.findMany({ orderBy: { updatedAt: 'desc' }, take: 100 }).catch(() => []);
+    return res.json({ ok: true, items });
+  } catch (err) {
+    console.error('GET /admin/knowledge', err);
+    return res.status(500).json({ error: 'No se pudo cargar la base de respuestas.' });
+  }
 });
 
 const PORT = process.env.PORT || 10000;

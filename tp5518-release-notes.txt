@@ -1,0 +1,20 @@
+Talento PyME v5.5.18
+
+Cambios principales
+- Nuevo acceso directo al Panel General: si ingresás como Empresa con el alias Factory definido en Render y la clave administrativa, el sistema entra al panel general de administración.
+- Nuevo panel /admin.html con visión general del sistema: candidatos, empresas, búsquedas, facturación y acceso a la misma matriz comercial de Factory Admin.
+- Nuevo chat de ayuda /asistencia.html para candidatos y empresas.
+- Nuevo panel operador dentro del Panel General para responder conversaciones e incorporar respuestas reutilizables a la base de conocimiento.
+- Mejora en Buscar Talento: el texto libre ahora revisa también resumen curricular, observaciones, último trabajo, herramientas e instrumentación.
+- Reordenamiento visual de filtros por temática.
+
+Deploy
+- Esta versión agrega modelos nuevos en Prisma para soporte/chat.
+- En Render se debe redeployar con prisma generate + prisma db push.
+- La API debe quedar en v5.5.18 y el frontend también.
+
+Variables relevantes
+- FACTORY_ADMIN_ALIAS=Talento PyME
+- FACTORY_ADMIN_PASSWORD=tu_clave
+- FACTORY_SUPPORT_EMAIL=factory@gmail.com
+- FACTORY_ADMIN_ALLOWED_COMPANIES=Mengabo SA,Mengabo Sociedad Anonima

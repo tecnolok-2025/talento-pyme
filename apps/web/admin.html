@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Talento PyME · Panel General</title>
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css?v=5.5.18" />
+  <style>
+    .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
+    @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:720px){.adminGrid{grid-template-columns:1fr}}
+    .adminCard{border:1px solid var(--tp-border);border-radius:20px;padding:16px;background:#fff}
+    .adminList{display:grid;gap:10px}
+    .adminRow{padding:12px 14px;border-radius:16px;border:1px solid var(--tp-border);background:#fff}
+    .adminColumns{display:grid;grid-template-columns:1.1fr .9fr;gap:18px;margin-top:18px}
+    @media(max-width:1100px){.adminColumns{grid-template-columns:1fr}}
+    .tabs{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+    .tabs button.active{background:#2563eb;color:#fff;border-color:#2563eb}
+    .tabPane{display:none}
+    .tabPane.active{display:block}
+    .adminChatShell{display:grid;grid-template-columns:.9fr 1.1fr;gap:16px}
+    @media(max-width:980px){.adminChatShell{grid-template-columns:1fr}}
+    .threadItem{padding:12px 14px;border-radius:16px;border:1px solid var(--tp-border);background:#fff;cursor:pointer}
+    .threadItem.active{border-color:#2563eb;box-shadow:0 10px 22px rgba(37,99,235,.12)}
+    .msgBubble{padding:12px 14px;border-radius:16px;border:1px solid var(--tp-border);background:#fff;margin-bottom:10px}
+    .msgBubble.USER{background:rgba(37,99,235,.08)} .msgBubble.ASSISTANT{background:rgba(16,185,129,.08)} .msgBubble.OPERATOR{background:rgba(249,115,22,.08)}
+    .matrixRow{display:grid;grid-template-columns:minmax(160px,1.2fr) repeat(4,minmax(90px,1fr));gap:10px;padding:12px;border:1px solid var(--tp-border);border-radius:18px;background:#fff;margin-bottom:10px}
+    @media(max-width:960px){.matrixRow{grid-template-columns:repeat(2,minmax(0,1fr))}.matrixRow .wide{grid-column:1/-1}}
+  </style>
+</head>
+<body class="appShell">
+<div class="header"><div class="brand"><img src="/icon-192.png" alt="Talento PyME" /><div><div class="brandTitle">Talento PyME</div><div class="muted">Panel General • <span class="tp-version"></span></div></div></div><div class="nav"><a href="/admin.html" class="active" data-role="ADMIN">Panel General</a><a href="/asistencia.html" data-role="ADMIN">Ayuda IA</a><a href="#" id="btnLogout">Salir</a></div></div>
+<div class="wrap wide">
+  <div class="heroPanel"><div class="small pageEyebrow">Talento PyME · superadministración</div><h2 style="margin:8px 0 6px 0">Vista general del sistema</h2><div class="muted">Entraste con el acceso general de Talento PyME. Desde acá ves candidatos, empresas, chat operador y la misma matriz comercial que hoy usás en Factory Admin.</div></div>
+  <div class="adminGrid">
+    <div class="adminCard"><div class="small muted">Candidatos</div><div class="num" id="sumCandidates">—</div><div class="filterNote">Perfiles activos en bolsa.</div></div>
+    <div class="adminCard"><div class="small muted">Empresas</div><div class="num" id="sumCompanies">—</div><div class="filterNote">Empresas registradas.</div></div>
+    <div class="adminCard"><div class="small muted">Búsquedas</div><div class="num" id="sumJobs">—</div><div class="filterNote">Avisos publicados y borradores.</div></div>
+    <div class="adminCard"><div class="small muted">Facturación total</div><div class="num" id="sumBilling">—</div><div class="filterNote">Órdenes verificadas o pagas.</div></div>
+  </div>
+  <div class="tabs" id="adminTabs">
+    <button class="btn btn-ghost active" data-tab="overview" type="button">Resumen</button>
+    <button class="btn btn-ghost" data-tab="factory" type="button">Factory Admin</button>
+    <button class="btn btn-ghost" data-tab="chat" type="button">Chat operador</button>
+  </div>
+  <section class="tabPane active" id="tab-overview">
+    <div class="adminColumns">
+      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Candidatos recientes</h2><div class="muted">Últimas actualizaciones del lado candidato.</div></div></div><div id="candidateList" class="adminList" style="margin-top:16px"></div></div>
+      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Empresas recientes</h2><div class="muted">Altas y cuentas activas del portal empresa.</div></div></div><div id="companyList" class="adminList" style="margin-top:16px"></div></div>
+    </div>
+  </section>
+  <section class="tabPane" id="tab-factory">
+    <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Matriz comercial</h2><div class="muted">Editá días, publicaciones, búsquedas y precio sin IVA.</div></div><div class="row"><button class="btn btn-primary" id="btnSaveMatrix" type="button">Guardar matriz</button><span class="muted" id="matrixMsg"></span></div></div><div id="matrixRows" style="margin-top:16px"></div></div>
+    <div class="adminColumns">
+      <div class="card"><h2 style="margin-top:0">Bonificaciones</h2><div class="grid2"><div><label>Código</label><input class="input" id="couponCodeAdmin" placeholder="Ej: CAMARA20" /></div><div><label>Porcentaje</label><select class="input" id="couponPctAdmin"></select></div><div class="wide"><label>Empresa</label><select class="input" id="couponCompanyAdmin"></select></div></div><div class="row" style="margin-top:12px"><button class="btn btn-primary" id="btnCreateCouponAdmin" type="button">Crear código</button><span class="muted" id="couponAdminMsg"></span></div><div id="couponActiveList" class="adminList" style="margin-top:16px"></div></div>
+      <div class="card"><h2 style="margin-top:0">Acceso total free</h2><div class="grid2"><div><label>Código</label><input class="input" id="freeCodeAdmin" placeholder="Ej: FREE-MENGABO" /></div><div><label>Vigencia hasta</label><select class="input" id="freeMonthAdmin"></select></div><div class="wide"><label>Empresa</label><select class="input" id="freeCompanyAdmin"></select></div></div><div class="row" style="margin-top:12px"><button class="btn btn-primary" id="btnCreateFreeAdmin" type="button">Generar acceso</button><span class="muted" id="freeAdminMsg"></span></div><div id="grantListAdmin" class="adminList" style="margin-top:16px"></div></div>
+    </div>
+  </section>
+  <section class="tabPane" id="tab-chat">
+    <div class="adminChatShell">
+      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Conversaciones</h2><div class="muted">Consultas abiertas y conversaciones recientes.</div></div><button class="btn btn-ghost" id="btnRefreshThreads" type="button">Actualizar</button></div><div id="threadList" class="adminList" style="margin-top:16px"></div></div>
+      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Detalle del hilo</h2><div class="muted" id="threadMeta">Seleccioná una conversación.</div></div></div><div id="threadMessages" style="margin-top:16px"></div><div style="margin-top:16px"><label>Respuesta del operador</label><textarea class="input" id="operatorReply" rows="5" placeholder="Escribí la respuesta que verá el usuario."></textarea><label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="replyReusable" /> Incorporar esta respuesta a la base de conocimiento</label><div class="row" style="margin-top:12px"><button class="btn btn-primary" id="btnSendOperatorReply" type="button">Responder</button><span class="muted" id="operatorReplyMsg"></span></div></div></div>
+    </div>
+  </section>
+</div>
+<script src="/config.js?v=5.5.18"></script>
+<script src="/auth.js?v=5.5.18"></script>
+<script>
+requireAuth(); applyRoleVisibility(); requireRole('ADMIN'); document.getElementById('btnLogout').onclick=(e)=>{e.preventDefault();logout();};
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function money(n){const v=Number(n||0); return '$'+v.toLocaleString('es-AR');}
+function fd(v){try{return new Date(v).toLocaleString('es-AR');}catch(_){return v||'';}}
+const state={overview:null,factory:null,threads:[],selectedThreadId:null};
+function setTab(tab){document.querySelectorAll('#adminTabs [data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));document.querySelectorAll('.tabPane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));}
+document.querySelectorAll('#adminTabs [data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+async function loadOverview(){const data=await apiFetch('/admin/bootstrap');state.overview=data;document.getElementById('sumCandidates').textContent=String(data.summary.candidateCount||0);document.getElementById('sumCompanies').textContent=String(data.summary.companyCount||0);document.getElementById('sumJobs').textContent=String(data.summary.jobsCount||0);document.getElementById('sumBilling').textContent=money(data.summary.paidTotal||0);document.getElementById('candidateList').innerHTML=(data.candidates||[]).map(it=>`<div class="adminRow"><b>${esc(it.apellido||'')}, ${esc(it.nombre||'')}</b><div class="muted">${esc(it.areaTrabajo||'Perfil general')} · ${esc(it.localidad||'')}</div><div class="muted">Pretensión: ${esc(it.sueldoPretendido||'No informada')} · ${fd(it.updatedAt)}</div></div>`).join('')||'<div class="muted">Sin candidatos todavía.</div>';
+document.getElementById('companyList').innerHTML=(data.companies||[]).map(it=>`<div class="adminRow"><b>${esc(it.companyName||'Empresa')}</b><div class="muted">${esc(it.city||'')} ${it.province?'· '+esc(it.province):''}</div><div class="muted">${esc(it.contactEmail||'sin mail')} · ${fd(it.updatedAt)}</div></div>`).join('')||'<div class="muted">Sin empresas todavía.</div>';
+}
+function fillFactorySelects(companies){const opts=['<option value="">Cualquier empresa</option>'].concat((companies||[]).map(c=>`<option value="${c.id}">${esc(c.companyName)}</option>`)).join('');document.getElementById('couponCompanyAdmin').innerHTML=opts;document.getElementById('freeCompanyAdmin').innerHTML=opts.replace('Cualquier empresa','Seleccioná empresa');document.getElementById('freeCompanyAdmin').value='';}
+function renderFactoryAdmin(){const data=state.factory||{};document.getElementById('matrixRows').innerHTML=(data.plans||[]).map(p=>`<div class="matrixRow" data-code="${p.code}"><div class="wide"><label>Plan</label><input class="input" data-f="name" value="${esc(p.name)}"></div><div><label>Días</label><input class="input" type="number" min="1" data-f="days" value="${p.days}"></div><div><label>Publicaciones</label><input class="input" type="number" min="0" data-f="publications" value="${p.publications||0}"></div><div><label>Búsquedas</label><input class="input" type="number" min="0" data-f="searches" value="${p.searches||0}"></div><div><label>Precio</label><input class="input" type="number" min="0" step="1000" data-f="price" value="${p.price}"></div></div>`).join('');fillFactorySelects(data.companies||[]);document.getElementById('couponPctAdmin').innerHTML=Array.from({length:10},(_,i)=>{const pct=(i+1)*10; return `<option value="${pct}">${pct}%</option>`}).join('');const monthSel=document.getElementById('freeMonthAdmin');const now=new Date();monthSel.innerHTML='';for(let i=0;i<12;i++){const d=new Date(now.getFullYear(),now.getMonth()+i,1);const value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;const label=d.toLocaleDateString('es-AR',{month:'long',year:'numeric'});monthSel.innerHTML+=`<option value="${value}">${label}</option>`;}document.getElementById('couponActiveList').innerHTML=(data.coupons||[]).map(c=>`<div class="adminRow"><b>${esc(c.code)}</b><div class="muted">${c.grantsFullAccess?'Acceso total':(c.discountPct||0)+'%'} ${c.companyId?'· empresa específica':'· uso abierto'}</div></div>`).join('')||'<div class="muted">Sin códigos activos.</div>';document.getElementById('grantListAdmin').innerHTML=(data.grants||[]).map(g=>`<div class="adminRow"><b>${esc(g.company?.companyName||'Empresa')}</b><div class="muted">${esc(g.code)} · hasta ${fd(g.fullAccessUntil)}</div></div>`).join('')||'<div class="muted">Sin accesos especiales.</div>';}
+async function loadFactoryAdmin(){state.factory=await apiFetch('/factory/admin/bootstrap');renderFactoryAdmin();}
+async function loadThreads(){const data=await apiFetch('/admin/chat/threads');state.threads=data.items||[];const list=document.getElementById('threadList');list.innerHTML=state.threads.map(t=>`<div class="threadItem ${state.selectedThreadId===t.id?'active':''}" data-id="${t.id}"><b>${esc(t.company?.companyName||t.user?.email||t.subject||'Conversación')}</b><div class="muted">${esc(t.role)} · ${t.needsHuman?'requiere revisión':'seguimiento'} · ${fd(t.updatedAt)}</div><div class="muted">${esc(t.lastUserMessage||'Sin mensaje inicial')}</div></div>`).join('')||'<div class="muted">Sin conversaciones.</div>';list.querySelectorAll('.threadItem').forEach(el=>el.onclick=()=>{state.selectedThreadId=el.dataset.id;loadThreads().then(renderSelectedThread);});if(!state.selectedThreadId && state.threads[0]) state.selectedThreadId=state.threads[0].id;renderSelectedThread();}
+function renderSelectedThread(){const thread=state.threads.find(t=>t.id===state.selectedThreadId);const box=document.getElementById('threadMessages');const meta=document.getElementById('threadMeta');if(!thread){meta.textContent='Seleccioná una conversación.';box.innerHTML='<div class="muted">Sin hilo seleccionado.</div>';return;}meta.textContent=`${thread.company?.companyName||thread.user?.email||thread.subject||'Conversación'} · ${thread.needsHuman?'pendiente de operador':'seguimiento'}`;box.innerHTML=(thread.messages||[]).map(m=>`<div class="msgBubble ${m.actor}"><b>${esc(m.actor)}</b><div style="margin-top:6px">${esc(m.content).replace(/\n/g,'<br>')}</div></div>`).join('');}
+document.getElementById('btnSaveMatrix').onclick=async()=>{const rows=Array.from(document.querySelectorAll('#matrixRows .matrixRow')).map(r=>{const get=f=>r.querySelector(`[data-f="${f}"]`).value;return{code:r.dataset.code,name:get('name'),days:Number(get('days')||0),publications:Number(get('publications')||0),searches:Number(get('searches')||0),price:Number(get('price')||0)}});const msg=document.getElementById('matrixMsg');msg.textContent='Guardando…';try{await apiFetch('/factory/admin/plans',{method:'POST',body:JSON.stringify({plans:rows})});msg.textContent='Matriz actualizada.';await loadFactoryAdmin();}catch(e){msg.textContent=e.message;}};
+document.getElementById('btnCreateCouponAdmin').onclick=async()=>{const msg=document.getElementById('couponAdminMsg');msg.textContent='Guardando…';try{await apiFetch('/factory/admin/coupons',{method:'POST',body:JSON.stringify({code:document.getElementById('couponCodeAdmin').value.trim(),discountPct:Number(document.getElementById('couponPctAdmin').value||0),companyId:document.getElementById('couponCompanyAdmin').value||null})});msg.textContent='Código creado.';document.getElementById('couponCodeAdmin').value='';await loadFactoryAdmin();}catch(e){msg.textContent=e.message;}};
+document.getElementById('btnCreateFreeAdmin').onclick=async()=>{const msg=document.getElementById('freeAdminMsg');msg.textContent='Generando…';try{await apiFetch('/factory/admin/full-access',{method:'POST',body:JSON.stringify({code:document.getElementById('freeCodeAdmin').value.trim(),companyId:document.getElementById('freeCompanyAdmin').value,untilMonth:document.getElementById('freeMonthAdmin').value})});msg.textContent='Acceso creado.';document.getElementById('freeCodeAdmin').value='';await loadFactoryAdmin();}catch(e){msg.textContent=e.message;}};
+document.getElementById('btnRefreshThreads').onclick=()=>loadThreads();
+document.getElementById('btnSendOperatorReply').onclick=async()=>{const threadId=state.selectedThreadId;const content=document.getElementById('operatorReply').value.trim();const msg=document.getElementById('operatorReplyMsg');if(!threadId||!content){msg.textContent='Seleccioná un hilo y escribí la respuesta.';return;}msg.textContent='Enviando…';try{await apiFetch('/admin/chat/reply',{method:'POST',body:JSON.stringify({threadId,content,reusable:document.getElementById('replyReusable').checked})});document.getElementById('operatorReply').value='';document.getElementById('replyReusable').checked=false;msg.textContent='Respuesta enviada.';await loadThreads();}catch(e){msg.textContent=e.message;}};
+Promise.all([loadOverview(),loadFactoryAdmin(),loadThreads()]).catch((e)=>{document.getElementById('sumCandidates').textContent='—';console.error(e);});
+</script>
+</body>
+</html>

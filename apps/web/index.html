@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Talento PyME</title>
   <meta name="theme-color" content="#0B1220" />
-  <link rel="manifest" href="/manifest.webmanifest?v=5.5.17" />
+  <link rel="manifest" href="/manifest.webmanifest?v=5.5.18" />
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.5.17" />
+  <link rel="stylesheet" href="/styles.css?v=5.5.18" />
 </head>
 <body class="authBody">
   <div class="authTop">
@@ -144,7 +144,7 @@
             <p><b>1)</b> Elegí <b>Candidato</b> o <b>Empresa</b>.</p>
             <p><b>2)</b> Si es tu primera vez, tocá <b>Registrarme</b> y completá el formulario.</p>
             <p><b>3)</b> Luego volvé a <b>Ingresar</b> y entrá con tu usuario y tu clave.</p>
-            <p class="muted small">Tip: si sos Empresa, ingresás con el <b>nombre de la empresa</b>. Si sos Candidato, con tu <b>nombre y apellido</b>.</p>
+            <p class="muted small">Si ingresás como empresa con el alias general de administración y la clave de Render, accedés al Panel General de Talento PyME.</p>
           </div>
 <div class="authHint" style="margin-top:12px">
             <h3>Modo gratuito</h3>
@@ -182,8 +182,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.5.17"></script>
-  <script src="/auth.js?v=5.5.17"></script>
+  <script src="/config.js?v=5.5.18"></script>
+  <script src="/auth.js?v=5.5.18"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));
@@ -327,8 +327,10 @@ $("btnRegister").onclick = async () => {
         const data = await post("/auth/login", { fullName, password, roleHint: selectedRole });
         localStorage.setItem("tp_token", data.token);
         localStorage.setItem("tp_role", data.role);
-        msg(`OK. Entrando a ${data.role === "COMPANY" ? "Buscar Talento" : "Mi Perfil"} (${roleES(data.role)})...`);
-        window.location.href = (normalizeRole(data.role) === "COMPANY") ? "/buscar.html" : "/perfil.html";
+        const role = normalizeRole(data.role);
+        const targetLabel = (role === 'ADMIN') ? 'Panel General' : (role === 'COMPANY' ? 'Buscar Talento' : 'Mi Perfil');
+        msg(`OK. Entrando a ${targetLabel} (${roleES(data.role)})...`);
+        window.location.href = (role === 'ADMIN') ? '/admin.html' : (role === 'COMPANY' ? '/buscar.html' : '/perfil.html');
       }catch(e){ msg(e.message); }
       finally{ setBusy(false); disable($("btnLogin"), false); }
     };

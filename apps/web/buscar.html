@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Buscar Talento</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.5.17" />
+  <link rel="stylesheet" href="/styles.css?v=5.5.18" />
   <style>
     .talentCard{padding:0;overflow:hidden;cursor:default}
     .talentCardHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px;cursor:pointer}
@@ -32,6 +32,11 @@
 .openingBadge.is-alert{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.24);color:#7f1d1d}
 .lockedPanel{padding:14px 16px;border-radius:18px;background:rgba(239,68,68,.06);border:1px dashed rgba(239,68,68,.35);color:#7f1d1d;font-weight:700}
     @media(max-width:760px){.talentCardHead{flex-direction:column}.talentToggle{width:100%;justify-content:center}.talentInlineGrid{grid-template-columns:1fr}}
+    .filterSections{display:grid;gap:16px;margin-top:16px}
+    .filterGroup{padding:16px;border:1px solid var(--tp-border);border-radius:20px;background:linear-gradient(180deg,#fff,rgba(37,99,235,.03))}
+    .filterGroup h3{margin:0 0 6px 0;font-size:18px}
+    .filterGroup .muted{margin-bottom:12px}
+
   </style>
 </head>
 <body class="appShell">
@@ -50,7 +55,7 @@
       <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
       <a href="/mis-candidatos.html" data-role="COMPANY">Mis Candidatos</a>
       <a href="/factory.html" data-role="COMPANY">Factory</a>
-      <a href="#" id="btnLogout">Salir</a>
+      <a href="/asistencia.html">Ayuda IA</a><a href="#" id="btnLogout">Salir</a>
     </div>
   </div>
 
@@ -88,7 +93,7 @@
       <div class="toolbarCard">
         <div>
           <h2 style="margin:0">Filtros inteligentes de búsqueda</h2>
-          <div class="muted">La búsqueda textual replica la lógica UIC: nombre, apellido, DNI, localidad, área y especialidad.</div>
+          <div class="muted">La búsqueda textual ahora también revisa el resumen curricular, observaciones, último trabajo, herramientas e instrumentación para ampliar coincidencias reales.</div>
         </div>
         <div class="row" style="margin-top:0">
           <button class="btn btn-ghost" id="btnRefreshStats">Actualizar stats</button>
@@ -97,63 +102,42 @@
         </div>
       </div>
 
-      <div class="filtersGrid" style="margin-top:16px">
-        <div>
-          <label>Texto libre</label>
-          <input class="input" id="jobsQ" placeholder="Nombre, DNI, localidad, área o especialidad" />
-          <div class="filterNote">Coincidencia parcial.</div>
+      <div class="filterSections">
+        <div class="filterGroup">
+          <h3>Lectura general del perfil</h3>
+          <div class="muted">Combiná texto libre, área y especialidad para encontrar perfiles por resumen curricular, experiencia u observaciones.</div>
+          <div class="filtersGrid">
+            <div>
+              <label>Texto libre</label>
+              <input class="input" id="jobsQ" placeholder="Ej: eléctrico, industrial, supervisor, PLC, confiabilidad" />
+              <div class="filterNote">Busca también dentro del resumen curricular.</div>
+            </div>
+            <div><label>Área de trabajo</label><select class="input" id="jobsArea"></select></div>
+            <div><label>Especialidad</label><select class="input" id="jobsEsp"></select></div>
+            <div><label>Localidad</label><select class="input" id="jobsLoc"></select></div>
+            <div><label>Nivel</label><select class="input" id="jobsNivel"></select></div>
+          </div>
         </div>
-        <div>
-          <label>Área de trabajo</label>
-          <select class="input" id="jobsArea"></select>
+        <div class="filterGroup">
+          <h3>Experiencia y formación</h3>
+          <div class="muted">Refiná la búsqueda por seniority, educación y disponibilidad actual.</div>
+          <div class="filtersGrid">
+            <div><label>Rango de experiencia</label><select class="input" id="jobsExp"></select></div>
+            <div><label>Nivel educativo</label><select class="input" id="jobsEdu"></select></div>
+            <div><label>Capacitación</label><select class="input" id="jobsCap"></select></div>
+            <div><label>Trabaja actualmente</label><select class="input" id="jobsTrab"></select></div>
+            <div><label>Última actualización</label><select class="input" id="jobsFechaReg"></select></div>
+            <div><label>Orden</label><select class="input" id="jobsOrden"></select></div>
+          </div>
         </div>
-        <div>
-          <label>Localidad</label>
-          <select class="input" id="jobsLoc"></select>
-        </div>
-        <div>
-          <label>Nivel</label>
-          <select class="input" id="jobsNivel"></select>
-        </div>
-        <div>
-          <label>Especialidad</label>
-          <select class="input" id="jobsEsp"></select>
-        </div>
-        <div>
-          <label>Rango de experiencia</label>
-          <select class="input" id="jobsExp"></select>
-        </div>
-        <div>
-          <label>Nivel educativo</label>
-          <select class="input" id="jobsEdu"></select>
-        </div>
-        <div>
-          <label>Capacitación</label>
-          <select class="input" id="jobsCap"></select>
-        </div>
-        <div>
-          <label>Trabaja actualmente</label>
-          <select class="input" id="jobsTrab"></select>
-        </div>
-        <div>
-          <label>Categoría soldador</label>
-          <select class="input" id="jobsSoldCat"></select>
-        </div>
-        <div>
-          <label>Máquina / herramienta</label>
-          <select class="input" id="jobsHerr"></select>
-        </div>
-        <div>
-          <label>Instrumento / equipo</label>
-          <select class="input" id="jobsInstr"></select>
-        </div>
-        <div>
-          <label>Última actualización</label>
-          <select class="input" id="jobsFechaReg"></select>
-        </div>
-        <div>
-          <label>Orden</label>
-          <select class="input" id="jobsOrden"></select>
+        <div class="filterGroup">
+          <h3>Herramientas y criterio técnico</h3>
+          <div class="muted">Agrupá soldadura, máquinas e instrumentación para que la búsqueda sea más didáctica y rápida.</div>
+          <div class="filtersGrid">
+            <div><label>Categoría soldador</label><select class="input" id="jobsSoldCat"></select></div>
+            <div><label>Máquina / herramienta</label><select class="input" id="jobsHerr"></select></div>
+            <div><label>Instrumento / equipo</label><select class="input" id="jobsInstr"></select></div>
+          </div>
         </div>
       </div>
 
@@ -179,8 +163,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.5.17"></script>
-  <script src="/auth.js?v=5.5.17"></script>
+  <script src="/config.js?v=5.5.18"></script>
+  <script src="/auth.js?v=5.5.18"></script>
   <script>
     requireAuth();
     applyRoleVisibility();

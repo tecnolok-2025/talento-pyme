@@ -98,6 +98,8 @@ function roleES(role){
   switch(role){
     case "CANDIDATE": return "Candidato";
     case "COMPANY": return "Empresa";
+    case "ADMIN":
+    case "SUPERADMIN": return "Administración";
     default: return role || "";
   }
 }
