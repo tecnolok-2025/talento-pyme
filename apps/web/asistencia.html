@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Ayuda IA</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.6.2" />
+  <link rel="stylesheet" href="/styles.css?v=5.6.3" />
   <style>
     .chatShell{display:grid;grid-template-columns:1.25fr .75fr;gap:18px}
     @media(max-width:980px){.chatShell{grid-template-columns:1fr}}
@@ -50,8 +50,8 @@
   <div class="wrap wide">
     <div class="heroPanel">
       <div class="small pageEyebrow">Talento PyME · soporte asistido</div>
-      <h2 style="margin:8px 0 6px 0">Ayuda IA + operador</h2>
-      <div class="muted">Este centro responde con conocimiento operativo del sistema, mantiene tono profesional y deriva al operador solo cuando hace falta una intervención humana.</div>
+      <h2 style="margin:8px 0 6px 0" id="helpTitle">Ayuda IA + operador</h2>
+      <div class="muted" id="helpIntro">Este centro responde con conocimiento operativo del sistema, mantiene tono profesional y deriva al operador solo cuando hace falta una intervención humana.</div>
     </div>
     <div class="chatShell" style="margin-top:16px">
       <div class="card chatBox">
@@ -73,10 +73,15 @@
       </div>
     </div>
   </div>
-  <script src="/config.js?v=5.6.2"></script>
-  <script src="/auth.js?v=5.6.2"></script>
+  <script src="/config.js?v=5.6.3"></script>
+  <script src="/auth.js?v=5.6.3"></script>
   <script>
     requireAuth(); applyRoleVisibility(); document.getElementById('btnLogout').onclick=(e)=>{e.preventDefault();logout();};
+    const currentRole = normalizeRole(tpRole());
+    const helpTitleMap = { CANDIDATE:'Ayuda IA · lado candidato', COMPANY:'Ayuda IA · lado empresa', ADMIN:'Ayuda IA · administración general' };
+    const helpIntroMap = { CANDIDATE:'Este centro te guía para completar el perfil, cargar CV, mejorar tu visibilidad y usar Mis Oportunidades y Mis Postulaciones.', COMPANY:'Este centro te guía para buscar talento, publicar búsquedas, usar Factory y entender la capacidad operativa del lado empresa.', ADMIN:'Este centro concentra las conversaciones y el conocimiento operativo del Panel General.' };
+    document.getElementById('helpTitle').textContent = helpTitleMap[currentRole] || 'Ayuda IA + operador';
+    document.getElementById('helpIntro').textContent = helpIntroMap[currentRole] || 'Este centro responde con conocimiento operativo del sistema, mantiene tono profesional y deriva al operador cuando hace falta una intervención humana.';
     function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
     function fd(v){try{return new Date(v).toLocaleString('es-AR');}catch(_){return v||'';}}
     const actorLabel={USER:'Tu consulta',ASSISTANT:'Ayuda IA',OPERATOR:'Operador',SYSTEM:'Sistema'};

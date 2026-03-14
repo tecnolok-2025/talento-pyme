@@ -1,4 +1,4 @@
-# Talento PyME v5.6.2 — remediación integral de pagos, seguridad y gobernanza
+# Talento PyME v5.6.3 — remediación integral de pagos, seguridad y gobernanza
 
 ## 1. Resumen ejecutivo
 

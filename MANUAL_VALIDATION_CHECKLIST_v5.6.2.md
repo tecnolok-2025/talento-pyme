@@ -1,4 +1,4 @@
-# Checklist manual de validación — Talento PyME v5.6.2
+# Checklist manual de validación — Talento PyME v5.6.3
 
 ## Frontend
 - Abrir `factory.html`

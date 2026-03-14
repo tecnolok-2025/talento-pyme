@@ -988,7 +988,7 @@ app.post("/auth/login", async (req, res) => {
   const identifier = fullName.trim();
 
   const normalizedIdentifier = normalizeName(identifier);
-  if (roleHint === 'COMPANY' && FACTORY_ADMIN_ALIAS && FACTORY_ADMIN_PASSWORD && normalizedIdentifier === normalizeName(FACTORY_ADMIN_ALIAS)) {
+  if (FACTORY_ADMIN_ALIAS && FACTORY_ADMIN_PASSWORD && normalizedIdentifier === normalizeName(FACTORY_ADMIN_ALIAS)) {
     const okAdmin = password === FACTORY_ADMIN_PASSWORD;
     if (!okAdmin) return res.status(401).json({ error: 'Clave incorrecta' });
     return res.json({ token: signToken({ id: VIRTUAL_ADMIN_USER_ID, role: VIRTUAL_ADMIN_ROLE }), role: VIRTUAL_ADMIN_ROLE, admin: true });
@@ -2222,16 +2222,53 @@ function inferCompanyKind(text) {
 function summarizeCompanySite({ title, description, bodyText, url }) {
   const source = [title, description, bodyText].filter(Boolean).join(' · ');
   const kind = inferCompanyKind(source);
-  const cleanTitle = String(title || '').replace(/\s*[-|–].*$/, '').trim();
-  let summary = '';
-  if (description) {
-    summary = description.trim();
-  } else if (bodyText) {
-    summary = String(bodyText).split(/(?<=[\.!?])\s+/).slice(0, 2).join(' ').trim();
+  const cleanTitle = String(title || '')
+    .replace(/\s*[-|–].*$/, '')
+    .replace(/\b(inicio|home)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const navWords = new Set(['inicio','home','servicios','service','navegacion','navigation','contacto','contact','clientes','portfolio','portafolio','blog','idioma','espanol','español','english','portugues','português','menu']);
+  const rawText = String(bodyText || '').replace(/\s+/g, ' ').trim();
+  const fragments = rawText
+    .split(/(?<=[\.!?])\s+|\s+[·|]\s+|\s{2,}/)
+    .map((part) => part.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .filter((part) => part.length >= 45 && part.length <= 260)
+    .filter((part) => {
+      const words = normalizeName(part).split(' ').filter(Boolean);
+      if(words.length < 7) return false;
+      const navHits = words.filter((w) => navWords.has(w)).length;
+      return navHits <= Math.max(1, Math.floor(words.length * 0.2));
+    });
+  const unique = [];
+  const seen = new Set();
+  for (const part of fragments) {
+    const key = normalizeName(part);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(part);
+    if (unique.length >= 3) break;
   }
-  summary = summary.replace(/\s+/g, ' ').slice(0, 700);
-  const lead = cleanTitle ? `${cleanTitle} es una empresa de ${kind}.` : `La empresa se dedica principalmente a ${kind}.`;
-  return { summary: `${lead} ${summary}`.trim(), kind, sourceUrl: url || null };
+  let narrative = '';
+  if (description) {
+    narrative = String(description).replace(/\b(inicio|home)\b/gi, '').replace(/\s+/g, ' ').trim();
+  }
+  if (!narrative && unique.length) {
+    narrative = unique.join(' ');
+  }
+  if (!narrative && rawText) {
+    narrative = rawText.slice(0, 520);
+  }
+  narrative = narrative
+    .replace(/\b(inicio|home|navegacion|navigation)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 720);
+  const lead = cleanTitle
+    ? `${cleanTitle} es una empresa del ámbito ${kind} con foco en soluciones técnicas, operativas y de servicio.`
+    : `La empresa se desenvuelve en el ámbito ${kind} y combina capacidad técnica con operatoria profesional.`;
+  const detail = narrative ? ` ${narrative}` : '';
+  return { summary: `${lead}${detail}`.trim(), kind, sourceUrl: url || null };
 }
 
 app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res) => {
@@ -3451,7 +3488,7 @@ const SUPPORT_INTENTS = [
     id: 'general-login-admin',
     scopes: ['GLOBAL','COMPANY','SUPERADMIN'],
     patterns: [/talento pyme/, /acceso general/, /ingresar como administrador/, /factory admin/, /panel general acceso/],
-    build: async () => 'El acceso general se hace desde Empresa: si ingresás con el alias configurado para administración general y la clave definida en Render, entrás al Panel General. Para Factory Admin, además del alias y la clave, la empresa tiene que estar habilitada para ver y usar la consola comercial avanzada.'
+    build: async () => 'El acceso general al Panel General se hace con el alias administrativo de Talento PyME y la clave definida en Render. Ese ingreso funciona tanto si elegís el lado candidato como el lado empresa en la pantalla inicial. Desde ese panel administrás la matriz comercial, las bonificaciones, los accesos especiales y el chat operador.'
   }
 ];
 

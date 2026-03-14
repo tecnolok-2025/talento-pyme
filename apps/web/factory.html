@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Factory</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.6.2" />
+  <link rel="stylesheet" href="/styles.css?v=5.6.3" />
   <style>
     .factoryMiniGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:14px}
     .factoryMiniCard{border:1px solid var(--tp-border);border-radius:18px;padding:16px;background:#fff}
@@ -77,13 +77,12 @@
       <div class="muted">Administrá la cuenta de tu empresa, los planes por tiempo y la capacidad operativa para publicar avisos y abrir fichas completas de candidatos.</div>
       <div class="factoryGlow">
         <span>Resumen de cuenta y facturación</span>
-        <span>Matriz por días · publicaciones · búsquedas</span>
-        <span>Factory Admin para superadministración</span>
+        <span>Planes por tiempo · publicaciones · búsquedas</span>
+        <span>Capacidad operativa y códigos especiales</span>
       </div>
       <div class="segmentTabs" id="segmentTabs">
         <button type="button" class="active" data-tab="summary">Resumen de cuenta</button>
         <button type="button" data-tab="plans">Planes y checkout</button>
-        <button type="button" data-tab="admin" id="btnAdminTab" style="display:none">Factory Admin</button>
       </div>
     </div>
 
@@ -111,7 +110,7 @@
               <strong>Consultas de cuenta</strong>
               <div class="muted">Para soporte comercial o validaciones, escribinos a:</div>
               <div style="margin-top:10px"><a href="mailto:factory@gmail.com" id="supportEmailLink">factory@gmail.com</a></div>
-              <div class="timelineNote">Las bonificaciones y accesos especiales se administran desde Factory Admin. El empresario común puede activar códigos y consultar su capacidad operativa vigente. El acceso administrativo solo aparece del lado empresa.</div>
+              <div class="timelineNote">Colocá tu código de acceso y presioná Activar para que el sistema lo valide.</div>
               <div class="couponRow" style="margin-top:16px">
                 <input class="input" id="specialAccessCode" placeholder="Código de acceso especial" />
                 <button class="btn btn-ghost" type="button" id="btnRedeemAccessCode">Activar</button>
@@ -121,26 +120,6 @@
           </div>
 
           <div class="factoryMiniGrid">
-            <div class="factoryMiniCard" id="adminUnlockCard">
-              <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Factory Admin</div>
-              <div class="sectionTitle">Acceso administrativo</div>
-              <div class="muted">Ingresá el nombre Factory y la clave definidos en Render para habilitar la consola avanzada de planes, bonificaciones y accesos especiales.</div>
-              <div class="unlockBox" style="margin-top:12px;grid-template-columns:1fr 1fr auto">
-                <div>
-                  <label>Nombre Factory</label>
-                  <input class="input" id="factoryAdminAlias" placeholder="Ej: TalentoPyme" />
-                </div>
-                <div>
-                  <label>Clave de acceso</label>
-                  <div class="factoryPasswordWrap">
-                    <input class="input" id="factoryAdminPassword" type="password" placeholder="Clave Factory Admin" />
-                    <button class="btn btn-ghost factoryPasswordToggle" type="button" id="btnToggleAdminPassword" aria-label="Mostrar u ocultar clave">👁</button>
-                  </div>
-                </div>
-                <button class="btn btn-primary" type="button" id="btnUnlockAdmin">Ingresar</button>
-              </div>
-              <div class="timelineNote" id="adminUnlockMsg">Configurá FACTORY_ADMIN_ALIAS y FACTORY_ADMIN_PASSWORD en Render.</div>
-            </div>
             <div class="factoryMiniCard">
               <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Capacidad operativa</div>
               <div class="sectionTitle">Resumen del plan activo</div>
@@ -249,82 +228,6 @@
             </div>
           </div>
         </section>
-
-        <section class="factorySection" id="tab-admin">
-          <div class="card">
-            <div class="toolbarCard">
-              <div>
-                <h2 style="margin:0">Factory Admin</h2>
-                <div class="muted">Consola para superadministrar la matriz comercial, los códigos y la operatoria general del sistema.</div>
-              </div>
-              <div class="badge">Clave desde Render</div>
-            </div>
-            <div id="adminGateMsg" class="timelineNote" style="margin-top:12px">Ingresá el nombre Factory y la clave de acceso para habilitar este panel.</div>
-            <div id="adminConsole" style="display:none">
-              <div class="factoryAdminGrid">
-                <div class="factoryMiniCard adminStack">
-                  <div>
-                    <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Matriz de planes</div>
-                    <div class="sectionTitle">Días · publicaciones · búsquedas</div>
-                    <div class="muted">Modificá la matriz comercial manteniendo el mismo servicio para todos los planes. Podés editar días, publicaciones, búsquedas y precio final sin IVA.</div>
-                  </div>
-                  <div id="adminPlanRows" class="adminPlanEditor"></div>
-                  <div class="row"><button class="btn btn-primary" type="button" id="btnSavePlans">Guardar matriz</button><span class="mutedInline" id="adminPlanMsg"></span></div><div class="timelineNote">Todas las celdas de la matriz son editables. El precio que cargás acá es el valor de venta sin IVA.</div>
-                </div>
-                <div class="factoryMiniCard adminStack">
-                  <div>
-                    <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Bonificaciones</div>
-                    <div class="sectionTitle">Códigos de descuento</div>
-                  </div>
-                  <div><label>Código</label><input class="input" id="adminCouponCode" placeholder="Ej: CAMARA20" /></div>
-                  <div><label>Porcentaje</label><select class="input" id="adminCouponPct"></select></div>
-                  <div><label>Empresa</label><select class="input" id="adminCouponCompany"></select></div>
-                  <div class="row"><button class="btn btn-primary" type="button" id="btnCreateCoupon">Crear código</button><span class="mutedInline" id="adminCouponMsg"></span></div>
-                </div>
-                <div class="factoryMiniCard adminStack">
-                  <div>
-                    <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Acceso total free</div>
-                    <div class="sectionTitle">Código especial por empresa</div>
-                  </div>
-                  <div><label>Código</label><input class="input" id="adminAccessCode" placeholder="Ej: FREE-MENGAVO" /></div>
-                  <div><label>Empresa</label><select class="input" id="adminAccessCompany"></select></div>
-                  <div><label>Vigencia hasta</label><select class="input" id="adminAccessMonth"></select></div>
-                  <div class="row"><button class="btn btn-primary" type="button" id="btnCreateAccess">Generar acceso</button><span class="mutedInline" id="adminAccessMsg"></span></div>
-                </div>
-              </div>
-
-              <div class="factoryMiniGrid">
-                <div class="factoryMiniCard">
-                  <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Códigos activos</div>
-                  <div id="adminCouponsList" class="muted" style="margin-top:10px"></div>
-                  <div class="timelineNote" style="margin-top:10px">Los códigos usados o desactivados salen automáticamente de esta lista.</div>
-                </div>
-                <div class="factoryMiniCard">
-                  <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Códigos usados o desactivados</div>
-                  <div id="adminUsedCouponsList" class="muted" style="margin-top:10px"></div>
-                </div>
-                <div class="factoryMiniCard">
-                  <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Accesos totales vigentes</div>
-                  <div id="adminGrantsList" class="muted" style="margin-top:10px"></div>
-                </div>
-              </div>
-
-              <div class="card" style="margin-top:16px">
-                <div class="toolbarCard">
-                  <div><h3 style="margin:0">Empresas y facturación</h3><div class="muted">Buscá por empresa, CUIT o días contratados.</div></div>
-                  <div class="badge">Vista general</div>
-                </div>
-                <div class="adminFilters" style="margin-top:16px">
-                  <div><label>Buscar empresa</label><input class="input" id="adminSearch" placeholder="Empresa, CUIT o código" /></div>
-                  <div><label>Días contratados</label><select class="input" id="adminDays"><option value="">Todos</option><option value="7">7</option><option value="14">14</option><option value="30">30</option><option value="60">60</option></select></div>
-                  <div><label>Orden</label><select class="input" id="adminSort"><option value="newest">Más nuevas primero</option><option value="oldest">Más viejas primero</option></select></div>
-                  <div class="row" style="margin:0"><button class="btn btn-primary" type="button" id="btnAdminRefresh">Actualizar</button></div>
-                </div>
-                <div id="adminList" style="margin-top:14px"></div>
-              </div>
-            </div>
-          </div>
-        </section>
       </div>
 
       <aside class="factoryAside">
@@ -357,8 +260,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.6.2"></script>
-  <script src="/auth.js?v=5.6.2"></script>
+  <script src="/config.js?v=5.6.3"></script>
+  <script src="/auth.js?v=5.6.3"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -397,7 +300,6 @@
       const passEl = document.getElementById('factoryAdminPassword');
       if(aliasEl) aliasEl.value = state.bootstrap?.factoryAdmin?.aliasHint || '';
       if(passEl) passEl.value = '';
-      updateAdminVisibility();
     }
 
     purgeLegacyFactoryAdminStorage();
@@ -470,48 +372,19 @@
 
     function planByCode(code){ return (state.bootstrap?.plans || []).find((it)=> it.code === code) || null; }
     function setTab(tab){
-      const adminVisible = !!state.bootstrap?.factoryAdmin?.visible;
-      if(tab === 'admin' && !adminVisible) tab = 'summary';
       state.activeTab = tab;
       document.querySelectorAll('#segmentTabs [data-tab]').forEach((btn)=> btn.classList.toggle('active', btn.dataset.tab === tab));
       document.querySelectorAll('.factorySection').forEach((sec)=> sec.classList.toggle('active', sec.id === 'tab-' + tab));
-      if(tab === 'admin') renderAdminSection();
       if(tab === 'plans') renderCheckout();
       setCartCollapsed(tab !== 'plans');
     }
     document.querySelectorAll('#segmentTabs [data-tab]').forEach((btn)=> btn.onclick = ()=> setTab(btn.dataset.tab));
 
-    function updateAdminVisibility(){
-      const visible = !!state.bootstrap?.factoryAdmin?.visible;
-      const unlocked = visible && !!state.bootstrap?.adminUnlocked;
-      const restriction = state.bootstrap?.factoryAdmin?.visibilityMessage || 'Factory Admin solo está disponible para la empresa virtual habilitada.';
-      const adminMsg = document.getElementById('adminGateMsg');
-      const unlockMsg = document.getElementById('adminUnlockMsg');
-      document.getElementById('btnAdminTab').style.display = visible && unlocked ? '' : 'none';
-      document.getElementById('adminUnlockCard').style.display = visible && !unlocked ? '' : 'none';
-      document.getElementById('adminConsole').style.display = visible && unlocked ? '' : 'none';
-      if(!visible){
-        adminMsg.textContent = restriction;
-        unlockMsg.textContent = restriction;
-      } else if(unlocked){
-        adminMsg.textContent = 'Consola habilitada. Podés actualizar matriz, bonos y accesos especiales.';
-        unlockMsg.textContent = 'Acceso validado. Factory Admin habilitado solo durante esta sesión.';
-      } else {
-        adminMsg.textContent = 'Ingresá el nombre Factory y la clave de acceso para habilitar este panel.';
-        unlockMsg.textContent = state.bootstrap?.factoryAdmin?.configured ? 'Ingresá el nombre Factory y la clave de acceso. Al salir, se pedirá volver a ingresar.' : 'Configurá FACTORY_ADMIN_ALIAS y FACTORY_ADMIN_PASSWORD en Render.';
-      }
-    }
-
     async function loadBootstrap(){
       state.bootstrap = await apiFactory('/factory/bootstrap');
-      document.getElementById('factoryAdminAlias').value = state.bootstrap?.factoryAdmin?.aliasHint || '';
-      document.getElementById('factoryAdminPassword').value = '';
       renderSummary();
       renderPlans();
       await refreshQuote();
-      updateAdminVisibility();
-      if(state.bootstrap.adminUnlocked) await loadAdminBootstrap();
-      if(state.activeTab === 'admin' && !state.bootstrap.adminUnlocked) setTab('summary');
     }
 
     async function refreshQuote(){
@@ -648,7 +521,7 @@
 
     async function loadAdminBootstrap(){
       try{ state.adminBootstrap = await apiFactory('/factory/admin/bootstrap', {}, true); }
-      catch(e){ document.getElementById('adminUnlockMsg').textContent = e.message; return; }
+      catch(e){ const adminMsg = document.getElementById('adminUnlockMsg'); if(adminMsg) adminMsg.textContent = e.message; return; }
       fillAdminSelectors();
       renderAdminPlans();
       renderAdminLists();
@@ -656,6 +529,7 @@
     }
 
     function fillAdminSelectors(){
+      if(!document.getElementById('adminCouponCompany')) return;
       const companies = state.adminBootstrap?.companies || [];
       const optsAny = ['<option value="">Cualquier empresa</option>'].concat(companies.map((c)=> `<option value="${c.id}">${esc(c.companyName)}${c.cuit ? ' · ' + esc(c.cuit) : ''}</option>`));
       document.getElementById('adminCouponCompany').innerHTML = optsAny.join('');
@@ -666,8 +540,9 @@
     }
 
     function renderAdminPlans(){
+      const mount = document.getElementById('adminPlanRows'); if(!mount) return;
       const rows = state.adminBootstrap?.plans || [];
-      document.getElementById('adminPlanRows').innerHTML = rows.map((plan)=> `
+      mount.innerHTML = rows.map((plan)=> `
         <div class="adminPlanRow" data-plan-row data-code="${plan.code}">
           <div class="field planName">
             <label>Plan</label>
@@ -693,9 +568,10 @@
     }
 
     function renderAdminLists(){
+      const couponList = document.getElementById('adminCouponsList'); if(!couponList) return;
       const coupons = state.adminBootstrap?.coupons || [];
       const usedCoupons = state.adminBootstrap?.usedCoupons || [];
-      document.getElementById('adminCouponsList').innerHTML = coupons.length ? coupons.slice(0,20).map((c)=> `<div style="padding:8px 0;border-bottom:1px solid var(--tp-border)"><b>${esc(c.code)}</b> · ${c.grantsFullAccess ? 'Acceso total' : esc((c.discountPct||0) + '%')} ${c.companyId ? '· empresa específica' : '· uso abierto'}</div>`).join('') : 'Sin códigos activos todavía.';
+      couponList.innerHTML = coupons.length ? coupons.slice(0,20).map((c)=> `<div style="padding:8px 0;border-bottom:1px solid var(--tp-border)"><b>${esc(c.code)}</b> · ${c.grantsFullAccess ? 'Acceso total' : esc((c.discountPct||0) + '%')} ${c.companyId ? '· empresa específica' : '· uso abierto'}</div>`).join('') : 'Sin códigos activos todavía.';
       const usedEl = document.getElementById('adminUsedCouponsList');
       if(usedEl) usedEl.innerHTML = usedCoupons.length ? usedCoupons.slice(0,20).map((c)=> `<div class="usedCodeItem"><b>${esc(c.code)}</b> · ${c.grantsFullAccess ? 'Acceso total consumido' : 'Bonificación usada'}${c.companyId ? ' · empresa específica' : ''}</div>`).join('') : 'Sin códigos usados o desactivados recientemente.';
       const grants = state.adminBootstrap?.grants || [];
@@ -704,6 +580,7 @@
 
     async function loadAdminOrders(){
       const list = document.getElementById('adminList');
+      if(!list) return;
       list.innerHTML = '<div class="emptyStateFactory">Cargando panel administrador…</div>';
       try{
         const params = new URLSearchParams({ q: document.getElementById('adminSearch').value.trim(), days: document.getElementById('adminDays').value, sort: document.getElementById('adminSort').value });
@@ -714,28 +591,7 @@
       }catch(e){ list.innerHTML = `<div class="emptyStateFactory">${esc(e.message)}</div>`; }
     }
 
-    async function renderAdminSection(){ if(!state.bootstrap?.factoryAdmin?.visible){ updateAdminVisibility(); return; } if(state.bootstrap?.adminUnlocked && !state.adminBootstrap) await loadAdminBootstrap(); updateAdminVisibility(); }
-
-    document.getElementById('btnUnlockAdmin').onclick = async ()=> {
-      const alias = document.getElementById('factoryAdminAlias').value.trim();
-      const password = document.getElementById('factoryAdminPassword').value.trim();
-      document.getElementById('adminUnlockMsg').textContent = 'Validando acceso…';
-      try{
-        state.adminAlias = alias;
-        state.adminPassword = password;
-        await apiFactory('/factory/admin/unlock', { method:'POST', body: JSON.stringify({ alias, password, key: password }) }, true);
-        await loadBootstrap();
-        document.getElementById('factoryAdminAlias').value = state.bootstrap?.factoryAdmin?.aliasHint || '';
-        document.getElementById('factoryAdminPassword').value = '';
-        document.getElementById('adminUnlockMsg').textContent = 'Acceso validado. Factory Admin habilitado solo durante esta sesión.';
-        setTab('admin');
-      }catch(e){
-        clearFactoryAdminSession();
-        document.getElementById('adminUnlockMsg').textContent = e.message;
-      }
-    };
-
-    document.getElementById('btnSavePlans').onclick = async ()=> {
+    const el_btnSavePlans = document.getElementById('btnSavePlans'); if(el_btnSavePlans) el_btnSavePlans.onclick = async ()=> {
       const rows = Array.from(document.querySelectorAll('#adminPlanRows [data-plan-row]')).map((row, idx)=> {
         const inputs = row.querySelectorAll('[data-plan-field]');
         const get = (field)=> Array.from(inputs).find((el)=> el.dataset.planField === field)?.value || '';
@@ -747,7 +603,7 @@
       catch(e){ msg.textContent=e.message; }
     };
 
-    document.getElementById('btnCreateCoupon').onclick = async ()=> {
+    const el_btnCreateCoupon = document.getElementById('btnCreateCoupon'); if(el_btnCreateCoupon) el_btnCreateCoupon.onclick = async ()=> {
       const msg = document.getElementById('adminCouponMsg'); msg.textContent='Guardando…';
       try{
         await apiFactory('/factory/admin/coupons', { method:'POST', body: JSON.stringify({ code: document.getElementById('adminCouponCode').value.trim(), discountPct: Number(document.getElementById('adminCouponPct').value || 0), companyId: document.getElementById('adminCouponCompany').value || null }) }, true);
@@ -755,7 +611,7 @@
       }catch(e){ msg.textContent=e.message; }
     };
 
-    document.getElementById('btnCreateAccess').onclick = async ()=> {
+    const el_btnCreateAccess = document.getElementById('btnCreateAccess'); if(el_btnCreateAccess) el_btnCreateAccess.onclick = async ()=> {
       const msg = document.getElementById('adminAccessMsg'); msg.textContent='Generando…';
       try{
         await apiFactory('/factory/admin/full-access', { method:'POST', body: JSON.stringify({ code: document.getElementById('adminAccessCode').value.trim(), companyId: document.getElementById('adminAccessCompany').value, untilMonth: document.getElementById('adminAccessMonth').value }) }, true);
@@ -763,27 +619,21 @@
       }catch(e){ msg.textContent=e.message; }
     };
 
-    document.getElementById('btnAdminRefresh').onclick = loadAdminOrders;
-    document.getElementById('btnRedeemAccessCode').onclick = async ()=> {
+    const el_btnAdminRefresh = document.getElementById('btnAdminRefresh'); if(el_btnAdminRefresh) el_btnAdminRefresh.onclick = loadAdminOrders;
+    const btnRedeemAccessCode = document.getElementById('btnRedeemAccessCode'); if(btnRedeemAccessCode) btnRedeemAccessCode.onclick = async ()=> {
       const code = document.getElementById('specialAccessCode').value.trim();
       const msg = document.getElementById('specialAccessMsg'); msg.textContent='Validando código…';
       try{ const data = await apiFactory('/factory/redeem-access-code', { method:'POST', body: JSON.stringify({ code }) }); msg.textContent = data.message || 'Acceso especial activado.'; document.getElementById('specialAccessCode').value=''; await loadBootstrap(); }
       catch(e){ msg.textContent = e.message; }
     };
 
-    document.getElementById('btnToggleAdminPassword').onclick = ()=> {
-      const input = document.getElementById('factoryAdminPassword');
-      const reveal = input.type === 'password';
-      input.type = reveal ? 'text' : 'password';
-      document.getElementById('btnToggleAdminPassword').textContent = reveal ? '🙈' : '👁';
-    };
-    document.getElementById('btnToggleCart').onclick = ()=> setCartCollapsed(!state.cartCollapsed);
-    document.getElementById('btnApplyCoupon').onclick = ()=> applyCouponCode(document.getElementById('couponCode').value);
-    document.getElementById('btnApplyCheckoutCoupon').onclick = ()=> applyCouponCode(document.getElementById('checkoutCouponCode').value);
-    document.getElementById('btnContinueShopping').onclick = ()=> setTab('plans');
-    document.getElementById('btnOpenCheckout').onclick = ()=> { if(!state.cart.length){ document.getElementById('couponMsg').textContent = 'Primero agregá al menos un plan.'; return; } clearCheckoutResult(); setTab('plans'); document.getElementById('checkoutCard').style.display=''; prefillCheckout(); renderCheckout(); document.getElementById('checkoutCard').scrollIntoView({ behavior:'smooth', block:'start' }); };
-    document.getElementById('btnBackToCart').onclick = ()=> { clearCheckoutResult(); document.getElementById('checkoutCard').style.display='none'; window.scrollTo({ top:0, behavior:'smooth' }); };
-    document.getElementById('btnCheckoutConfirm').onclick = async ()=> {
+    { const el = document.getElementById('btnToggleCart'); if(el) el.onclick = ()=> setCartCollapsed(!state.cartCollapsed); }
+    { const el = document.getElementById('btnApplyCoupon'); if(el) el.onclick = ()=> applyCouponCode(document.getElementById('couponCode').value); }
+    { const el = document.getElementById('btnApplyCheckoutCoupon'); if(el) el.onclick = ()=> applyCouponCode(document.getElementById('checkoutCouponCode').value); }
+    { const el = document.getElementById('btnContinueShopping'); if(el) el.onclick = ()=> setTab('plans'); }
+    { const el = document.getElementById('btnOpenCheckout'); if(el) el.onclick = ()=> { if(!state.cart.length){ document.getElementById('couponMsg').textContent = 'Primero agregá al menos un plan.'; return; } clearCheckoutResult(); setTab('plans'); document.getElementById('checkoutCard').style.display=''; prefillCheckout(); renderCheckout(); document.getElementById('checkoutCard').scrollIntoView({ behavior:'smooth', block:'start' }); }; }
+    { const el = document.getElementById('btnBackToCart'); if(el) el.onclick = ()=> { clearCheckoutResult(); document.getElementById('checkoutCard').style.display='none'; window.scrollTo({ top:0, behavior:'smooth' }); }; }
+    { const el = document.getElementById('btnCheckoutConfirm'); if(el) el.onclick = async ()=> {
       const msg = document.getElementById('checkoutMsg');
       const btn = document.getElementById('btnCheckoutConfirm');
       msg.textContent='Creando pedido seguro…';
@@ -806,7 +656,7 @@
       } finally {
         btn.disabled = false;
       }
-    };
+    }; }
 
     setCartCollapsed(true);
     renderPaymentReturnState();
