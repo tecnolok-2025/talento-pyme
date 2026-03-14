@@ -2938,26 +2938,48 @@ const SUPPORT_SUGGESTIONS = {
   CANDIDATE: [
     '¿Cómo completo Mi Perfil?',
     '¿Cómo cargo mi foto y el CV?',
-    '¿Cómo funciona Mis Oportunidades?',
-    '¿Qué veo en Mis Postulaciones?',
+    '¿Qué datos personales conviene revisar?',
+    '¿Cómo completar Observaciones y alcance curricular?',
+    '¿Cómo indicar mi pretensión económica?',
     '¿Cómo mejorar mi visibilidad para empresas?',
+    '¿Cómo funciona Mis Oportunidades?',
+    '¿Cómo postularme a una búsqueda?',
+    '¿Qué veo en Mis Postulaciones?',
+    '¿Cómo eliminar una postulación?',
+    '¿Qué formatos de CV acepta el sistema?',
+    '¿Qué pasa si mi CV es muy largo?',
+    '¿Cómo actualizar mi perfil sin perder información?',
     '¿Qué datos conviene revisar antes de salir?'
   ],
   COMPANY: [
     '¿Cómo funciona Buscar Talento?',
-    '¿Qué veo en Mis Candidatos?',
-    '¿Cómo se consume la capacidad de publicaciones?',
+    '¿Cómo usar el texto libre para encontrar perfiles?',
+    '¿Qué filtros conviene combinar primero?',
+    '¿Cómo abrir una ficha completa?',
     '¿Cómo se consume la apertura de fichas?',
+    '¿Qué veo en Mis Candidatos?',
+    '¿Cómo distinguir una postulación de una selección interna?',
+    '¿Cómo publicar una búsqueda?',
+    '¿Cómo se consume la capacidad de publicaciones?',
+    '¿Qué veo en Mis Búsquedas?',
     '¿Cómo funcionan los planes de Factory?',
+    '¿Cómo aplicar un código de bonificación?',
+    '¿Cómo funciona la compra virtual de un plan?',
     '¿Para qué sirve Factory Admin?'
   ],
   SUPERADMIN: [
     '¿Qué muestra el Panel General?',
+    '¿Cómo revisar candidatos y empresas?',
     '¿Cómo funciona el chat operador?',
     '¿Qué puedo editar desde Factory Admin?',
+    '¿Cómo se actualiza la matriz comercial?',
+    '¿Cómo cambiar días, publicaciones, búsquedas y precio?',
     '¿Cómo se crean bonificaciones y accesos especiales?',
-    '¿Cómo revisar empresas y candidatos?',
-    '¿Cómo se actualiza la matriz comercial?'
+    '¿Cómo habilitar acceso free por empresa?',
+    '¿Cómo revisar la facturación y las órdenes?',
+    '¿Cómo funciona el ingreso administrativo?',
+    '¿Cómo limpiar o responder conversaciones?',
+    '¿Cómo validar el comportamiento general del sistema?'
   ]
 };
 
