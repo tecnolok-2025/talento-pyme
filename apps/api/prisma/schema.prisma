@@ -25,8 +25,9 @@ enum JobStatus {
 enum BillingOrderStatus {
   DRAFT
   PENDING_PAYMENT
-  VERIFIED
   PAID
+  FAILED
+  EXPIRED
   CANCELLED
 }
 
@@ -237,42 +238,50 @@ model Application {
 }
 
 model BillingOrder {
-  id                 String             @id @default(cuid())
-  companyId          String
-  status             BillingOrderStatus @default(PENDING_PAYMENT)
-  companyNameSnapshot String?
-  cuitSnapshot       String?
+  id                   String             @id @default(cuid())
+  companyId            String
+  status               BillingOrderStatus @default(PENDING_PAYMENT)
+  companyNameSnapshot  String?
+  cuitSnapshot         String?
   contactEmailSnapshot String?
-  billingName        String?
-  billingTaxId       String?
-  billingTaxCondition String?
-  billingProvince    String?
-  billingCity        String?
-  billingAddress     String?
+  billingName          String?
+  billingTaxId         String?
+  billingTaxCondition  String?
+  billingProvince      String?
+  billingCity          String?
+  billingAddress       String?
   billingAddressNumber String?
-  billingFloor       String?
-  billingDept        String?
-  billingPostalCode  String?
-  billingEmail       String?
-  couponCode         String?
-  couponDiscountPct  Int?               @default(0)
-  subtotal           Int                @default(0)
-  discountAmount     Int                @default(0)
-  vatAmount          Int                @default(0)
-  total              Int                @default(0)
-  totalDays          Int                @default(0)
-  totalOpenings      Int                @default(0)
-  cardBrand          String?
-  cardLast4          String?
-  paymentNote        String?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  billingFloor         String?
+  billingDept          String?
+  billingPostalCode    String?
+  billingEmail         String?
+  couponCode           String?
+  couponDiscountPct    Int?               @default(0)
+  subtotal             Int                @default(0)
+  discountAmount       Int                @default(0)
+  vatAmount            Int                @default(0)
+  total                Int                @default(0)
+  totalDays            Int                @default(0)
+  totalOpenings        Int                @default(0)
+  paymentProvider      String?
+  paymentSessionRef    String?
+  paymentProviderRef   String?
+  paymentApprovedAt    DateTime?
+  paymentFailureReason String?
+  paymentReceiptUrl    String?
+  cardBrand            String?
+  cardLast4            String?
+  paymentNote          String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
-  company            CompanyProfile     @relation(fields: [companyId], references: [id])
-  items              BillingOrderItem[]
+  company              CompanyProfile     @relation(fields: [companyId], references: [id])
+  items                BillingOrderItem[]
+  webhookEvents        PaymentWebhookEvent[]
 
   @@index([companyId, createdAt])
   @@index([status])
+  @@index([paymentProvider, paymentSessionRef])
 }
 
 model BillingOrderItem {
@@ -383,6 +392,43 @@ model CompanyFactoryGrant {
   @@index([companyId, fullAccessUntil])
 }
 
+
+model PaymentWebhookEvent {
+  id               String        @id @default(cuid())
+  provider         String
+  providerEventId  String
+  orderId          String?
+  eventType        String
+  outcome          String?
+  signatureValid   Boolean       @default(false)
+  processed        Boolean       @default(false)
+  errorMessage     String?
+  payloadHash      String?
+  receivedAt       DateTime      @default(now())
+  processedAt      DateTime?
+
+  order            BillingOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, providerEventId])
+  @@index([orderId, receivedAt])
+}
+
+model SecurityEvent {
+  id             String   @id @default(cuid())
+  route          String
+  actorUserId    String?
+  actorCompanyId String?
+  orderId        String?
+  severity       String
+  eventType      String
+  message        String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([route, createdAt])
+  @@index([severity, createdAt])
+  @@index([orderId, createdAt])
+}
 
 model SupportThread {
   id              String              @id @default(cuid())

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Factory</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.6.1" />
+  <link rel="stylesheet" href="/styles.css?v=5.6.2" />
   <style>
     .factoryMiniGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:14px}
     .factoryMiniCard{border:1px solid var(--tp-border);border-radius:18px;padding:16px;background:#fff}
@@ -196,9 +196,9 @@
             <div class="toolbarCard">
               <div>
                 <h2 style="margin:0">Verificá los datos que van a figurar en tu factura</h2>
-                <div class="muted">Completá los datos de facturación y avanzá al portal seguro de pago virtual para simular la compra.</div>
+                <div class="muted">Completá los datos de facturación. Después vas a continuar el pago en una pasarela externa segura. Talento PyME no procesa directamente los datos de tu tarjeta.</div>
               </div>
-              <div class="badge" id="checkoutMsg">Portal seguro de pago virtual</div>
+              <div class="badge" id="checkoutMsg">Pedido listo para pago seguro</div>
             </div>
             <div class="checkoutGrid" style="margin-top:16px">
               <div>
@@ -215,32 +215,21 @@
                   <div><label>Depto.</label><input class="input" id="billingDept" placeholder="Depto." /></div>
                   <div style="grid-column:1/-1"><label>E-mail *</label><input class="input" id="billingEmail" placeholder="facturacion@empresa.com" /><div class="timelineNote">A este mail se enviará la factura cuando la integración de pago quede confirmada.</div></div>
                 </div>
-
                 <div class="orderPreviewCard" style="margin-top:16px">
-                  <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Pago seguro simulado</div>
-                  <div style="font-size:20px;font-weight:900;margin:6px 0 12px 0">Portal seguro de pago virtual</div>
+                  <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Pago externo seguro</div>
+                  <div style="font-size:20px;font-weight:900;margin:6px 0 12px 0">Pedido y redirección a pasarela</div>
                   <div class="secureNotice">
                     <div class="secureLock">🔒</div>
                     <div>
-                      <div style="font-weight:900">Entorno de pruebas con resguardo de datos</div>
-                      <div class="muted" style="margin-top:4px">Esta simulación conserva solamente la marca y los últimos 4 dígitos para auditoría interna. Nunca guarda el número completo de tarjeta ni el CVV.</div>
-                      <div class="secureBadgeRow"><span class="secureBadge">Visa</span><span class="secureBadge">Mastercard</span><span class="secureBadge">American Express</span><span class="secureBadge">Diners</span></div><div class="secureHelperRow"><button class="btn btn-ghost btn-mini" type="button" data-test-card="VISA">Visa prueba</button><button class="btn btn-ghost btn-mini" type="button" data-test-card="MASTERCARD">Mastercard prueba</button><button class="btn btn-ghost btn-mini" type="button" data-test-card="AMEX">Amex prueba</button><button class="btn btn-ghost btn-mini" type="button" data-test-card="DINERS">Diners prueba</button></div>
+                      <div style="font-weight:900">Talento PyME no toca PAN, CVV ni vencimiento</div>
+                      <div class="muted" style="margin-top:4px">Al confirmar, se crea el pedido interno y se te redirige a un checkout oficial del proveedor configurado. Los datos de tarjeta se cargan fuera de Talento PyME.</div>
+                      <div class="secureBadgeRow"><span class="secureBadge">Pedido interno</span><span class="secureBadge">Pago externo</span><span class="secureBadge">Webhook firmado</span><span class="secureBadge">Trazabilidad mínima</span></div>
                     </div>
                   </div>
-                  <div class="checkoutStack" style="margin-top:14px">
-                    <div><label>Marca *</label><select class="input" id="cardBrand"><option value="">Seleccioná la marca</option><option value="VISA">Visa</option><option value="MASTERCARD">Mastercard</option><option value="AMEX">American Express</option><option value="DINERS">Diners</option></select></div>
-                    <div><label>Importe a autorizar</label><input class="input readonlyAmount" id="cardAmount" readonly /></div>
-                    <div style="grid-column:1/-1"><label>Número de tarjeta *</label><input class="input" id="cardNumber" inputmode="numeric" autocomplete="cc-number" placeholder="4111 1111 1111 1111" /></div>
-                    <div><label>Titular *</label><input class="input" id="cardHolder" autocomplete="cc-name" placeholder="Tal como figura en la tarjeta" /></div>
-                    <div><label>DNI del titular *</label><input class="input" id="cardHolderDni" inputmode="numeric" placeholder="Documento del titular" /></div>
-                    <div><label>Vencimiento *</label><input class="input" id="cardExpiry" autocomplete="cc-exp" placeholder="MM/AA" /></div>
-                    <div><label>CVV *</label><input class="input" id="cardCvv" inputmode="numeric" autocomplete="cc-csc" placeholder="123" /></div>
-                  </div>
-                  <div class="timelineNote" id="cardSimulationHint">Podés cargar una tarjeta de prueba manualmente o tocar uno de los accesos rápidos. El sistema detecta la marca automáticamente si el número corresponde a Visa, Mastercard, American Express o Diners.</div>
-                  <div class="timelineNote">Simulación integral de pago: si completás los datos de prueba o usás uno de los accesos rápidos, la compra queda aprobada y la capacidad contratada se habilita en el momento.</div>
+                  <div class="timelineNote" id="paymentRedirectHint">Cuando confirmes, el pedido quedará en estado pendiente de pago hasta que el proveedor confirme el cobro por webhook firmado.</div>
                   <div class="row" style="margin-top:16px">
                     <button class="btn btn-ghost" type="button" id="btnBackToCart">Volver</button>
-                    <button class="btn btn-primary" type="button" id="btnCheckoutConfirm">Pagar en entorno de prueba</button>
+                    <button class="btn btn-primary" type="button" id="btnCheckoutConfirm">Ir a pagar de forma segura</button>
                   </div>
                   <div id="checkoutResult" style="display:none"></div>
                 </div>
@@ -368,8 +357,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.6.1"></script>
-  <script src="/auth.js?v=5.6.1"></script>
+  <script src="/config.js?v=5.6.2"></script>
+  <script src="/auth.js?v=5.6.2"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -429,64 +418,47 @@
     function esc(s){ return String(s || '').replace(/[&<>"']/g, (c)=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function money(v){ return '$' + moneyFmt.format(Number(v || 0)); }
     function when(v){ try{ return dateFmt.format(new Date(v)); }catch(_){ return '—'; } }
-    function statusLabel(status){ return ({ PAID:'Pagado', VERIFIED:'Verificado', PENDING_PAYMENT:'Pendiente', CANCELLED:'Cancelado' }[status] || status || 'Pendiente'); }
+    function statusLabel(status){ return ({ PAID:'Pagado', PENDING_PAYMENT:'Pendiente de pago', FAILED:'Fallido', EXPIRED:'Vencido', CANCELLED:'Cancelado' }[status] || status || 'Pendiente'); }
     function loadCart(){ try{ return JSON.parse(localStorage.getItem('tp_factory_cart') || '[]'); }catch(_){ return []; } }
     function saveCart(){ localStorage.setItem('tp_factory_cart', JSON.stringify(state.cart)); }
     function getQuoteItems(){ return state.cart.map((it)=> ({ planCode: it.planCode, quantity: it.quantity })); }
-    function syncCouponInputs(){ document.getElementById('couponCode').value = state.couponCode || ''; document.getElementById('checkoutCouponCode').value = state.couponCode || ''; }
+    function syncCouponInputs(){ document.getElementById('couponCode').value = state.couponCode || ''; const cc = document.getElementById('checkoutCouponCode'); if(cc) cc.value = state.couponCode || ''; }
     function clearCheckoutResult(){ const box = document.getElementById('checkoutResult'); box.style.display='none'; box.innerHTML=''; state.pendingApprovedOrder = null; }
     function showCheckoutResult(data){
       const box = document.getElementById('checkoutResult');
       const order = data?.order || {};
-      const usage = data?.operationUsage || state.bootstrap?.operationUsage || {};
+      const status = order.status || data?.status || 'PENDING_PAYMENT';
+      const actionText = data?.checkoutUrl
+        ? 'Serás redirigido automáticamente al checkout externo del proveedor.'
+        : 'El pedido quedó creado y pendiente de confirmación externa.';
       box.style.display='';
-      box.innerHTML = `<div class="payResult"><div class="small pageEyebrow" style="color:var(--tp-blue-900)">Compra virtual aprobada</div><h3>Pago autorizado en entorno de prueba</h3><div class="muted">${esc(data?.message || 'La compra quedó aprobada y la capacidad fue habilitada en el momento.')}</div><div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Autorización</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.payment?.authorizationCode || '—')}</div></div><div class="payMetaCard"><div class="mutedInline">Tarjeta</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.payment?.brand || order.cardBrand || '—')} •••• ${esc(data?.payment?.last4 || order.cardLast4 || '—')}</div></div><div class="payMetaCard"><div class="mutedInline">Capacidad habilitada</div><div style="font-size:20px;font-weight:900;margin-top:6px">${Number(order.days || 0)} días</div><div class="mutedInline">${Number(order.totalPublications || data?.quote?.totalPublications || 0)} publicaciones · ${Number(order.totalOpenings || data?.quote?.totalOpenings || 0)} búsquedas</div></div><div class="payMetaCard"><div class="mutedInline">Saldo operativo actual</div><div style="font-size:20px;font-weight:900;margin-top:6px">${usage.fullAccess ? '∞' : `${Number(usage.remainingPublications || 0)} pub. / ${Number(usage.remainingSearches || usage.remainingOpenings || 0)} búsq.`}</div></div></div><div class="timelineNote">El sistema registró esta operación como simulación segura. Solo se guardaron la marca y los últimos 4 dígitos de la tarjeta para auditoría.</div><div class="row" style="margin-top:14px"><button class="btn btn-primary" type="button" id="btnGoSummary">Ir al resumen de cuenta</button></div></div>`;
+      box.innerHTML = `<div class="payResult"><div class="small pageEyebrow" style="color:var(--tp-blue-900)">Pedido creado</div><h3>${esc(statusLabel(status))}</h3><div class="muted">${esc(data?.message || 'Serás redirigido a una pasarela segura para completar el pago. Talento PyME no procesa directamente los datos de tu tarjeta.')}</div><div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Pedido</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(order.documentNo || data?.orderId || '—')}</div></div><div class="payMetaCard"><div class="mutedInline">Proveedor</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.provider || order.paymentProvider || 'Configurado')}</div></div><div class="payMetaCard"><div class="mutedInline">Estado</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(statusLabel(status))}</div></div><div class="payMetaCard"><div class="mutedInline">Total</div><div style="font-size:20px;font-weight:900;margin-top:6px">${money(order?.totals?.total || data?.quote?.total || 0)}</div></div></div><div class="timelineNote">${esc(actionText)}</div><div class="row" style="margin-top:14px"><button class="btn btn-primary" type="button" id="btnGoSummary">Ir al resumen de cuenta</button></div></div>`;
       document.getElementById('btnGoSummary').onclick = async ()=> {
         clearCheckoutResult();
-        state.quote = { items: [], subtotal:0, discountAmount:0, vatAmount:0, total:0, totalDays:0, totalPublications:0, totalOpenings:0, coupon:{message:''} };
-        document.getElementById('checkoutCard').style.display='none';
         await loadBootstrap();
         setTab('summary');
       };
     }
+
+    async function renderPaymentReturnState(){
+      const params = new URLSearchParams(window.location.search);
+      const orderId = String(params.get('orderId') || '').trim();
+      const paymentState = String(params.get('payment') || '').trim();
+      if(!orderId || !paymentState) return;
+      try{
+        const data = await apiFactory(`/factory/orders/${encodeURIComponent(orderId)}/status`);
+        state.selectedOrderId = orderId;
+        await loadBootstrap();
+        const message = paymentState === 'cancel'
+          ? 'El checkout externo fue cancelado. El pedido sigue disponible para reintentar el pago si corresponde.'
+          : 'Volviste desde la pasarela segura. Estamos consultando el estado actualizado de tu pedido.';
+        showCheckoutResult({ order: data.order, status: data.order?.status, provider: data.order?.paymentProvider, message });
+        setTab('summary');
+      }catch(_){ }
+    }
     function factoryHeaders(){ const headers = {}; if(state.adminAlias) headers['x-factory-admin-alias'] = state.adminAlias; if(state.adminPassword) headers['x-factory-admin-password'] = state.adminPassword; if(state.adminPassword) headers['x-factory-admin-key'] = state.adminPassword; return headers; }
     async function apiFactory(path, options = {}, admin = false){ const headers = Object.assign({}, options.headers || {}, factoryHeaders(admin)); return apiFetch(path, Object.assign({}, options, { headers })); }
     function monthChoices(){ const base = new Date(); const arr = []; for(let i=0;i<12;i++){ const d = new Date(base.getFullYear(), base.getMonth()+i, 1); const value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; arr.push({ value, label: monthsFmt.format(d) }); } return arr; }
-    const TEST_CARD_FIXTURES = {
-      VISA: { brand:'VISA', number:'4111 1111 1111 1111', holder:'Juan Lopez', dni:'15267884', expiry:'12/28', cvv:'123' },
-      MASTERCARD: { brand:'MASTERCARD', number:'5555 5555 5555 4444', holder:'Juan Lopez', dni:'15267884', expiry:'12/28', cvv:'123' },
-      AMEX: { brand:'AMEX', number:'3782 822463 10005', holder:'Juan Lopez', dni:'15267884', expiry:'12/28', cvv:'1234' },
-      DINERS: { brand:'DINERS', number:'3056 930902 5904', holder:'Juan Lopez', dni:'15267884', expiry:'12/28', cvv:'123' },
-    };
-    function detectCardBrandFront(raw=''){
-      const digits = String(raw || '').replace(/\D+/g, '');
-      if(/^4\d{12}(?:\d{3})?(?:\d{3})?$/.test(digits)) return 'VISA';
-      if(/^(5[1-5]\d{14}|2(2[2-9]\d{12}|[3-6]\d{13}|7[01]\d{12}|720\d{12}))$/.test(digits)) return 'MASTERCARD';
-      if(/^3[47]\d{13}$/.test(digits)) return 'AMEX';
-      if(/^3(0[0-5]|[68]\d)\d{11}$/.test(digits)) return 'DINERS';
-      return '';
-    }
-    function formatCardNumberInput(raw=''){
-      const digits = String(raw || '').replace(/\D+/g, '').slice(0, 19);
-      return digits.replace(/(.{4})/g, '$1 ').trim();
-    }
-    function formatExpiryInput(raw=''){
-      const digits = String(raw || '').replace(/\D+/g, '').slice(0, 4);
-      if(digits.length <= 2) return digits;
-      return digits.slice(0,2) + '/' + digits.slice(2);
-    }
-    function fillTestCard(brand){
-      const fixture = TEST_CARD_FIXTURES[brand];
-      if(!fixture) return;
-      document.getElementById('cardBrand').value = fixture.brand;
-      document.getElementById('cardNumber').value = fixture.number;
-      if(!document.getElementById('cardHolder').value.trim()) document.getElementById('cardHolder').value = fixture.holder;
-      document.getElementById('cardHolderDni').value = fixture.dni;
-      document.getElementById('cardExpiry').value = fixture.expiry;
-      document.getElementById('cardCvv').value = fixture.cvv;
-      const hint = document.getElementById('cardSimulationHint');
-      if(hint) hint.textContent = `Tarjeta de prueba ${fixture.brand} cargada. Ya podés confirmar la compra virtual.`;
-    }
     function quotaLineHTML(op){
       if(!op) return '';
       if(op.fullAccess) return `<span class="quotaPill">Acceso total hasta ${esc(when(op.fullAccessUntil))}</span>`;
@@ -594,7 +566,7 @@
         <div class="orderDetailsCard">
           <div class="toolbarCard"><div><div class="small pageEyebrow" style="color:var(--tp-blue-900)">Detalle del documento</div><div style="font-size:22px;font-weight:900;margin-top:6px">${esc(active.documentNo)}</div></div><div class="badge">${esc(statusLabel(active.status))}</div></div>
           <div class="grid2" style="margin-top:16px">
-            <div><div><b>Empresa:</b> ${esc(active.companyName)}</div><div><b>Días contratados:</b> ${esc(active.days || 0)}</div><div><b>Tarjeta:</b> ${active.cardLast4 ? '•••• ' + esc(active.cardLast4) : 'Pendiente'}</div></div>
+            <div><div><b>Empresa:</b> ${esc(active.companyName)}</div><div><b>Días contratados:</b> ${esc(active.days || 0)}</div><div><b>Proveedor:</b> ${esc(active.paymentProvider || 'No informado')}</div></div>
             <div><div><b>Facturar a:</b> ${esc(active.billingName || 's/d')}</div><div><b>CUIT:</b> ${esc(active.billingTaxId || 's/d')}</div><div><b>E-mail:</b> ${esc(active.billingEmail || 's/d')}</div></div>
           </div>
           <div class="factoryTableWrap"><table class="factoryTable" style="min-width:620px"><thead><tr><th>Plan</th><th>Días</th><th>Publicaciones</th><th>Búsquedas</th><th>Cantidad</th><th>Subtotal</th></tr></thead><tbody>${(active.items || []).map((it)=> `<tr><td>${esc(it.planName)}</td><td>${esc(it.days)}</td><td>${esc(it.publicationsIncluded || 0)}</td><td>${esc(it.searchesIncluded || it.openingsIncluded || 0)}</td><td>${esc(it.quantity)}</td><td>${money(it.subtotal)}</td></tr>`).join('')}</tbody></table></div>
@@ -658,18 +630,11 @@
       document.getElementById('billingDept').value = '';
       document.getElementById('billingPostalCode').value = '';
       document.getElementById('billingEmail').value = c.contactEmail || '';
-      document.getElementById('cardBrand').value = '';
-      document.getElementById('cardNumber').value = '';
-      document.getElementById('cardHolder').value = c.contactName || '';
-      document.getElementById('cardHolderDni').value = '';
-      document.getElementById('cardExpiry').value = '';
-      document.getElementById('cardCvv').value = '';
-      const hint = document.getElementById('cardSimulationHint'); if(hint) hint.textContent = 'Podés cargar una tarjeta de prueba manualmente o tocar uno de los accesos rápidos. El sistema detecta la marca automáticamente si el número corresponde a Visa, Mastercard, American Express o Diners.';
+      const hint = document.getElementById('paymentRedirectHint'); if(hint) hint.textContent = 'Cuando confirmes, el pedido quedará pendiente hasta que el proveedor confirme el pago por webhook firmado.';
     }
 
     function renderCheckout(){
       const q = state.quote || { items: [], subtotal:0, discountAmount:0, vatAmount:0, total:0, totalDays:0, totalPublications:0, totalOpenings:0 };
-      document.getElementById('cardAmount').value = money(q.total || 0);
       document.getElementById('checkoutItems').innerHTML = (q.items || []).map((it)=> `<div class="cartItem" style="margin-top:0;margin-bottom:12px"><div style="font-weight:900">${esc(it.planName)}</div><div class="muted">${it.quantity} unidad(es) · ${it.days} días · ${it.publicationsPerUnit || 0} publicaciones · ${it.searchesPerUnit || 0} búsquedas</div><div style="margin-top:8px;font-size:22px;font-weight:950">${money(it.subtotal)}</div></div>`).join('') || '<div class="emptyStateFactory">Todavía no hay items en el resumen.</div>';
       document.getElementById('checkoutTotals').innerHTML = `
         <div class="cartLine"><span>Subtotal</span><b>${money(q.subtotal || 0)}</b></div>
@@ -806,15 +771,6 @@
       catch(e){ msg.textContent = e.message; }
     };
 
-    document.getElementById('cardNumber').addEventListener('input', (ev)=> {
-      ev.target.value = formatCardNumberInput(ev.target.value);
-      const detected = detectCardBrandFront(ev.target.value);
-      if(detected) document.getElementById('cardBrand').value = detected;
-    });
-    document.getElementById('cardExpiry').addEventListener('input', (ev)=> {
-      ev.target.value = formatExpiryInput(ev.target.value);
-    });
-    document.querySelectorAll('[data-test-card]').forEach((btn)=> btn.onclick = ()=> fillTestCard(btn.dataset.testCard));
     document.getElementById('btnToggleAdminPassword').onclick = ()=> {
       const input = document.getElementById('factoryAdminPassword');
       const reveal = input.type === 'password';
@@ -830,38 +786,30 @@
     document.getElementById('btnCheckoutConfirm').onclick = async ()=> {
       const msg = document.getElementById('checkoutMsg');
       const btn = document.getElementById('btnCheckoutConfirm');
-      msg.textContent='Autorizando pago virtual…';
+      msg.textContent='Creando pedido seguro…';
       btn.disabled = true;
       try{
-        const payload = { items: getQuoteItems(), couponCode: state.couponCode, billing: { razonSocial: document.getElementById('billingName').value.trim(), cuit: document.getElementById('billingTaxId').value.trim(), condicionFiscal: document.getElementById('billingTaxCondition').value.trim(), provincia: document.getElementById('billingProvince').value.trim(), localidad: document.getElementById('billingCity').value.trim(), calle: document.getElementById('billingStreet').value.trim(), numero: document.getElementById('billingNumber').value.trim(), piso: document.getElementById('billingFloor').value.trim(), depto: document.getElementById('billingDept').value.trim(), codigoPostal: document.getElementById('billingPostalCode').value.trim(), email: document.getElementById('billingEmail').value.trim() }, payment: { cardNumber: document.getElementById('cardNumber').value.trim(), cardHolder: document.getElementById('cardHolder').value.trim(), cardHolderDni: document.getElementById('cardHolderDni').value.trim(), cardBrand: document.getElementById('cardBrand').value.trim(), expiry: document.getElementById('cardExpiry').value.trim(), cvv: document.getElementById('cardCvv').value.trim() } };
+        const payload = { items: getQuoteItems(), couponCode: state.couponCode, billing: { razonSocial: document.getElementById('billingName').value.trim(), cuit: document.getElementById('billingTaxId').value.trim(), condicionFiscal: document.getElementById('billingTaxCondition').value.trim(), provincia: document.getElementById('billingProvince').value.trim(), localidad: document.getElementById('billingCity').value.trim(), calle: document.getElementById('billingStreet').value.trim(), numero: document.getElementById('billingNumber').value.trim(), piso: document.getElementById('billingFloor').value.trim(), depto: document.getElementById('billingDept').value.trim(), codigoPostal: document.getElementById('billingPostalCode').value.trim(), email: document.getElementById('billingEmail').value.trim() } };
         const data = await apiFactory('/factory/checkout', { method:'POST', body: JSON.stringify(payload) });
-        msg.textContent = data.message || 'Compra virtual aprobada.';
+        msg.textContent = data.message || 'Pedido creado.';
         state.cart=[]; saveCart(); state.couponCode=''; state.couponFeedback=''; localStorage.removeItem('tp_factory_coupon');
-        state.selectedOrderId = data.order?.id || null;
-        if(state.bootstrap){
-          state.bootstrap.orders = [data.order, ...(state.bootstrap.orders || [])];
-          state.bootstrap.totals = {
-            total: Number(state.bootstrap.totals?.total || 0) + Number(data.order?.totals?.total || 0),
-            pending: Number(state.bootstrap.totals?.pending || 0),
-            paid: Number(state.bootstrap.totals?.paid || 0) + Number(data.order?.totals?.total || 0),
-            orders: Number(state.bootstrap.totals?.orders || 0) + 1,
-          };
-          state.bootstrap.operationUsage = data.operationUsage || state.bootstrap.operationUsage;
-          state.bootstrap.openingUsage = data.operationUsage || state.bootstrap.openingUsage;
-        }
+        state.selectedOrderId = data.orderId || data.order?.id || null;
+        await loadBootstrap();
         renderSummary();
         renderCart();
         showCheckoutResult(data);
+        if(data.checkoutUrl){ window.location.href = data.checkoutUrl; return; }
       }catch(e){
         msg.textContent = e.message;
-        const hint = document.getElementById('cardSimulationHint');
-        if(hint) hint.textContent = e.message || 'No se pudo aprobar la compra virtual.';
+        const hint = document.getElementById('paymentRedirectHint');
+        if(hint) hint.textContent = e.message || 'No se pudo crear el pedido seguro.';
       } finally {
         btn.disabled = false;
       }
     };
 
     setCartCollapsed(true);
+    renderPaymentReturnState();
     loadBootstrap().catch((e)=> {
       document.getElementById('summaryBadge').textContent = e.message;
       document.getElementById('ordersBody').innerHTML = `<tr><td colspan="9"><div class="emptyStateFactory">${esc(e.message)}</div></td></tr>`;

@@ -1,13 +1,13 @@
-// Talento PyME service worker (v5.6.1)
+// Talento PyME service worker (v5.6.2)
 // Objetivo: evitar "versiones pegadas" por cache. 
 // Estrategia:
 // - HTML (navegación): network-first (si hay red, siempre busca lo último).
 // - Assets (css/js/img): stale-while-revalidate.
 // - Al cambiar VERSION, se crea un cache nuevo y se limpian caches viejos.
 
-importScripts("/config.js?v=5.6.1");
+importScripts("/config.js?v=5.6.2");
 
-const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "5.6.1";
+const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "5.6.2";
 const CACHE_NAME = `tp-cache-${VERSION}`;
 
 const PRECACHE = [
@@ -19,11 +19,11 @@ const PRECACHE = [
   "/factory.html",
   "/admin.html",
   "/asistencia.html",
-  "/styles.css?v=5.6.1",
-  "/auth.js?v=5.6.1",
-  "/app.js?v=5.6.1",
-  "/bolsa-candidato.js?v=5.6.1",
-  "/config.js?v=5.6.1",
+  "/styles.css?v=5.6.2",
+  "/auth.js?v=5.6.2",
+  "/app.js?v=5.6.2",
+  "/bolsa-candidato.js?v=5.6.2",
+  "/config.js?v=5.6.2",
   "/manifest.webmanifest",
   "/icon-192.png",
   "/icon-512.png"
@@ -48,12 +48,25 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
+  const accept = req.headers.get("accept") || "";
 
-  // Solo same-origin
   if (url.origin !== self.location.origin) return;
 
-  // Navegación (HTML): network-first
-  if (req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html")) {
+  const sensitivePath = (
+    req.method !== 'GET' ||
+    url.pathname.startsWith('/payments/') ||
+    url.pathname.startsWith('/factory/') ||
+    url.pathname.startsWith('/admin/') ||
+    url.pathname.startsWith('/support/') ||
+    accept.includes('application/json')
+  );
+
+  if (sensitivePath) {
+    event.respondWith(fetch(req, { cache: 'no-store' }));
+    return;
+  }
+
+  if (req.mode === "navigate" || accept.includes("text/html")) {
     event.respondWith((async () => {
       try {
         const fresh = await fetch(req, { cache: "no-store" });
@@ -68,7 +81,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Assets: stale-while-revalidate
   event.respondWith((async () => {
     const cached = await caches.match(req);
     const fetchPromise = fetch(req).then(async (res) => {

@@ -1,0 +1,11 @@
+Talento PyME v5.6.2
+
+- Se eliminó el manejo directo de tarjeta en Factory.
+- El frontend ya no muestra ni envía PAN, CVV ni vencimiento.
+- POST /factory/checkout ahora rechaza explícitamente datos de tarjeta.
+- La compra crea una orden PENDING_PAYMENT y deriva a una pasarela externa.
+- Se agregó webhook firmado /payments/webhook/provider.
+- Se agregó trazabilidad con PaymentWebhookEvent y SecurityEvent.
+- El service worker deja fuera de caché los endpoints sensibles.
+- Se agregó arquitectura de proveedor en apps/api/src/services/payments/.
+- Se agregaron tests automáticos de seguridad y checklist manual.

@@ -472,7 +472,6 @@ body:not(.appShell):not(.authBody) .globalBrandFooter{border-top:1px solid rgba(
 .factoryTable tr td:last-child{border-right:1px solid rgba(0,0,0,.06);border-top-right-radius:16px;border-bottom-right-radius:16px}
 .statusPill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:850}
 .statusPill.PAID{background:rgba(46,173,74,.12);color:#0a7b2d}
-.statusPill.VERIFIED{background:rgba(23,105,224,.12);color:var(--tp-blue-900)}
 .statusPill.PENDING_PAYMENT{background:rgba(242,140,40,.16);color:#8f5200}
 .orderDetailsCard{background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:18px;padding:16px;margin-top:14px}
 .planGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
@@ -521,3 +520,6 @@ body:not(.appShell):not(.authBody) .globalBrandFooter{border-top:1px solid rgba(
 .heroPanel.factoryHero .muted{color:#475569}
 .heroPanel.factoryHero .pageEyebrow{color:#1e3a8a;opacity:1}
 .heroPanel.factoryHero h2{color:var(--tp-text)}
+
+.statusPill.FAILED{background:rgba(220,38,38,.12);color:#991b1b}
+.statusPill.EXPIRED{background:rgba(100,116,139,.16);color:#334155}

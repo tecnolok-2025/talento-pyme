@@ -10,6 +10,8 @@ import mammoth from "mammoth";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createPaymentProvider, getPaymentConfigFromEnv } from "./services/payments/index.js";
+import { assertNoCardData, listForbiddenPaymentFields, sanitizeCheckoutPayloadForLog, sha256Hex, PaymentProviderError, PaymentSecurityError } from "./services/payments/provider.js";
 
 const prisma = new PrismaClient();
 const app = express();
@@ -19,7 +21,10 @@ const UPLOADS_DIR = path.resolve(__dirname, "../uploads");
 const PUBLIC_UPLOADS = "/uploads";
 
 app.use(cors());
-app.use(express.json({ limit: "3mb" }));
+app.use((req, res, next) => {
+  if (req.path.startsWith("/payments/webhook/")) return next();
+  return express.json({ limit: "3mb" })(req, res, next);
+});
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
@@ -40,6 +45,19 @@ const FACTORY_ADMIN_ALLOWED_COMPANIES = String(
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
+
+const PAYMENT_CONFIG = getPaymentConfigFromEnv(process.env);
+const PAYMENT_PROVIDER_NAME = PAYMENT_CONFIG.provider;
+const PAYMENT_CURRENCY = String(PAYMENT_CONFIG.currency || 'ars').toUpperCase();
+const APP_BASE_URL = String(PAYMENT_CONFIG.appBaseUrl || '').trim();
+const PAYMENT_SUCCESS_URL = String(PAYMENT_CONFIG.successUrl || '').trim();
+const PAYMENT_CANCEL_URL = String(PAYMENT_CONFIG.cancelUrl || '').trim();
+const PAYMENT_WEBHOOK_URL = String(PAYMENT_CONFIG.webhookUrl || '').trim();
+let paymentProviderInstance = null;
+function getPaymentProvider(){
+  if (!paymentProviderInstance) paymentProviderInstance = createPaymentProvider(PAYMENT_CONFIG);
+  return paymentProviderInstance;
+}
 
 const FACTORY_PLAN_DEFAULTS = [
   { code: 'P7', name: 'Publicación 7 días', days: 7, price: 50000, publications: 7, searches: 7, highlight: '7 días · 7 publicaciones · 7 búsquedas.' },
@@ -124,78 +142,154 @@ function moneyInt(value){
   return Math.round(n);
 }
 
-function digitsOnly(value = ''){
-  return String(value || '').replace(/\D/g, '');
+function buildPaymentSuccessUrl(orderId = ''){
+  const base = PAYMENT_SUCCESS_URL || (APP_BASE_URL ? `${APP_BASE_URL.replace(/\/$/, '')}/factory.html?payment=success` : '');
+  if(!base) return '';
+  return `${base}${base.includes('?') ? '&' : '?'}orderId=${encodeURIComponent(orderId)}`;
 }
 
-function luhnCheck(cardNumber = ''){
-  const digits = digitsOnly(cardNumber);
-  let sum = 0;
-  let shouldDouble = false;
-  for(let i = digits.length - 1; i >= 0; i -= 1){
-    let digit = Number(digits[i]);
-    if(shouldDouble){
-      digit *= 2;
-      if(digit > 9) digit -= 9;
-    }
-    sum += digit;
-    shouldDouble = !shouldDouble;
-  }
-  return digits.length >= 13 && digits.length <= 19 && (sum % 10) === 0;
+function buildPaymentCancelUrl(orderId = ''){
+  const base = PAYMENT_CANCEL_URL || (APP_BASE_URL ? `${APP_BASE_URL.replace(/\/$/, '')}/factory.html?payment=cancel` : '');
+  if(!base) return '';
+  return `${base}${base.includes('?') ? '&' : '?'}orderId=${encodeURIComponent(orderId)}`;
 }
 
-function detectCardBrand(cardNumber = ''){
-  const num = digitsOnly(cardNumber);
-  if(/^4\d{12}(\d{3})?(\d{3})?$/.test(num)) return 'VISA';
-  if(/^(5[1-5]\d{14}|2(2[2-9]\d{12}|[3-6]\d{13}|7[01]\d{12}|720\d{12}))$/.test(num)) return 'MASTERCARD';
-  if(/^3[47]\d{13}$/.test(num)) return 'AMEX';
-  if(/^3(0[0-5]|[68]\d)\d{11}$/.test(num)) return 'DINERS';
-  return '';
-}
-
-function parseExpiry(expiry = ''){
-  const raw = String(expiry || '').trim();
-  const match = raw.match(/^(\d{2})\/(\d{2}|\d{4})$/);
-  if(!match) return { ok: false, error: 'Ingresá el vencimiento en formato MM/AA.' };
-  const month = Number(match[1]);
-  let year = Number(match[2]);
-  if(month < 1 || month > 12) return { ok: false, error: 'El mes de vencimiento no es válido.' };
-  if(year < 100) year += 2000;
-  const expiresAt = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
-  if(expiresAt < new Date()) return { ok: false, error: 'La tarjeta ingresada está vencida para esta simulación.' };
-  return { ok: true, month, year, normalized: `${String(month).padStart(2, '0')}/${String(year).slice(-2)}` };
-}
-
-function simulateFactoryPayment({ amount = 0, cardNumber = '', cardHolder = '', cardHolderDni = '', cardBrand = '', expiry = '', cvv = '' } = {}){
-  const selectedBrand = String(cardBrand || '').trim().toUpperCase();
-  const digits = digitsOnly(cardNumber);
-  const detectedBrand = detectCardBrand(cardNumber);
-  const effectiveBrand = detectedBrand || selectedBrand;
-  if(!effectiveBrand) return { ok: false, error: 'Seleccioná una marca o usá una tarjeta de prueba reconocible.' };
-  if(digits.length < 13 || digits.length > 19) return { ok: false, error: 'Ingresá una tarjeta de prueba con entre 13 y 19 dígitos.' };
-  if(!String(cardHolder || '').trim()) return { ok: false, error: 'Ingresá el nombre del titular.' };
-  if(digitsOnly(cardHolderDni).length < 7) return { ok: false, error: 'Ingresá el DNI del titular para la simulación.' };
-  const expiryInfo = parseExpiry(expiry);
-  if(!expiryInfo.ok) return expiryInfo;
-  const cvvDigits = digitsOnly(cvv);
-  if(cvvDigits.length < 3 || cvvDigits.length > 4) return { ok: false, error: 'El código de seguridad debe tener 3 o 4 dígitos.' };
-  if(Number(amount || 0) <= 0) return { ok: false, error: 'El importe a autorizar no es válido.' };
-  const authorizationCode = String(Math.floor(100000 + Math.random() * 900000));
-  const gatewayRef = `SIM-${Date.now().toString(36).toUpperCase()}`;
-  const validationNote = detectedBrand && selectedBrand && detectedBrand !== selectedBrand
-    ? `Se priorizó la marca detectada (${detectedBrand}) sobre la marca elegida manualmente (${selectedBrand}) para esta simulación.`
-    : 'La validación virtual aceptó una tarjeta de prueba consistente para este entorno.';
+function minimalActorMeta(user, company){
   return {
-    ok: true,
-    approved: true,
-    brand: effectiveBrand,
-    last4: digits.slice(-4),
-    authorizationCode,
-    gatewayRef,
-    gatewayMessage: 'Pago virtual aprobado en entorno de prueba.',
-    secureNote: `Se almacenaron únicamente la marca y los últimos 4 dígitos. El número completo y el CVV nunca se guardaron en la base. ${validationNote}`,
-    normalizedExpiry: expiryInfo.normalized,
+    actorUserId: user?.id || null,
+    actorCompanyId: company?.id || null,
   };
+}
+
+async function recordSecurityEvent({ route = '', actorUserId = null, actorCompanyId = null, orderId = null, severity = 'INFO', eventType = 'SYSTEM_EVENT', message = '', metadata = null } = {}){
+  const payload = {
+    route,
+    actorUserId,
+    actorCompanyId,
+    orderId,
+    severity,
+    eventType,
+    message: clampText(message || '', 500),
+    metadata: metadata || undefined,
+  };
+  const consoleMeta = { route, actorUserId, actorCompanyId, orderId, severity, eventType };
+  console.log(`[SECURITY:${severity}] ${eventType} ${message}`, consoleMeta);
+  await prisma.securityEvent.create({ data: payload }).catch(() => null);
+}
+
+function normalizeBillingForStorage(billing = {}, company = {}, user = null){
+  return {
+    billingName: String(billing.razonSocial || company.companyName || '').trim(),
+    billingTaxId: normalizeId(billing.cuit || company.cuit || ''),
+    billingTaxCondition: String(billing.condicionFiscal || '').trim() || null,
+    billingProvince: String(billing.provincia || '').trim() || null,
+    billingCity: String(billing.localidad || '').trim() || null,
+    billingAddress: String(billing.calle || '').trim() || null,
+    billingAddressNumber: String(billing.numero || '').trim() || null,
+    billingFloor: String(billing.piso || '').trim() || null,
+    billingDept: String(billing.depto || '').trim() || null,
+    billingPostalCode: String(billing.codigoPostal || '').trim() || null,
+    billingEmail: normalizeEmail(billing.email || company.contactEmail || user?.email || ''),
+  };
+}
+
+async function createPendingPaymentOrder({ company, user, billing, quote }){
+  return prisma.billingOrder.create({
+    data: {
+      companyId: company.id,
+      status: 'PENDING_PAYMENT',
+      companyNameSnapshot: company.companyName,
+      cuitSnapshot: company.cuit,
+      contactEmailSnapshot: company.contactEmail || user?.email || null,
+      billingName: billing.billingName,
+      billingTaxId: billing.billingTaxId,
+      billingTaxCondition: billing.billingTaxCondition,
+      billingProvince: billing.billingProvince,
+      billingCity: billing.billingCity,
+      billingAddress: billing.billingAddress,
+      billingAddressNumber: billing.billingAddressNumber,
+      billingFloor: billing.billingFloor,
+      billingDept: billing.billingDept,
+      billingPostalCode: billing.billingPostalCode,
+      billingEmail: billing.billingEmail,
+      couponCode: quote.coupon.valid ? quote.coupon.code : null,
+      couponDiscountPct: quote.coupon.valid ? quote.coupon.discountPct : 0,
+      subtotal: quote.subtotal,
+      discountAmount: quote.discountAmount,
+      vatAmount: quote.vatAmount,
+      total: quote.total,
+      totalDays: quote.totalDays,
+      totalOpenings: quote.totalOpenings,
+      paymentProvider: PAYMENT_PROVIDER_NAME,
+      items: {
+        create: quote.items.map((it)=> ({
+          planCode: it.planCode,
+          planName: it.planName,
+          days: it.days,
+          unitPrice: it.unitPrice,
+          quantity: it.quantity,
+          subtotal: it.subtotal,
+          openingsIncluded: it.openingsIncluded,
+          publicationsIncluded: it.publicationsIncluded,
+        }))
+      }
+    },
+    include: { company: true, items: true }
+  });
+}
+
+async function applyCouponRedemptionIfNeeded(order){
+  if(!order?.couponCode || !order?.companyId) return;
+  const code = String(order.couponCode || '').trim().toUpperCase();
+  if(!code) return;
+  await prisma.billingCouponRedemption.upsert({
+    where: { companyId_code: { companyId: order.companyId, code } },
+    update: { discountPct: Number(order.couponDiscountPct || 0) },
+    create: { companyId: order.companyId, code, discountPct: Number(order.couponDiscountPct || 0) }
+  }).catch(() => null);
+  await prisma.factoryCoupon.update({ where: { code }, data: { isActive: false } }).catch(() => null);
+}
+
+async function updateOrderStatusFromProvider(order, event){
+  const nextStatus = event.outcome === 'PAID'
+    ? 'PAID'
+    : event.outcome === 'FAILED'
+      ? 'FAILED'
+      : event.outcome === 'EXPIRED'
+        ? 'EXPIRED'
+        : event.outcome === 'CANCELLED'
+          ? 'CANCELLED'
+          : 'PENDING_PAYMENT';
+
+  const updateData = {
+    status: nextStatus,
+    paymentProvider: event.provider || order.paymentProvider || PAYMENT_PROVIDER_NAME,
+    paymentSessionRef: event.paymentSessionRef || order.paymentSessionRef || null,
+    paymentProviderRef: event.paymentProviderRef || order.paymentProviderRef || null,
+    paymentFailureReason: nextStatus === 'PAID' ? null : (event.failureReason || order.paymentFailureReason || null),
+    paymentReceiptUrl: event.receiptUrl || order.paymentReceiptUrl || null,
+    paymentApprovedAt: nextStatus === 'PAID' ? (order.paymentApprovedAt || new Date()) : order.paymentApprovedAt,
+    cardBrand: event.cardBrand || order.cardBrand || null,
+    cardLast4: event.cardLast4 || order.cardLast4 || null,
+  };
+  const updated = await prisma.billingOrder.update({ where: { id: order.id }, data: updateData, include: { company: true, items: true } });
+  if(nextStatus === 'PAID') await applyCouponRedemptionIfNeeded(updated);
+  return updated;
+}
+
+async function recordPaymentWebhookEvent(event, signatureValid, rawBody, orderId = null){
+  return prisma.paymentWebhookEvent.create({
+    data: {
+      provider: event.provider || PAYMENT_PROVIDER_NAME,
+      providerEventId: event.providerEventId,
+      orderId,
+      eventType: event.eventType || 'unknown',
+      outcome: event.outcome || null,
+      signatureValid,
+      processed: false,
+      payloadHash: sha256Hex(rawBody || ''),
+    }
+  });
 }
 
 async function ensureFactoryPlanSeed(){
@@ -265,7 +359,7 @@ async function getCompanyOperationUsage(companyId){
   const activeOrders = await prisma.billingOrder.findMany({
     where: {
       companyId,
-      status: { in: ['VERIFIED', 'PAID'] },
+      status: 'PAID',
       items: { some: {} }
     },
     include: { items: true },
@@ -534,14 +628,14 @@ function orderToSummary(order){
     id: order.id,
     companyName: order.companyNameSnapshot || order.company?.companyName || 'Empresa',
     companyCode: companyCodeFrom(order.company || { cuit: order.cuitSnapshot, id: order.companyId }),
-    docType: 'Factura',
-    documentNo: `FAC-${String(order.id).slice(-8).toUpperCase()}`,
+    docType: order.status === 'PAID' ? 'Factura' : 'Pedido',
+    documentNo: `${order.status === 'PAID' ? 'FAC' : 'ORD'}-${String(order.id).slice(-8).toUpperCase()}`,
     date: order.createdAt,
     dueDate: order.createdAt,
     status: order.status,
     amount: order.total,
     currency: 'ARS',
-    paymentLabel: order.status === 'PAID' ? 'Pagado' : (order.status === 'VERIFIED' ? 'Verificado' : 'Pendiente'),
+    paymentLabel: order.status === 'PAID' ? 'Pagado' : (order.status === 'FAILED' ? 'Fallido' : (order.status === 'EXPIRED' ? 'Vencido' : (order.status === 'CANCELLED' ? 'Cancelado' : 'Pendiente'))),
     days: order.totalDays || 0,
     totalOpenings: order.totalOpenings || 0,
     couponCode: order.couponCode || null,
@@ -549,7 +643,12 @@ function orderToSummary(order){
     billingName: order.billingName || null,
     billingTaxId: order.billingTaxId || null,
     billingEmail: order.billingEmail || null,
-    cardLast4: order.cardLast4 || null,
+    paymentProvider: order.paymentProvider || null,
+    paymentSessionRef: order.paymentSessionRef || null,
+    paymentProviderRef: order.paymentProviderRef || null,
+    paymentApprovedAt: order.paymentApprovedAt || null,
+    paymentFailureReason: order.paymentFailureReason || null,
+    paymentReceiptUrl: order.paymentReceiptUrl || null,
     createdAt: order.createdAt,
     items: (order.items || []).map((it)=> ({
       id: it.id,
@@ -2199,7 +2298,7 @@ app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
     const recentOrders = orders.map(orderToSummary);
     const totals = recentOrders.reduce((acc, it) => {
       acc.total += it.totals.total;
-      acc.pending += (it.status === 'PENDING_PAYMENT' || it.status === 'VERIFIED') ? it.totals.total : 0;
+      acc.pending += it.status === 'PENDING_PAYMENT' ? it.totals.total : 0;
       acc.paid += it.status === 'PAID' ? it.totals.total : 0;
       acc.orders += 1;
       return acc;
@@ -2279,105 +2378,229 @@ app.post('/factory/quote', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']
   }
 });
 
+app.get('/factory/orders/:orderId/status', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), async (req, res) => {
+  try {
+    const { company } = await getCompanyContextByUserId(req.user.id);
+    const orderId = String(req.params?.orderId || '').trim();
+    if(!orderId) return res.status(400).json({ error: 'Falta la orden.' });
+    const order = await prisma.billingOrder.findFirst({ where: { id: orderId, companyId: company.id }, include: { company: true, items: true } }).catch(() => null);
+    if(!order) return res.status(404).json({ error: 'Orden no encontrada.' });
+    return res.json({ ok: true, order: orderToSummary(order) });
+  } catch (err) {
+    console.error('GET /factory/orders/:orderId/status', err);
+    return res.status(500).json({ error: 'No se pudo consultar el estado del pedido.' });
+  }
+});
+
 app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), async (req, res) => {
+  let order = null;
   try {
     const { company, user } = await getCompanyContextByUserId(req.user.id);
-    const billing = req.body?.billing || {};
-    const payment = req.body?.payment || {};
-    const quote = await buildFactoryQuote(company.id, req.body?.items || [], req.body?.couponCode || '');
-    if(!quote.items.length) return res.status(400).json({ error: 'El carrito está vacío.' });
-    const billingName = String(billing.razonSocial || company.companyName || '').trim();
-    const billingTaxId = normalizeId(billing.cuit || company.cuit || '');
-    const billingEmail = normalizeEmail(billing.email || company.contactEmail || user?.email || '');
-    if(!billingName) return res.status(400).json({ error: 'Falta la razón social.' });
-    if(!billingTaxId) return res.status(400).json({ error: 'Falta el CUIT para la factura.' });
-    if(!billingEmail) return res.status(400).json({ error: 'Falta el e-mail de facturación.' });
-
-    const paymentResult = simulateFactoryPayment({
-      amount: quote.total,
-      cardNumber: payment.cardNumber,
-      cardHolder: payment.cardHolder,
-      cardHolderDni: payment.cardHolderDni,
-      cardBrand: payment.cardBrand,
-      expiry: payment.expiry,
-      cvv: payment.cvv,
-    });
-    if(!paymentResult.ok) return res.status(400).json({ error: paymentResult.error || 'No se pudo autorizar el pago virtual.' });
-
-    if(quote.coupon.valid && quote.coupon.code){
-      await prisma.billingCouponRedemption.create({
-        data: { companyId: company.id, code: quote.coupon.code, discountPct: quote.coupon.discountPct }
-      }).catch(async (err) => {
-        const again = await prisma.billingCouponRedemption.findFirst({ where: { code: quote.coupon.code } }).catch(() => null);
-        if(again) throw new Error('Este beneficio ya fue utilizado y quedó desactivado.');
-        throw err;
+    const actor = minimalActorMeta(user, company);
+    const forbiddenFields = listForbiddenPaymentFields(req.body || {});
+    if(forbiddenFields.length){
+      await recordSecurityEvent({
+        route: '/factory/checkout',
+        ...actor,
+        severity: 'HIGH',
+        eventType: 'CARD_DATA_REJECTED',
+        message: 'Se rechazó un intento de enviar datos de tarjeta al checkout.',
+        metadata: { fields: forbiddenFields },
       });
-      await prisma.factoryCoupon.update({ where: { code: quote.coupon.code }, data: { isActive: false } }).catch(() => null);
+      return res.status(400).json({ error: 'Talento PyME no acepta datos de tarjeta en este endpoint' });
     }
 
-    const order = await prisma.billingOrder.create({
+    assertNoCardData(req.body || {});
+    const quote = await buildFactoryQuote(company.id, req.body?.items || [], req.body?.couponCode || '');
+    if(!quote.items.length) return res.status(400).json({ error: 'El carrito está vacío.' });
+
+    const billing = normalizeBillingForStorage(req.body?.billing || {}, company, user);
+    if(!billing.billingName) return res.status(400).json({ error: 'Falta la razón social.' });
+    if(!billing.billingTaxId) return res.status(400).json({ error: 'Falta el CUIT para la factura.' });
+    if(!billing.billingEmail) return res.status(400).json({ error: 'Falta el e-mail de facturación.' });
+
+    order = await createPendingPaymentOrder({ company, user, billing, quote });
+
+    let providerSession;
+    try {
+      providerSession = await getPaymentProvider().createCheckoutSession({
+        order: {
+          id: order.id,
+          companyId: company.id,
+          billingEmail: billing.billingEmail,
+          total: quote.total,
+          totalDays: quote.totalDays,
+          totalOpenings: quote.totalOpenings,
+          totalPublications: quote.totalPublications,
+          itemsSummary: quote.items.map((it) => `${it.planName} x${it.quantity}`).join(' · '),
+        },
+        company,
+        billing,
+        items: quote.items,
+        quote,
+        successUrl: buildPaymentSuccessUrl(order.id),
+        cancelUrl: buildPaymentCancelUrl(order.id),
+        webhookUrl: PAYMENT_WEBHOOK_URL || (APP_BASE_URL ? `${APP_BASE_URL.replace(/\/$/, '')}/payments/webhook/provider` : ''),
+      });
+    } catch (providerErr) {
+      await prisma.billingOrder.update({ where: { id: order.id }, data: { paymentFailureReason: providerErr.message } }).catch(() => null);
+      await recordSecurityEvent({
+        route: '/factory/checkout',
+        ...actor,
+        orderId: order.id,
+        severity: 'HIGH',
+        eventType: 'CHECKOUT_SESSION_CREATE_FAILED',
+        message: providerErr.message || 'No se pudo crear la sesión de checkout.',
+        metadata: { provider: PAYMENT_PROVIDER_NAME, request: sanitizeCheckoutPayloadForLog(req.body || {}) },
+      });
+      throw providerErr;
+    }
+
+    order = await prisma.billingOrder.update({
+      where: { id: order.id },
       data: {
-        companyId: company.id,
-        status: 'PAID',
-        companyNameSnapshot: company.companyName,
-        cuitSnapshot: company.cuit,
-        contactEmailSnapshot: company.contactEmail || user?.email || null,
-        billingName,
-        billingTaxId,
-        billingTaxCondition: String(billing.condicionFiscal || '').trim() || null,
-        billingProvince: String(billing.provincia || '').trim() || null,
-        billingCity: String(billing.localidad || '').trim() || null,
-        billingAddress: String(billing.calle || '').trim() || null,
-        billingAddressNumber: String(billing.numero || '').trim() || null,
-        billingFloor: String(billing.piso || '').trim() || null,
-        billingDept: String(billing.depto || '').trim() || null,
-        billingPostalCode: String(billing.codigoPostal || '').trim() || null,
-        billingEmail,
-        couponCode: quote.coupon.valid ? quote.coupon.code : null,
-        couponDiscountPct: quote.coupon.valid ? quote.coupon.discountPct : 0,
-        subtotal: quote.subtotal,
-        discountAmount: quote.discountAmount,
-        vatAmount: quote.vatAmount,
-        total: quote.total,
-        totalDays: quote.totalDays,
-        totalOpenings: quote.totalOpenings,
-        cardBrand: paymentResult.brand,
-        cardLast4: paymentResult.last4,
-        paymentNote: `${paymentResult.gatewayMessage} Autorización ${paymentResult.authorizationCode}. ${paymentResult.secureNote}`,
-        items: {
-          create: quote.items.map((it)=> ({
-            planCode: it.planCode,
-            planName: it.planName,
-            days: it.days,
-            unitPrice: it.unitPrice,
-            quantity: it.quantity,
-            subtotal: it.subtotal,
-            openingsIncluded: it.openingsIncluded,
-            publicationsIncluded: it.publicationsIncluded,
-          }))
-        }
+        paymentProvider: providerSession.provider || PAYMENT_PROVIDER_NAME,
+        paymentSessionRef: providerSession.sessionId || null,
+        paymentProviderRef: providerSession.providerOrderId || null,
       },
       include: { company: true, items: true }
     });
-    const operationUsage = await getCompanyOperationUsage(company.id);
-    res.json({
+
+    await recordSecurityEvent({
+      route: '/factory/checkout',
+      ...actor,
+      orderId: order.id,
+      severity: 'INFO',
+      eventType: 'CHECKOUT_SESSION_CREATED',
+      message: 'Pedido de Factory creado y derivado a pasarela segura.',
+      metadata: { provider: providerSession.provider || PAYMENT_PROVIDER_NAME, sessionId: providerSession.sessionId || null },
+    });
+
+    return res.json({
       ok: true,
-      message: `Compra virtual aprobada. Ya tenés habilitados ${quote.totalDays} días, ${quote.totalPublications} publicaciones y ${quote.totalOpenings} búsquedas.`,
+      message: 'Pedido creado. Serás redirigido a una pasarela segura para completar el pago. Talento PyME no procesa directamente los datos de tu tarjeta.',
+      orderId: order.id,
+      status: order.status,
+      provider: providerSession.provider || PAYMENT_PROVIDER_NAME,
+      checkoutUrl: providerSession.checkoutUrl,
       order: orderToSummary(order),
-      operationUsage,
-      payment: {
-        approved: true,
-        brand: paymentResult.brand,
-        last4: paymentResult.last4,
-        authorizationCode: paymentResult.authorizationCode,
-        gatewayRef: paymentResult.gatewayRef,
-        secureNote: paymentResult.secureNote,
-      },
       quote,
     });
   } catch (err) {
-    console.error('POST /factory/checkout', err);
-    res.status(500).json({ error: err?.message || 'No se pudo registrar la compra' });
+    const statusCode = err?.statusCode || (err instanceof PaymentSecurityError ? 400 : (err instanceof PaymentProviderError ? 502 : 500));
+    console.error('POST /factory/checkout', { statusCode, message: err?.message || 'Error de checkout', orderId: order?.id || null });
+    return res.status(statusCode).json({ error: err?.message || 'No se pudo registrar el pedido' });
+  }
+});
+
+app.post('/payments/webhook/provider', express.raw({ type: 'application/json', limit: '1mb' }), async (req, res) => {
+  const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : String(req.body || '');
+  const signatureHeader = req.get('stripe-signature') || req.get('x-payment-signature') || req.get('x-signature') || '';
+  let eventRecord = null;
+  try {
+    const provider = getPaymentProvider();
+    const signatureValid = provider.verifyWebhook(signatureHeader, rawBody, req.headers);
+    if(!signatureValid){
+      await recordSecurityEvent({
+        route: '/payments/webhook/provider',
+        severity: 'HIGH',
+        eventType: 'INVALID_WEBHOOK_SIGNATURE',
+        message: 'Se rechazó un webhook con firma inválida.',
+        metadata: { provider: provider.name },
+      });
+      return res.status(400).json({ error: 'Firma inválida.' });
+    }
+
+    const parsed = provider.parseWebhookEvent(rawBody, req.headers);
+    if(!parsed?.providerEventId){
+      await recordSecurityEvent({
+        route: '/payments/webhook/provider',
+        severity: 'HIGH',
+        eventType: 'INVALID_WEBHOOK_EVENT',
+        message: 'El webhook llegó sin identificador de evento.',
+        metadata: { provider: provider.name },
+      });
+      return res.status(400).json({ error: 'Evento inválido.' });
+    }
+
+    const replay = await prisma.paymentWebhookEvent.findUnique({ where: { provider_providerEventId: { provider: parsed.provider, providerEventId: parsed.providerEventId } } }).catch(() => null);
+    if(replay){
+      await recordSecurityEvent({
+        route: '/payments/webhook/provider',
+        severity: 'WARN',
+        eventType: 'WEBHOOK_REPLAY_DETECTED',
+        orderId: replay.orderId || null,
+        message: 'Se recibió un webhook repetido y fue ignorado por idempotencia.',
+        metadata: { provider: parsed.provider, providerEventId: parsed.providerEventId },
+      });
+      return res.json({ ok: true, idempotent: true });
+    }
+
+    const order = parsed.orderId
+      ? await prisma.billingOrder.findUnique({ where: { id: parsed.orderId }, include: { company: true, items: true } }).catch(() => null)
+      : null;
+
+    eventRecord = await recordPaymentWebhookEvent(parsed, true, rawBody, order?.id || null).catch(() => null);
+
+    if(!order){
+      await recordSecurityEvent({
+        route: '/payments/webhook/provider',
+        severity: 'HIGH',
+        eventType: 'PAYMENT_ORDER_NOT_FOUND',
+        message: 'El proveedor reportó un pago para una orden inexistente.',
+        metadata: { provider: parsed.provider, providerEventId: parsed.providerEventId, orderId: parsed.orderId || null },
+      });
+      if(eventRecord){
+        await prisma.paymentWebhookEvent.update({ where: { id: eventRecord.id }, data: { processed: false, errorMessage: 'Orden inexistente.' } }).catch(() => null);
+      }
+      return res.status(404).json({ error: 'Orden inexistente.' });
+    }
+
+    if(parsed.amount != null && Number(parsed.amount) > 0 && Number(parsed.amount) !== Number(order.total || 0)){
+      await recordSecurityEvent({
+        route: '/payments/webhook/provider',
+        severity: 'HIGH',
+        eventType: 'PAYMENT_AMOUNT_MISMATCH',
+        orderId: order.id,
+        actorCompanyId: order.companyId,
+        message: 'El importe informado por el proveedor no coincide con la orden.',
+        metadata: { expected: Number(order.total || 0), received: Number(parsed.amount || 0), provider: parsed.provider },
+      });
+      if(eventRecord){
+        await prisma.paymentWebhookEvent.update({ where: { id: eventRecord.id }, data: { processed: false, errorMessage: 'Monto inconsistente.' } }).catch(() => null);
+      }
+      return res.status(409).json({ error: 'Monto inconsistente.' });
+    }
+
+    const updatedOrder = await updateOrderStatusFromProvider(order, parsed);
+    if(eventRecord){
+      await prisma.paymentWebhookEvent.update({ where: { id: eventRecord.id }, data: { processed: true, processedAt: new Date(), orderId: updatedOrder.id, outcome: parsed.outcome || null } }).catch(() => null);
+    }
+
+    await recordSecurityEvent({
+      route: '/payments/webhook/provider',
+      severity: 'INFO',
+      eventType: 'PAYMENT_STATUS_CHANGED',
+      orderId: updatedOrder.id,
+      actorCompanyId: updatedOrder.companyId,
+      message: `El webhook confirmó el cambio de estado a ${updatedOrder.status}.`,
+      metadata: { provider: parsed.provider, providerEventId: parsed.providerEventId, eventType: parsed.eventType },
+    });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    if(eventRecord){
+      await prisma.paymentWebhookEvent.update({ where: { id: eventRecord.id }, data: { processed: false, errorMessage: err?.message || 'Error de procesamiento.' } }).catch(() => null);
+    }
+    await recordSecurityEvent({
+      route: '/payments/webhook/provider',
+      severity: 'HIGH',
+      eventType: 'WEBHOOK_PROCESSING_ERROR',
+      message: err?.message || 'Falló el procesamiento del webhook.',
+      metadata: { provider: PAYMENT_PROVIDER_NAME },
+    });
+    const statusCode = err?.statusCode || 500;
+    return res.status(statusCode).json({ error: err?.message || 'No se pudo procesar el webhook.' });
   }
 });
 
@@ -2928,7 +3151,7 @@ const SUPPORT_KNOWLEDGE_SEEDS = [
   { scope: 'COMPANY', keywords: ['buscar talento filtros texto libre resumen curricular observaciones herramientas instrumentacion'], questionSample: '¿Cómo funciona Buscar Talento?', answer: 'Buscar Talento permite filtrar por área, especialidad, experiencia, educación, herramientas, instrumentación y texto libre. El texto libre también revisa el resumen curricular, observaciones, último trabajo y otros datos clave del perfil para ampliar coincidencias útiles.' },
   { scope: 'COMPANY', keywords: ['mis candidatos guardados postulaciones recibidas pretension economica sueldo'], questionSample: '¿Qué veo en Mis Candidatos?', answer: 'En Mis Candidatos se listan los perfiles guardados o recibidos desde postulaciones. Vas a ver datos resumidos del perfil, la pretensión económica en formato contable y, al abrir una ficha completa, se consume capacidad si corresponde según el plan vigente.' },
   { scope: 'COMPANY', keywords: ['mis busquedas publicar busqueda publicaciones cupo plan'], questionSample: '¿Cómo se consume la capacidad de publicaciones?', answer: 'Cada vez que publicás una búsqueda se descuenta capacidad del plan activo de la empresa. El sistema muestra el saldo operativo para que puedas controlar cuántas publicaciones y búsquedas te quedan disponibles.' },
-  { scope: 'COMPANY', keywords: ['factory planes publicaciones busquedas compra bonificacion iva carrito checkout'], questionSample: '¿Cómo funcionan los planes de Factory?', answer: 'Factory permite contratar capacidad por tiempo. Cada plan habilita días, publicaciones y búsquedas. El precio publicado es sin IVA, el impuesto se suma al confirmar la compra y los códigos de bonificación válidos se aplican una sola vez.' },
+  { scope: 'COMPANY', keywords: ['factory planes publicaciones busquedas compra bonificacion iva carrito checkout'], questionSample: '¿Cómo funcionan los planes de Factory?', answer: 'Factory permite contratar capacidad por tiempo. Cada plan habilita días, publicaciones y búsquedas. El precio publicado es sin IVA, el impuesto se suma al confirmar la compra y los códigos de bonificación válidos se aplican una sola vez. El pago se completa en una pasarela externa segura y la orden solo queda pagada cuando el proveedor la confirma.' },
   { scope: 'COMPANY', keywords: ['abrir ficha candidato aperturas creditos saldo capacidad operativa'], questionSample: '¿Cómo se consumen los créditos?', answer: 'La empresa puede ver resultados resumidos sin consumir crédito. La apertura completa de una ficha consume capacidad según el plan activo o el acceso especial vigente. El panel comercial muestra el saldo disponible para operar.' },
   { scope: 'COMPANY', keywords: ['factory admin matriz planes precio dias publicaciones busquedas bonificaciones acceso free'], questionSample: '¿Para qué sirve Factory Admin?', answer: 'Factory Admin permite editar la matriz comercial de días, publicaciones, búsquedas y precio, generar códigos de bonificación, crear accesos especiales free y revisar la operatoria comercial desde la empresa habilitada para administración.' },
   { scope: 'SUPERADMIN', keywords: ['panel general empresas candidatos estadisticas chat operador conocimiento'], questionSample: '¿Qué muestra el Panel General?', answer: 'El Panel General reúne estadísticas globales del sistema, listados de empresas y candidatos, actividad comercial y el centro de conversaciones para operador. Desde ahí también se administra el conocimiento reutilizable del chat de ayuda.' }
@@ -2964,7 +3187,7 @@ const SUPPORT_SUGGESTIONS = {
     '¿Qué veo en Mis Búsquedas?',
     '¿Cómo funcionan los planes de Factory?',
     '¿Cómo aplicar un código de bonificación?',
-    '¿Cómo funciona la compra virtual de un plan?',
+    '¿Cómo funciona el pago seguro de un plan?',
     '¿Para qué sirve Factory Admin?'
   ],
   SUPERADMIN: [
@@ -3104,7 +3327,7 @@ function buildRoleFallback(role){
     return 'Puedo ayudarte con Mi Perfil, carga de foto, resumen curricular, CV, Mis Oportunidades y Mis Postulaciones. También puedo indicarte cómo revisar la barra de completitud para mejorar tu visibilidad.';
   }
   if(scope === 'COMPANY'){
-    return 'Puedo ayudarte con Buscar Talento, filtros, texto libre, publicaciones, Mis Búsquedas, Mis Candidatos, planes de Factory, bonificaciones, compra virtual simulada y capacidad operativa.';
+    return 'Puedo ayudarte con Buscar Talento, filtros, texto libre, publicaciones, Mis Búsquedas, Mis Candidatos, planes de Factory, bonificaciones, checkout seguro externo y capacidad operativa.';
   }
   return 'Puedo ayudarte con el Panel General, Factory Admin, matriz comercial, bonificaciones, accesos especiales, estadísticas del sistema y chat operador.';
 }
@@ -3177,7 +3400,7 @@ const SUPPORT_INTENTS = [
   {
     id: 'company-factory-plans',
     scopes: ['GLOBAL','COMPANY'],
-    patterns: [/factory/, /planes/, /compra virtual/, /pago virtual/, /iva/, /bonificacion/, /bonificación/, /carrito/, /checkout/, /confirmar compra/],
+    patterns: [/factory/, /planes/, /pago seguro/, /pasarela/, /iva/, /bonificacion/, /bonificación/, /carrito/, /checkout/, /confirmar compra/],
     build: async (ctx) => {
       const usage = ctx.usage;
       let balance = '';
@@ -3186,7 +3409,7 @@ const SUPPORT_INTENTS = [
           ? ' Tu empresa tiene acceso total free vigente en este momento.'
           : ` Saldo actual: ${usage.remainingPublications} publicaciones disponibles y ${usage.remainingSearches} búsquedas o aperturas disponibles.`;
       }
-      return `Factory administra la contratación por tiempo. Cada plan define días, cantidad de publicaciones y cantidad de búsquedas o aperturas. El precio publicado es sin IVA y el impuesto se suma al confirmar la compra. Podés aplicar códigos de bonificación válidos una sola vez y completar una compra virtual simulada con tarjeta de prueba para habilitar la capacidad contratada.${balance}`;
+      return `Factory administra la contratación por tiempo. Cada plan define días, cantidad de publicaciones y cantidad de búsquedas o aperturas. El precio publicado es sin IVA y el impuesto se suma al confirmar la compra. Cuando confirmás, Talento PyME crea un pedido interno y te redirige a una pasarela externa segura; el pago solo se acredita cuando el proveedor lo confirma por webhook firmado.${balance}`;
     }
   },
   {
@@ -3427,7 +3650,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.job.count(),
       prisma.application.count(),
       prisma.billingOrder.count(),
-      prisma.billingOrder.aggregate({ _sum: { total: true }, where: { status: { in: ['PAID','VERIFIED'] } } }).catch(() => ({ _sum: { total: 0 } })),
+      prisma.billingOrder.aggregate({ _sum: { total: true }, where: { status: 'PAID' } }).catch(() => ({ _sum: { total: 0 } })),
       prisma.candidateBolsa.findMany({ orderBy: { updatedAt: 'desc' }, take: 80, select: { id:true, nombre:true, apellido:true, areaTrabajo:true, especialidad:true, localidad:true, updatedAt:true, sueldoPretendido:true } }),
       prisma.companyProfile.findMany({ orderBy: { updatedAt: 'desc' }, take: 80, select: { id:true, companyName:true, cuit:true, contactEmail:true, city:true, province:true, updatedAt:true } }),
       prisma.supportThread.findMany({ orderBy: { updatedAt: 'desc' }, take: 40, include: { company: { select: { companyName: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'desc' }, take: 1 } } }).catch(() => []),
@@ -3486,4 +3709,9 @@ app.get('/admin/knowledge', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, "0.0.0.0", () => console.log("Talento PyME API escuchando en", PORT, "(v"+APP_VERSION+")"));
+const IS_MAIN = process.argv[1] && path.resolve(process.argv[1]) === __filename;
+if (IS_MAIN) {
+  app.listen(PORT, "0.0.0.0", () => console.log("Talento PyME API escuchando en", PORT, "(v"+APP_VERSION+")"));
+}
+
+export { app, prisma };
