@@ -1,4 +1,4 @@
-# Talento PyME — v5.5.19
+# Talento PyME — v5.6.0
 
 Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**.
 

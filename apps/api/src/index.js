@@ -2920,6 +2920,7 @@ app.get("/search", async (req, res) => {
 
 
 
+
 const SUPPORT_KNOWLEDGE_SEEDS = [
   { scope: 'GLOBAL', keywords: ['registro perfil completar datos formulario candidato cv observaciones resumen curricular foto'], questionSample: '¿Qué tengo que completar en mi perfil?', answer: 'Después del registro inicial conviene completar los datos personales, el perfil laboral, la experiencia, la pretensión económica, el resumen curricular en observaciones y, si querés, adjuntar una foto y tu CV para mejorar la visibilidad en búsquedas.' },
   { scope: 'CANDIDATE', keywords: ['mi perfil candidato foto cv observaciones resumen curricular guardar editar'], questionSample: '¿Cómo completo Mi Perfil?', answer: 'En Mi Perfil podés editar tus datos laborales, cargar una foto, adjuntar el CV para extraer un resumen curricular y revisar el punto de observaciones antes de guardar. Lo importante es dejar completo el perfil para aparecer mejor en las búsquedas de empresas.' },
@@ -2933,6 +2934,33 @@ const SUPPORT_KNOWLEDGE_SEEDS = [
   { scope: 'SUPERADMIN', keywords: ['panel general empresas candidatos estadisticas chat operador conocimiento'], questionSample: '¿Qué muestra el Panel General?', answer: 'El Panel General reúne estadísticas globales del sistema, listados de empresas y candidatos, actividad comercial y el centro de conversaciones para operador. Desde ahí también se administra el conocimiento reutilizable del chat de ayuda.' }
 ];
 
+const SUPPORT_SUGGESTIONS = {
+  CANDIDATE: [
+    '¿Cómo completo Mi Perfil?',
+    '¿Cómo cargo mi foto y el CV?',
+    '¿Cómo funciona Mis Oportunidades?',
+    '¿Qué veo en Mis Postulaciones?',
+    '¿Cómo mejorar mi visibilidad para empresas?',
+    '¿Qué datos conviene revisar antes de salir?'
+  ],
+  COMPANY: [
+    '¿Cómo funciona Buscar Talento?',
+    '¿Qué veo en Mis Candidatos?',
+    '¿Cómo se consume la capacidad de publicaciones?',
+    '¿Cómo se consume la apertura de fichas?',
+    '¿Cómo funcionan los planes de Factory?',
+    '¿Para qué sirve Factory Admin?'
+  ],
+  SUPERADMIN: [
+    '¿Qué muestra el Panel General?',
+    '¿Cómo funciona el chat operador?',
+    '¿Qué puedo editar desde Factory Admin?',
+    '¿Cómo se crean bonificaciones y accesos especiales?',
+    '¿Cómo revisar empresas y candidatos?',
+    '¿Cómo se actualiza la matriz comercial?'
+  ]
+};
+
 async function ensureSupportKnowledgeSeed(){
   const existing = await prisma.supportKnowledge.findMany({ select: { questionSample: true } }).catch(() => []);
   const known = new Set(existing.map((row) => String(row.questionSample || '').trim()).filter(Boolean));
@@ -2941,27 +2969,74 @@ async function ensureSupportKnowledgeSeed(){
   await prisma.$transaction(missing.map((row)=> prisma.supportKnowledge.create({ data: row }))).catch(() => null);
 }
 
-async function getOrCreateSupportThreadForUser(req){
-  if(req.user?.role === 'CANDIDATE'){
-    const existing = await prisma.supportThread.findFirst({ where: { userId: req.user.id, role: 'CANDIDATE' }, orderBy: { updatedAt: 'desc' } }).catch(() => null);
-    if(existing) return existing;
-    return prisma.supportThread.create({ data: { role: 'CANDIDATE', userId: req.user.id, subject: 'Chat de ayuda candidato' } });
-  }
-  if(req.user?.id === VIRTUAL_ADMIN_USER_ID || ['ADMIN','SUPERADMIN'].includes(String(req.user?.role || '').toUpperCase())){
-    const existing = await prisma.supportThread.findFirst({ where: { role: 'SUPERADMIN', subject: 'Chat interno admin' }, orderBy: { updatedAt: 'desc' } }).catch(() => null);
-    if(existing) return existing;
-    return prisma.supportThread.create({ data: { role: 'SUPERADMIN', subject: 'Chat interno admin' } });
-  }
-  const { company } = await getCompanyContextByUserId(req.user.id);
-  const existing = await prisma.supportThread.findFirst({ where: { companyId: company.id, role: 'COMPANY' }, orderBy: { updatedAt: 'desc' } }).catch(() => null);
-  if(existing) return existing;
-  return prisma.supportThread.create({ data: { role: 'COMPANY', companyId: company.id, userId: req.user.id, subject: `Chat empresa ${company.companyName || 'Empresa'}` } });
+function supportMoney(n){
+  return '$' + Number(n || 0).toLocaleString('es-AR');
+}
+
+function supportDateTime(v){
+  try { return new Date(v).toLocaleString('es-AR'); } catch(_) { return ''; }
+}
+
+function supportContainsAny(text, patterns){
+  const hay = normalizeName(text);
+  return patterns.some((p) => {
+    if(p instanceof RegExp) return p.test(hay);
+    const tok = normalizeName(p);
+    return tok && hay.includes(tok);
+  });
+}
+
+function buildSupportCandidateCompleteness(candidate){
+  if(!candidate) return { done: 0, total: 5, percent: 0, pending: ['datos personales','perfil laboral','pretensión económica','resumen curricular','foto'] };
+  const blocks = [
+    { label: 'datos personales', complete: [candidate.dni, candidate.telefono, candidate.correo, candidate.localidad].every((v)=> String(v || '').trim()) },
+    { label: 'perfil laboral', complete: String(candidate.areaTrabajo || '').trim() && String(candidate.rangoExperiencia || '').trim() && String(candidate.nivelEducativo || '').trim() && (String(candidate.especialidad || '').trim() || String(candidate.especialidadOtro || '').trim()) },
+    { label: 'pretensión económica y trayectoria', complete: String(candidate.sueldoPretendido || '').trim() && String(candidate.ultimoTrabajo || '').trim() },
+    { label: 'resumen curricular', complete: String(candidate.observaciones || '').trim() },
+    { label: 'foto de perfil', complete: String(candidate.photoDataUrl || '').trim() },
+  ];
+  const done = blocks.filter((b)=> b.complete).length;
+  return {
+    done,
+    total: blocks.length,
+    percent: Math.round((done / blocks.length) * 100),
+    pending: blocks.filter((b)=> !b.complete).map((b)=> b.label)
+  };
+}
+
+async function buildSupportContext(thread, req){
+  const ctx = { role: String(thread?.role || req.user?.role || 'GLOBAL').toUpperCase(), thread, user: req.user || null, company: null, candidate: null, usage: null, adminSummary: null };
+  try {
+    if(ctx.role === 'CANDIDATE' && req.user?.id && req.user.id !== VIRTUAL_ADMIN_USER_ID){
+      ctx.candidate = await prisma.candidateBolsa.findUnique({ where: { userId: req.user.id } }).catch(() => null);
+    }
+    if(ctx.role === 'COMPANY' && req.user?.id && req.user.id !== VIRTUAL_ADMIN_USER_ID){
+      const companyCtx = await getCompanyContextByUserId(req.user.id).catch(() => null);
+      ctx.company = companyCtx?.company || null;
+      if(ctx.company?.id){
+        ctx.usage = await getCompanyOperationUsage(ctx.company.id).catch(() => null);
+      }
+    }
+    if(ctx.role === 'SUPERADMIN'){
+      const [candidateCount, companyCount, jobsCount, threadCount] = await Promise.all([
+        prisma.candidateBolsa.count().catch(() => 0),
+        prisma.companyProfile.count().catch(() => 0),
+        prisma.job.count().catch(() => 0),
+        prisma.supportThread.count().catch(() => 0),
+      ]);
+      ctx.adminSummary = { candidateCount, companyCount, jobsCount, threadCount };
+    }
+  } catch(_) {}
+  return ctx;
 }
 
 function scoreKnowledgeMatch(message, knowledge){
   const hay = normalizeName(message);
   const keys = Array.isArray(knowledge?.keywords) ? knowledge.keywords : String(knowledge?.keywords || '').split(' ');
   let score = 0;
+  const q = normalizeName(knowledge?.questionSample || '');
+  if(q && hay === q) score += 10;
+  if(q && hay.includes(q)) score += 6;
   for(const raw of keys){
     const tok = normalizeName(raw);
     if(tok && hay.includes(tok)) score += Math.max(1, tok.length > 7 ? 2 : 1);
@@ -2987,84 +3062,291 @@ function extractSupportName(message=''){
 
 function isGreetingMessage(message=''){
   const hay = normalizeName(message);
-  return ['hola','buen dia','buen dia equipo','buenas','buenas tardes','buenas noches','que tal','como va'].some((g)=> hay === g || hay.startsWith(g + ' '));
+  return ['hola','buen dia','buen dia equipo','buenas','buenas tardes','buenas noches','que tal','como va','buenas talente pyme'].some((g)=> hay === g || hay.startsWith(g + ' '));
 }
 
 function isInsultMessage(message=''){
   const hay = normalizeName(message);
-  return ['idiota','pelotudo','pelotuda','boludo','boluda','imbecil','imbécil','inutil','inútil','estupido','estúpido','forro','mierda'].some((w)=> hay.includes(normalizeName(w)));
+  return ['idiota','pelotudo','pelotuda','boludo','boluda','imbecil','imbecilidad','inutil','estupido','forro','mierda'].some((w)=> hay.includes(normalizeName(w)));
 }
 
-function buildSupportClosing(role, needsHuman){
-  if(needsHuman) return 'Gracias por tu consulta. Si querés, puedo dejarla marcada para revisión del operador.';
-  return String(role || '').toUpperCase() === 'CANDIDATE'
-    ? 'Gracias por tu consulta. Seguimos acá para ayudarte con tu perfil y tus postulaciones.'
-    : 'Gracias por tu consulta. Seguimos acá para ayudarte con la operatoria del portal.';
+function buildSupportClosing(needsHuman){
+  return needsHuman
+    ? 'Gracias por tu consulta. La conversación quedó disponible para revisión humana.'
+    : 'Gracias por tu consulta.';
 }
 
 function buildRoleFallback(role){
   const scope = String(role || '').toUpperCase();
   if(scope === 'CANDIDATE'){
-    return 'Puedo orientarte con Mi Perfil, carga de foto, resumen curricular, CV, Mis Oportunidades y Mis Postulaciones. Contame qué paso querés resolver y te lo explico de forma concreta.';
+    return 'Puedo ayudarte con Mi Perfil, carga de foto, resumen curricular, CV, Mis Oportunidades y Mis Postulaciones. También puedo indicarte cómo revisar la barra de completitud para mejorar tu visibilidad.';
   }
   if(scope === 'COMPANY'){
-    return 'Puedo ayudarte con Buscar Talento, filtros, publicaciones, Mis Búsquedas, Mis Candidatos, planes de Factory, bonificaciones y capacidad operativa. Decime qué acción querés hacer y te indico el recorrido.';
+    return 'Puedo ayudarte con Buscar Talento, filtros, texto libre, publicaciones, Mis Búsquedas, Mis Candidatos, planes de Factory, bonificaciones, compra virtual simulada y capacidad operativa.';
   }
-  return 'Puedo orientarte con el funcionamiento general del sistema, la administración comercial y el centro de ayuda. Decime qué punto querés revisar y te doy una guía concreta.';
+  return 'Puedo ayudarte con el Panel General, Factory Admin, matriz comercial, bonificaciones, accesos especiales, estadísticas del sistema y chat operador.';
 }
 
-async function generateSupportAssistantReply(message, role){
+const SUPPORT_INTENTS = [
+  {
+    id: 'candidate-profile',
+    scopes: ['GLOBAL','CANDIDATE'],
+    patterns: [/como completo mi perfil/, /completo mi perfil/, /mi perfil/, /datos curriculares/, /revisa tu perfil/, /perfil curricular/],
+    build: async (ctx) => {
+      const progress = buildSupportCandidateCompleteness(ctx.candidate);
+      const pending = progress.pending.length ? ` Hoy te conviene revisar: ${progress.pending.join(', ')}.` : ' Hoy tu perfil figura completo en todos los bloques principales.';
+      return `Para completar Mi Perfil entrá al panel del candidato y recorré estos bloques: 1) Datos personales: DNI, teléfono, email, localidad y dirección. 2) Perfil laboral: área de trabajo, especialidad, experiencia y nivel educativo. 3) Pretensión económica y trayectoria: sueldo pretendido y último trabajo. 4) Resumen curricular: cargá observaciones claras y, si querés, subí el CV para que el sistema extraiga un resumen útil para las empresas. 5) Foto de perfil: podés tomarla con cámara o subir una imagen. Guardá los cambios y revisá la barra de avance y las luces de colores para detectar lo pendiente.${pending} Tu avance actual es ${progress.done}/${progress.total} bloques.`;
+    }
+  },
+  {
+    id: 'candidate-cv-photo',
+    scopes: ['GLOBAL','CANDIDATE'],
+    patterns: [/cargar cv/, /subir cv/, /curriculum/, /curriculo/, /foto/, /tomar foto/, /subir archivo/, /resumen curricular/],
+    build: async () => 'En Mi Perfil tenés dos acciones principales: foto y CV. La foto se puede tomar con la cámara o subir desde el dispositivo en JPG, JPEG, PNG, WEBP o HEIC. El CV se usa para extraer un resumen curricular; el sistema no necesita conservar el archivo original de forma permanente. Conviene revisar después el campo Observaciones para completar o corregir el alcance curricular que verá la empresa.'
+  },
+  {
+    id: 'candidate-opportunities',
+    scopes: ['GLOBAL','CANDIDATE'],
+    patterns: [/mis oportunidades/, /postular/, /postularme/, /mis postulaciones/, /eliminar postulacion/, /eliminar postulación/],
+    build: async () => 'Desde Mis Oportunidades buscás avisos por palabra clave, empresa o categoría. Cuando un aviso te interesa, lo pasás a Mis Postulaciones. En Mis Postulaciones podés revisar empresa, puesto y fecha, y también eliminar la postulación si ya no querés seguir en ese proceso.'
+  },
+  {
+    id: 'candidate-visibility',
+    scopes: ['GLOBAL','CANDIDATE'],
+    patterns: [/mejorar mi visibilidad/, /aparecer mejor/, /que me encuentren/, /como me encuentran/, /como me ven las empresas/],
+    build: async (ctx) => {
+      const progress = buildSupportCandidateCompleteness(ctx.candidate);
+      return `Para mejorar tu visibilidad conviene completar el perfil al 100%, definir bien área y especialidad, cargar sueldo pretendido, describir el último trabajo, mantener observaciones con un resumen curricular claro y sumar una foto. El texto libre de las empresas revisa también resumen curricular, observaciones y último trabajo, así que cuanto más preciso sea ese contenido, más fácil será encontrarte. Hoy tenés ${progress.percent}% de completitud aproximada.`;
+    }
+  },
+  {
+    id: 'company-search-talent',
+    scopes: ['GLOBAL','COMPANY'],
+    patterns: [/buscar talento/, /filtros/, /texto libre/, /especialidad/, /instrumentacion/, /instrumentacion/, /maquina herramienta/, /máquina herramienta/],
+    build: async () => 'Buscar Talento está organizado por filtros de texto libre, área de trabajo, localidad, nivel, especialidad, experiencia, educación, capacitación, trabajo actual, categoría de soldador, máquina o herramienta, instrumento o equipo, última actualización y orden. El texto libre no solo mira nombre o localidad: también revisa resumen curricular, observaciones, último trabajo, herramientas e instrumentación para ampliar las coincidencias útiles.'
+  },
+  {
+    id: 'company-free-text',
+    scopes: ['GLOBAL','COMPANY'],
+    patterns: [/electrico/, /electrica/, /industrial/, /resumen curricular/, /observaciones/, /texto libre no encuentra/, /no encuentra/],
+    build: async () => 'El texto libre de Buscar Talento busca en múltiples campos al mismo tiempo: nombre, apellido, DNI, localidad, área, especialidad, último trabajo, observaciones y resumen curricular. Por eso, términos como “industrial”, “eléctrico”, “instrumentación” o palabras técnicas del CV pueden devolver coincidencias aunque no estén en un único campo visible del formulario.'
+  },
+  {
+    id: 'company-my-candidates',
+    scopes: ['GLOBAL','COMPANY'],
+    patterns: [/mis candidatos/, /pretension economica/, /pretensión económica/, /sueldo pretendido/, /sueldo/, /postulaciones recibidas/],
+    build: async () => 'En Mis Candidatos ves los perfiles guardados o recibidos por postulación. Cada tarjeta muestra un resumen del candidato y la pretensión económica con formato contable, por ejemplo $2.000.000. Al abrir la ficha completa, el sistema controla la capacidad del plan si corresponde.'
+  },
+  {
+    id: 'company-publish-jobs',
+    scopes: ['GLOBAL','COMPANY'],
+    patterns: [/publicar busqueda/, /publicar búsqueda/, /publicar aviso/, /mis busquedas/, /mis búsquedas/],
+    build: async (ctx) => {
+      const usage = ctx.usage;
+      let balance = '';
+      if(usage){
+        balance = usage.fullAccess
+          ? ' Tu empresa tiene acceso total vigente, así que no se descuenta cupo operativo mientras dure ese beneficio.'
+          : ` Hoy tu saldo operativo muestra ${usage.remainingPublications} publicaciones disponibles y ${usage.remainingSearches} búsquedas o aperturas disponibles.`;
+      }
+      return `Desde Publicar Búsqueda cargás el puesto, la descripción, los requisitos y la localización del aviso. Al publicar, se descuenta una publicación del plan activo. Mis Búsquedas te permite revisar lo publicado, el estado de cada aviso y el consumo de capacidad.${balance}`;
+    }
+  },
+  {
+    id: 'company-factory-plans',
+    scopes: ['GLOBAL','COMPANY'],
+    patterns: [/factory/, /planes/, /compra virtual/, /pago virtual/, /iva/, /bonificacion/, /bonificación/, /carrito/, /checkout/, /confirmar compra/],
+    build: async (ctx) => {
+      const usage = ctx.usage;
+      let balance = '';
+      if(usage){
+        balance = usage.fullAccess
+          ? ' Tu empresa tiene acceso total free vigente en este momento.'
+          : ` Saldo actual: ${usage.remainingPublications} publicaciones disponibles y ${usage.remainingSearches} búsquedas o aperturas disponibles.`;
+      }
+      return `Factory administra la contratación por tiempo. Cada plan define días, cantidad de publicaciones y cantidad de búsquedas o aperturas. El precio publicado es sin IVA y el impuesto se suma al confirmar la compra. Podés aplicar códigos de bonificación válidos una sola vez y completar una compra virtual simulada con tarjeta de prueba para habilitar la capacidad contratada.${balance}`;
+    }
+  },
+  {
+    id: 'company-credits',
+    scopes: ['GLOBAL','COMPANY'],
+    patterns: [/creditos/, /créditos/, /aperturas/, /abrir ficha/, /consumir/, /saldo/, /capacidad operativa/, /publicaciones disponibles/, /busquedas disponibles/, /búsquedas disponibles/],
+    build: async (ctx) => {
+      const usage = ctx.usage;
+      if(!usage) return 'La capacidad operativa se consume en dos frentes: publicaciones de avisos y aperturas completas de fichas de candidatos. El sistema muestra el saldo restante desde Factory y desde los paneles comerciales.';
+      if(usage.fullAccess){
+        return `Tu empresa tiene acceso total vigente hasta ${supportDateTime(usage.fullAccessUntil)}. Mientras dure ese acceso, podés operar sin consumir cupos de publicaciones ni búsquedas.`;
+      }
+      return `Tu saldo operativo actual es: ${usage.remainingPublications} publicaciones disponibles sobre ${usage.totalPublications}, y ${usage.remainingSearches} búsquedas o aperturas disponibles sobre ${usage.totalSearches}. Ver resultados resumidos no consume cupo; lo que consume es publicar un aviso o abrir una ficha completa cuando corresponde.`;
+    }
+  },
+  {
+    id: 'company-factory-admin',
+    scopes: ['GLOBAL','COMPANY','SUPERADMIN'],
+    patterns: [/factory admin/, /matriz comercial/, /matriz de planes/, /bonificaciones/, /acceso total free/, /codigo especial/, /código especial/],
+    build: async () => 'Factory Admin permite editar la matriz comercial completa: nombre del plan, días, publicaciones, búsquedas y precio sin IVA. También permite crear códigos de bonificación por porcentaje, generar accesos total free por empresa y revisar los códigos activos o ya usados. El acceso está restringido por alias, clave y empresa habilitada.'
+  },
+  {
+    id: 'superadmin-panel',
+    scopes: ['GLOBAL','SUPERADMIN'],
+    patterns: [/panel general/, /administrador general/, /estadisticas/, /estadísticas/, /empresas registradas/, /candidatos registrados/, /chat operador/],
+    build: async (ctx) => {
+      const s = ctx.adminSummary;
+      const summary = s ? ` Hoy el sistema registra ${s.candidateCount} candidatos, ${s.companyCount} empresas, ${s.jobsCount} búsquedas y ${s.threadCount} conversaciones en el centro de ayuda.` : '';
+      return `El Panel General concentra la vista completa del sistema: estadísticas globales, listados recientes de candidatos y empresas, matriz comercial, Factory Admin, bonificaciones, accesos especiales y chat operador para intervenir manualmente en conversaciones.${summary}`;
+    }
+  },
+  {
+    id: 'support-chat',
+    scopes: ['GLOBAL','CANDIDATE','COMPANY','SUPERADMIN'],
+    patterns: [/chat/, /ayuda ia/, /operador/, /eliminar mensaje/, /borrar mensaje/, /fecha y hora/],
+    build: async () => 'En Ayuda IA cada mensaje se guarda con fecha y hora. Podés borrar mensajes individuales o limpiar toda la conversación para no acumular historial. Cuando hace falta, el hilo queda visible para revisión del operador desde el Panel General, y las respuestas reutilizables pueden incorporarse al conocimiento interno.'
+  },
+  {
+    id: 'general-login-admin',
+    scopes: ['GLOBAL','COMPANY','SUPERADMIN'],
+    patterns: [/talento pyme/, /acceso general/, /ingresar como administrador/, /factory admin/, /panel general acceso/],
+    build: async () => 'El acceso general se hace desde Empresa: si ingresás con el alias configurado para administración general y la clave definida en Render, entrás al Panel General. Para Factory Admin, además del alias y la clave, la empresa tiene que estar habilitada para ver y usar la consola comercial avanzada.'
+  }
+];
+
+async function getTopKnowledgeMatches(message, scopes){
+  const rows = await prisma.supportKnowledge.findMany({ where: { isActive: true, scope: { in: scopes } }, orderBy: { updatedAt: 'desc' }, take: 400 }).catch(() => []);
+  const ranked = rows
+    .map((row)=> ({ row, score: scoreKnowledgeMatch(message, row) }))
+    .filter((item)=> item.score > 0)
+    .sort((a,b)=> b.score - a.score)
+    .slice(0, 3);
+  return ranked;
+}
+
+async function trySupportIntent(message, ctx){
+  const role = String(ctx.role || '').toUpperCase();
+  const hay = normalizeName(message);
+  let best = null;
+  let bestScore = 0;
+  for(const intent of SUPPORT_INTENTS){
+    if(!intent.scopes.includes('GLOBAL') && !intent.scopes.includes(role)) continue;
+    let score = 0;
+    for(const pattern of intent.patterns){
+      if(pattern instanceof RegExp){ if(pattern.test(hay)) score += 4; }
+      else if(normalizeName(pattern) && hay.includes(normalizeName(pattern))) score += 3;
+    }
+    if(score > bestScore){ bestScore = score; best = intent; }
+  }
+  if(best && bestScore > 0){
+    return { intent: best.id, answer: await best.build(ctx, message), score: bestScore };
+  }
+  return null;
+}
+
+async function refreshSupportThreadState(threadId){
+  const messages = await prisma.supportMessage.findMany({ where: { threadId }, orderBy: { createdAt: 'asc' }, take: 200 }).catch(() => []);
+  let lastUser = null;
+  let lastResponder = null;
+  for(const m of messages){
+    if(m.actor === 'USER') lastUser = m;
+    if(['ASSISTANT','OPERATOR','SYSTEM'].includes(m.actor)) lastResponder = m;
+  }
+  const needsHuman = !!lastUser && (!lastResponder || new Date(lastResponder.createdAt) < new Date(lastUser.createdAt));
+  const status = !messages.length ? 'OPEN' : (needsHuman ? 'WAITING_OPERATOR' : 'WAITING_USER');
+  await prisma.supportThread.update({
+    where: { id: threadId },
+    data: {
+      lastUserMessage: lastUser?.content || null,
+      lastAiMessage: lastResponder?.content || null,
+      needsHuman,
+      status,
+    }
+  }).catch(() => null);
+  const thread = await prisma.supportThread.findUnique({ where: { id: threadId } }).catch(() => null);
+  return { messages, thread };
+}
+
+async function generateSupportAssistantReply(message, thread, req){
   await ensureSupportKnowledgeSeed();
-  const scope = String(role || '').toUpperCase() === 'COMPANY' ? ['GLOBAL','COMPANY'] : String(role || '').toUpperCase() === 'CANDIDATE' ? ['GLOBAL','CANDIDATE'] : ['GLOBAL','COMPANY','CANDIDATE','SUPERADMIN'];
-  const rows = await prisma.supportKnowledge.findMany({ where: { isActive: true, scope: { in: scope } }, orderBy: { updatedAt: 'desc' }, take: 300 }).catch(() => []);
+  const ctx = await buildSupportContext(thread, req);
+  const scope = ctx.role === 'COMPANY' ? ['GLOBAL','COMPANY'] : ctx.role === 'CANDIDATE' ? ['GLOBAL','CANDIDATE'] : ['GLOBAL','COMPANY','CANDIDATE','SUPERADMIN'];
   const personName = extractSupportName(message);
   const greeting = isGreetingMessage(message);
   const insulting = isInsultMessage(message);
+  const hello = personName ? `Hola ${personName}. ` : (greeting ? 'Hola. ' : '');
 
   if(insulting){
-    const head = personName ? `Hola ${personName}.` : 'Hola.';
     return {
-      answer: `${head} Puedo ayudarte mejor si mantenemos un trato respetuoso. Contame qué necesitás resolver en Talento PyME y te respondo con claridad. ${buildSupportClosing(role, false)}`,
+      answer: `${hello}Puedo ayudarte mejor si mantenemos un trato respetuoso. Decime qué necesitás resolver en Talento PyME y te respondo con claridad. ${buildSupportClosing(false)}`.trim(),
       needsHuman: false,
       source: 'moderation'
     };
   }
 
-  let best = null;
-  let bestScore = 0;
-  for(const row of rows){
-    const score = scoreKnowledgeMatch(message, row);
-    if(score > bestScore){ bestScore = score; best = row; }
+  const intentMatch = await trySupportIntent(message, ctx);
+  if(intentMatch){
+    return {
+      answer: `${hello}${intentMatch.answer} ${buildSupportClosing(false)}`.trim(),
+      needsHuman: false,
+      source: intentMatch.intent
+    };
   }
 
-  if(greeting && bestScore === 0){
-    const head = personName ? `Hola ${personName}.` : 'Hola.';
+  const rankedKnowledge = await getTopKnowledgeMatches(message, scope);
+  if(rankedKnowledge.length){
+    const primary = rankedKnowledge[0].row?.answer || '';
+    const secondary = rankedKnowledge[1]?.row?.answer || '';
+    const blended = secondary && normalizeName(secondary) !== normalizeName(primary)
+      ? `${primary} ${secondary}`
+      : primary;
     return {
-      answer: `${head} Estoy listo para ayudarte con el uso de Talento PyME. ${buildRoleFallback(role)} ${buildSupportClosing(role, false)}`,
+      answer: `${hello}${blended} ${buildSupportClosing(false)}`.trim(),
+      needsHuman: false,
+      source: 'knowledge'
+    };
+  }
+
+  if(greeting){
+    return {
+      answer: `${hello}${buildRoleFallback(ctx.role)} ${buildSupportClosing(false)}`.trim(),
       needsHuman: false,
       source: 'greeting'
     };
   }
 
-  if(best && bestScore >= 1){
-    const head = personName ? `Hola ${personName}. ` : '';
-    return { answer: `${head}${best.answer} ${buildSupportClosing(role, false)}`.trim(), needsHuman: false, source: best.source || 'knowledge' };
-  }
-
-  const head = personName ? `Hola ${personName}. ` : '';
   return {
-    answer: `${head}${buildRoleFallback(role)} ${buildSupportClosing(role, true)}`.trim(),
+    answer: `${hello}${buildRoleFallback(ctx.role)} ${buildSupportClosing(true)}`.trim(),
     needsHuman: true,
     source: 'fallback'
   };
 }
 
+async function getSupportSuggestionsByRole(role){
+  const scope = String(role || '').toUpperCase();
+  if(SUPPORT_SUGGESTIONS[scope]) return SUPPORT_SUGGESTIONS[scope];
+  return SUPPORT_SUGGESTIONS.COMPANY;
+}
+
+async function getOrCreateSupportThreadForUser(req){
+  if(req.user?.role === 'CANDIDATE'){
+    const existing = await prisma.supportThread.findFirst({ where: { userId: req.user.id, role: 'CANDIDATE' }, orderBy: { updatedAt: 'desc' } }).catch(() => null);
+    if(existing) return existing;
+    return prisma.supportThread.create({ data: { role: 'CANDIDATE', userId: req.user.id, subject: 'Chat de ayuda candidato' } });
+  }
+  if(req.user?.id === VIRTUAL_ADMIN_USER_ID || ['ADMIN','SUPERADMIN'].includes(String(req.user?.role || '').toUpperCase())){
+    const existing = await prisma.supportThread.findFirst({ where: { role: 'SUPERADMIN', subject: 'Chat interno admin' }, orderBy: { updatedAt: 'desc' } }).catch(() => null);
+    if(existing) return existing;
+    return prisma.supportThread.create({ data: { role: 'SUPERADMIN', subject: 'Chat interno admin' } });
+  }
+  const { company } = await getCompanyContextByUserId(req.user.id);
+  const existing = await prisma.supportThread.findFirst({ where: { companyId: company.id, role: 'COMPANY' }, orderBy: { updatedAt: 'desc' } }).catch(() => null);
+  if(existing) return existing;
+  return prisma.supportThread.create({ data: { role: 'COMPANY', companyId: company.id, userId: req.user.id, subject: `Chat empresa ${company.companyName || 'Empresa'}` } });
+}
+
 app.get('/support/bootstrap', auth, async (req, res) => {
   try {
     const thread = await getOrCreateSupportThreadForUser(req);
-    const messages = await prisma.supportMessage.findMany({ where: { threadId: thread.id }, orderBy: { createdAt: 'asc' }, take: 100 }).catch(() => []);
-    const suggested = (await prisma.supportKnowledge.findMany({ where: { isActive: true }, orderBy: { updatedAt: 'desc' }, take: 6 }).catch(() => [])).map((it)=> it.questionSample).filter(Boolean);
-    return res.json({ ok: true, thread, messages, suggested });
+    const refreshed = await refreshSupportThreadState(thread.id);
+    const suggested = await getSupportSuggestionsByRole(refreshed.thread?.role || thread.role);
+    return res.json({ ok: true, thread: refreshed.thread || thread, messages: refreshed.messages || [], suggested });
   } catch (err) {
     console.error('GET /support/bootstrap', err);
     return res.status(500).json({ error: 'No se pudo abrir el chat de ayuda.' });
@@ -3077,14 +3359,40 @@ app.post('/support/message', auth, async (req, res) => {
     if(!content) return res.status(400).json({ error: 'Escribí tu consulta para continuar.' });
     const thread = await getOrCreateSupportThreadForUser(req);
     await prisma.supportMessage.create({ data: { threadId: thread.id, actor: 'USER', content } });
-    const ai = await generateSupportAssistantReply(content, thread.role);
-    const assistantMsg = await prisma.supportMessage.create({ data: { threadId: thread.id, actor: 'ASSISTANT', content: ai.answer } });
+    const ai = await generateSupportAssistantReply(content, thread, req);
+    await prisma.supportMessage.create({ data: { threadId: thread.id, actor: 'ASSISTANT', content: ai.answer } });
     await prisma.supportThread.update({ where: { id: thread.id }, data: { lastUserMessage: content, lastAiMessage: ai.answer, needsHuman: !!ai.needsHuman, status: ai.needsHuman ? 'WAITING_OPERATOR' : 'WAITING_USER' } }).catch(() => null);
-    const messages = await prisma.supportMessage.findMany({ where: { threadId: thread.id }, orderBy: { createdAt: 'asc' }, take: 100 });
-    return res.json({ ok: true, threadId: thread.id, assistant: assistantMsg, messages, needsHuman: !!ai.needsHuman });
+    const refreshed = await refreshSupportThreadState(thread.id);
+    return res.json({ ok: true, threadId: thread.id, messages: refreshed.messages || [], thread: refreshed.thread || thread, needsHuman: !!ai.needsHuman });
   } catch (err) {
     console.error('POST /support/message', err);
     return res.status(500).json({ error: 'No se pudo enviar la consulta.' });
+  }
+});
+
+app.delete('/support/messages/:id', auth, async (req, res) => {
+  try {
+    const thread = await getOrCreateSupportThreadForUser(req);
+    const msg = await prisma.supportMessage.findUnique({ where: { id: String(req.params.id || '') } }).catch(() => null);
+    if(!msg || msg.threadId !== thread.id) return res.status(404).json({ error: 'Mensaje no encontrado.' });
+    await prisma.supportMessage.delete({ where: { id: msg.id } }).catch(() => null);
+    const refreshed = await refreshSupportThreadState(thread.id);
+    return res.json({ ok: true, messages: refreshed.messages || [], thread: refreshed.thread || thread });
+  } catch (err) {
+    console.error('DELETE /support/messages/:id', err);
+    return res.status(500).json({ error: 'No se pudo eliminar el mensaje.' });
+  }
+});
+
+app.delete('/support/thread', auth, async (req, res) => {
+  try {
+    const thread = await getOrCreateSupportThreadForUser(req);
+    await prisma.supportMessage.deleteMany({ where: { threadId: thread.id } }).catch(() => null);
+    await prisma.supportThread.update({ where: { id: thread.id }, data: { lastUserMessage: null, lastAiMessage: null, needsHuman: false, status: 'OPEN' } }).catch(() => null);
+    return res.json({ ok: true, messages: [], thread: { ...(thread || {}), lastUserMessage: null, lastAiMessage: null, needsHuman: false, status: 'OPEN' } });
+  } catch (err) {
+    console.error('DELETE /support/thread', err);
+    return res.status(500).json({ error: 'No se pudo limpiar la conversación.' });
   }
 });
 
