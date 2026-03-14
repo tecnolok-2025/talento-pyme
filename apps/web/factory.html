@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Factory</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.6.4" />
+  <link rel="stylesheet" href="/styles.css?v=5.6.5" />
   <style>
     .factoryMiniGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:14px}
     .factoryMiniCard{border:1px solid var(--tp-border);border-radius:18px;padding:16px;background:#fff}
@@ -40,10 +40,16 @@
     .adminPlanRow .field.planToggle{align-content:end}
     .adminPlanRow .field.planToggle label{display:flex;gap:8px;align-items:center;font-size:12px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:#334155}
     .adminPlanRow .field.planToggle input{width:18px;height:18px;accent-color:#2563eb}
-    .planCard.is-disabled{position:relative;opacity:.6;filter:saturate(.72)}
-    .planCard.is-disabled::after{content:"Plan desactivado";position:absolute;inset:0;border-radius:24px;background:rgba(226,232,240,.58);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#334155;backdrop-filter:blur(1px)}
+    .planCard.is-disabled{position:relative;overflow:hidden;min-height:320px}
+    .planCard.is-disabled > *{visibility:hidden}
+    .planCard.is-disabled::after{content:"Plan por tiempo desactivado temporalmente";position:absolute;inset:0;border-radius:24px;background:linear-gradient(135deg,rgba(15,23,42,.96),rgba(30,64,175,.92));display:flex;align-items:center;justify-content:center;padding:28px;text-align:center;font-size:24px;font-weight:900;letter-spacing:.02em;color:#fff;visibility:visible}
     .planCard.is-disabled .btn{pointer-events:none}
     .ticketHero{border-color:rgba(37,99,235,.18);background:linear-gradient(180deg,#fff,rgba(37,99,235,.06))}
+    .ticketHero .ticketStamp{margin-top:14px;padding:18px;border:2px dashed rgba(30,64,175,.28);border-radius:22px;background:linear-gradient(180deg,rgba(239,246,255,.96),rgba(255,255,255,.98));box-shadow:inset 0 0 0 6px rgba(37,99,235,.05)}
+    .ticketHero .ticketTitle{font-size:28px;font-weight:950;color:#173b8f;margin:6px 0 10px 0}
+    .ticketHero .ticketRibbon{display:inline-flex;align-items:center;padding:7px 12px;border-radius:999px;background:rgba(37,99,235,.10);color:#173b8f;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+    .ticketHero .ticketBody{display:grid;gap:12px;margin-top:12px}
+    .ticketHero .ticketSeal{display:inline-flex;align-items:center;justify-content:center;min-width:170px;padding:12px 18px;border-radius:18px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;font-weight:900;box-shadow:0 12px 26px rgba(37,99,235,.20)}
     .adminPlanRow .field{display:grid;gap:6px}
     .adminPlanRow .field label{font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#1d4ed8}
     .adminPlanRow .field.planName input{font-weight:800}
@@ -182,10 +188,10 @@
           <div class="checkoutCard" id="checkoutCard" style="display:none">
             <div class="toolbarCard">
               <div>
-                <h2 style="margin:0">Verificá los datos que van a figurar en tu factura</h2>
-                <div class="muted">Completá los datos de facturación. Si el importe es mayor a cero, después vas a continuar el pago en un proveedor externo seguro. Si el importe es cero, el sistema emitirá un ticket interno de validez sin costo para habilitar la prueba.</div>
+                <h2 style="margin:0" id="checkoutTitle">Verificá los datos que van a figurar en tu factura</h2>
+                <div class="muted" id="checkoutLead">Completá los datos de facturación. Si el importe es mayor a cero, después vas a continuar el pago en un proveedor externo seguro. Si el importe es cero, el sistema te va a preparar un ticket interno de validez sin costo para habilitar la prueba.</div>
               </div>
-              <div class="badge" id="checkoutMsg">Pedido listo para pago seguro</div>
+              <div class="badge" id="checkoutMsg">Pedido listo para validar</div>
             </div>
             <div class="checkoutGrid" style="margin-top:16px">
               <div>
@@ -204,7 +210,7 @@
                 </div>
                 <div class="orderPreviewCard" style="margin-top:16px">
                   <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Validación del pedido</div>
-                  <div style="font-size:20px;font-weight:900;margin:6px 0 12px 0">Pedido y validación del servicio</div>
+                  <div style="font-size:20px;font-weight:900;margin:6px 0 12px 0" id="checkoutValidationTitle">Pedido y validación del servicio</div>
                   <div class="secureNotice">
                     <div class="secureLock">🔒</div>
                     <div>
@@ -213,7 +219,7 @@
                       <div class="secureBadgeRow"><span class="secureBadge">Ticket sin cargo</span><span class="secureBadge">Cobro externo seguro</span><span class="secureBadge">Trazabilidad mínima</span></div>
                     </div>
                   </div>
-                  <div class="timelineNote" id="paymentRedirectHint">Si el total es cero, al confirmar se emitirá un ticket interno de validez. Si el total es mayor a cero, el pedido quedará pendiente hasta que el proveedor externo confirme el cobro.</div>
+                  <div class="timelineNote" id="paymentRedirectHint">Si el total es cero, al confirmar se generará un ticket interno de validez listo para revisar y validar. Si el total es mayor a cero, el pedido quedará pendiente hasta que el proveedor externo confirme el cobro.</div>
                   <div class="row" style="margin-top:16px">
                     <button class="btn btn-ghost" type="button" id="btnBackToCart">Volver</button>
                     <button class="btn btn-primary" type="button" id="btnCheckoutConfirm">Continuar</button>
@@ -268,8 +274,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.6.4"></script>
-  <script src="/auth.js?v=5.6.4"></script>
+  <script src="/config.js?v=5.6.5"></script>
+  <script src="/auth.js?v=5.6.5"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -338,15 +344,43 @@
       const box = document.getElementById('checkoutResult');
       const status = data?.status || data?.order?.status || 'PENDING_PAYMENT';
       const order = data?.order || {};
-      const isTicket = !!data?.ticketIssued || String(order?.paymentProvider || '').toUpperCase() === 'INTERNAL_TICKET';
-      const actionText = isTicket
-        ? 'Ticket emitido. La empresa ya cuenta con la capacidad habilitada para publicar, buscar y evaluar el sistema sin cargo.'
-        : status === 'PAID'
-          ? 'El pago quedó confirmado por el proveedor. La capacidad ya se acreditó en tu cuenta.'
-          : 'El pedido quedó creado y listo para continuar en el proveedor externo seguro.';
+      const isTicketPreview = !!data?.ticketPreview && !data?.ticketIssued;
+      const isTicketIssued = !!data?.ticketIssued || String(order?.paymentProvider || '').toUpperCase() === 'INTERNAL_TICKET' && status === 'PAID';
+      const title = isTicketPreview
+        ? 'Ticket interno listo para validar'
+        : isTicketIssued
+          ? 'Ticket de validez confirmado'
+          : status === 'PAID'
+            ? 'Pago confirmado'
+            : 'Pedido creado';
+      const lead = isTicketPreview
+        ? 'Revisá este ticket y validalo para habilitar la prueba sin cargo. La activación deja trazabilidad y luego vas a ver el documento en tu resumen de cuenta.'
+        : isTicketIssued
+          ? 'El servicio quedó habilitado sin cargo para que tu empresa pueda probar Talento PyME, sumar búsquedas reales y evaluar su funcionamiento con trazabilidad completa.'
+          : (data?.message || 'El pedido quedó listo para continuar en un proveedor externo seguro.');
       box.style.display = '';
-      box.innerHTML = `<div class="payResult ${isTicket ? 'ticketHero' : ''}"><div class="small pageEyebrow" style="color:var(--tp-blue-900)">${isTicket ? 'Ticket emitido' : 'Pedido creado'}</div><h3>${esc(isTicket ? 'Servicio validado sin cargo' : statusLabel(status))}</h3><div class="muted">${esc(data?.message || (isTicket ? 'Se emitió un ticket interno de validez para habilitar la prueba del servicio.' : 'Vas a continuar en un proveedor externo seguro para completar el pago.'))}</div><div class="payMeta"><div class="payMetaCard"><div class="mutedInline">${isTicket ? 'Ticket' : 'Pedido'}</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.ticketNo || order.documentNo || data?.orderId || '—')}</div></div><div class="payMetaCard"><div class="mutedInline">Modalidad</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(isTicket ? 'Validación de prueba' : (data?.provider || order.paymentProvider || 'Configurado'))}</div></div><div class="payMetaCard"><div class="mutedInline">Estado</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(isTicket ? 'Habilitado' : statusLabel(status))}</div></div><div class="payMetaCard"><div class="mutedInline">Total</div><div style="font-size:20px;font-weight:900;margin-top:6px">${money(order?.totals?.total || data?.quote?.total || 0)}</div></div></div><div class="timelineNote">${esc(actionText)}</div><div class="row" style="margin-top:14px"><button class="btn btn-primary" type="button" id="btnGoSummary">Ir al resumen de cuenta</button></div></div>`;
-      document.getElementById('btnGoSummary').onclick = ()=> { clearCheckoutResult(); document.getElementById('checkoutCard').style.display='none'; setTab('summary'); renderSummary(); window.scrollTo({ top:0, behavior:'smooth' }); };
+      box.innerHTML = `<div class="payResult ${isTicketPreview || isTicketIssued ? 'ticketHero' : ''}"><div class="small pageEyebrow" style="color:var(--tp-blue-900)">${isTicketPreview || isTicketIssued ? 'Ticket interno de validez' : 'Pedido creado'}</div><h3>${esc(title)}</h3><div class="muted">${esc(lead)}</div>${isTicketPreview || isTicketIssued ? `<div class="ticketStamp"><span class="ticketRibbon">Prueba del sistema · sin cargo</span><div class="ticketTitle">${esc(data?.ticketNo || order.documentNo || 'TCK')}</div><div class="ticketBody"><div>Este ticket deja constancia de que la empresa recibió una habilitación promocional sin costo para evaluar la operatoria completa de publicaciones, búsquedas y seguimiento dentro de Talento PyME.</div><div>La validación del ticket activa una capacidad temporal controlada para que puedas probar el circuito real del sistema con orden, seguimiento comercial y trazabilidad documental.</div><div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Vigencia</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc((order?.days || data?.quote?.totalDays || 0) + ' días')}</div></div><div class="payMetaCard"><div class="mutedInline">Publicaciones</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc(order?.items?.reduce((acc,it)=>acc + Number(it.publicationsIncluded||0),0) || data?.quote?.totalPublications || 0)}</div></div><div class="payMetaCard"><div class="mutedInline">Búsquedas</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc(order?.items?.reduce((acc,it)=>acc + Number(it.searchesIncluded||it.openingsIncluded||0),0) || data?.quote?.totalOpenings || 0)}</div></div></div></div></div>` : `<div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Pedido</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.orderId || order?.id || '—')}</div></div><div class="payMetaCard"><div class="mutedInline">Modalidad</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.provider || order?.paymentProvider || 'Proveedor externo')}</div></div><div class="payMetaCard"><div class="mutedInline">Estado</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(statusLabel(status))}</div></div><div class="payMetaCard"><div class="mutedInline">Total</div><div style="font-size:20px;font-weight:900;margin-top:6px">${money(order?.totals?.total || data?.quote?.total || 0)}</div></div></div>`}<div class="row" style="margin-top:14px">${isTicketPreview ? '<button class="btn btn-primary" type="button" id="btnValidateTicket">Validar ticket</button>' : ''}<button class="btn ${isTicketIssued ? 'btn-primary' : 'btn-ghost'}" type="button" id="btnGoSummary">Ir al resumen de cuenta</button></div></div>`;
+      const goSummary = ()=> { clearCheckoutResult(); document.getElementById('checkoutCard').style.display='none'; setTab('summary'); renderSummary(); window.scrollTo({ top:0, behavior:'smooth' }); };
+      document.getElementById('btnGoSummary').onclick = goSummary;
+      const validateBtn = document.getElementById('btnValidateTicket');
+      if(validateBtn){
+        validateBtn.onclick = async ()=> {
+          validateBtn.disabled = true;
+          validateBtn.textContent = 'Validando…';
+          try{
+            const validated = await apiFactory(`/factory/tickets/${encodeURIComponent(data.orderId || order.id)}/validate`, { method:'POST' });
+            state.selectedOrderId = validated.orderId || validated.order?.id || null;
+            await loadBootstrap();
+            renderSummary();
+            showCheckoutResult(validated);
+          }catch(e){
+            validateBtn.disabled = false;
+            validateBtn.textContent = 'Validar ticket';
+            const hint = document.getElementById('paymentRedirectHint');
+            if(hint) hint.textContent = e.message || 'No se pudo validar el ticket.';
+          }
+        };
+      }
     }
 
     async function renderPaymentReturnState(){
@@ -419,8 +453,8 @@
       }catch(e){ state.couponCode=''; localStorage.removeItem('tp_factory_coupon'); state.couponFeedback = e.message || 'No se pudo validar el código.'; syncCouponInputs(); await refreshQuote(); }
     }
 
-    function addPlan(code){ const plan = activePlanByCode(code); if(!plan) return; const row = state.cart.find((it)=> it.planCode === code); if(row) row.quantity += 1; else state.cart.push({ planCode: code, quantity: 1 }); saveCart(); refreshQuote(); }
-    function changeQty(code, delta){ const row = state.cart.find((it)=> it.planCode === code); if(!row) return; row.quantity = Math.max(1, row.quantity + delta); saveCart(); refreshQuote(); }
+    function addPlan(code){ const plan = activePlanByCode(code); if(!plan) return; const row = state.cart.find((it)=> it.planCode === code); if(Number(plan.price || 0) <= 0){ if(row) row.quantity = 1; else state.cart = [{ planCode: code, quantity: 1 }]; } else if(row) row.quantity += 1; else state.cart.push({ planCode: code, quantity: 1 }); saveCart(); refreshQuote(); setCartCollapsed(false); document.getElementById('factoryCartPanel')?.scrollIntoView({ behavior:'smooth', block:'nearest' }); }
+    function changeQty(code, delta){ const row = state.cart.find((it)=> it.planCode === code); if(!row) return; const plan = planByCode(code) || {}; if(Number(plan.price || 0) <= 0){ row.quantity = 1; saveCart(); refreshQuote(); return; } row.quantity = Math.max(1, row.quantity + delta); saveCart(); refreshQuote(); }
     function removeFromCart(code){ state.cart = state.cart.filter((it)=> it.planCode !== code); saveCart(); refreshQuote(); }
 
     function renderSummary(){
@@ -484,8 +518,8 @@
         document.getElementById('checkoutCouponMsg').textContent = state.couponFeedback || 'Si el código es válido, el total se recalcula automáticamente.';
         return;
       }
-      document.getElementById('cartItems').innerHTML = state.cart.map((row)=> { const plan = planByCode(row.planCode) || { name: row.planCode, days:0, price:0, publications:0, searches:0 }; return `
-        <div class="cartItem"><div class="cartItemHead"><div><div style="font-weight:900;font-size:18px">${esc(plan.name)}</div><div class="muted">${plan.days} días · ${plan.publications || 0} publicaciones · ${plan.searches || 0} búsquedas</div></div><button class="btn btn-ghost" type="button" data-remove="${plan.code}">Quitar</button></div><div class="rowBetween" style="margin-top:14px"><div class="qtyPill"><button type="button" data-qty="${plan.code}" data-delta="-1">−</button><b>${row.quantity}</b><button type="button" data-qty="${plan.code}" data-delta="1">+</button></div><div style="font-size:24px;font-weight:950">${money(plan.price * row.quantity)}</div></div></div>`; }).join('');
+      document.getElementById('cartItems').innerHTML = state.cart.map((row)=> { const plan = planByCode(row.planCode) || { name: row.planCode, days:0, price:0, publications:0, searches:0 }; const isFreePlan = Number(plan.price || 0) <= 0; return `
+        <div class="cartItem"><div class="cartItemHead"><div><div style="font-weight:900;font-size:18px">${esc(plan.name)}</div><div class="muted">${plan.days} días · ${plan.publications || 0} publicaciones · ${plan.searches || 0} búsquedas</div></div><button class="btn btn-ghost" type="button" data-remove="${plan.code}">Quitar</button></div><div class="rowBetween" style="margin-top:14px"><div class="qtyPill">${isFreePlan ? '<span style="font-weight:900;padding:0 12px">Ticket único</span>' : `<button type="button" data-qty="${plan.code}" data-delta="-1">−</button><b>${row.quantity}</b><button type="button" data-qty="${plan.code}" data-delta="1">+</button>`}</div><div style="font-size:24px;font-weight:950">${money(plan.price * row.quantity)}</div></div></div>`; }).join('');
       document.querySelectorAll('[data-remove]').forEach((btn)=> btn.onclick = ()=> removeFromCart(btn.dataset.remove));
       document.querySelectorAll('[data-qty]').forEach((btn)=> btn.onclick = ()=> changeQty(btn.dataset.qty, Number(btn.dataset.delta || 0)));
       document.getElementById('couponMsg').textContent = state.couponFeedback || q.coupon?.message || 'Ingresá un código de bonificación para intentar aplicarlo al total.';
@@ -498,6 +532,14 @@
         <div class="cartLine"><span>Publicaciones acumuladas</span><b>${q.totalPublications || 0}</b></div>
         <div class="cartLine"><span>Búsquedas acumuladas</span><b>${q.totalOpenings || 0}</b></div>
         <div class="cartLine total"><span>Total</span><b>${money(q.total)}</b></div>`;
+      const activeFree = state.bootstrap?.activeFreeTicket;
+      if(activeFree && !state.cart.length){
+        document.getElementById('couponMsg').textContent = activeFree.pendingValidation
+          ? `Ya generaste el ticket ${activeFree.ticketNo}. Validalo desde el checkout para habilitar la prueba sin cargo.`
+          : `Ya tenés activo el ticket ${activeFree.ticketNo}. Restan ${activeFree.remainingPublications} publicaciones y ${activeFree.remainingSearches} búsquedas hasta ${when(activeFree.expiresAt)}.`;
+      }
+      const openCheckoutBtn = document.getElementById('btnOpenCheckout');
+      if(openCheckoutBtn) openCheckoutBtn.textContent = Number(q.total || 0) <= 0 ? 'Confirmar ticket' : 'Confirmar compra';
     }
 
     function prefillCheckout(){
@@ -519,6 +561,13 @@
     function renderCheckout(){
       const q = state.quote || { items: [], subtotal:0, discountAmount:0, vatAmount:0, total:0, totalDays:0, totalPublications:0, totalOpenings:0 };
       updateCheckoutFlowCopy();
+      const isFreeTicket = Number(q.total || 0) <= 0;
+      document.getElementById('checkoutTitle').textContent = isFreeTicket ? 'Revisá el ticket de validez y activación del servicio' : 'Verificá los datos que van a figurar en tu factura';
+      document.getElementById('checkoutLead').textContent = isFreeTicket ? 'Completá los datos mínimos y generá un ticket interno sin cargo para habilitar la prueba del sistema con trazabilidad completa.' : 'Completá los datos de facturación. Después vas a continuar el pago en un proveedor externo seguro.';
+      document.getElementById('checkoutValidationTitle').textContent = isFreeTicket ? 'Ticket de validez sin cargo' : 'Pedido y validación del servicio';
+      document.getElementById('checkoutMsg').textContent = isFreeTicket ? 'Ticket listo para emitir' : 'Pedido listo para validar';
+      document.getElementById('btnCheckoutConfirm').textContent = isFreeTicket ? 'Generar ticket' : 'Continuar';
+      document.getElementById('paymentRedirectHint').textContent = isFreeTicket ? 'Al confirmar se generará un ticket interno de validez. Después vas a revisarlo y validarlo para habilitar la prueba del servicio sin cargo.' : 'El pedido quedará pendiente hasta que el proveedor externo confirme el cobro.';
       document.getElementById('checkoutItems').innerHTML = (q.items || []).map((it)=> `<div class="cartItem" style="margin-top:0;margin-bottom:12px"><div style="font-weight:900">${esc(it.planName)}</div><div class="muted">${it.quantity} unidad(es) · ${it.days} días · ${it.publicationsPerUnit || 0} publicaciones · ${it.searchesPerUnit || 0} búsquedas</div><div style="margin-top:8px;font-size:22px;font-weight:950">${money(it.subtotal)}</div></div>`).join('') || '<div class="emptyStateFactory">Todavía no hay items en el resumen.</div>';
       document.getElementById('checkoutTotals').innerHTML = `
         <div class="cartLine"><span>Subtotal</span><b>${money(q.subtotal || 0)}</b></div>
@@ -527,7 +576,7 @@
         <div class="cartLine"><span>Publicaciones</span><b>${q.totalPublications || 0}</b></div>
         <div class="cartLine"><span>Búsquedas</span><b>${q.totalOpenings || 0}</b></div>
         <div class="cartLine total"><span>Total</span><b>${money(q.total || 0)}</b></div>
-        <div class="priceDisclaimer" style="margin-top:4px">El precio base del plan no incluye IVA; el total ya lo suma automáticamente.</div>`;
+        <div class="priceDisclaimer" style="margin-top:4px">${isFreeTicket ? 'Este ticket no tiene costo. Se valida una sola vez por período operativo y deja trazabilidad del alta del servicio de prueba.' : 'El precio base del plan no incluye IVA; el total ya lo suma automáticamente.'}</div>`;
     }
 
     async function loadAdminBootstrap(){
@@ -642,7 +691,7 @@
     { const el = document.getElementById('btnApplyCoupon'); if(el) el.onclick = ()=> applyCouponCode(document.getElementById('couponCode').value); }
     { const el = document.getElementById('btnApplyCheckoutCoupon'); if(el) el.onclick = ()=> applyCouponCode(document.getElementById('checkoutCouponCode').value); }
     { const el = document.getElementById('btnContinueShopping'); if(el) el.onclick = ()=> setTab('plans'); }
-    { const el = document.getElementById('btnOpenCheckout'); if(el) el.onclick = ()=> { if(!state.cart.length){ document.getElementById('couponMsg').textContent = 'Primero agregá al menos un plan.'; return; } clearCheckoutResult(); setTab('plans'); document.getElementById('checkoutCard').style.display=''; prefillCheckout(); renderCheckout(); document.getElementById('checkoutCard').scrollIntoView({ behavior:'smooth', block:'start' }); }; }
+    { const el = document.getElementById('btnOpenCheckout'); if(el) el.onclick = ()=> { if(!state.cart.length){ document.getElementById('couponMsg').textContent = 'Primero agregá al menos un plan.'; return; } clearCheckoutResult(); setTab('plans'); document.getElementById('checkoutCard').style.display=''; prefillCheckout(); renderCheckout(); setCartCollapsed(false); document.getElementById('checkoutCard').scrollIntoView({ behavior:'smooth', block:'start' }); }; }
     { const el = document.getElementById('btnBackToCart'); if(el) el.onclick = ()=> { clearCheckoutResult(); document.getElementById('checkoutCard').style.display='none'; window.scrollTo({ top:0, behavior:'smooth' }); }; }
     { const el = document.getElementById('btnCheckoutConfirm'); if(el) el.onclick = async ()=> {
       const msg = document.getElementById('checkoutMsg');
@@ -660,6 +709,7 @@
         renderCart();
         showCheckoutResult(data);
         if(data.checkoutUrl){ window.location.href = data.checkoutUrl; return; }
+        document.getElementById('checkoutCard').scrollIntoView({ behavior:'smooth', block:'start' });
       }catch(e){
         msg.textContent = e.message;
         const hint = document.getElementById('paymentRedirectHint');

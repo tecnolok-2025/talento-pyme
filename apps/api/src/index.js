@@ -354,12 +354,59 @@ function buildInternalTicketNumber(orderId){
   return `TCK-${String(orderId || '').slice(-8).toUpperCase()}`;
 }
 
+async function findBlockingFreeTicket(companyId, excludeOrderId = null){
+  const now = new Date();
+  const orders = await prisma.billingOrder.findMany({
+    where: {
+      companyId,
+      status: { in: ['PENDING_PAYMENT', 'PAID'] },
+      paymentProvider: 'INTERNAL_TICKET',
+      ...(excludeOrderId ? { NOT: { id: excludeOrderId } } : {}),
+      items: { some: {} },
+    },
+    include: { items: true },
+    orderBy: { createdAt: 'desc' },
+  }).catch(() => []);
+  if(!orders.length) return null;
+
+  const [searchAccesses, jobPublications] = await Promise.all([
+    prisma.companyCandidateAccess.findMany({ where: { companyId, expiresAt: { gt: now } }, select: { orderItemId: true } }).catch(() => []),
+    prisma.companyJobPublication.findMany({ where: { companyId, expiresAt: { gt: now } }, select: { orderItemId: true } }).catch(() => []),
+  ]);
+
+  const usedSearches = {};
+  for(const row of searchAccesses) usedSearches[row.orderItemId] = (usedSearches[row.orderItemId] || 0) + 1;
+  const usedPublications = {};
+  for(const row of jobPublications) usedPublications[row.orderItemId] = (usedPublications[row.orderItemId] || 0) + 1;
+
+  for(const order of orders){
+    for(const item of order.items || []){
+      const expiresAt = orderItemExpiresAt(order, item);
+      if(expiresAt <= now) continue;
+      const remainingSearches = Math.max(0, Number(item.openingsIncluded || 0) - Number(usedSearches[item.id] || 0));
+      const remainingPublications = Math.max(0, Number(item.publicationsIncluded || 0) - Number(usedPublications[item.id] || 0));
+      if(order.status === 'PENDING_PAYMENT' || remainingSearches > 0 || remainingPublications > 0){
+        return {
+          order,
+          item,
+          expiresAt,
+          remainingSearches: order.status === 'PENDING_PAYMENT' ? Number(item.openingsIncluded || 0) : remainingSearches,
+          remainingPublications: order.status === 'PENDING_PAYMENT' ? Number(item.publicationsIncluded || 0) : remainingPublications,
+          ticketNo: buildInternalTicketNumber(order.id),
+          pendingValidation: order.status === 'PENDING_PAYMENT',
+        };
+      }
+    }
+  }
+  return null;
+}
+
 async function issueZeroAmountTicket(order, actor = {}){
   const paidAt = new Date();
   const updated = await prisma.billingOrder.update({
     where: { id: order.id },
     data: {
-      status: 'PAID',
+      status: { in: ['PENDING_PAYMENT', 'PAID'] },
       paymentProvider: 'INTERNAL_TICKET',
       paymentProviderRef: buildInternalTicketNumber(order.id),
       paymentApprovedAt: paidAt,
@@ -623,8 +670,10 @@ async function buildFactoryQuote(companyId, items = [], couponCode = ''){
   const normalized = [];
   for(const item of cleanItems){
     const plan = await planByCode(item?.planCode);
-    const quantity = Math.max(1, Math.min(50, Number(item?.quantity || 1) || 1));
     if(!plan) continue;
+    const quantity = Number(plan.price || 0) <= 0
+      ? 1
+      : Math.max(1, Math.min(50, Number(item?.quantity || 1) || 1));
     const searchesIncluded = Number(plan.searches || 0) * quantity;
     const publicationsIncluded = Number(plan.publications || 0) * quantity;
     normalized.push({
@@ -2329,7 +2378,7 @@ app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res)
     if (!website) return res.status(400).json({ error: 'Falta sitio web' });
     let url = website;
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.6.4 (+Render)' } });
+    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.6.5 (+Render)' } });
     const html = await response.text();
     const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [,''])[1].replace(/\s+/g,' ').trim();
     const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i) || [,''])[1].trim();
@@ -2395,6 +2444,7 @@ app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
     const operationUsage = await getCompanyOperationUsage(company.id);
     const plans = await getFactoryPlans(true);
     const coupons = await prisma.factoryCoupon.findMany({ where: { isActive: true }, orderBy: { createdAt: 'desc' }, take: 50 }).catch(() => []);
+    const activeFreeTicket = await findBlockingFreeTicket(company.id).catch(() => null);
     const adminVisible = factoryAdminCompanyMatches(company);
     res.json({
       ok: true,
@@ -2425,6 +2475,14 @@ app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
       totals,
       operationUsage,
       openingUsage: operationUsage,
+      activeFreeTicket: activeFreeTicket ? {
+        orderId: activeFreeTicket.order.id,
+        ticketNo: activeFreeTicket.ticketNo,
+        expiresAt: activeFreeTicket.expiresAt,
+        remainingPublications: activeFreeTicket.remainingPublications,
+        remainingSearches: activeFreeTicket.remainingSearches,
+        pendingValidation: !!activeFreeTicket.pendingValidation,
+      } : null,
       couponCatalog: coupons.map((row)=> ({ code: row.code, discountPct: row.discountPct, companyId: row.companyId || null, grantsFullAccess: !!row.grantsFullAccess, fullAccessUntil: row.fullAccessUntil || null })),
     });
   } catch (err) {
@@ -2508,17 +2566,37 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
     if(!billing.billingTaxId) return res.status(400).json({ error: 'Falta el CUIT para la factura.' });
     if(!billing.billingEmail) return res.status(400).json({ error: 'Falta el e-mail de facturación.' });
 
+    if(Number(quote.total || 0) <= 0){
+      const blockingTicket = await findBlockingFreeTicket(company.id);
+      if(blockingTicket){
+        return res.status(409).json({
+          error: blockingTicket.pendingValidation
+            ? `Ya tenés un ticket de prueba generado (${blockingTicket.ticketNo}) pendiente de validación. Confirmalo o cancelalo antes de emitir otro.`
+            : `Ya tenés un ticket de prueba activo (${blockingTicket.ticketNo}) con ${blockingTicket.remainingPublications} publicaciones y ${blockingTicket.remainingSearches} búsquedas pendientes de uso. Terminá de usarlo o esperá a su vencimiento antes de emitir otro.`,
+          activeFreeTicket: {
+            orderId: blockingTicket.order.id,
+            ticketNo: blockingTicket.ticketNo,
+            expiresAt: blockingTicket.expiresAt,
+            remainingPublications: blockingTicket.remainingPublications,
+            remainingSearches: blockingTicket.remainingSearches,
+            pendingValidation: !!blockingTicket.pendingValidation,
+          },
+        });
+      }
+    }
+
     order = await createPendingPaymentOrder({ company, user, billing, quote });
 
     if(Number(quote.total || 0) <= 0){
-      order = await issueZeroAmountTicket(order, actor);
+      await prisma.billingOrder.update({ where: { id: order.id }, data: { paymentProvider: 'INTERNAL_TICKET', paymentNote: 'PENDING_TICKET_VALIDATION' } }).catch(() => null);
+      order = await prisma.billingOrder.findUnique({ where: { id: order.id }, include: { company: true, items: true } }).catch(() => order);
       return res.json({
         ok: true,
-        ticketIssued: true,
-        message: 'Ticket de validez emitido. La capacidad sin cargo quedó habilitada para que puedas probar el sistema con normalidad.',
+        ticketPreview: true,
+        message: 'Ticket de validez listo para revisión. Confirmalo para habilitar la prueba del servicio sin cargo y dejar trazabilidad de la activación.',
         orderId: order.id,
         status: order.status,
-        provider: order.paymentProvider,
+        provider: 'INTERNAL_TICKET',
         ticketNo: buildInternalTicketNumber(order.id),
         order: orderToSummary(order),
         quote,
@@ -2594,6 +2672,40 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
     const statusCode = err?.statusCode || (err instanceof PaymentSecurityError ? 400 : (err instanceof PaymentProviderError ? 502 : 500));
     console.error('POST /factory/checkout', { statusCode, message: err?.message || 'Error de checkout', orderId: order?.id || null });
     return res.status(statusCode).json({ error: err?.message || 'No se pudo registrar el pedido' });
+  }
+});
+
+app.post('/factory/tickets/:orderId/validate', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), async (req, res) => {
+  try {
+    const { company, user } = await getCompanyContextByUserId(req.user.id);
+    const actor = minimalActorMeta(user, company);
+    const orderId = String(req.params?.orderId || '').trim();
+    if(!orderId) return res.status(400).json({ error: 'Falta identificar el ticket.' });
+    let order = await prisma.billingOrder.findFirst({ where: { id: orderId, companyId: company.id }, include: { company: true, items: true } }).catch(() => null);
+    if(!order) return res.status(404).json({ error: 'No se encontró el ticket solicitado.' });
+    if(Number(order.total || 0) > 0) return res.status(400).json({ error: 'Este pedido no se valida como ticket sin cargo.' });
+    if(String(order.paymentProvider || '').toUpperCase() !== 'INTERNAL_TICKET') return res.status(400).json({ error: 'Este documento no corresponde a un ticket de validez.' });
+    if(order.status === 'PAID') return res.json({ ok: true, alreadyValidated: true, message: 'El ticket ya había sido validado y la capacidad sigue operativa.', ticketNo: buildInternalTicketNumber(order.id), order: orderToSummary(order) });
+
+    const blockingTicket = await findBlockingFreeTicket(company.id, order.id);
+    if(blockingTicket){
+      return res.status(409).json({ error: blockingTicket.pendingValidation ? `Ya existe otro ticket (${blockingTicket.ticketNo}) pendiente de validación. Resolvé ese ticket antes de validar este nuevo.` : `Ya existe otro ticket activo (${blockingTicket.ticketNo}) con capacidad vigente. Terminá de usarlo o esperá a su vencimiento antes de validar este nuevo ticket.` });
+    }
+
+    order = await issueZeroAmountTicket(order, actor);
+    return res.json({
+      ok: true,
+      ticketIssued: true,
+      message: 'Ticket de validez confirmado. La capacidad sin cargo quedó habilitada para publicar, buscar y evaluar el sistema con trazabilidad completa.',
+      orderId: order.id,
+      status: order.status,
+      provider: order.paymentProvider,
+      ticketNo: buildInternalTicketNumber(order.id),
+      order: orderToSummary(order),
+    });
+  } catch (err) {
+    console.error('POST /factory/tickets/:orderId/validate', err);
+    return res.status(500).json({ error: 'No se pudo validar el ticket interno.' });
   }
 });
 
@@ -3748,7 +3860,8 @@ app.delete('/support/thread', auth, async (req, res) => {
 app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   try {
     await ensureSupportKnowledgeSeed();
-    const [candidateCount, companyCount, jobsCount, applicationCount, orderCount, paidTotal, candidates, companies, recentThreads] = await Promise.all([
+    const since30 = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
+    const [candidateCount, companyCount, jobsCount, applicationCount, orderCount, paidTotal, candidates, companies, recentThreads, candidateUpdated30, candidateApplications30, candidateChats30, companyUpdated30, companyJobs30, companyChats30, companyAccess30, candidateRecentApplications, companyRecentOrders, companyRecentOpenings] = await Promise.all([
       prisma.candidateBolsa.count(),
       prisma.companyProfile.count(),
       prisma.job.count(),
@@ -3758,10 +3871,44 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.candidateBolsa.findMany({ orderBy: { updatedAt: 'desc' }, take: 80, select: { id:true, nombre:true, apellido:true, areaTrabajo:true, especialidad:true, localidad:true, updatedAt:true, sueldoPretendido:true } }),
       prisma.companyProfile.findMany({ orderBy: { updatedAt: 'desc' }, take: 80, select: { id:true, companyName:true, cuit:true, contactEmail:true, city:true, province:true, updatedAt:true } }),
       prisma.supportThread.findMany({ orderBy: { updatedAt: 'desc' }, take: 40, include: { company: { select: { companyName: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'desc' }, take: 1 } } }).catch(() => []),
+      prisma.candidateBolsa.count({ where: { updatedAt: { gte: since30 } } }).catch(() => 0),
+      prisma.application.count({ where: { createdAt: { gte: since30 } } }).catch(() => 0),
+      prisma.supportThread.count({ where: { role: 'CANDIDATE', updatedAt: { gte: since30 } } }).catch(() => 0),
+      prisma.companyProfile.count({ where: { updatedAt: { gte: since30 } } }).catch(() => 0),
+      prisma.job.count({ where: { createdAt: { gte: since30 } } }).catch(() => 0),
+      prisma.supportThread.count({ where: { role: 'COMPANY', updatedAt: { gte: since30 } } }).catch(() => 0),
+      prisma.companyCandidateAccess.count({ where: { createdAt: { gte: since30 } } }).catch(() => 0),
+      prisma.application.findMany({ orderBy: { createdAt: 'desc' }, take: 40, include: { job: { select: { title: true, company: { select: { companyName: true } } } }, user: { select: { email: true } } } }).catch(() => []),
+      prisma.billingOrder.findMany({ orderBy: { createdAt: 'desc' }, take: 40, include: { company: { select: { companyName: true } } } }).catch(() => []),
+      prisma.companyCandidateAccess.findMany({ orderBy: { createdAt: 'desc' }, take: 40, include: { company: { select: { companyName: true } } } }).catch(() => []),
     ]);
     return res.json({
       ok: true,
       summary: { candidateCount, companyCount, jobsCount, applicationCount, orderCount, paidTotal: Number(paidTotal?._sum?.total || 0) },
+      traceability: {
+        candidate: {
+          updatedLast30: candidateUpdated30,
+          applicationsLast30: candidateApplications30,
+          chatsLast30: candidateChats30,
+          recentEvents: candidateRecentApplications.map((it) => ({
+            type: 'postulacion',
+            createdAt: it.createdAt,
+            title: it.job?.title || 'Postulación',
+            actor: it.user?.email || 'Candidato',
+            context: it.job?.company?.companyName || 'Empresa',
+          })),
+        },
+        company: {
+          updatedLast30: companyUpdated30,
+          jobsLast30: companyJobs30,
+          chatsLast30: companyChats30,
+          openingsLast30: companyAccess30,
+          recentEvents: [
+            ...companyRecentOrders.map((it) => ({ type: 'pedido', createdAt: it.createdAt, title: it.documentNo || buildInternalTicketNumber(it.id), actor: it.company?.companyName || 'Empresa', context: statusLabel(it.status) })),
+            ...companyRecentOpenings.map((it) => ({ type: 'apertura', createdAt: it.createdAt, title: 'Ficha abierta', actor: it.company?.companyName || 'Empresa', context: 'Acceso a candidato' })),
+          ].sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50),
+        },
+      },
       candidates, companies, threads: recentThreads
     });
   } catch (err) {
