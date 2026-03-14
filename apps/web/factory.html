@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Factory</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.6.3" />
+  <link rel="stylesheet" href="/styles.css?v=5.6.4" />
   <style>
     .factoryMiniGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:14px}
     .factoryMiniCard{border:1px solid var(--tp-border);border-radius:18px;padding:16px;background:#fff}
@@ -35,11 +35,19 @@
     .payMeta{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:12px}
     .payMetaCard{background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:16px;padding:12px}
     .adminPlanEditor{display:grid;gap:12px}
-    .adminPlanRow{display:grid;grid-template-columns:minmax(180px,1.4fr) repeat(4,minmax(110px,1fr));gap:10px;padding:14px;border:1px solid var(--tp-border);border-radius:18px;background:#fff}
+    .adminPlanRow{display:grid;grid-template-columns:minmax(180px,1.4fr) repeat(4,minmax(110px,1fr)) minmax(150px,.9fr);gap:10px;padding:14px;border:1px solid var(--tp-border);border-radius:18px;background:#fff}
+    .adminPlanRow.is-off{background:linear-gradient(180deg,rgba(226,232,240,.72),rgba(241,245,249,.92));opacity:.82}
+    .adminPlanRow .field.planToggle{align-content:end}
+    .adminPlanRow .field.planToggle label{display:flex;gap:8px;align-items:center;font-size:12px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:#334155}
+    .adminPlanRow .field.planToggle input{width:18px;height:18px;accent-color:#2563eb}
+    .planCard.is-disabled{position:relative;opacity:.6;filter:saturate(.72)}
+    .planCard.is-disabled::after{content:"Plan desactivado";position:absolute;inset:0;border-radius:24px;background:rgba(226,232,240,.58);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#334155;backdrop-filter:blur(1px)}
+    .planCard.is-disabled .btn{pointer-events:none}
+    .ticketHero{border-color:rgba(37,99,235,.18);background:linear-gradient(180deg,#fff,rgba(37,99,235,.06))}
     .adminPlanRow .field{display:grid;gap:6px}
     .adminPlanRow .field label{font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#1d4ed8}
     .adminPlanRow .field.planName input{font-weight:800}
-    @media (max-width:1100px){.adminPlanRow{grid-template-columns:repeat(2,minmax(140px,1fr))}.adminPlanRow .field.planName{grid-column:1/-1}}
+    @media (max-width:1100px){.adminPlanRow{grid-template-columns:repeat(2,minmax(140px,1fr))}.adminPlanRow .field.planName{grid-column:1/-1}.adminPlanRow .field.planToggle{grid-column:1/-1}}
     @media (max-width:1400px){.unlockBox{grid-template-columns:1fr}.factoryPasswordWrap{grid-template-columns:minmax(0,1fr) auto}}
   .factoryHero{color:var(--tp-text)}
     .factoryHero h2{color:var(--tp-text);text-align:left}
@@ -175,7 +183,7 @@
             <div class="toolbarCard">
               <div>
                 <h2 style="margin:0">Verificá los datos que van a figurar en tu factura</h2>
-                <div class="muted">Completá los datos de facturación. Después vas a continuar el pago en una pasarela externa segura. Talento PyME no procesa directamente los datos de tu tarjeta.</div>
+                <div class="muted">Completá los datos de facturación. Si el importe es mayor a cero, después vas a continuar el pago en un proveedor externo seguro. Si el importe es cero, el sistema emitirá un ticket interno de validez sin costo para habilitar la prueba.</div>
               </div>
               <div class="badge" id="checkoutMsg">Pedido listo para pago seguro</div>
             </div>
@@ -195,20 +203,20 @@
                   <div style="grid-column:1/-1"><label>E-mail *</label><input class="input" id="billingEmail" placeholder="facturacion@empresa.com" /><div class="timelineNote">A este mail se enviará la factura cuando la integración de pago quede confirmada.</div></div>
                 </div>
                 <div class="orderPreviewCard" style="margin-top:16px">
-                  <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Pago externo seguro</div>
-                  <div style="font-size:20px;font-weight:900;margin:6px 0 12px 0">Pedido y redirección a pasarela</div>
+                  <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Validación del pedido</div>
+                  <div style="font-size:20px;font-weight:900;margin:6px 0 12px 0">Pedido y validación del servicio</div>
                   <div class="secureNotice">
                     <div class="secureLock">🔒</div>
                     <div>
-                      <div style="font-weight:900">Talento PyME no toca PAN, CVV ni vencimiento</div>
-                      <div class="muted" style="margin-top:4px">Al confirmar, se crea el pedido interno y se te redirige a un checkout oficial del proveedor configurado. Los datos de tarjeta se cargan fuera de Talento PyME.</div>
-                      <div class="secureBadgeRow"><span class="secureBadge">Pedido interno</span><span class="secureBadge">Pago externo</span><span class="secureBadge">Webhook firmado</span><span class="secureBadge">Trazabilidad mínima</span></div>
+                      <div style="font-weight:900">Talento PyME no procesa datos de tarjeta dentro de la plataforma</div>
+                      <div class="muted" style="margin-top:4px">Si el total es mayor a cero, al confirmar se crea el pedido interno y se continúa en un proveedor externo seguro. Si el total es cero, se emite un ticket interno de validez para habilitar la prueba del servicio sin cargo.</div>
+                      <div class="secureBadgeRow"><span class="secureBadge">Ticket sin cargo</span><span class="secureBadge">Cobro externo seguro</span><span class="secureBadge">Trazabilidad mínima</span></div>
                     </div>
                   </div>
-                  <div class="timelineNote" id="paymentRedirectHint">Cuando confirmes, el pedido quedará en estado pendiente de pago hasta que el proveedor confirme el cobro por webhook firmado.</div>
+                  <div class="timelineNote" id="paymentRedirectHint">Si el total es cero, al confirmar se emitirá un ticket interno de validez. Si el total es mayor a cero, el pedido quedará pendiente hasta que el proveedor externo confirme el cobro.</div>
                   <div class="row" style="margin-top:16px">
                     <button class="btn btn-ghost" type="button" id="btnBackToCart">Volver</button>
-                    <button class="btn btn-primary" type="button" id="btnCheckoutConfirm">Ir a pagar de forma segura</button>
+                    <button class="btn btn-primary" type="button" id="btnCheckoutConfirm">Continuar</button>
                   </div>
                   <div id="checkoutResult" style="display:none"></div>
                 </div>
@@ -260,8 +268,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.6.3"></script>
-  <script src="/auth.js?v=5.6.3"></script>
+  <script src="/config.js?v=5.6.4"></script>
+  <script src="/auth.js?v=5.6.4"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -328,18 +336,17 @@
     function clearCheckoutResult(){ const box = document.getElementById('checkoutResult'); box.style.display='none'; box.innerHTML=''; state.pendingApprovedOrder = null; }
     function showCheckoutResult(data){
       const box = document.getElementById('checkoutResult');
+      const status = data?.status || data?.order?.status || 'PENDING_PAYMENT';
       const order = data?.order || {};
-      const status = order.status || data?.status || 'PENDING_PAYMENT';
-      const actionText = data?.checkoutUrl
-        ? 'Serás redirigido automáticamente al checkout externo del proveedor.'
-        : 'El pedido quedó creado y pendiente de confirmación externa.';
-      box.style.display='';
-      box.innerHTML = `<div class="payResult"><div class="small pageEyebrow" style="color:var(--tp-blue-900)">Pedido creado</div><h3>${esc(statusLabel(status))}</h3><div class="muted">${esc(data?.message || 'Serás redirigido a una pasarela segura para completar el pago. Talento PyME no procesa directamente los datos de tu tarjeta.')}</div><div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Pedido</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(order.documentNo || data?.orderId || '—')}</div></div><div class="payMetaCard"><div class="mutedInline">Proveedor</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.provider || order.paymentProvider || 'Configurado')}</div></div><div class="payMetaCard"><div class="mutedInline">Estado</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(statusLabel(status))}</div></div><div class="payMetaCard"><div class="mutedInline">Total</div><div style="font-size:20px;font-weight:900;margin-top:6px">${money(order?.totals?.total || data?.quote?.total || 0)}</div></div></div><div class="timelineNote">${esc(actionText)}</div><div class="row" style="margin-top:14px"><button class="btn btn-primary" type="button" id="btnGoSummary">Ir al resumen de cuenta</button></div></div>`;
-      document.getElementById('btnGoSummary').onclick = async ()=> {
-        clearCheckoutResult();
-        await loadBootstrap();
-        setTab('summary');
-      };
+      const isTicket = !!data?.ticketIssued || String(order?.paymentProvider || '').toUpperCase() === 'INTERNAL_TICKET';
+      const actionText = isTicket
+        ? 'Ticket emitido. La empresa ya cuenta con la capacidad habilitada para publicar, buscar y evaluar el sistema sin cargo.'
+        : status === 'PAID'
+          ? 'El pago quedó confirmado por el proveedor. La capacidad ya se acreditó en tu cuenta.'
+          : 'El pedido quedó creado y listo para continuar en el proveedor externo seguro.';
+      box.style.display = '';
+      box.innerHTML = `<div class="payResult ${isTicket ? 'ticketHero' : ''}"><div class="small pageEyebrow" style="color:var(--tp-blue-900)">${isTicket ? 'Ticket emitido' : 'Pedido creado'}</div><h3>${esc(isTicket ? 'Servicio validado sin cargo' : statusLabel(status))}</h3><div class="muted">${esc(data?.message || (isTicket ? 'Se emitió un ticket interno de validez para habilitar la prueba del servicio.' : 'Vas a continuar en un proveedor externo seguro para completar el pago.'))}</div><div class="payMeta"><div class="payMetaCard"><div class="mutedInline">${isTicket ? 'Ticket' : 'Pedido'}</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.ticketNo || order.documentNo || data?.orderId || '—')}</div></div><div class="payMetaCard"><div class="mutedInline">Modalidad</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(isTicket ? 'Validación de prueba' : (data?.provider || order.paymentProvider || 'Configurado'))}</div></div><div class="payMetaCard"><div class="mutedInline">Estado</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(isTicket ? 'Habilitado' : statusLabel(status))}</div></div><div class="payMetaCard"><div class="mutedInline">Total</div><div style="font-size:20px;font-weight:900;margin-top:6px">${money(order?.totals?.total || data?.quote?.total || 0)}</div></div></div><div class="timelineNote">${esc(actionText)}</div><div class="row" style="margin-top:14px"><button class="btn btn-primary" type="button" id="btnGoSummary">Ir al resumen de cuenta</button></div></div>`;
+      document.getElementById('btnGoSummary').onclick = ()=> { clearCheckoutResult(); document.getElementById('checkoutCard').style.display='none'; setTab('summary'); renderSummary(); window.scrollTo({ top:0, behavior:'smooth' }); };
     }
 
     async function renderPaymentReturnState(){
@@ -353,7 +360,7 @@
         await loadBootstrap();
         const message = paymentState === 'cancel'
           ? 'El checkout externo fue cancelado. El pedido sigue disponible para reintentar el pago si corresponde.'
-          : 'Volviste desde la pasarela segura. Estamos consultando el estado actualizado de tu pedido.';
+          : 'Volviste desde el cobro externo seguro. Estamos consultando el estado actualizado de tu pedido.';
         showCheckoutResult({ order: data.order, status: data.order?.status, provider: data.order?.paymentProvider, message });
         setTab('summary');
       }catch(_){ }
@@ -371,6 +378,7 @@
     }
 
     function planByCode(code){ return (state.bootstrap?.plans || []).find((it)=> it.code === code) || null; }
+    function activePlanByCode(code){ return (state.bootstrap?.plans || []).find((it)=> it.code === code && it.active !== false) || null; }
     function setTab(tab){
       state.activeTab = tab;
       document.querySelectorAll('#segmentTabs [data-tab]').forEach((btn)=> btn.classList.toggle('active', btn.dataset.tab === tab));
@@ -388,6 +396,8 @@
     }
 
     async function refreshQuote(){
+      state.cart = state.cart.filter((it)=> !!activePlanByCode(it.planCode));
+      saveCart();
       syncCouponInputs();
       if(!state.cart.length){
         state.quote = { items: [], subtotal:0, discountAmount:0, vatAmount:0, total:0, totalDays:0, totalPublications:0, totalOpenings:0, coupon:{message:''} };
@@ -409,7 +419,7 @@
       }catch(e){ state.couponCode=''; localStorage.removeItem('tp_factory_coupon'); state.couponFeedback = e.message || 'No se pudo validar el código.'; syncCouponInputs(); await refreshQuote(); }
     }
 
-    function addPlan(code){ const row = state.cart.find((it)=> it.planCode === code); if(row) row.quantity += 1; else state.cart.push({ planCode: code, quantity: 1 }); saveCart(); refreshQuote(); }
+    function addPlan(code){ const plan = activePlanByCode(code); if(!plan) return; const row = state.cart.find((it)=> it.planCode === code); if(row) row.quantity += 1; else state.cart.push({ planCode: code, quantity: 1 }); saveCart(); refreshQuote(); }
     function changeQty(code, delta){ const row = state.cart.find((it)=> it.planCode === code); if(!row) return; row.quantity = Math.max(1, row.quantity + delta); saveCart(); refreshQuote(); }
     function removeFromCart(code){ state.cart = state.cart.filter((it)=> it.planCode !== code); saveCart(); refreshQuote(); }
 
@@ -450,15 +460,15 @@
     function renderPlans(){
       const plans = state.bootstrap?.plans || [];
       document.getElementById('planGrid').innerHTML = plans.map((plan)=> `
-        <div class="planCard">
+        <div class="planCard ${plan.active === false ? 'is-disabled' : ''}">
           <div class="planDays">${plan.days} días</div>
           <div class="planName">${esc(plan.name)}</div>
           <div class="planPrice">${money(plan.price)}<small> ARS</small></div>
           <div class="planLead">${esc(plan.highlight || '')}</div>
           <div class="quotaLine"><span class="quotaPill">${plan.publications || 0} publicaciones</span><span class="quotaPill">${plan.searches || 0} búsquedas</span></div>
-          <div class="timelineNote">Podrás operar durante ${plan.days} días con ${plan.publications || 0} publicaciones y ${plan.searches || 0} búsquedas completas disponibles.</div>
+          <div class="timelineNote">${plan.active === false ? 'Este plan está visible a modo informativo y hoy no se encuentra operativo.' : `Podrás operar durante ${plan.days} días con ${plan.publications || 0} publicaciones y ${plan.searches || 0} búsquedas completas disponibles.`}</div>
           <div class="priceDisclaimer">Precio de venta sin IVA.</div>
-          <div class="planFoot"><span class="planBadge">Contratación por tiempo</span><button class="btn btn-primary" type="button" data-plan="${plan.code}">Agregar al carrito</button></div>
+          <div class="planFoot"><span class="planBadge">${plan.active === false ? 'Plan apagado' : 'Contratación por tiempo'}</span><button class="btn btn-primary" type="button" data-plan="${plan.code}" ${plan.active === false ? 'disabled' : ''}>${plan.active === false ? 'No disponible' : 'Agregar al carrito'}</button></div>
         </div>`).join('');
       document.querySelectorAll('[data-plan]').forEach((btn)=> btn.onclick = ()=> addPlan(btn.dataset.plan));
     }
@@ -503,11 +513,12 @@
       document.getElementById('billingDept').value = '';
       document.getElementById('billingPostalCode').value = '';
       document.getElementById('billingEmail').value = c.contactEmail || '';
-      const hint = document.getElementById('paymentRedirectHint'); if(hint) hint.textContent = 'Cuando confirmes, el pedido quedará pendiente hasta que el proveedor confirme el pago por webhook firmado.';
+      updateCheckoutFlowCopy();
     }
 
     function renderCheckout(){
       const q = state.quote || { items: [], subtotal:0, discountAmount:0, vatAmount:0, total:0, totalDays:0, totalPublications:0, totalOpenings:0 };
+      updateCheckoutFlowCopy();
       document.getElementById('checkoutItems').innerHTML = (q.items || []).map((it)=> `<div class="cartItem" style="margin-top:0;margin-bottom:12px"><div style="font-weight:900">${esc(it.planName)}</div><div class="muted">${it.quantity} unidad(es) · ${it.days} días · ${it.publicationsPerUnit || 0} publicaciones · ${it.searchesPerUnit || 0} búsquedas</div><div style="margin-top:8px;font-size:22px;font-weight:950">${money(it.subtotal)}</div></div>`).join('') || '<div class="emptyStateFactory">Todavía no hay items en el resumen.</div>';
       document.getElementById('checkoutTotals').innerHTML = `
         <div class="cartLine"><span>Subtotal</span><b>${money(q.subtotal || 0)}</b></div>

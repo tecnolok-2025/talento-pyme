@@ -60,10 +60,10 @@ function getPaymentProvider(){
 }
 
 const FACTORY_PLAN_DEFAULTS = [
-  { code: 'P7', name: 'Publicación 7 días', days: 7, price: 50000, publications: 7, searches: 7, highlight: '7 días · 7 publicaciones · 7 búsquedas.' },
-  { code: 'P14', name: 'Publicación 14 días', days: 14, price: 95000, publications: 12, searches: 12, highlight: '14 días · 12 publicaciones · 12 búsquedas.' },
-  { code: 'P30', name: 'Publicación 30 días', days: 30, price: 190000, publications: 20, searches: 20, highlight: '30 días · 20 publicaciones · 20 búsquedas.' },
-  { code: 'P60', name: 'Publicación 60 días', days: 60, price: 340000, publications: 35, searches: 35, highlight: '60 días · 35 publicaciones · 35 búsquedas.' },
+  { code: 'P7', name: 'Publicación 7 días', days: 7, price: 0, publications: 7, searches: 7, active: true, highlight: '7 días · 7 publicaciones · 7 búsquedas.' },
+  { code: 'P14', name: 'Publicación 14 días', days: 14, price: 95000, publications: 12, searches: 12, active: false, highlight: '14 días · 12 publicaciones · 12 búsquedas.' },
+  { code: 'P30', name: 'Publicación 30 días', days: 30, price: 190000, publications: 20, searches: 20, active: false, highlight: '30 días · 20 publicaciones · 20 búsquedas.' },
+  { code: 'P60', name: 'Publicación 60 días', days: 60, price: 340000, publications: 35, searches: 35, active: false, highlight: '60 días · 35 publicaciones · 35 búsquedas.' },
 ];
 
 const LEGACY_FACTORY_COUPONS = {
@@ -304,7 +304,7 @@ async function ensureFactoryPlanSeed(){
       publicationsLimit: plan.publications,
       searchesLimit: plan.searches,
       sortOrder: idx,
-      active: true,
+      active: plan.active !== false,
     },
     create: {
       code: plan.code,
@@ -314,31 +314,71 @@ async function ensureFactoryPlanSeed(){
       publicationsLimit: plan.publications,
       searchesLimit: plan.searches,
       sortOrder: idx,
-      active: true,
+      active: plan.active !== false,
     }
   }))).catch(() => null);
 }
 
-async function getFactoryPlans(){
+async function getFactoryPlans(includeInactive = false){
   await ensureFactoryPlanSeed();
-  const rows = await prisma.factoryPlanConfig.findMany({ where: { active: true }, orderBy: [{ sortOrder: 'asc' }, { days: 'asc' }] }).catch(() => []);
-  if(!rows.length){
-    return FACTORY_PLAN_DEFAULTS.map((plan)=> ({ ...plan }));
-  }
-  return rows.map((row) => ({
+  const rows = await prisma.factoryPlanConfig.findMany({ orderBy: [{ sortOrder: 'asc' }, { days: 'asc' }] }).catch(() => []);
+  const source = rows.length ? rows : FACTORY_PLAN_DEFAULTS.map((plan, idx)=> ({
+    code: plan.code,
+    name: plan.name,
+    days: plan.days,
+    price: plan.price,
+    publicationsLimit: plan.publications,
+    searchesLimit: plan.searches,
+    sortOrder: idx,
+    active: plan.active !== false,
+  }));
+  const filtered = includeInactive ? source : source.filter((row)=> row.active !== false);
+  return filtered.map((row) => ({
     code: row.code,
     name: row.name,
     days: row.days,
     price: row.price,
-    publications: row.publicationsLimit || 0,
-    searches: row.searchesLimit || 0,
-    highlight: `${row.days} días · ${row.publicationsLimit || 0} publicaciones · ${row.searchesLimit || 0} búsquedas.`,
+    publications: row.publicationsLimit || row.publications || 0,
+    searches: row.searchesLimit || row.searches || 0,
+    active: row.active !== false,
+    highlight: `${row.days} días · ${(row.publicationsLimit || row.publications || 0)} publicaciones · ${(row.searchesLimit || row.searches || 0)} búsquedas.`,
   }));
 }
 
 async function planByCode(code){
-  const plans = await getFactoryPlans();
+  const plans = await getFactoryPlans(false);
   return plans.find((it)=> it.code === String(code || '').trim().toUpperCase()) || null;
+}
+
+function buildInternalTicketNumber(orderId){
+  return `TCK-${String(orderId || '').slice(-8).toUpperCase()}`;
+}
+
+async function issueZeroAmountTicket(order, actor = {}){
+  const paidAt = new Date();
+  const updated = await prisma.billingOrder.update({
+    where: { id: order.id },
+    data: {
+      status: 'PAID',
+      paymentProvider: 'INTERNAL_TICKET',
+      paymentProviderRef: buildInternalTicketNumber(order.id),
+      paymentApprovedAt: paidAt,
+      paymentFailureReason: null,
+      paymentReceiptUrl: null,
+    },
+    include: { company: true, items: true }
+  });
+  await applyCouponRedemptionIfNeeded(updated);
+  await recordSecurityEvent({
+    route: '/factory/checkout',
+    ...actor,
+    orderId: updated.id,
+    severity: 'INFO',
+    eventType: 'ZERO_TICKET_ISSUED',
+    message: 'Se emitió un ticket interno sin cargo para habilitar capacidad de prueba.',
+    metadata: { total: updated.total || 0, documentNo: buildInternalTicketNumber(updated.id) },
+  });
+  return updated;
 }
 
 function companyCodeFrom(company){
@@ -624,18 +664,26 @@ async function buildFactoryQuote(companyId, items = [], couponCode = ''){
 }
 
 function orderToSummary(order){
+  const isInternalTicket = String(order.paymentProvider || '').toUpperCase() === 'INTERNAL_TICKET';
+  const documentNo = isInternalTicket
+    ? buildInternalTicketNumber(order.id)
+    : `${order.status === 'PAID' ? 'FAC' : 'ORD'}-${String(order.id).slice(-8).toUpperCase()}`;
+  const docType = isInternalTicket ? 'Ticket' : (order.status === 'PAID' ? 'Factura' : 'Pedido');
+  const paymentLabel = isInternalTicket
+    ? 'Validado sin cargo'
+    : order.status === 'PAID' ? 'Pagado' : (order.status === 'FAILED' ? 'Fallido' : (order.status === 'EXPIRED' ? 'Vencido' : (order.status === 'CANCELLED' ? 'Cancelado' : 'Pendiente')));
   return {
     id: order.id,
     companyName: order.companyNameSnapshot || order.company?.companyName || 'Empresa',
     companyCode: companyCodeFrom(order.company || { cuit: order.cuitSnapshot, id: order.companyId }),
-    docType: order.status === 'PAID' ? 'Factura' : 'Pedido',
-    documentNo: `${order.status === 'PAID' ? 'FAC' : 'ORD'}-${String(order.id).slice(-8).toUpperCase()}`,
+    docType,
+    documentNo,
     date: order.createdAt,
     dueDate: order.createdAt,
     status: order.status,
     amount: order.total,
     currency: 'ARS',
-    paymentLabel: order.status === 'PAID' ? 'Pagado' : (order.status === 'FAILED' ? 'Fallido' : (order.status === 'EXPIRED' ? 'Vencido' : (order.status === 'CANCELLED' ? 'Cancelado' : 'Pendiente'))),
+    paymentLabel,
     days: order.totalDays || 0,
     totalOpenings: order.totalOpenings || 0,
     couponCode: order.couponCode || null,
@@ -2224,51 +2272,55 @@ function summarizeCompanySite({ title, description, bodyText, url }) {
   const kind = inferCompanyKind(source);
   const cleanTitle = String(title || '')
     .replace(/\s*[-|–].*$/, '')
-    .replace(/\b(inicio|home)\b/gi, '')
+    .replace(/(inicio|home)/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
-  const navWords = new Set(['inicio','home','servicios','service','navegacion','navigation','contacto','contact','clientes','portfolio','portafolio','blog','idioma','espanol','español','english','portugues','português','menu']);
+  const navWords = new Set(['inicio','home','servicios','service','navegacion','navigation','contacto','contact','clientes','portfolio','portafolio','blog','idioma','espanol','español','english','portugues','português','menu','staff']);
   const rawText = String(bodyText || '').replace(/\s+/g, ' ').trim();
   const fragments = rawText
     .split(/(?<=[\.!?])\s+|\s+[·|]\s+|\s{2,}/)
     .map((part) => part.replace(/\s+/g, ' ').trim())
     .filter(Boolean)
-    .filter((part) => part.length >= 45 && part.length <= 260)
+    .filter((part) => part.length >= 50 && part.length <= 240)
     .filter((part) => {
       const words = normalizeName(part).split(' ').filter(Boolean);
-      if(words.length < 7) return false;
+      if(words.length < 8) return false;
       const navHits = words.filter((w) => navWords.has(w)).length;
-      return navHits <= Math.max(1, Math.floor(words.length * 0.2));
+      return navHits <= Math.max(1, Math.floor(words.length * 0.18));
     });
-  const unique = [];
-  const seen = new Set();
+  const narrativeParts = [];
+  const cleanedDescription = String(description || '')
+    .replace(/(inicio|home|navigation|navegacion|menu)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (cleanedDescription) narrativeParts.push(cleanedDescription);
+  const seen = new Set(narrativeParts.map((part) => normalizeName(part)));
   for (const part of fragments) {
-    const key = normalizeName(part);
+    const cleaned = part
+      .replace(/(inicio|home|navigation|navegacion|menu|blog|portfolio|portafolio|contacto|contact)/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const key = normalizeName(cleaned);
     if (!key || seen.has(key)) continue;
     seen.add(key);
-    unique.push(part);
-    if (unique.length >= 3) break;
+    narrativeParts.push(cleaned);
+    if (narrativeParts.length >= 4) break;
   }
-  let narrative = '';
-  if (description) {
-    narrative = String(description).replace(/\b(inicio|home)\b/gi, '').replace(/\s+/g, ' ').trim();
-  }
-  if (!narrative && unique.length) {
-    narrative = unique.join(' ');
-  }
-  if (!narrative && rawText) {
-    narrative = rawText.slice(0, 520);
-  }
+  let narrative = narrativeParts.join(' ');
+  if (!narrative && rawText) narrative = rawText.slice(0, 520);
   narrative = narrative
-    .replace(/\b(inicio|home|navegacion|navigation)\b/gi, ' ')
     .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:])/g, '$1')
     .trim()
-    .slice(0, 720);
+    .slice(0, 760);
   const lead = cleanTitle
-    ? `${cleanTitle} es una empresa del ámbito ${kind} con foco en soluciones técnicas, operativas y de servicio.`
-    : `La empresa se desenvuelve en el ámbito ${kind} y combina capacidad técnica con operatoria profesional.`;
-  const detail = narrative ? ` ${narrative}` : '';
-  return { summary: `${lead}${detail}`.trim(), kind, sourceUrl: url || null };
+    ? `${cleanTitle} se presenta como una empresa del ámbito ${kind}, orientada a servicios, soluciones técnicas y respuesta operativa para la industria y actividades vinculadas.`
+    : `La empresa se presenta dentro del ámbito ${kind}, con foco en capacidad técnica, servicios y acompañamiento operativo.`;
+  const summary = `${lead}${narrative ? ' ' + narrative : ''}`
+    .replace(/(inicio|home|navigation|navegacion|menu)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return { summary, kind, sourceUrl: url || null };
 }
 
 app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res) => {
@@ -2277,7 +2329,7 @@ app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res)
     if (!website) return res.status(400).json({ error: 'Falta sitio web' });
     let url = website;
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.5.12 (+Render)' } });
+    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.6.4 (+Render)' } });
     const html = await response.text();
     const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [,''])[1].replace(/\s+/g,' ').trim();
     const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i) || [,''])[1].trim();
@@ -2341,7 +2393,7 @@ app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
       return acc;
     }, { total: 0, pending: 0, paid: 0, orders: 0 });
     const operationUsage = await getCompanyOperationUsage(company.id);
-    const plans = await getFactoryPlans();
+    const plans = await getFactoryPlans(true);
     const coupons = await prisma.factoryCoupon.findMany({ where: { isActive: true }, orderBy: { createdAt: 'desc' }, take: 50 }).catch(() => []);
     const adminVisible = factoryAdminCompanyMatches(company);
     res.json({
@@ -2458,6 +2510,21 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
 
     order = await createPendingPaymentOrder({ company, user, billing, quote });
 
+    if(Number(quote.total || 0) <= 0){
+      order = await issueZeroAmountTicket(order, actor);
+      return res.json({
+        ok: true,
+        ticketIssued: true,
+        message: 'Ticket de validez emitido. La capacidad sin cargo quedó habilitada para que puedas probar el sistema con normalidad.',
+        orderId: order.id,
+        status: order.status,
+        provider: order.paymentProvider,
+        ticketNo: buildInternalTicketNumber(order.id),
+        order: orderToSummary(order),
+        quote,
+      });
+    }
+
     let providerSession;
     try {
       providerSession = await getPaymentProvider().createCheckoutSession({
@@ -2509,13 +2576,13 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
       orderId: order.id,
       severity: 'INFO',
       eventType: 'CHECKOUT_SESSION_CREATED',
-      message: 'Pedido de Factory creado y derivado a pasarela segura.',
+      message: 'Pedido de Factory creado y derivado a un proveedor externo seguro.',
       metadata: { provider: providerSession.provider || PAYMENT_PROVIDER_NAME, sessionId: providerSession.sessionId || null },
     });
 
     return res.json({
       ok: true,
-      message: 'Pedido creado. Serás redirigido a una pasarela segura para completar el pago. Talento PyME no procesa directamente los datos de tu tarjeta.',
+      message: 'Pedido creado. Serás redirigido a un proveedor externo seguro para completar el pago. Talento PyME no procesa directamente los datos de tu tarjeta.',
       orderId: order.id,
       status: order.status,
       provider: providerSession.provider || PAYMENT_PROVIDER_NAME,
@@ -2669,7 +2736,7 @@ app.post('/factory/admin/unlock', auth, requireAnyRole(['COMPANY','SUPERADMIN','
 
 app.get('/factory/admin/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), requireFactoryAdmin, async (req, res) => {
   try {
-    const plans = await getFactoryPlans();
+    const plans = await getFactoryPlans(true);
     const companies = await prisma.companyProfile.findMany({ orderBy: { companyName: 'asc' }, select: { id: true, companyName: true, cuit: true, contactEmail: true } }).catch(() => []);
     const coupons = await prisma.factoryCoupon.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }).catch(() => []);
     const grants = await prisma.companyFactoryGrant.findMany({ include: { company: { select: { companyName: true, cuit: true } } }, orderBy: { fullAccessUntil: 'desc' }, take: 100 }).catch(() => []);
@@ -2704,7 +2771,7 @@ app.post('/factory/admin/plans', auth, requireAnyRole(['COMPANY','SUPERADMIN','A
           publicationsLimit: Math.max(0, Number(plan.publications || 0)),
           searchesLimit: Math.max(0, Number(plan.searches || 0)),
           sortOrder: idx,
-          active: true,
+          active: !!plan.active,
         },
         create: {
           code,
@@ -2714,11 +2781,11 @@ app.post('/factory/admin/plans', auth, requireAnyRole(['COMPANY','SUPERADMIN','A
           publicationsLimit: Math.max(0, Number(plan.publications || 0)),
           searchesLimit: Math.max(0, Number(plan.searches || 0)),
           sortOrder: idx,
-          active: true,
+          active: !!plan.active,
         }
       });
     }));
-    res.json({ ok: true, plans: await getFactoryPlans() });
+    res.json({ ok: true, plans: await getFactoryPlans(true) });
   } catch (err) {
     console.error('POST /factory/admin/plans', err);
     res.status(500).json({ error: err?.message || 'No se pudo guardar la matriz de planes.' });
@@ -3188,7 +3255,7 @@ const SUPPORT_KNOWLEDGE_SEEDS = [
   { scope: 'COMPANY', keywords: ['buscar talento filtros texto libre resumen curricular observaciones herramientas instrumentacion'], questionSample: '¿Cómo funciona Buscar Talento?', answer: 'Buscar Talento permite filtrar por área, especialidad, experiencia, educación, herramientas, instrumentación y texto libre. El texto libre también revisa el resumen curricular, observaciones, último trabajo y otros datos clave del perfil para ampliar coincidencias útiles.' },
   { scope: 'COMPANY', keywords: ['mis candidatos guardados postulaciones recibidas pretension economica sueldo'], questionSample: '¿Qué veo en Mis Candidatos?', answer: 'En Mis Candidatos se listan los perfiles guardados o recibidos desde postulaciones. Vas a ver datos resumidos del perfil, la pretensión económica en formato contable y, al abrir una ficha completa, se consume capacidad si corresponde según el plan vigente.' },
   { scope: 'COMPANY', keywords: ['mis busquedas publicar busqueda publicaciones cupo plan'], questionSample: '¿Cómo se consume la capacidad de publicaciones?', answer: 'Cada vez que publicás una búsqueda se descuenta capacidad del plan activo de la empresa. El sistema muestra el saldo operativo para que puedas controlar cuántas publicaciones y búsquedas te quedan disponibles.' },
-  { scope: 'COMPANY', keywords: ['factory planes publicaciones busquedas compra bonificacion iva carrito checkout'], questionSample: '¿Cómo funcionan los planes de Factory?', answer: 'Factory permite contratar capacidad por tiempo. Cada plan habilita días, publicaciones y búsquedas. El precio publicado es sin IVA, el impuesto se suma al confirmar la compra y los códigos de bonificación válidos se aplican una sola vez. El pago se completa en una pasarela externa segura y la orden solo queda pagada cuando el proveedor la confirma.' },
+  { scope: 'COMPANY', keywords: ['factory planes publicaciones busquedas compra bonificacion iva carrito checkout'], questionSample: '¿Cómo funcionan los planes de Factory?', answer: 'Factory permite contratar capacidad por tiempo. Cada plan habilita días, publicaciones y búsquedas. El precio publicado es sin IVA, el impuesto se suma al confirmar la compra y los códigos de bonificación válidos se aplican una sola vez. El pago se completa en un proveedor externo seguro y la orden solo queda pagada cuando el proveedor la confirma.' },
   { scope: 'COMPANY', keywords: ['abrir ficha candidato aperturas creditos saldo capacidad operativa'], questionSample: '¿Cómo se consumen los créditos?', answer: 'La empresa puede ver resultados resumidos sin consumir crédito. La apertura completa de una ficha consume capacidad según el plan activo o el acceso especial vigente. El panel comercial muestra el saldo disponible para operar.' },
   { scope: 'COMPANY', keywords: ['factory admin matriz planes precio dias publicaciones busquedas bonificaciones acceso free'], questionSample: '¿Para qué sirve Factory Admin?', answer: 'Factory Admin permite editar la matriz comercial de días, publicaciones, búsquedas y precio, generar códigos de bonificación, crear accesos especiales free y revisar la operatoria comercial desde la empresa habilitada para administración.' },
   { scope: 'SUPERADMIN', keywords: ['panel general empresas candidatos estadisticas chat operador conocimiento'], questionSample: '¿Qué muestra el Panel General?', answer: 'El Panel General reúne estadísticas globales del sistema, listados de empresas y candidatos, actividad comercial y el centro de conversaciones para operador. Desde ahí también se administra el conocimiento reutilizable del chat de ayuda.' }
@@ -3446,7 +3513,7 @@ const SUPPORT_INTENTS = [
           ? ' Tu empresa tiene acceso total free vigente en este momento.'
           : ` Saldo actual: ${usage.remainingPublications} publicaciones disponibles y ${usage.remainingSearches} búsquedas o aperturas disponibles.`;
       }
-      return `Factory administra la contratación por tiempo. Cada plan define días, cantidad de publicaciones y cantidad de búsquedas o aperturas. El precio publicado es sin IVA y el impuesto se suma al confirmar la compra. Cuando confirmás, Talento PyME crea un pedido interno y te redirige a una pasarela externa segura; el pago solo se acredita cuando el proveedor lo confirma por webhook firmado.${balance}`;
+      return `Factory administra la contratación por tiempo. Cada plan define días, cantidad de publicaciones y cantidad de búsquedas o aperturas. El precio publicado es sin IVA y el impuesto se suma al confirmar la compra. Cuando confirmás, Talento PyME crea un pedido interno y te redirige a un proveedor externo seguro; el pago solo se acredita cuando el proveedor lo confirma por webhook firmado.${balance}`;
     }
   },
   {
