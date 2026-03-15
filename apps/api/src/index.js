@@ -501,6 +501,9 @@ async function getCompanyOperationUsage(companyId){
 
   const remainingSearches = fullAccess ? 999999 : Math.max(0, totalSearches - searchAccesses.length);
   const remainingPublications = fullAccess ? 999999 : Math.max(0, totalPublications - jobPublications.length);
+  const activeUntil = fullAccessUntil || latestPrivilegeUntil || null;
+  const remainingDays = activeUntil ? Math.max(0, Math.ceil((new Date(activeUntil).getTime() - now.getTime()) / 86400000)) : 0;
+  const activePlanNames = Array.from(new Set(activeItems.map((item)=> String(item.planName || item.planCode || '').trim()).filter(Boolean)));
 
   return {
     now,
@@ -518,6 +521,10 @@ async function getCompanyOperationUsage(companyId){
     jobPublications,
     fullAccess,
     fullAccessUntil,
+    activeUntil,
+    remainingDays,
+    activePlanNames,
+    activePlanLabel: activePlanNames.length ? activePlanNames.join(' + ') : null,
     activeGrants,
   };
 }
@@ -2378,7 +2385,7 @@ app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res)
     if (!website) return res.status(400).json({ error: 'Falta sitio web' });
     let url = website;
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.6.5 (+Render)' } });
+    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.6.6 (+Render)' } });
     const html = await response.text();
     const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [,''])[1].replace(/\s+/g,' ').trim();
     const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i) || [,''])[1].trim();
@@ -2479,6 +2486,7 @@ app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
         orderId: activeFreeTicket.order.id,
         ticketNo: activeFreeTicket.ticketNo,
         expiresAt: activeFreeTicket.expiresAt,
+        remainingDays: Math.max(0, Math.ceil((new Date(activeFreeTicket.expiresAt).getTime() - Date.now()) / 86400000)),
         remainingPublications: activeFreeTicket.remainingPublications,
         remainingSearches: activeFreeTicket.remainingSearches,
         pendingValidation: !!activeFreeTicket.pendingValidation,

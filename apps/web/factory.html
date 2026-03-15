@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Factory</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.6.5" />
+  <link rel="stylesheet" href="/styles.css?v=5.6.6" />
   <style>
     .factoryMiniGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:14px}
     .factoryMiniCard{border:1px solid var(--tp-border);border-radius:18px;padding:16px;background:#fff}
@@ -41,9 +41,9 @@
     .adminPlanRow .field.planToggle label{display:flex;gap:8px;align-items:center;font-size:12px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:#334155}
     .adminPlanRow .field.planToggle input{width:18px;height:18px;accent-color:#2563eb}
     .planCard.is-disabled{position:relative;overflow:hidden;min-height:320px}
-    .planCard.is-disabled > *{visibility:hidden}
-    .planCard.is-disabled::after{content:"Plan por tiempo desactivado temporalmente";position:absolute;inset:0;border-radius:24px;background:linear-gradient(135deg,rgba(15,23,42,.96),rgba(30,64,175,.92));display:flex;align-items:center;justify-content:center;padding:28px;text-align:center;font-size:24px;font-weight:900;letter-spacing:.02em;color:#fff;visibility:visible}
-    .planCard.is-disabled .btn{pointer-events:none}
+    .planDisabledOverlay{position:absolute;inset:0;border-radius:24px;background:linear-gradient(135deg,rgba(15,23,42,.96),rgba(30,64,175,.94));display:flex;align-items:center;justify-content:center;padding:28px;text-align:center;z-index:4}
+    .planDisabledOverlay strong{display:block;font-size:26px;line-height:1.15;font-weight:950;letter-spacing:.01em;color:#fff}
+    .planDisabledOverlay span{display:block;margin-top:12px;font-size:14px;line-height:1.45;color:rgba(255,255,255,.86);font-weight:700}
     .ticketHero{border-color:rgba(37,99,235,.18);background:linear-gradient(180deg,#fff,rgba(37,99,235,.06))}
     .ticketHero .ticketStamp{margin-top:14px;padding:18px;border:2px dashed rgba(30,64,175,.28);border-radius:22px;background:linear-gradient(180deg,rgba(239,246,255,.96),rgba(255,255,255,.98));box-shadow:inset 0 0 0 6px rgba(37,99,235,.05)}
     .ticketHero .ticketTitle{font-size:28px;font-weight:950;color:#173b8f;margin:6px 0 10px 0}
@@ -274,8 +274,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.6.5"></script>
-  <script src="/auth.js?v=5.6.5"></script>
+  <script src="/config.js?v=5.6.6"></script>
+  <script src="/auth.js?v=5.6.6"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -334,6 +334,11 @@
     function esc(s){ return String(s || '').replace(/[&<>"']/g, (c)=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function money(v){ return '$' + moneyFmt.format(Number(v || 0)); }
     function when(v){ try{ return dateFmt.format(new Date(v)); }catch(_){ return '—'; } }
+    function dateTime(v){ try{ return new Date(v).toLocaleString('es-AR'); }catch(_){ return '—'; } }
+    function daysRemaining(value){ if(!value) return 0; const ms = new Date(value).getTime() - Date.now(); return Math.max(0, Math.ceil(ms / 86400000)); }
+    function buildUsageSummary(op = {}){ const remainingDays = Number(op.remainingDays || daysRemaining(op.activeUntil || op.fullAccessUntil || null) || 0); const planLabel = op.activePlanLabel || (Array.isArray(op.activePlanNames) && op.activePlanNames.length ? op.activePlanNames.join(' + ') : 'Sin plan activo'); const activeUntil = op.activeUntil || op.fullAccessUntil || null; return { remainingDays, planLabel, activeUntilLabel: activeUntil ? when(activeUntil) : '—' }; }
+    function buildBillingPayload(){ const c = state.bootstrap?.company || {}; return { razonSocial: (document.getElementById('billingName')?.value || c.companyName || '').trim(), cuit: (document.getElementById('billingTaxId')?.value || c.cuit || '').trim(), condicionFiscal: (document.getElementById('billingTaxCondition')?.value || 'Responsable Inscripto').trim(), provincia: (document.getElementById('billingProvince')?.value || c.province || '').trim(), localidad: (document.getElementById('billingCity')?.value || c.city || '').trim(), calle: (document.getElementById('billingStreet')?.value || c.address || '').trim(), numero: (document.getElementById('billingNumber')?.value || '').trim(), piso: (document.getElementById('billingFloor')?.value || '').trim(), depto: (document.getElementById('billingDept')?.value || '').trim(), codigoPostal: (document.getElementById('billingPostalCode')?.value || '').trim(), email: (document.getElementById('billingEmail')?.value || c.contactEmail || '').trim() }; }
+    function updateCheckoutFlowCopy(){ const q = state.quote || { total:0 }; const isFreeTicket = Number(q.total || 0) <= 0; const title = document.getElementById('checkoutTitle'); const lead = document.getElementById('checkoutLead'); const validation = document.getElementById('checkoutValidationTitle'); const hint = document.getElementById('paymentRedirectHint'); const msg = document.getElementById('checkoutMsg'); const confirm = document.getElementById('btnCheckoutConfirm'); if(title) title.textContent = isFreeTicket ? 'Revisá el ticket de validez y activación del servicio' : 'Verificá los datos que van a figurar en tu factura'; if(lead) lead.textContent = isFreeTicket ? 'Generá un ticket interno sin cargo para habilitar la prueba controlada del sistema. El ticket deja trazabilidad, activa 7 días operativos y después vas a validarlo para usar la capacidad.' : 'Completá los datos de facturación. Después vas a continuar el pago en un proveedor externo seguro.'; if(validation) validation.textContent = isFreeTicket ? 'Ticket de validez sin cargo' : 'Pedido y validación del servicio'; if(hint) hint.textContent = isFreeTicket ? 'Al confirmar se emitirá un ticket interno de promoción sin cargo. Luego podrás validarlo para dejar constancia de la activación y habilitar la prueba del servicio.' : 'El pedido quedará pendiente hasta que el proveedor externo seguro confirme el cobro.'; if(msg) msg.textContent = isFreeTicket ? 'Ticket listo para emitir' : 'Pedido listo para validar'; if(confirm) confirm.textContent = isFreeTicket ? 'Generar ticket' : 'Continuar'; }
     function statusLabel(status){ return ({ PAID:'Pagado', PENDING_PAYMENT:'Pendiente de pago', FAILED:'Fallido', EXPIRED:'Vencido', CANCELLED:'Cancelado' }[status] || status || 'Pendiente'); }
     function loadCart(){ try{ return JSON.parse(localStorage.getItem('tp_factory_cart') || '[]'); }catch(_){ return []; } }
     function saveCart(){ localStorage.setItem('tp_factory_cart', JSON.stringify(state.cart)); }
@@ -347,19 +352,19 @@
       const isTicketPreview = !!data?.ticketPreview && !data?.ticketIssued;
       const isTicketIssued = !!data?.ticketIssued || String(order?.paymentProvider || '').toUpperCase() === 'INTERNAL_TICKET' && status === 'PAID';
       const title = isTicketPreview
-        ? 'Ticket interno listo para validar'
+        ? 'Ticket promocional listo para validar'
         : isTicketIssued
           ? 'Ticket de validez confirmado'
           : status === 'PAID'
             ? 'Pago confirmado'
             : 'Pedido creado';
       const lead = isTicketPreview
-        ? 'Revisá este ticket y validalo para habilitar la prueba sin cargo. La activación deja trazabilidad y luego vas a ver el documento en tu resumen de cuenta.'
+        ? 'Revisá este ticket promocional y validalo para habilitar la prueba sin cargo. La activación deja trazabilidad y luego vas a ver el documento en tu resumen de cuenta.'
         : isTicketIssued
           ? 'El servicio quedó habilitado sin cargo para que tu empresa pueda probar Talento PyME, sumar búsquedas reales y evaluar su funcionamiento con trazabilidad completa.'
           : (data?.message || 'El pedido quedó listo para continuar en un proveedor externo seguro.');
       box.style.display = '';
-      box.innerHTML = `<div class="payResult ${isTicketPreview || isTicketIssued ? 'ticketHero' : ''}"><div class="small pageEyebrow" style="color:var(--tp-blue-900)">${isTicketPreview || isTicketIssued ? 'Ticket interno de validez' : 'Pedido creado'}</div><h3>${esc(title)}</h3><div class="muted">${esc(lead)}</div>${isTicketPreview || isTicketIssued ? `<div class="ticketStamp"><span class="ticketRibbon">Prueba del sistema · sin cargo</span><div class="ticketTitle">${esc(data?.ticketNo || order.documentNo || 'TCK')}</div><div class="ticketBody"><div>Este ticket deja constancia de que la empresa recibió una habilitación promocional sin costo para evaluar la operatoria completa de publicaciones, búsquedas y seguimiento dentro de Talento PyME.</div><div>La validación del ticket activa una capacidad temporal controlada para que puedas probar el circuito real del sistema con orden, seguimiento comercial y trazabilidad documental.</div><div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Vigencia</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc((order?.days || data?.quote?.totalDays || 0) + ' días')}</div></div><div class="payMetaCard"><div class="mutedInline">Publicaciones</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc(order?.items?.reduce((acc,it)=>acc + Number(it.publicationsIncluded||0),0) || data?.quote?.totalPublications || 0)}</div></div><div class="payMetaCard"><div class="mutedInline">Búsquedas</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc(order?.items?.reduce((acc,it)=>acc + Number(it.searchesIncluded||it.openingsIncluded||0),0) || data?.quote?.totalOpenings || 0)}</div></div></div></div></div>` : `<div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Pedido</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.orderId || order?.id || '—')}</div></div><div class="payMetaCard"><div class="mutedInline">Modalidad</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.provider || order?.paymentProvider || 'Proveedor externo')}</div></div><div class="payMetaCard"><div class="mutedInline">Estado</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(statusLabel(status))}</div></div><div class="payMetaCard"><div class="mutedInline">Total</div><div style="font-size:20px;font-weight:900;margin-top:6px">${money(order?.totals?.total || data?.quote?.total || 0)}</div></div></div>`}<div class="row" style="margin-top:14px">${isTicketPreview ? '<button class="btn btn-primary" type="button" id="btnValidateTicket">Validar ticket</button>' : ''}<button class="btn ${isTicketIssued ? 'btn-primary' : 'btn-ghost'}" type="button" id="btnGoSummary">Ir al resumen de cuenta</button></div></div>`;
+      box.innerHTML = `<div class="payResult ${isTicketPreview || isTicketIssued ? 'ticketHero' : ''}"><div class="small pageEyebrow" style="color:var(--tp-blue-900)">${isTicketPreview || isTicketIssued ? 'Ticket promocional de validez' : 'Pedido creado'}</div><h3>${esc(title)}</h3><div class="muted">${esc(lead)}</div>${isTicketPreview || isTicketIssued ? `<div class="ticketStamp"><span class="ticketRibbon">Promoción de lanzamiento · sin cargo</span><div class="ticketTitle">${esc(data?.ticketNo || order.documentNo || 'TCK')}</div><div class="ticketBody"><div>Este ticket deja constancia de que la empresa recibió una habilitación promocional sin costo para evaluar la operatoria completa de publicaciones, búsquedas y seguimiento dentro de Talento PyME durante la etapa actual de prueba y validación comercial.</div><div>La validación del ticket activa una capacidad temporal controlada para que puedas probar el circuito real del sistema, sumar uso genuino y observar cómo responde la plataforma con trazabilidad documental completa.</div><div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Vigencia</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc((order?.days || data?.quote?.totalDays || 0) + ' días')}</div></div><div class="payMetaCard"><div class="mutedInline">Publicaciones</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc(order?.items?.reduce((acc,it)=>acc + Number(it.publicationsIncluded||0),0) || data?.quote?.totalPublications || 0)}</div></div><div class="payMetaCard"><div class="mutedInline">Búsquedas</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc(order?.items?.reduce((acc,it)=>acc + Number(it.searchesIncluded||it.openingsIncluded||0),0) || data?.quote?.totalOpenings || 0)}</div></div></div></div></div>` : `<div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Pedido</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.orderId || order?.id || '—')}</div></div><div class="payMetaCard"><div class="mutedInline">Modalidad</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.provider || order?.paymentProvider || 'Proveedor externo')}</div></div><div class="payMetaCard"><div class="mutedInline">Estado</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(statusLabel(status))}</div></div><div class="payMetaCard"><div class="mutedInline">Total</div><div style="font-size:20px;font-weight:900;margin-top:6px">${money(order?.totals?.total || data?.quote?.total || 0)}</div></div></div>`}<div class="row" style="margin-top:14px">${isTicketPreview ? '<button class="btn btn-primary" type="button" id="btnValidateTicket">Validar ticket</button>' : ''}<button class="btn ${isTicketIssued ? 'btn-primary' : 'btn-ghost'}" type="button" id="btnGoSummary">Ir al resumen de cuenta</button></div></div>`;
       const goSummary = ()=> { clearCheckoutResult(); document.getElementById('checkoutCard').style.display='none'; setTab('summary'); renderSummary(); window.scrollTo({ top:0, behavior:'smooth' }); };
       document.getElementById('btnGoSummary').onclick = goSummary;
       const validateBtn = document.getElementById('btnValidateTicket');
@@ -404,11 +409,13 @@
     function monthChoices(){ const base = new Date(); const arr = []; for(let i=0;i<12;i++){ const d = new Date(base.getFullYear(), base.getMonth()+i, 1); const value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; arr.push({ value, label: monthsFmt.format(d) }); } return arr; }
     function quotaLineHTML(op){
       if(!op) return '';
-      if(op.fullAccess) return `<span class="quotaPill">Acceso total hasta ${esc(when(op.fullAccessUntil))}</span>`;
+      const summary = buildUsageSummary(op);
+      if(op.fullAccess) return `<span class="quotaPill">Acceso total hasta ${esc(when(op.fullAccessUntil))}</span><span class="quotaPill">Plan activo: ${esc(summary.planLabel)}</span>`;
       return `
-        <span class="quotaPill">Publicaciones disponibles: ${esc(op.remainingPublications || 0)}</span>
-        <span class="quotaPill">Búsquedas disponibles: ${esc(op.remainingSearches || 0)}</span>
-        <span class="quotaPill">Capacidad total vigente: ${esc(op.totalPublications || 0)} pub. / ${esc(op.totalSearches || 0)} búsq.</span>`;
+        <span class="quotaPill">Plan activo: ${esc(summary.planLabel)}</span>
+        <span class="quotaPill">Días vigentes: ${esc(summary.remainingDays)}</span>
+        <span class="quotaPill">Publicaciones: ${esc(op.remainingPublications || 0)} / ${esc(op.totalPublications || 0)}</span>
+        <span class="quotaPill">Búsquedas: ${esc(op.remainingSearches || 0)} / ${esc(op.totalSearches || op.totalOpenings || 0)}</span>`;
     }
 
     function planByCode(code){ return (state.bootstrap?.plans || []).find((it)=> it.code === code) || null; }
@@ -470,7 +477,8 @@
       document.getElementById('kpiPublications').textContent = op.fullAccess ? '∞' : String(op.remainingPublications || 0);
       document.getElementById('kpiSearches').textContent = op.fullAccess ? '∞' : String(op.remainingSearches || op.remainingOpenings || 0);
       document.getElementById('quotaLineSummary').innerHTML = quotaLineHTML(op);
-      document.getElementById('quotaSummaryMsg').textContent = op.fullAccess ? `La empresa tiene acceso total habilitado hasta ${when(op.fullAccessUntil)}.` : `Capacidad usada: ${op.usedPublications || 0} publicaciones y ${op.usedSearches || op.usedOpenings || 0} búsquedas.`;
+      const summary = buildUsageSummary(op);
+      document.getElementById('quotaSummaryMsg').textContent = op.fullAccess ? `La empresa tiene acceso total habilitado hasta ${when(op.fullAccessUntil)}.` : (summary.remainingDays > 0 ? `El plan sigue vigente hasta ${summary.activeUntilLabel}. Uso actual: ${op.usedPublications || 0} publicaciones y ${op.usedSearches || op.usedOpenings || 0} búsquedas consumidas.` : 'Todavía no hay una capacidad operativa vigente.');
       const orders = boot.orders || [];
       document.getElementById('summaryBadge').textContent = orders.length ? `${orders.length} documento(s)` : 'Sin documentos todavía';
       const tbody = document.getElementById('ordersBody');
@@ -500,9 +508,10 @@
           <div class="planPrice">${money(plan.price)}<small> ARS</small></div>
           <div class="planLead">${esc(plan.highlight || '')}</div>
           <div class="quotaLine"><span class="quotaPill">${plan.publications || 0} publicaciones</span><span class="quotaPill">${plan.searches || 0} búsquedas</span></div>
-          <div class="timelineNote">${plan.active === false ? 'Este plan está visible a modo informativo y hoy no se encuentra operativo.' : `Podrás operar durante ${plan.days} días con ${plan.publications || 0} publicaciones y ${plan.searches || 0} búsquedas completas disponibles.`}</div>
+          <div class="timelineNote">${plan.active === false ? 'Este plan se encuentra temporalmente desactivado para la etapa actual de pruebas.' : `Podrás operar durante ${plan.days} días con ${plan.publications || 0} publicaciones y ${plan.searches || 0} búsquedas completas disponibles.`}</div>
           <div class="priceDisclaimer">Precio de venta sin IVA.</div>
           <div class="planFoot"><span class="planBadge">${plan.active === false ? 'Plan apagado' : 'Contratación por tiempo'}</span><button class="btn btn-primary" type="button" data-plan="${plan.code}" ${plan.active === false ? 'disabled' : ''}>${plan.active === false ? 'No disponible' : 'Agregar al carrito'}</button></div>
+          ${plan.active === false ? `<div class="planDisabledOverlay"><div><strong>Plan por tiempo desactivado temporalmente</strong><span>Esta opción se mantiene visible solo a modo informativo. Volverá a habilitarse cuando la administración reactive el plan.</span></div></div>` : ''}
         </div>`).join('');
       document.querySelectorAll('[data-plan]').forEach((btn)=> btn.onclick = ()=> addPlan(btn.dataset.plan));
     }
@@ -539,7 +548,7 @@
           : `Ya tenés activo el ticket ${activeFree.ticketNo}. Restan ${activeFree.remainingPublications} publicaciones y ${activeFree.remainingSearches} búsquedas hasta ${when(activeFree.expiresAt)}.`;
       }
       const openCheckoutBtn = document.getElementById('btnOpenCheckout');
-      if(openCheckoutBtn) openCheckoutBtn.textContent = Number(q.total || 0) <= 0 ? 'Confirmar ticket' : 'Confirmar compra';
+      if(openCheckoutBtn) openCheckoutBtn.textContent = Number(q.total || 0) <= 0 ? 'Emitir ticket' : 'Confirmar compra';
     }
 
     function prefillCheckout(){
@@ -603,7 +612,7 @@
       const mount = document.getElementById('adminPlanRows'); if(!mount) return;
       const rows = state.adminBootstrap?.plans || [];
       mount.innerHTML = rows.map((plan)=> `
-        <div class="adminPlanRow" data-plan-row data-code="${plan.code}">
+        <div class="adminPlanRow ${plan.active === false ? 'is-off' : ''}" data-plan-row data-code="${plan.code}">
           <div class="field planName">
             <label>Plan</label>
             <input class="input" data-plan-field="name" data-code="${plan.code}" value="${esc(plan.name)}" />
@@ -623,6 +632,9 @@
           <div class="field">
             <label>Búsquedas</label>
             <input class="input" type="number" min="0" step="1" inputmode="numeric" data-plan-field="searches" data-code="${plan.code}" value="${plan.searches || 0}" />
+          </div>
+          <div class="field planToggle">
+            <label><input type="checkbox" data-plan-field="active" data-code="${plan.code}" ${plan.active === false ? '' : 'checked'} /> Plan activo</label>
           </div>
         </div>`).join('');
     }
@@ -656,7 +668,8 @@
         const inputs = row.querySelectorAll('[data-plan-field]');
         const get = (field)=> Array.from(inputs).find((el)=> el.dataset.planField === field)?.value || '';
         const code = row.dataset.code || inputs[0]?.dataset.code || `P${idx}`;
-        return { code, name: get('name'), days: Number(get('days')||0), price: Number(get('price')||0), publications: Number(get('publications')||0), searches: Number(get('searches')||0) };
+        const active = Array.from(inputs).find((el)=> el.dataset.planField === 'active')?.checked !== false;
+        return { code, name: get('name'), days: Number(get('days')||0), price: Number(get('price')||0), publications: Number(get('publications')||0), searches: Number(get('searches')||0), active };
       });
       const msg = document.getElementById('adminPlanMsg'); msg.textContent = 'Guardando…';
       try{ await apiFactory('/factory/admin/plans', { method:'POST', body: JSON.stringify({ plans: rows }) }, true); msg.textContent='Matriz actualizada.'; state.adminBootstrap=null; await loadBootstrap(); await loadAdminBootstrap(); }
@@ -691,15 +704,23 @@
     { const el = document.getElementById('btnApplyCoupon'); if(el) el.onclick = ()=> applyCouponCode(document.getElementById('couponCode').value); }
     { const el = document.getElementById('btnApplyCheckoutCoupon'); if(el) el.onclick = ()=> applyCouponCode(document.getElementById('checkoutCouponCode').value); }
     { const el = document.getElementById('btnContinueShopping'); if(el) el.onclick = ()=> setTab('plans'); }
-    { const el = document.getElementById('btnOpenCheckout'); if(el) el.onclick = ()=> { if(!state.cart.length){ document.getElementById('couponMsg').textContent = 'Primero agregá al menos un plan.'; return; } clearCheckoutResult(); setTab('plans'); document.getElementById('checkoutCard').style.display=''; prefillCheckout(); renderCheckout(); setCartCollapsed(false); document.getElementById('checkoutCard').scrollIntoView({ behavior:'smooth', block:'start' }); }; }
-    { const el = document.getElementById('btnBackToCart'); if(el) el.onclick = ()=> { clearCheckoutResult(); document.getElementById('checkoutCard').style.display='none'; window.scrollTo({ top:0, behavior:'smooth' }); }; }
-    { const el = document.getElementById('btnCheckoutConfirm'); if(el) el.onclick = async ()=> {
+    async function submitCheckoutOrder({ directFreeTicket = false } = {}){
+      if(!state.cart.length){ document.getElementById('couponMsg').textContent = 'Primero agregá al menos un plan.'; return; }
+      const q = state.quote || { total:0 };
+      const isFreeTicket = Number(q.total || 0) <= 0;
+      if(directFreeTicket && !isFreeTicket) return;
+      clearCheckoutResult();
+      setTab('plans');
+      document.getElementById('checkoutCard').style.display='';
+      prefillCheckout();
+      renderCheckout();
+      setCartCollapsed(false);
       const msg = document.getElementById('checkoutMsg');
       const btn = document.getElementById('btnCheckoutConfirm');
-      msg.textContent='Creando pedido seguro…';
-      btn.disabled = true;
+      msg.textContent = isFreeTicket ? 'Generando ticket promocional…' : 'Creando pedido seguro…';
+      if(btn) btn.disabled = true;
       try{
-        const payload = { items: getQuoteItems(), couponCode: state.couponCode, billing: { razonSocial: document.getElementById('billingName').value.trim(), cuit: document.getElementById('billingTaxId').value.trim(), condicionFiscal: document.getElementById('billingTaxCondition').value.trim(), provincia: document.getElementById('billingProvince').value.trim(), localidad: document.getElementById('billingCity').value.trim(), calle: document.getElementById('billingStreet').value.trim(), numero: document.getElementById('billingNumber').value.trim(), piso: document.getElementById('billingFloor').value.trim(), depto: document.getElementById('billingDept').value.trim(), codigoPostal: document.getElementById('billingPostalCode').value.trim(), email: document.getElementById('billingEmail').value.trim() } };
+        const payload = { items: getQuoteItems(), couponCode: state.couponCode, billing: buildBillingPayload() };
         const data = await apiFactory('/factory/checkout', { method:'POST', body: JSON.stringify(payload) });
         msg.textContent = data.message || 'Pedido creado.';
         state.cart=[]; saveCart(); state.couponCode=''; state.couponFeedback=''; localStorage.removeItem('tp_factory_coupon');
@@ -708,16 +729,19 @@
         renderSummary();
         renderCart();
         showCheckoutResult(data);
-        if(data.checkoutUrl){ window.location.href = data.checkoutUrl; return; }
         document.getElementById('checkoutCard').scrollIntoView({ behavior:'smooth', block:'start' });
+        if(data.checkoutUrl){ window.location.href = data.checkoutUrl; return; }
       }catch(e){
         msg.textContent = e.message;
         const hint = document.getElementById('paymentRedirectHint');
         if(hint) hint.textContent = e.message || 'No se pudo crear el pedido seguro.';
       } finally {
-        btn.disabled = false;
+        if(btn) btn.disabled = false;
       }
-    }; }
+    }
+    { const el = document.getElementById('btnOpenCheckout'); if(el) el.onclick = ()=> { if(!state.cart.length){ document.getElementById('couponMsg').textContent = 'Primero agregá al menos un plan.'; return; } if(Number((state.quote || {}).total || 0) <= 0){ submitCheckoutOrder({ directFreeTicket: true }); return; } clearCheckoutResult(); setTab('plans'); document.getElementById('checkoutCard').style.display=''; prefillCheckout(); renderCheckout(); setCartCollapsed(false); document.getElementById('checkoutCard').scrollIntoView({ behavior:'smooth', block:'start' }); }; }
+    { const el = document.getElementById('btnBackToCart'); if(el) el.onclick = ()=> { clearCheckoutResult(); document.getElementById('checkoutCard').style.display='none'; window.scrollTo({ top:0, behavior:'smooth' }); }; }
+    { const el = document.getElementById('btnCheckoutConfirm'); if(el) el.onclick = async ()=> { await submitCheckoutOrder(); }; }
 
     setCartCollapsed(true);
     renderPaymentReturnState();

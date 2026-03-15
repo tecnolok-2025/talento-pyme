@@ -1,0 +1,7 @@
+v5.6.6
+- Corrige error updateCheckoutFlowCopy is not defined en Factory.
+- El plan activo muestra días vigentes, publicaciones y búsquedas restantes.
+- Buscar Talento muestra un resumen operativo más completo.
+- Emitir ticket genera y muestra el ticket promocional sin cargo desde Mi Carrito.
+- Los planes apagados quedan cubiertos por completo con un aviso más prolijo.
+- Factory Admin vuelve a guardar el estado activo/inactivo de cada plan.

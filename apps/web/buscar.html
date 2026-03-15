@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Buscar Talento</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.6.5" />
+  <link rel="stylesheet" href="/styles.css?v=5.6.6" />
   <style>
     .talentCard{padding:0;overflow:hidden;cursor:default}
     .talentCardHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px;cursor:pointer}
@@ -163,8 +163,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.6.5"></script>
-  <script src="/auth.js?v=5.6.5"></script>
+  <script src="/config.js?v=5.6.6"></script>
+  <script src="/auth.js?v=5.6.6"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -250,11 +250,15 @@
     }
     function renderOpeningBadge(){
       const usage = jobsOpeningUsage || {};
-      const remaining = Number(usage.remainingOpenings || 0);
-      const total = Number(usage.totalOpenings || 0);
-      const used = Number(usage.usedOpenings || 0);
-      els.openingBadge.classList.toggle('is-alert', remaining <= 0);
-      els.openingBadge.innerHTML = `Aperturas disponibles: <strong>${remaining}</strong><span class="muted">Usadas: ${used} · Cupo activo: ${total}</span>`;
+      const remainingSearches = Number(usage.remainingSearches ?? usage.remainingOpenings ?? 0);
+      const totalSearches = Number(usage.totalSearches ?? usage.totalOpenings ?? 0);
+      const usedSearches = Number(usage.usedSearches ?? usage.usedOpenings ?? 0);
+      const remainingPublications = Number(usage.remainingPublications || 0);
+      const totalPublications = Number(usage.totalPublications || 0);
+      const remainingDays = Number(usage.remainingDays || 0);
+      const planLabel = usage.activePlanLabel || 'Sin plan activo';
+      els.openingBadge.classList.toggle('is-alert', remainingSearches <= 0 && !usage.fullAccess);
+      els.openingBadge.innerHTML = `Plan activo: <strong>${esc(planLabel)}</strong><span class="muted">Días vigentes: ${remainingDays} · Búsquedas: ${remainingSearches}/${totalSearches} · Publicaciones: ${remainingPublications}/${totalPublications}</span>`;
     }
     function renderDetail(item){
       renderOpeningBadge();
