@@ -354,12 +354,42 @@ function buildInternalTicketNumber(orderId){
   return `TCK-${String(orderId || '').slice(-8).toUpperCase()}`;
 }
 
+function companyVisibleOrder(order, now = new Date()){
+  if(!order) return false;
+  if(String(order.status || '').toUpperCase() === 'PENDING_PAYMENT') return (new Date(now).getTime() - new Date(order.createdAt || now).getTime()) < FACTORY_PENDING_TTL_MS;
+  if(String(order.status || '').toUpperCase() !== 'PAID') return false;
+  return (order.items || []).some((item) => orderItemExpiresAt(order, item) > now);
+}
+
+async function expireStalePendingOrders(companyId = null){
+  const cutoff = new Date(Date.now() - FACTORY_PENDING_TTL_MS);
+  const staleOrders = await prisma.billingOrder.findMany({
+    where: {
+      status: 'PENDING_PAYMENT',
+      createdAt: { lt: cutoff },
+      ...(companyId ? { companyId } : {}),
+    },
+    include: { items: true },
+  }).catch(() => []);
+  if(!staleOrders.length) return [];
+  for(const order of staleOrders){
+    await prisma.billingOrder.update({
+      where: { id: order.id },
+      data: {
+        status: 'EXPIRED',
+        paymentFailureReason: order.paymentFailureReason || 'El pedido venció por falta de confirmación dentro de las 24 horas.',
+      }
+    }).catch(() => null);
+  }
+  return staleOrders;
+}
+
 async function findBlockingFreeTicket(companyId, excludeOrderId = null){
   const now = new Date();
   const orders = await prisma.billingOrder.findMany({
     where: {
       companyId,
-      status: { in: ['PENDING_PAYMENT', 'PAID'] },
+      status: 'PAID',
       paymentProvider: 'INTERNAL_TICKET',
       ...(excludeOrderId ? { NOT: { id: excludeOrderId } } : {}),
       items: { some: {} },
@@ -406,7 +436,7 @@ async function issueZeroAmountTicket(order, actor = {}){
   const updated = await prisma.billingOrder.update({
     where: { id: order.id },
     data: {
-      status: { in: ['PENDING_PAYMENT', 'PAID'] },
+      status: 'PAID',
       paymentProvider: 'INTERNAL_TICKET',
       paymentProviderRef: buildInternalTicketNumber(order.id),
       paymentApprovedAt: paidAt,
@@ -433,6 +463,8 @@ function companyCodeFrom(company){
   if(raw) return raw.slice(-8);
   return String(company?.id || '').slice(-8).toUpperCase() || '00000000';
 }
+
+const FACTORY_PENDING_TTL_MS = 24 * 60 * 60 * 1000;
 
 function orderItemExpiresAt(order, item){
   const base = new Date(order?.createdAt || Date.now());
@@ -496,14 +528,42 @@ async function getCompanyOperationUsage(companyId){
     orderBy: { createdAt: 'asc' }
   }).catch(() => []);
 
+  const usedSearchesByItem = {};
+  for(const row of searchAccesses) usedSearchesByItem[row.orderItemId] = (usedSearchesByItem[row.orderItemId] || 0) + 1;
+  const usedPublicationsByItem = {};
+  for(const row of jobPublications) usedPublicationsByItem[row.orderItemId] = (usedPublicationsByItem[row.orderItemId] || 0) + 1;
+
+  const activeItemsDetailed = activeItems.map((item) => {
+    const remainingSearches = Math.max(0, Number(item.searchesIncluded || 0) - Number(usedSearchesByItem[item.orderItemId] || 0));
+    const remainingPublications = Math.max(0, Number(item.publicationsIncluded || 0) - Number(usedPublicationsByItem[item.orderItemId] || 0));
+    const daysRemaining = Math.max(0, Math.ceil((new Date(item.expiresAt).getTime() - now.getTime()) / (24 * 60 * 60 * 1000)));
+    return {
+      ...item,
+      usedSearches: Number(usedSearchesByItem[item.orderItemId] || 0),
+      usedPublications: Number(usedPublicationsByItem[item.orderItemId] || 0),
+      remainingSearches,
+      remainingPublications,
+      daysRemaining,
+    };
+  });
+
   const fullAccess = activeGrants.length > 0;
   const fullAccessUntil = activeGrants.reduce((acc, row)=> (!acc || row.fullAccessUntil > acc) ? row.fullAccessUntil : acc, latestPrivilegeUntil);
 
   const remainingSearches = fullAccess ? 999999 : Math.max(0, totalSearches - searchAccesses.length);
   const remainingPublications = fullAccess ? 999999 : Math.max(0, totalPublications - jobPublications.length);
-  const activeUntil = fullAccessUntil || latestPrivilegeUntil || null;
-  const remainingDays = activeUntil ? Math.max(0, Math.ceil((new Date(activeUntil).getTime() - now.getTime()) / 86400000)) : 0;
-  const activePlanNames = Array.from(new Set(activeItems.map((item)=> String(item.planName || item.planCode || '').trim()).filter(Boolean)));
+  const currentPlan = fullAccess
+    ? {
+        planCode: 'FULL_ACCESS',
+        planName: 'Acceso total especial',
+        expiresAt: fullAccessUntil || null,
+        daysRemaining: fullAccessUntil ? Math.max(0, Math.ceil((new Date(fullAccessUntil).getTime() - now.getTime()) / (24 * 60 * 60 * 1000))) : null,
+        remainingSearches,
+        remainingPublications,
+        searchesIncluded: totalSearches,
+        publicationsIncluded: totalPublications,
+      }
+    : (activeItemsDetailed.find((item) => item.remainingSearches > 0 || item.remainingPublications > 0) || activeItemsDetailed[0] || null);
 
   return {
     now,
@@ -517,15 +577,13 @@ async function getCompanyOperationUsage(companyId){
     usedPublications: jobPublications.length,
     remainingPublications,
     activeItems,
+    activeItemsDetailed,
     activeAccesses: searchAccesses,
     jobPublications,
     fullAccess,
     fullAccessUntil,
-    activeUntil,
-    remainingDays,
-    activePlanNames,
-    activePlanLabel: activePlanNames.length ? activePlanNames.join(' + ') : null,
     activeGrants,
+    currentPlan,
   };
 }
 
@@ -719,6 +777,16 @@ async function buildFactoryQuote(companyId, items = [], couponCode = ''){
   };
 }
 
+function orderDueDate(order){
+  if(!order) return null;
+  if(String(order.status || '').toUpperCase() === 'PENDING_PAYMENT'){
+    return new Date(new Date(order.createdAt || Date.now()).getTime() + FACTORY_PENDING_TTL_MS);
+  }
+  const expiries = (order.items || []).map((item) => orderItemExpiresAt(order, item)).filter(Boolean);
+  if(!expiries.length) return order.createdAt || null;
+  return expiries.reduce((acc, date) => (acc && acc > date ? acc : date), null) || order.createdAt || null;
+}
+
 function orderToSummary(order){
   const isInternalTicket = String(order.paymentProvider || '').toUpperCase() === 'INTERNAL_TICKET';
   const documentNo = isInternalTicket
@@ -735,7 +803,7 @@ function orderToSummary(order){
     docType,
     documentNo,
     date: order.createdAt,
-    dueDate: order.createdAt,
+    dueDate: orderDueDate(order),
     status: order.status,
     amount: order.total,
     currency: 'ARS',
@@ -2385,7 +2453,7 @@ app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res)
     if (!website) return res.status(400).json({ error: 'Falta sitio web' });
     let url = website;
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.6.6 (+Render)' } });
+    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.7.0 (+Render)' } });
     const html = await response.text();
     const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [,''])[1].replace(/\s+/g,' ').trim();
     const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i) || [,''])[1].trim();
@@ -2435,12 +2503,15 @@ app.put("/company/me", auth, requireRole("COMPANY"), async (req, res) => {
 app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), async (req, res) => {
   try {
     const { company, user } = await getCompanyContextByUserId(req.user.id);
+    await expireStalePendingOrders(company.id);
+    const now = new Date();
     const orders = await prisma.billingOrder.findMany({
       where: { companyId: company.id },
       include: { company: true, items: true },
       orderBy: { createdAt: 'desc' }
     }).catch(() => []);
-    const recentOrders = orders.map(orderToSummary);
+    const visibleOrders = orders.filter((order) => companyVisibleOrder(order, now));
+    const recentOrders = visibleOrders.map(orderToSummary);
     const totals = recentOrders.reduce((acc, it) => {
       acc.total += it.totals.total;
       acc.pending += it.status === 'PENDING_PAYMENT' ? it.totals.total : 0;
@@ -2486,7 +2557,6 @@ app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
         orderId: activeFreeTicket.order.id,
         ticketNo: activeFreeTicket.ticketNo,
         expiresAt: activeFreeTicket.expiresAt,
-        remainingDays: Math.max(0, Math.ceil((new Date(activeFreeTicket.expiresAt).getTime() - Date.now()) / 86400000)),
         remainingPublications: activeFreeTicket.remainingPublications,
         remainingSearches: activeFreeTicket.remainingSearches,
         pendingValidation: !!activeFreeTicket.pendingValidation,
@@ -2536,6 +2606,7 @@ app.post('/factory/quote', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']
 app.get('/factory/orders/:orderId/status', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), async (req, res) => {
   try {
     const { company } = await getCompanyContextByUserId(req.user.id);
+    await expireStalePendingOrders(company.id);
     const orderId = String(req.params?.orderId || '').trim();
     if(!orderId) return res.status(400).json({ error: 'Falta la orden.' });
     const order = await prisma.billingOrder.findFirst({ where: { id: orderId, companyId: company.id }, include: { company: true, items: true } }).catch(() => null);
@@ -2552,6 +2623,7 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
   try {
     const { company, user } = await getCompanyContextByUserId(req.user.id);
     const actor = minimalActorMeta(user, company);
+    await expireStalePendingOrders(company.id);
     const forbiddenFields = listForbiddenPaymentFields(req.body || {});
     if(forbiddenFields.length){
       await recordSecurityEvent({
@@ -2686,6 +2758,7 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
 app.post('/factory/tickets/:orderId/validate', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMIN']), async (req, res) => {
   try {
     const { company, user } = await getCompanyContextByUserId(req.user.id);
+    await expireStalePendingOrders(company.id);
     const actor = minimalActorMeta(user, company);
     const orderId = String(req.params?.orderId || '').trim();
     if(!orderId) return res.status(400).json({ error: 'Falta identificar el ticket.' });

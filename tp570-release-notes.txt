@@ -1,0 +1,6 @@
+Talento PyME v5.7.0
+- Factory muestra solo documentos vigentes y vence pedidos pendientes a las 24 horas.
+- Resumen operativo con plan activo, días vigentes, publicaciones y búsquedas restantes.
+- Buscar Talento muestra el estado del plan desde el inicio.
+- Ticket promocional corregido y planes apagados completamente cubiertos.
+- Versionado unificado a v5.7.0.
