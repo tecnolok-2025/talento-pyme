@@ -415,7 +415,8 @@ async function findBlockingFreeTicket(companyId, excludeOrderId = null){
       if(expiresAt <= now) continue;
       const remainingSearches = Math.max(0, Number(item.openingsIncluded || 0) - Number(usedSearches[item.id] || 0));
       const remainingPublications = Math.max(0, Number(item.publicationsIncluded || 0) - Number(usedPublications[item.id] || 0));
-      if(order.status === 'PENDING_PAYMENT' || remainingSearches > 0 || remainingPublications > 0){
+      const bundleStillActive = remainingSearches > 0 && remainingPublications > 0;
+      if(order.status === 'PENDING_PAYMENT' || bundleStillActive){
         return {
           order,
           item,
@@ -491,8 +492,6 @@ async function getCompanyOperationUsage(companyId){
   }).catch(() => []);
 
   const activeItems = [];
-  let totalSearches = 0;
-  let totalPublications = 0;
   let latestPrivilegeUntil = null;
   for(const order of activeOrders){
     for(const item of order.items || []){
@@ -502,8 +501,6 @@ async function getCompanyOperationUsage(companyId){
       const searchesIncluded = Number(item.openingsIncluded || 0);
       const publicationsIncluded = Number(item.publicationsIncluded || 0);
       if(searchesIncluded <= 0 && publicationsIncluded <= 0) continue;
-      totalSearches += searchesIncluded;
-      totalPublications += publicationsIncluded;
       activeItems.push({
         orderId: order.id,
         orderItemId: item.id,
@@ -537,6 +534,14 @@ async function getCompanyOperationUsage(companyId){
     const remainingSearches = Math.max(0, Number(item.searchesIncluded || 0) - Number(usedSearchesByItem[item.orderItemId] || 0));
     const remainingPublications = Math.max(0, Number(item.publicationsIncluded || 0) - Number(usedPublicationsByItem[item.orderItemId] || 0));
     const daysRemaining = Math.max(0, Math.ceil((new Date(item.expiresAt).getTime() - now.getTime()) / (24 * 60 * 60 * 1000)));
+    const bundleReady = daysRemaining > 0 && remainingSearches > 0 && remainingPublications > 0;
+    const queueReason = daysRemaining <= 0
+      ? 'Vencido'
+      : remainingSearches <= 0
+        ? 'Búsquedas agotadas'
+        : remainingPublications <= 0
+          ? 'Publicaciones agotadas'
+          : 'Disponible';
     return {
       ...item,
       usedSearches: Number(usedSearchesByItem[item.orderItemId] || 0),
@@ -544,14 +549,24 @@ async function getCompanyOperationUsage(companyId){
       remainingSearches,
       remainingPublications,
       daysRemaining,
+      bundleReady,
+      queueReason,
     };
   }).sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime() || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   const fullAccess = activeGrants.length > 0;
   const fullAccessUntil = activeGrants.reduce((acc, row)=> (!acc || row.fullAccessUntil > acc) ? row.fullAccessUntil : acc, latestPrivilegeUntil);
+  const activeQueue = activeItemsDetailed.filter((item) => item.bundleReady);
+  const deferredQueue = activeItemsDetailed.filter((item) => !item.bundleReady);
+  const queueSearchTotal = activeQueue.reduce((acc, item) => acc + Number(item.searchesIncluded || 0), 0);
+  const queueSearchRemaining = activeQueue.reduce((acc, item) => acc + Number(item.remainingSearches || 0), 0);
+  const queuePublicationTotal = activeQueue.reduce((acc, item) => acc + Number(item.publicationsIncluded || 0), 0);
+  const queuePublicationRemaining = activeQueue.reduce((acc, item) => acc + Number(item.remainingPublications || 0), 0);
 
-  const remainingSearches = fullAccess ? 999999 : Math.max(0, totalSearches - searchAccesses.length);
-  const remainingPublications = fullAccess ? 999999 : Math.max(0, totalPublications - jobPublications.length);
+  const remainingSearches = fullAccess ? 999999 : queueSearchRemaining;
+  const remainingPublications = fullAccess ? 999999 : queuePublicationRemaining;
+  const totalSearches = fullAccess ? activeItemsDetailed.reduce((acc, item) => acc + Number(item.searchesIncluded || 0), 0) : queueSearchTotal;
+  const totalPublications = fullAccess ? activeItemsDetailed.reduce((acc, item) => acc + Number(item.publicationsIncluded || 0), 0) : queuePublicationTotal;
   const currentPlan = fullAccess
     ? {
         planCode: 'FULL_ACCESS',
@@ -563,7 +578,7 @@ async function getCompanyOperationUsage(companyId){
         searchesIncluded: totalSearches,
         publicationsIncluded: totalPublications,
       }
-    : (activeItemsDetailed.find((item) => item.remainingSearches > 0 || item.remainingPublications > 0) || activeItemsDetailed[0] || null);
+    : (activeQueue[0] || null);
 
   return {
     now,
@@ -578,7 +593,8 @@ async function getCompanyOperationUsage(companyId){
     remainingPublications,
     activeItems,
     activeItemsDetailed,
-    activeQueue: activeItemsDetailed,
+    activeQueue,
+    deferredQueue,
     activeAccesses: searchAccesses,
     jobPublications,
     fullAccess,
@@ -593,13 +609,6 @@ async function consumeCompanyQuota(companyId, kind){
   if(usage.fullAccess){
     return { ok: true, consumed: false, usage, fullAccess: true, expiresAt: usage.fullAccessUntil || null };
   }
-  const itemUsage = {};
-  const sourceRows = kind === 'publication' ? usage.jobPublications : usage.activeAccesses;
-  for(const row of sourceRows){
-    const key = row.orderItemId;
-    itemUsage[key] = (itemUsage[key] || 0) + 1;
-  }
-  const quotaField = kind === 'publication' ? 'publicationsIncluded' : 'searchesIncluded';
   const remainingField = kind === 'publication' ? 'remainingPublications' : 'remainingSearches';
   if((usage[remainingField] || 0) <= 0){
     return {
@@ -611,9 +620,15 @@ async function consumeCompanyQuota(companyId, kind){
         : 'No tenés búsquedas disponibles en tu plan actual. Contratá más capacidad desde Factory para seguir abriendo fichas completas.'
     };
   }
-  const target = (usage.activeItemsDetailed || usage.activeItems || []).find((item) => (itemUsage[item.orderItemId] || 0) < Number(item[quotaField] || 0));
+  const target = Array.isArray(usage.activeQueue) ? usage.activeQueue[0] : null;
   if(!target){
-    return { ok: false, consumed: false, usage, error: 'No se encontró un cupo activo para continuar. Revisá Factory y actualizá tu plan.' };
+    return { ok: false, consumed: false, usage, error: 'No se encontró una capacidad activa para continuar. Revisá Factory y actualizá tu plan.' };
+  }
+  if(kind === 'publication' && Number(target.remainingPublications || 0) <= 0){
+    return { ok: false, consumed: false, usage, error: 'La capacidad activa actual ya agotó sus publicaciones. Esperá el siguiente bloque vigente o contratá más capacidad.' };
+  }
+  if(kind !== 'publication' && Number(target.remainingSearches || 0) <= 0){
+    return { ok: false, consumed: false, usage, error: 'La capacidad activa actual ya agotó sus búsquedas. Esperá el siguiente bloque vigente o contratá más capacidad.' };
   }
   return { ok: true, consumed: true, usage, sourceItem: target, expiresAt: target.expiresAt, fullAccess: false };
 }

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Buscar Talento</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.7.1" />
+  <link rel="stylesheet" href="/styles.css?v=5.7.2" />
   <style>
     .talentCard{padding:0;overflow:hidden;cursor:default}
     .talentCardHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px;cursor:pointer}
@@ -167,8 +167,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.7.1"></script>
-  <script src="/auth.js?v=5.7.1"></script>
+  <script src="/config.js?v=5.7.2"></script>
+  <script src="/auth.js?v=5.7.2"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -268,9 +268,9 @@
       const rows = usage.fullAccess
         ? `<div class="openingBadgeRow"><div class="openingBadgeTitle">Acceso total especial activo</div><div class="openingBadgeMeta">Vigente hasta ${esc(expiresLabel)} · Publicaciones y búsquedas sin tope operativo.</div></div>`
         : queue.length
-          ? queue.map((item, idx)=> `<div class="openingBadgeRow"><div class="openingBadgeTitle">${idx===0 ? 'Se consume primero' : 'Se consume después'} · ${esc(item.planName || 'Plan activo')}</div><div class="openingBadgeMeta">Días vigentes: ${item.daysRemaining || 0} · Vence: ${esc(formatDate(item.expiresAt))} · Búsquedas: ${item.remainingSearches || 0}/${item.searchesIncluded || 0} · Publicaciones: ${item.remainingPublications || 0}/${item.publicationsIncluded || 0}</div></div>`).join('')
+          ? queue.map((item, idx)=> `<div class="openingBadgeRow"><div class="openingBadgeTitle">${idx===0 ? 'Se consume primero' : 'Se consume después'} · ${esc(item.planName || 'Plan activo')}</div><div class="openingBadgeMeta">Días vigentes: ${item.daysRemaining || 0} · Vence: ${esc(formatDate(item.expiresAt))} · Búsquedas: ${item.remainingSearches || 0}/${item.searchesIncluded || 0} · Publicaciones: ${item.remainingPublications || 0}/${item.publicationsIncluded || 0}</div><div class="muted" style="margin-top:4px">${idx===0 ? 'Este bloque se usa mientras tenga días, búsquedas y publicaciones disponibles. Si alguno llega a cero, pasa el siguiente.' : 'Este bloque queda en espera y se activa cuando el anterior se vence o agota alguno de sus cupos.'}</div></div>`).join('')
           : `<div class="openingBadgeRow"><div class="openingBadgeTitle">Sin capacidad operativa activa</div><div class="openingBadgeMeta">Hoy no hay planes ni tickets vigentes para abrir fichas completas.</div></div>`;
-      els.openingBadge.innerHTML = `<div><div>Estado operativo de tu empresa</div><div class="muted">Plan principal: <strong>${esc(planLabel)}</strong> · Días vigentes: ${daysRemaining} · Vence: ${esc(expiresLabel)} · Búsquedas: ${remainingSearches}/${totalSearches} · Publicaciones: ${remainingPublications}/${totalPublications}</div></div><div class="openingBadgeQueue">${rows}</div>`;
+      els.openingBadge.innerHTML = `<div><div>Estado operativo de tu empresa</div><div class="muted">Plan principal: <strong>${esc(planLabel)}</strong> · Días vigentes: ${daysRemaining} · Vence: ${esc(expiresLabel)} · Búsquedas: ${remainingSearches}/${totalSearches} · Publicaciones: ${remainingPublications}/${totalPublications}. Cuando un bloque vence o alguno de sus cupos llega a cero, el sistema pasa al siguiente bloque vigente.</div></div><div class="openingBadgeQueue">${rows}</div>`;
     }
     function renderDetail(item){
       renderOpeningBadge();

@@ -1,0 +1,9 @@
+Talento PyME v5.7.2
+
+Cambios principales:
+- La capacidad operativa ahora se consume por bloque vigente completo.
+- Si un bloque agota días, publicaciones o búsquedas, el sistema pasa al siguiente bloque activo.
+- Factory y Buscar Talento muestran la cola de consumo con más claridad.
+- El resumen total ahora toma la cola vigente real, no mezcla cupos ya agotados.
+- El ticket promocional y los planes pagos se ordenan por vencimiento dentro de la cola operativa.
+- Versionado unificado a v5.7.2 en frontend, API y service worker.

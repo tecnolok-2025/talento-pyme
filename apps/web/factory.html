@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Factory</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.7.1" />
+  <link rel="stylesheet" href="/styles.css?v=5.7.2" />
   <style>
     .factoryMiniGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:14px}
     .factoryMiniCard{border:1px solid var(--tp-border);border-radius:18px;padding:16px;background:#fff}
@@ -276,8 +276,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.7.1"></script>
-  <script src="/auth.js?v=5.7.1"></script>
+  <script src="/config.js?v=5.7.2"></script>
+  <script src="/auth.js?v=5.7.2"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -489,7 +489,7 @@
             <span class="quotaPill">Publicaciones: ${esc(`${item.remainingPublications || 0}/${item.publicationsIncluded || 0}`)}</span>
             <span class="quotaPill">Búsquedas: ${esc(`${item.remainingSearches || 0}/${item.searchesIncluded || 0}`)}</span>
           </div>
-          <div class="timelineNote" style="margin-top:10px">${idx===0 ? 'Esta capacidad se consume antes que el resto por ser la más próxima a vencer.' : 'Esta capacidad queda en espera y se empezará a consumir cuando se agote la anterior.'}</div>
+          <div class="timelineNote" style="margin-top:10px">${idx===0 ? 'Esta capacidad se consume primero. Si se vence o si las publicaciones o búsquedas llegan a cero, el sistema pasa al siguiente bloque vigente.' : 'Este bloque queda en espera y se activará cuando el anterior venza o agote publicaciones o búsquedas.'}</div>
         </div>`).join('');
     }
 
@@ -512,7 +512,7 @@
       document.getElementById('quotaSummaryMsg').textContent = op.fullAccess
         ? `La empresa tiene acceso total habilitado hasta ${when(op.fullAccessUntil)}.`
         : primary
-          ? `La capacidad activa se ordena por vencimiento. Primero se consume ${primary.planName} y después siguen los planes o tickets posteriores hasta agotarse.`
+          ? `La capacidad activa se ordena por vencimiento. Primero se consume ${primary.planName} y, cuando se vence o agota días, publicaciones o búsquedas, el sistema pasa automáticamente al siguiente bloque vigente.`
           : 'Hoy no hay un plan activo cargado. Cuando emitas o pagues un documento vigente, la capacidad aparecerá acá.';
       renderActivePlanQueue(op);
       const orders = boot.orders || [];
