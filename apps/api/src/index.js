@@ -545,7 +545,7 @@ async function getCompanyOperationUsage(companyId){
       remainingPublications,
       daysRemaining,
     };
-  });
+  }).sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime() || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   const fullAccess = activeGrants.length > 0;
   const fullAccessUntil = activeGrants.reduce((acc, row)=> (!acc || row.fullAccessUntil > acc) ? row.fullAccessUntil : acc, latestPrivilegeUntil);
@@ -578,6 +578,7 @@ async function getCompanyOperationUsage(companyId){
     remainingPublications,
     activeItems,
     activeItemsDetailed,
+    activeQueue: activeItemsDetailed,
     activeAccesses: searchAccesses,
     jobPublications,
     fullAccess,
@@ -610,7 +611,7 @@ async function consumeCompanyQuota(companyId, kind){
         : 'No tenés búsquedas disponibles en tu plan actual. Contratá más capacidad desde Factory para seguir abriendo fichas completas.'
     };
   }
-  const target = usage.activeItems.find((item) => (itemUsage[item.orderItemId] || 0) < Number(item[quotaField] || 0));
+  const target = (usage.activeItemsDetailed || usage.activeItems || []).find((item) => (itemUsage[item.orderItemId] || 0) < Number(item[quotaField] || 0));
   if(!target){
     return { ok: false, consumed: false, usage, error: 'No se encontró un cupo activo para continuar. Revisá Factory y actualizá tu plan.' };
   }
@@ -796,6 +797,7 @@ function orderToSummary(order){
   const paymentLabel = isInternalTicket
     ? 'Validado sin cargo'
     : order.status === 'PAID' ? 'Pagado' : (order.status === 'FAILED' ? 'Fallido' : (order.status === 'EXPIRED' ? 'Vencido' : (order.status === 'CANCELLED' ? 'Cancelado' : 'Pendiente')));
+  const statusDisplay = isInternalTicket ? 'Activo sin cargo' : paymentLabel;
   return {
     id: order.id,
     companyName: order.companyNameSnapshot || order.company?.companyName || 'Empresa',
@@ -808,6 +810,7 @@ function orderToSummary(order){
     amount: order.total,
     currency: 'ARS',
     paymentLabel,
+    statusDisplay,
     days: order.totalDays || 0,
     totalOpenings: order.totalOpenings || 0,
     couponCode: order.couponCode || null,
@@ -2453,7 +2456,7 @@ app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res)
     if (!website) return res.status(400).json({ error: 'Falta sitio web' });
     let url = website;
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.7.0 (+Render)' } });
+    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.7.1 (+Render)' } });
     const html = await response.text();
     const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [,''])[1].replace(/\s+/g,' ').trim();
     const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i) || [,''])[1].trim();
@@ -2511,7 +2514,7 @@ app.get('/factory/bootstrap', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
       orderBy: { createdAt: 'desc' }
     }).catch(() => []);
     const visibleOrders = orders.filter((order) => companyVisibleOrder(order, now));
-    const recentOrders = visibleOrders.map(orderToSummary);
+    const recentOrders = visibleOrders.map(orderToSummary).sort((a, b) => new Date(a.dueDate || a.date || 0).getTime() - new Date(b.dueDate || b.date || 0).getTime() || new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
     const totals = recentOrders.reduce((acc, it) => {
       acc.total += it.totals.total;
       acc.pending += it.status === 'PENDING_PAYMENT' ? it.totals.total : 0;
@@ -2668,12 +2671,12 @@ app.post('/factory/checkout', auth, requireAnyRole(['COMPANY','SUPERADMIN','ADMI
     order = await createPendingPaymentOrder({ company, user, billing, quote });
 
     if(Number(quote.total || 0) <= 0){
-      await prisma.billingOrder.update({ where: { id: order.id }, data: { paymentProvider: 'INTERNAL_TICKET', paymentNote: 'PENDING_TICKET_VALIDATION' } }).catch(() => null);
-      order = await prisma.billingOrder.findUnique({ where: { id: order.id }, include: { company: true, items: true } }).catch(() => order);
+      await prisma.billingOrder.update({ where: { id: order.id }, data: { paymentProvider: 'INTERNAL_TICKET', paymentNote: 'PROMOTIONAL_ZERO_TICKET' } }).catch(() => null);
+      order = await issueZeroAmountTicket(order, actor);
       return res.json({
         ok: true,
-        ticketPreview: true,
-        message: 'Ticket de validez listo para revisión. Confirmalo para habilitar la prueba del servicio sin cargo y dejar trazabilidad de la activación.',
+        ticketIssued: true,
+        message: 'Promoción activada. El ticket interno sin cargo quedó validado y la capacidad de prueba ya está disponible para operar.',
         orderId: order.id,
         status: order.status,
         provider: 'INTERNAL_TICKET',

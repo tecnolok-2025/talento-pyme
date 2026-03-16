@@ -1,0 +1,9 @@
+Talento PyME v5.7.1
+
+Cambios principales:
+- Ticket sin cargo: al confirmar un plan de $0 se emite y habilita en el acto, sin quedar como pendiente de pago.
+- Factory: el resumen de cuenta ahora muestra la capacidad activa ordenada por vencimiento, incluyendo tickets y planes pagos.
+- Buscar Talento: el panel derecho muestra desde el inicio el estado operativo de la empresa y la cola de consumo de planes/tickets.
+- Documentos vigentes: se ordenan por vencimiento para ver primero lo que se consume antes.
+- Etiquetas de estado: los tickets se muestran como "Activo sin cargo".
+- Versionado unificado a v5.7.1.

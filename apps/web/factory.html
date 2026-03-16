@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Factory</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.7.0" />
+  <link rel="stylesheet" href="/styles.css?v=5.7.1" />
   <style>
     .factoryMiniGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:14px}
     .factoryMiniCard{border:1px solid var(--tp-border);border-radius:18px;padding:16px;background:#fff}
@@ -140,6 +140,7 @@
               <div class="sectionTitle">Resumen del plan activo</div>
               <div class="quotaLine" id="quotaLineSummary"></div>
               <div class="timelineNote" id="quotaSummaryMsg">Todavía no hay capacidad activa cargada.</div>
+              <div id="activePlanQueue" class="adminStack" style="margin-top:14px"></div>
             </div>
           </div>
 
@@ -220,7 +221,7 @@
                       <div class="secureBadgeRow"><span class="secureBadge">Ticket sin cargo</span><span class="secureBadge">Cobro externo seguro</span><span class="secureBadge">Trazabilidad mínima</span></div>
                     </div>
                   </div>
-                  <div class="timelineNote" id="paymentRedirectHint">Si el total es cero, al confirmar se generará un ticket interno de validez listo para revisar y validar. Si el total es mayor a cero, el pedido quedará pendiente hasta que el proveedor externo confirme el cobro.</div>
+                  <div class="timelineNote" id="paymentRedirectHint">Si el total es cero, al confirmar se emitirá un ticket interno sin cargo y la capacidad quedará habilitada en el acto. Si el total es mayor a cero, el pedido quedará pendiente hasta que el proveedor externo confirme el cobro.</div>
                   <div class="row" style="margin-top:16px">
                     <button class="btn btn-ghost" type="button" id="btnBackToCart">Volver</button>
                     <button class="btn btn-primary" type="button" id="btnCheckoutConfirm">Continuar</button>
@@ -275,8 +276,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.7.0"></script>
-  <script src="/auth.js?v=5.7.0"></script>
+  <script src="/config.js?v=5.7.1"></script>
+  <script src="/auth.js?v=5.7.1"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -348,19 +349,19 @@
       const isTicketPreview = !!data?.ticketPreview && !data?.ticketIssued;
       const isTicketIssued = !!data?.ticketIssued || String(order?.paymentProvider || '').toUpperCase() === 'INTERNAL_TICKET' && status === 'PAID';
       const title = isTicketPreview
-        ? 'Ticket interno listo para validar'
+        ? 'Ticket interno emitido'
         : isTicketIssued
           ? 'Ticket de validez confirmado'
           : status === 'PAID'
             ? 'Pago confirmado'
             : 'Pedido creado';
       const lead = isTicketPreview
-        ? 'Revisá este ticket y validalo para habilitar la prueba sin cargo. La activación deja trazabilidad y luego vas a ver el documento en tu resumen de cuenta.'
+        ? 'Este ticket interno se emitió para habilitar la prueba sin cargo y dejar trazabilidad de la activación.'
         : isTicketIssued
           ? 'El servicio quedó habilitado sin cargo para que tu empresa pueda probar Talento PyME, sumar búsquedas reales y evaluar su funcionamiento con trazabilidad completa.'
           : (data?.message || 'El pedido quedó listo para continuar en un proveedor externo seguro.');
       box.style.display = '';
-      box.innerHTML = `<div class="payResult ${isTicketPreview || isTicketIssued ? 'ticketHero' : ''}"><div class="small pageEyebrow" style="color:var(--tp-blue-900)">${isTicketPreview || isTicketIssued ? 'Ticket interno de validez' : 'Pedido creado'}</div><h3>${esc(title)}</h3><div class="muted">${esc(lead)}</div>${isTicketPreview || isTicketIssued ? `<div class="ticketStamp"><span class="ticketRibbon">Promoción de prueba · sin costo</span><div class="ticketTitle">${esc(data?.ticketNo || order.documentNo || 'TCK')}</div><div class="ticketBody"><div>Esta promoción te habilita una prueba real del sistema sin costo para que puedas evaluar cómo se comportan las búsquedas, las publicaciones y el seguimiento operativo antes de la etapa comercial plena.</div><div>Al validar este ticket, la empresa recibe una capacidad temporal controlada con trazabilidad documental, sin emitir factura de cobro y sin generar cargos mientras la promoción siga vigente.</div><div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Vigencia</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc((order?.days || data?.quote?.totalDays || 0) + ' días')}</div></div><div class="payMetaCard"><div class="mutedInline">Publicaciones</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc(order?.items?.reduce((acc,it)=>acc + Number(it.publicationsIncluded||0),0) || data?.quote?.totalPublications || 0)}</div></div><div class="payMetaCard"><div class="mutedInline">Búsquedas</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc(order?.items?.reduce((acc,it)=>acc + Number(it.searchesIncluded||it.openingsIncluded||0),0) || data?.quote?.totalOpenings || 0)}</div></div></div></div></div>` : `<div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Pedido</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.orderId || order?.id || '—')}</div></div><div class="payMetaCard"><div class="mutedInline">Modalidad</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.provider || order?.paymentProvider || 'Proveedor externo')}</div></div><div class="payMetaCard"><div class="mutedInline">Estado</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(statusLabel(status))}</div></div><div class="payMetaCard"><div class="mutedInline">Total</div><div style="font-size:20px;font-weight:900;margin-top:6px">${money(order?.totals?.total || data?.quote?.total || 0)}</div></div></div>`}<div class="row" style="margin-top:14px">${isTicketPreview ? '<button class="btn btn-primary" type="button" id="btnValidateTicket">Validar ticket promocional</button>' : ''}<button class="btn ${isTicketIssued ? 'btn-primary' : 'btn-ghost'}" type="button" id="btnGoSummary">Ir al resumen de cuenta</button></div></div>`;
+      box.innerHTML = `<div class="payResult ${isTicketPreview || isTicketIssued ? 'ticketHero' : ''}"><div class="small pageEyebrow" style="color:var(--tp-blue-900)">${isTicketPreview || isTicketIssued ? 'Ticket interno de validez' : 'Pedido creado'}</div><h3>${esc(title)}</h3><div class="muted">${esc(lead)}</div>${isTicketPreview || isTicketIssued ? `<div class="ticketStamp"><span class="ticketRibbon">Promoción de prueba · sin costo</span><div class="ticketTitle">${esc(data?.ticketNo || order.documentNo || 'TCK')}</div><div class="ticketBody"><div>Esta promoción te habilita una prueba real del sistema sin costo para que puedas evaluar cómo se comportan las búsquedas, las publicaciones y el seguimiento operativo antes de la etapa comercial plena.</div><div>Con la emisión de este ticket, la empresa recibe una capacidad temporal controlada con trazabilidad documental, sin emitir factura de cobro y sin generar cargos mientras la promoción siga vigente.</div><div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Vigencia</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc((order?.days || data?.quote?.totalDays || 0) + ' días')}</div></div><div class="payMetaCard"><div class="mutedInline">Publicaciones</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc(order?.items?.reduce((acc,it)=>acc + Number(it.publicationsIncluded||0),0) || data?.quote?.totalPublications || 0)}</div></div><div class="payMetaCard"><div class="mutedInline">Búsquedas</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc(order?.items?.reduce((acc,it)=>acc + Number(it.searchesIncluded||it.openingsIncluded||0),0) || data?.quote?.totalOpenings || 0)}</div></div></div></div></div>` : `<div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Pedido</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.orderId || order?.id || '—')}</div></div><div class="payMetaCard"><div class="mutedInline">Modalidad</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.provider || order?.paymentProvider || 'Proveedor externo')}</div></div><div class="payMetaCard"><div class="mutedInline">Estado</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(statusLabel(status))}</div></div><div class="payMetaCard"><div class="mutedInline">Total</div><div style="font-size:20px;font-weight:900;margin-top:6px">${money(order?.totals?.total || data?.quote?.total || 0)}</div></div></div>`}<div class="row" style="margin-top:14px">${isTicketPreview ? '<button class="btn btn-primary" type="button" id="btnValidateTicket">Validar ticket promocional</button>' : ''}<button class="btn ${isTicketIssued ? 'btn-primary' : 'btn-ghost'}" type="button" id="btnGoSummary">Ir al resumen de cuenta</button></div></div>`;
       const goSummary = ()=> { clearCheckoutResult(); document.getElementById('checkoutCard').style.display='none'; setTab('summary'); renderSummary(); window.scrollTo({ top:0, behavior:'smooth' }); };
       document.getElementById('btnGoSummary').onclick = goSummary;
       const validateBtn = document.getElementById('btnValidateTicket');
@@ -421,7 +422,7 @@
     function updateCheckoutFlowCopy(){
       const isFreeTicket = Number(state.quote?.total || 0) <= 0;
       const openCheckoutBtn = document.getElementById('btnOpenCheckout');
-      if(openCheckoutBtn) openCheckoutBtn.textContent = isFreeTicket ? 'Confirmar ticket' : 'Confirmar compra';
+      if(openCheckoutBtn) openCheckoutBtn.textContent = isFreeTicket ? 'Emitir ticket' : 'Confirmar compra';
     }
 
     function planByCode(code){ return (state.bootstrap?.plans || []).find((it)=> it.code === code) || null; }
@@ -470,6 +471,28 @@
     function changeQty(code, delta){ const row = state.cart.find((it)=> it.planCode === code); if(!row) return; const plan = planByCode(code) || {}; if(Number(plan.price || 0) <= 0){ row.quantity = 1; saveCart(); refreshQuote(); return; } row.quantity = Math.max(1, row.quantity + delta); saveCart(); refreshQuote(); }
     function removeFromCart(code){ state.cart = state.cart.filter((it)=> it.planCode !== code); saveCart(); refreshQuote(); }
 
+
+    function statusText(order){ return order?.statusDisplay || statusLabel(order?.status); }
+    function formatShortDate(v){ if(!v) return 's/d'; try { return new Date(v).toLocaleDateString('es-AR'); } catch(_) { return String(v||'s/d'); } }
+    function renderActivePlanQueue(op){
+      const box = document.getElementById('activePlanQueue');
+      if(!box) return;
+      const queue = Array.isArray(op?.activeQueue) ? op.activeQueue : [];
+      if(!queue.length){ box.innerHTML = ''; return; }
+      box.innerHTML = queue.map((item, idx)=> `
+        <div class="factoryKpi" style="padding:14px 16px">
+          <div class="small pageEyebrow" style="color:var(--tp-blue-900)">${idx===0 ? 'Se consume primero' : 'Se usa después'}</div>
+          <div style="font-size:20px;font-weight:900;margin-top:6px">${esc(item.planName || 'Plan activo')}</div>
+          <div class="quotaLine" style="margin-top:10px">
+            <span class="quotaPill">Días vigentes: ${esc(item.daysRemaining || 0)}</span>
+            <span class="quotaPill">Vence: ${esc(formatShortDate(item.expiresAt))}</span>
+            <span class="quotaPill">Publicaciones: ${esc(`${item.remainingPublications || 0}/${item.publicationsIncluded || 0}`)}</span>
+            <span class="quotaPill">Búsquedas: ${esc(`${item.remainingSearches || 0}/${item.searchesIncluded || 0}`)}</span>
+          </div>
+          <div class="timelineNote" style="margin-top:10px">${idx===0 ? 'Esta capacidad se consume antes que el resto por ser la más próxima a vencer.' : 'Esta capacidad queda en espera y se empezará a consumir cuando se agote la anterior.'}</div>
+        </div>`).join('');
+    }
+
     function renderSummary(){
       const boot = state.bootstrap; if(!boot) return;
       const company = boot.company || {}; const op = boot.operationUsage || boot.openingUsage || {};
@@ -479,27 +502,30 @@
       const support = boot.supportEmail || 'factory@gmail.com';
       const supportEl = document.getElementById('supportEmailLink'); supportEl.textContent = support; supportEl.href = `mailto:${support}`;
       const currentPlan = op.currentPlan || null;
-      document.getElementById('kpiPlan').textContent = op.fullAccess ? 'Acceso total' : (currentPlan?.planName || 'Sin plan');
-      document.getElementById('kpiDays').textContent = op.fullAccess ? (currentPlan?.daysRemaining ?? '∞') : String(currentPlan?.daysRemaining || 0);
+      const queue = Array.isArray(op.activeQueue) ? op.activeQueue : [];
+      const primary = queue[0] || currentPlan || null;
+      document.getElementById('kpiPlan').textContent = op.fullAccess ? 'Acceso total' : (primary?.planName || 'Sin plan');
+      document.getElementById('kpiDays').textContent = op.fullAccess ? (currentPlan?.daysRemaining ?? '∞') : String(primary?.daysRemaining || 0);
       document.getElementById('kpiPublications').textContent = op.fullAccess ? '∞' : String(op.remainingPublications || 0);
       document.getElementById('kpiSearches').textContent = op.fullAccess ? '∞' : String(op.remainingSearches || op.remainingOpenings || 0);
       document.getElementById('quotaLineSummary').innerHTML = quotaLineHTML(op);
       document.getElementById('quotaSummaryMsg').textContent = op.fullAccess
         ? `La empresa tiene acceso total habilitado hasta ${when(op.fullAccessUntil)}.`
-        : currentPlan
-          ? `El plan vigente vence el ${when(currentPlan.expiresAt)}. Uso actual: ${op.usedPublications || 0} publicaciones y ${op.usedSearches || op.usedOpenings || 0} búsquedas consumidas.`
+        : primary
+          ? `La capacidad activa se ordena por vencimiento. Primero se consume ${primary.planName} y después siguen los planes o tickets posteriores hasta agotarse.`
           : 'Hoy no hay un plan activo cargado. Cuando emitas o pagues un documento vigente, la capacidad aparecerá acá.';
+      renderActivePlanQueue(op);
       const orders = boot.orders || [];
       document.getElementById('summaryBadge').textContent = orders.length ? `${orders.length} documento(s) vigente(s)` : 'Sin documentos vigentes';
       const tbody = document.getElementById('ordersBody');
       if(!orders.length){ tbody.innerHTML = `<tr><td colspan="9"><div class="emptyStateFactory">Hoy no hay tickets, pedidos ni planes vigentes para mostrar en esta cuenta.</div></td></tr>`; document.getElementById('orderDetailBox').innerHTML=''; return; }
-      tbody.innerHTML = orders.map((order)=> `<tr><td><b>${esc(order.companyName)}</b><div class="muted monoData">Código ${esc(order.companyCode)}</div></td><td>${esc(order.docType)}</td><td class="monoData">${esc(order.documentNo)}</td><td>${when(order.date)}</td><td>${when(order.dueDate)}</td><td><span class="statusPill ${esc(order.status)}">${esc(statusLabel(order.status))}</span></td><td>${money(order.amount)}</td><td>${esc(order.currency)}</td><td><button class="btn btn-ghost btnOrderDetail" type="button" data-id="${order.id}">${state.selectedOrderId === order.id ? 'Ocultar' : 'Ver'}</button></td></tr>`).join('');
+      tbody.innerHTML = orders.map((order)=> `<tr><td><b>${esc(order.companyName)}</b><div class="muted monoData">Código ${esc(order.companyCode)}</div></td><td>${esc(order.docType)}</td><td class="monoData">${esc(order.documentNo)}</td><td>${when(order.date)}</td><td>${when(order.dueDate)}</td><td><span class="statusPill ${esc(order.status)}">${esc(statusText(order))}</span></td><td>${money(order.amount)}</td><td>${esc(order.currency)}</td><td><button class="btn btn-ghost btnOrderDetail" type="button" data-id="${order.id}">${state.selectedOrderId === order.id ? 'Ocultar' : 'Ver'}</button></td></tr>`).join('');
       tbody.querySelectorAll('.btnOrderDetail').forEach((btn)=> btn.onclick = ()=>{ state.selectedOrderId = state.selectedOrderId === btn.dataset.id ? null : btn.dataset.id; renderSummary(); });
       const active = orders.find((it)=> it.id === state.selectedOrderId);
       if(!active){ document.getElementById('orderDetailBox').innerHTML=''; return; }
       document.getElementById('orderDetailBox').innerHTML = `
         <div class="orderDetailsCard">
-          <div class="toolbarCard"><div><div class="small pageEyebrow" style="color:var(--tp-blue-900)">Detalle del documento</div><div style="font-size:22px;font-weight:900;margin-top:6px">${esc(active.documentNo)}</div></div><div class="badge">${esc(statusLabel(active.status))}</div></div>
+          <div class="toolbarCard"><div><div class="small pageEyebrow" style="color:var(--tp-blue-900)">Detalle del documento</div><div style="font-size:22px;font-weight:900;margin-top:6px">${esc(active.documentNo)}</div></div><div class="badge">${esc(statusText(active))}</div></div>
           <div class="grid2" style="margin-top:16px">
             <div><div><b>Empresa:</b> ${esc(active.companyName)}</div><div><b>Días contratados:</b> ${esc(active.days || 0)}</div><div><b>Proveedor:</b> ${esc(active.paymentProvider || 'No informado')}</div></div>
             <div><div><b>Facturar a:</b> ${esc(active.billingName || 's/d')}</div><div><b>CUIT:</b> ${esc(active.billingTaxId || 's/d')}</div><div><b>E-mail:</b> ${esc(active.billingEmail || 's/d')}</div></div>
@@ -557,7 +583,7 @@
           : `Ya tenés activo el ticket ${activeFree.ticketNo}. Restan ${activeFree.remainingPublications} publicaciones y ${activeFree.remainingSearches} búsquedas hasta ${when(activeFree.expiresAt)}.`;
       }
       const openCheckoutBtn = document.getElementById('btnOpenCheckout');
-      if(openCheckoutBtn) openCheckoutBtn.textContent = Number(q.total || 0) <= 0 ? 'Confirmar ticket' : 'Confirmar compra';
+      if(openCheckoutBtn) openCheckoutBtn.textContent = Number(q.total || 0) <= 0 ? 'Emitir ticket' : 'Confirmar compra';
     }
 
     function prefillCheckout(){
@@ -584,8 +610,8 @@
       document.getElementById('checkoutLead').textContent = isFreeTicket ? 'Completá los datos mínimos y generá un ticket interno sin cargo para habilitar la prueba del sistema con trazabilidad completa.' : 'Completá los datos de facturación. Después vas a continuar el pago en un proveedor externo seguro.';
       document.getElementById('checkoutValidationTitle').textContent = isFreeTicket ? 'Ticket de validez sin cargo' : 'Pedido y validación del servicio';
       document.getElementById('checkoutMsg').textContent = isFreeTicket ? 'Ticket listo para emitir' : 'Pedido listo para validar';
-      document.getElementById('btnCheckoutConfirm').textContent = isFreeTicket ? 'Generar ticket' : 'Continuar';
-      document.getElementById('paymentRedirectHint').textContent = isFreeTicket ? 'Al confirmar se generará un ticket interno de validez. Después vas a revisarlo y validarlo para habilitar la prueba del servicio sin cargo.' : 'El pedido quedará pendiente hasta que el proveedor externo confirme el cobro.';
+      document.getElementById('btnCheckoutConfirm').textContent = isFreeTicket ? 'Emitir ticket' : 'Continuar';
+      document.getElementById('paymentRedirectHint').textContent = isFreeTicket ? 'Al confirmar se emitirá un ticket interno sin cargo. La capacidad de prueba quedará habilitada automáticamente y el documento aparecerá en tu resumen de cuenta.' : 'El pedido quedará pendiente hasta que el proveedor externo confirme el cobro.';
       document.getElementById('checkoutItems').innerHTML = (q.items || []).map((it)=> `<div class="cartItem" style="margin-top:0;margin-bottom:12px"><div style="font-weight:900">${esc(it.planName)}</div><div class="muted">${it.quantity} unidad(es) · ${it.days} días · ${it.publicationsPerUnit || 0} publicaciones · ${it.searchesPerUnit || 0} búsquedas</div><div style="margin-top:8px;font-size:22px;font-weight:950">${money(it.subtotal)}</div></div>`).join('') || '<div class="emptyStateFactory">Todavía no hay items en el resumen.</div>';
       document.getElementById('checkoutTotals').innerHTML = `
         <div class="cartLine"><span>Subtotal</span><b>${money(q.subtotal || 0)}</b></div>

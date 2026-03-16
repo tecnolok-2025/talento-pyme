@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Buscar Talento</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.7.0" />
+  <link rel="stylesheet" href="/styles.css?v=5.7.1" />
   <style>
     .talentCard{padding:0;overflow:hidden;cursor:default}
     .talentCardHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px;cursor:pointer}
@@ -27,8 +27,12 @@
     .salarySpot.is-missing .salarySpotValue{font-size:15px;color:#475569}
     .talentHint{margin-top:12px;padding:12px 14px;border-radius:14px;background:rgba(14,165,233,.08);border:1px dashed rgba(14,165,233,.35);font-weight:700;color:#0f172a}
     .detailCard.is-collapsed #detailBody{opacity:.72}
-.openingBadge{margin-top:12px;display:inline-flex;gap:10px;align-items:center;padding:10px 14px;border-radius:999px;background:rgba(23,105,224,.08);border:1px solid rgba(23,105,224,.18);font-weight:900;color:#0f172a;flex-wrap:wrap}
+.openingBadge{margin-top:12px;display:grid;gap:10px;padding:12px 14px;border-radius:24px;background:rgba(23,105,224,.08);border:1px solid rgba(23,105,224,.18);font-weight:900;color:#0f172a}
 .openingBadge strong{color:#0d47a1}
+    .openingBadgeQueue{display:grid;gap:8px}
+    .openingBadgeRow{display:grid;gap:4px;padding:10px 12px;border-radius:16px;background:rgba(255,255,255,.72);border:1px solid rgba(23,105,224,.12)}
+    .openingBadgeTitle{font-size:14px;font-weight:900;color:#0f172a}
+    .openingBadgeMeta{font-size:14px;color:#475569;font-weight:800}
 .openingBadge.is-alert{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.24);color:#7f1d1d}
 .lockedPanel{padding:14px 16px;border-radius:18px;background:rgba(239,68,68,.06);border:1px dashed rgba(239,68,68,.35);color:#7f1d1d;font-weight:700}
     @media(max-width:760px){.talentCardHead{flex-direction:column}.talentToggle{width:100%;justify-content:center}.talentInlineGrid{grid-template-columns:1fr}}
@@ -155,7 +159,7 @@
       </div>
 
       <div class="card detailCard" id="detailPanel">
-        <h2 style="margin:0 0 8px 0">Detalle del candidato</h2>
+        <h2 style="margin:0 0 8px 0">Estado operativo y detalle del candidato</h2>
         <div class="muted">Seleccioná un candidato desde la tarjeta de resultados y vas a ver acá la ficha completa junto con el estado real de tu plan activo.</div>
         <div id="openingBadge" class="openingBadge">Plan activo: <strong>Sin plan activo</strong></div>
         <div id="detailBody" style="margin-top:14px" class="muted">Todavía no seleccionaste ningún perfil.</div>
@@ -163,8 +167,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.7.0"></script>
-  <script src="/auth.js?v=5.7.0"></script>
+  <script src="/config.js?v=5.7.1"></script>
+  <script src="/auth.js?v=5.7.1"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -250,7 +254,8 @@
     }
     function renderOpeningBadge(){
       const usage = jobsOpeningUsage || {};
-      const currentPlan = usage.currentPlan || null;
+      const queue = Array.isArray(usage.activeQueue) ? usage.activeQueue : [];
+      const currentPlan = queue[0] || usage.currentPlan || null;
       const remainingSearches = Number(usage.remainingSearches || usage.remainingOpenings || 0);
       const totalSearches = Number(usage.totalSearches || usage.totalOpenings || 0);
       const remainingPublications = Number(usage.remainingPublications || 0);
@@ -260,7 +265,12 @@
       const planLabel = usage.fullAccess ? 'Acceso total especial' : (currentPlan?.planName || 'Sin plan activo');
       const hasCapacity = usage.fullAccess || remainingSearches > 0 || remainingPublications > 0 || daysRemaining > 0;
       els.openingBadge.classList.toggle('is-alert', !hasCapacity);
-      els.openingBadge.innerHTML = `Plan activo: <strong>${esc(planLabel)}</strong><span class="muted">Días vigentes: ${daysRemaining} · Vence: ${esc(expiresLabel)} · Búsquedas: ${remainingSearches}/${totalSearches} · Publicaciones: ${remainingPublications}/${totalPublications}</span>`;
+      const rows = usage.fullAccess
+        ? `<div class="openingBadgeRow"><div class="openingBadgeTitle">Acceso total especial activo</div><div class="openingBadgeMeta">Vigente hasta ${esc(expiresLabel)} · Publicaciones y búsquedas sin tope operativo.</div></div>`
+        : queue.length
+          ? queue.map((item, idx)=> `<div class="openingBadgeRow"><div class="openingBadgeTitle">${idx===0 ? 'Se consume primero' : 'Se consume después'} · ${esc(item.planName || 'Plan activo')}</div><div class="openingBadgeMeta">Días vigentes: ${item.daysRemaining || 0} · Vence: ${esc(formatDate(item.expiresAt))} · Búsquedas: ${item.remainingSearches || 0}/${item.searchesIncluded || 0} · Publicaciones: ${item.remainingPublications || 0}/${item.publicationsIncluded || 0}</div></div>`).join('')
+          : `<div class="openingBadgeRow"><div class="openingBadgeTitle">Sin capacidad operativa activa</div><div class="openingBadgeMeta">Hoy no hay planes ni tickets vigentes para abrir fichas completas.</div></div>`;
+      els.openingBadge.innerHTML = `<div><div>Estado operativo de tu empresa</div><div class="muted">Plan principal: <strong>${esc(planLabel)}</strong> · Días vigentes: ${daysRemaining} · Vence: ${esc(expiresLabel)} · Búsquedas: ${remainingSearches}/${totalSearches} · Publicaciones: ${remainingPublications}/${totalPublications}</div></div><div class="openingBadgeQueue">${rows}</div>`;
     }
     function renderDetail(item){
       renderOpeningBadge();
