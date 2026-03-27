@@ -1,42 +1,152 @@
-# Render / variables de entorno — Talento PyME v5.6.3
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Recuperar contraseña · Talento PyME</title>
+  <meta name="theme-color" content="#0B1220" />
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css?v=5.7.3" />
+</head>
+<body class="authBody">
+  <div class="authTop">
+    <div class="authBrand">
+      <img src="/icon-192.png" alt="Talento PyME" />
+      <div>
+        <div class="authTitle">Talento PyME</div>
+        <div class="authSubtitle">Recuperación por DNI (candidato) o CUIT (empresa)</div>
+      </div>
+    </div>
+    <div class="authBadge"><span class="tp-version"></span> · Recuperar</div>
+  </div>
 
-## Backend (servicio API)
+  <div class="authWrap">
+    <div class="authCard">
+      <div class="authGrid">
+        <div class="authLeft">
+          <h2 class="bigTitle">Olvidé mi contraseña</h2>
+          <div class="bigLead">Por ahora, en modo gratuito, la recuperación se valida con tu <b>DNI</b> o <b>CUIT</b>.</div>
 
-Configurar en Render > API > Environment:
+          <div class="rolePicker" style="margin-top:14px">
+            <div class="roleBtn active" id="roleCand">
+              <div class="roleIcon">C</div>
+              <div class="roleMeta">
+                <div class="roleName">Candidato</div>
+                <div class="roleDesc">Usá tu DNI.</div>
+              </div>
+            </div>
+            <div class="roleBtn" id="roleComp">
+              <div class="roleIcon">E</div>
+              <div class="roleMeta">
+                <div class="roleName">Empresa</div>
+                <div class="roleDesc">Usá el CUIT de la empresa.</div>
+              </div>
+            </div>
+          </div>
 
-- `APP_BASE_URL=https://tu-dominio`
-- `PAYMENT_PROVIDER=stripe_checkout`
-- `PAYMENT_PROVIDER_API_KEY=sk_live_o_sk_test`
-- `PAYMENT_PROVIDER_PUBLIC_KEY=pk_live_o_pk_test`
-- `PAYMENT_PROVIDER_WEBHOOK_SECRET=whsec_...`
-- `PAYMENT_SUCCESS_URL=https://tu-dominio/factory.html?payment=success`
-- `PAYMENT_CANCEL_URL=https://tu-dominio/factory.html?payment=cancel`
-- `PAYMENT_WEBHOOK_URL=https://tu-dominio/payments/webhook/provider`
-- `PAYMENT_CURRENCY=ARS`
-- `PAYMENT_MODE=production`
+          <div class="authForm">
+            <div id="candFields">
+              <label>DNI</label>
+              <input class="input" id="dni" placeholder="Solo números" inputmode="numeric" />
+            </div>
+            <div id="compFields" style="display:none">
+              <label>CUIT</label>
+              <input class="input" id="cuit" placeholder="Ej: 30-12345678-9" />
+            </div>
 
-## Admin comercial existente
+            <label>Nueva contraseña</label>
+            <div class="pw"><input class="input" id="newPass" type="password" placeholder="mínimo 8 caracteres" /><button type="button" class="pwToggle" data-target="newPass" aria-label="Ver contraseña">👁</button></div>
 
-- `FACTORY_ADMIN_ALIAS=TalentoPyme`
-- `FACTORY_ADMIN_PASSWORD=tu_clave`
-- `FACTORY_SUPPORT_EMAIL=factory@gmail.com`
-- `FACTORY_ADMIN_ALLOWED_COMPANIES=Mengabo SA,Mengabo Sociedad Anonima`
+            <label>Repetir contraseña</label>
+            <div class="pw"><input class="input" id="newPass2" type="password" placeholder="repetí la nueva contraseña" /><button type="button" class="pwToggle" data-target="newPass2" aria-label="Ver contraseña">👁</button></div>
 
-## Despliegue
+            <div class="authActions">
+              <button class="btn btn-cta" id="btnReset">Actualizar contraseña</button>
+              <a class="btn btn-ghost" href="/" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center">Volver</a>
+            </div>
 
-1. guardar variables
-2. redeploy del servicio API
-3. correr build habitual:
-   - `npm install`
-   - `npx prisma generate`
-   - `npx prisma db push --accept-data-loss`
-4. configurar el webhook del proveedor apuntando a:
-   - `/payments/webhook/provider`
+            <div class="muted" style="margin-top:12px" id="msg"></div>
+</div>
+        </div>
 
-## Modo de prueba seguro
+        <div class="authRight">
+          <div class="authHint">
+            <h3>Nota</h3>
+            <p>Si el DNI/CUIT no coincide con un usuario registrado, no podremos resetear la contraseña.</p>
+          </div>
+          <div class="authHint" style="margin-top:12px">
+            <h3>Recomendación</h3>
+            <p>Usá una contraseña de al menos 8 caracteres. Ideal: una frase + números.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-Si todavía no está definida la pasarela real, solo para desarrollo se puede usar:
-- `PAYMENT_PROVIDER=mock_redirect`
-- `PAYMENT_MODE=test`
+  <script src="/config.js?v=5.7.3"></script>
+  <script src="/auth.js?v=5.7.3"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const msg = (t) => ($("msg").textContent = t || "");
 
-Ese modo NO pide tarjeta y NO debe usarse en producción.
+    let selectedRole = "CANDIDATE";
+    function setRole(r){
+      selectedRole = r;
+      $("roleCand").classList.toggle("active", r === "CANDIDATE");
+      $("roleComp").classList.toggle("active", r === "COMPANY");
+      $("candFields").style.display = (r === "CANDIDATE") ? "block" : "none";
+      $("compFields").style.display = (r === "COMPANY") ? "block" : "none";
+      msg("");
+    }
+    $("roleCand").onclick = () => setRole("CANDIDATE");
+    $("roleComp").onclick = () => setRole("COMPANY");
+
+    $("apiUrl").value = window.TP_API_URL;
+    $("apiUrl").addEventListener("change", () => {
+      const v = $("apiUrl").value.trim();
+      if(v) window.TP_API_URL = v;
+    });
+
+    async function post(path, body){
+      const r = await fetch(`${window.TP_API_URL}${path}`,{
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await r.json().catch(()=> ({}));
+      if(!r.ok) throw new Error(data?.error || "Error");
+      return data;
+    }
+
+    function disable(el, v){ el.disabled = !!v; el.style.opacity = v ? .7 : 1; }
+
+    $("btnReset").onclick = async () => {
+      msg("Actualizando...");
+      disable($("btnReset"), true);
+      try{
+        const p1 = $("newPass").value;
+        const p2 = $("newPass2").value;
+        if((p1||"").length < 8) throw new Error("La contraseña debe tener mínimo 8 caracteres");
+        if(p1 !== p2) throw new Error("Las contraseñas no coinciden");
+
+        const payload = { role: selectedRole, newPassword: p1 };
+        if(selectedRole === "CANDIDATE"){
+          const dni = $("dni").value.trim();
+          if(!dni) throw new Error("Ingresá tu DNI");
+          payload.dni = dni;
+        } else {
+          const cuit = $("cuit").value.trim();
+          if(!cuit) throw new Error("Ingresá el CUIT");
+          payload.cuit = cuit;
+        }
+
+        await post("/auth/reset-by-id", payload);
+        msg("Listo ✅ Contraseña actualizada. Ya podés ingresar.");
+      }catch(e){ msg(e.message); }
+      finally{ disable($("btnReset"), false); }
+    };
+
+    setRole("CANDIDATE");
+  </script>
+</body>
+</html>

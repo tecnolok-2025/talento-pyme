@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Talento PyME · Factory</title>
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css?v=5.7.3" />
+  <style>
+    .factoryMiniGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:14px}
+    .factoryMiniCard{border:1px solid var(--tp-border);border-radius:18px;padding:16px;background:#fff}
+    .factoryTableCompact input,.factoryTableCompact select{width:100%}
+    .factoryAdminGrid{display:grid;grid-template-columns:1.3fr .9fr .9fr;gap:16px;margin-top:16px}
+    @media (max-width:1100px){.factoryAdminGrid{grid-template-columns:1fr}}
+    .quotaLine{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .quotaPill{padding:8px 12px;border-radius:999px;background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.16);font-weight:800;color:#1e3a8a;font-size:13px}
+    .unlockBox{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
+    .factoryPasswordWrap{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+    .factoryPasswordToggle{min-width:52px}
+    .factoryCartBody{display:grid;gap:0}
+    .factoryCart.is-collapsed .factoryCartBody{display:none}
+    .factoryCartToggle{min-width:120px}
+    .usedCodeItem{padding:8px 0;border-bottom:1px solid rgba(220,38,38,.14);color:#991b1b}
+    .sectionTitle{font-size:22px;font-weight:900;margin:0 0 4px 0}
+    .adminStack{display:grid;gap:12px}
+    .mutedInline{color:#64748b;font-size:13px}
+    .secureNotice{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:18px;background:linear-gradient(135deg,rgba(23,105,224,.08),rgba(46,173,74,.08));border:1px solid rgba(23,105,224,.14)}
+    .secureLock{width:40px;height:40px;border-radius:14px;display:grid;place-items:center;background:#0f172a;color:#fff;font-size:20px;flex:0 0 auto}
+    .secureBadgeRow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .secureBadge{display:inline-flex;align-items:center;padding:7px 10px;border-radius:999px;background:rgba(15,23,42,.06);font-weight:800;font-size:12px;color:#0f172a}
+    .priceDisclaimer{margin-top:14px;color:#64748b;font-size:13px;font-weight:700}
+    .readonlyAmount{background:#eef4ff;font-weight:900;color:#123a8a}
+    .payResult{margin-top:16px;padding:16px 18px;border-radius:20px;border:1px solid rgba(46,173,74,.18);background:linear-gradient(180deg,#fff,rgba(46,173,74,.08))}
+    .payResult h3{margin:0 0 8px 0;font-size:22px}
+    .payMeta{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:12px}
+    .payMetaCard{background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:16px;padding:12px}
+    .adminPlanEditor{display:grid;gap:12px}
+    .adminPlanRow{display:grid;grid-template-columns:minmax(180px,1.4fr) repeat(4,minmax(110px,1fr)) minmax(150px,.9fr);gap:10px;padding:14px;border:1px solid var(--tp-border);border-radius:18px;background:#fff}
+    .adminPlanRow.is-off{background:linear-gradient(180deg,rgba(226,232,240,.72),rgba(241,245,249,.92));}
+    .adminPlanRow .adminToggleWrap{display:flex;align-items:center;gap:10px;margin-top:28px;font-weight:800;color:var(--tp-blue-900)}
+    .adminPlanRow .field.planToggle{align-content:end}
+    .adminPlanRow .field.planToggle label{display:flex;gap:8px;align-items:center;font-size:12px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:#334155}
+    .adminPlanRow .field.planToggle input{width:18px;height:18px;accent-color:#2563eb}
+    .planCard.is-disabled{position:relative;overflow:hidden;min-height:320px}
+    .planCard.is-disabled > *{visibility:hidden}
+    .planCard.is-disabled::after{content:"Plan por tiempo desactivado temporalmente";position:absolute;inset:0;border-radius:24px;background:linear-gradient(135deg,rgba(15,23,42,.96),rgba(30,64,175,.92));display:flex;align-items:center;justify-content:center;padding:28px;text-align:center;font-size:24px;font-weight:900;letter-spacing:.02em;color:#fff;visibility:visible}
+    .planCard.is-disabled .btn{pointer-events:none}
+    .ticketHero{border-color:rgba(37,99,235,.18);background:linear-gradient(180deg,#fff,rgba(37,99,235,.06))}
+    .ticketHero .ticketStamp{margin-top:14px;padding:18px;border:2px dashed rgba(30,64,175,.28);border-radius:22px;background:linear-gradient(180deg,rgba(239,246,255,.96),rgba(255,255,255,.98));box-shadow:inset 0 0 0 6px rgba(37,99,235,.05)}
+    .ticketHero .ticketTitle{font-size:28px;font-weight:950;color:#173b8f;margin:6px 0 10px 0}
+    .ticketHero .ticketRibbon{display:inline-flex;align-items:center;padding:7px 12px;border-radius:999px;background:rgba(37,99,235,.10);color:#173b8f;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+    .ticketHero .ticketBody{display:grid;gap:12px;margin-top:12px}
+    .ticketHero .ticketSeal{display:inline-flex;align-items:center;justify-content:center;min-width:170px;padding:12px 18px;border-radius:18px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;font-weight:900;box-shadow:0 12px 26px rgba(37,99,235,.20)}
+    .adminPlanRow .field{display:grid;gap:6px}
+    .adminPlanRow .field label{font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#1d4ed8}
+    .adminPlanRow .field.planName input{font-weight:800}
+    @media (max-width:1100px){.adminPlanRow{grid-template-columns:repeat(2,minmax(140px,1fr))}.adminPlanRow .field.planName{grid-column:1/-1}.adminPlanRow .field.planToggle{grid-column:1/-1}}
+    @media (max-width:1400px){.unlockBox{grid-template-columns:1fr}.factoryPasswordWrap{grid-template-columns:minmax(0,1fr) auto}}
+  .factoryHero{color:var(--tp-text)}
+    .factoryHero h2{color:var(--tp-text);text-align:left}
+    .factoryHero .pageEyebrow{color:#1e3a8a;opacity:1}
+    .factoryHero .muted{color:#475569}
+    .factoryHero .segmentTabs{margin-top:16px}
+    .factoryHero .factoryGlow{margin-top:14px}
+    .factoryHero .factoryGlow span{box-shadow:0 10px 20px rgba(15,23,42,.06)}
+</style>
+</head>
+<body class="appShell">
+  <div class="header">
+    <div class="brand">
+      <img src="/icon-192.png" alt="Talento PyME" />
+      <div>
+        <div class="brandTitle">Talento PyME</div>
+        <div class="muted">Portal de empleo • <span class="tp-version"></span></div>
+      </div>
+    </div>
+    <div class="nav">
+      <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
+      <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
+      <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
+      <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
+      <a href="/mis-candidatos.html" data-role="COMPANY">Mis Candidatos</a>
+      <a href="/factory.html" class="active" data-role="COMPANY">Factory</a>
+      <a href="/asistencia.html">Ayuda IA</a><a href="#" id="btnLogout">Salir</a>
+    </div>
+  </div>
+
+  <div class="wrap wide">
+    <div class="heroPanel factoryHero">
+      <div class="small pageEyebrow">Empresa · administración comercial, búsquedas y publicaciones</div>
+      <h2 style="margin:8px 0 6px 0">Factory</h2>
+      <div class="muted">Administrá la cuenta de tu empresa, los planes por tiempo y la capacidad operativa para publicar avisos y abrir fichas completas de candidatos.</div>
+      <div class="factoryGlow">
+        <span>Resumen de cuenta y facturación</span>
+        <span>Planes por tiempo · publicaciones · búsquedas</span>
+        <span>Capacidad operativa y códigos especiales</span>
+      </div>
+      <div class="segmentTabs" id="segmentTabs">
+        <button type="button" class="active" data-tab="summary">Resumen de cuenta</button>
+        <button type="button" data-tab="plans">Planes y checkout</button>
+      </div>
+    </div>
+
+    <div class="factoryShell" style="margin-top:16px">
+      <div class="factoryMain">
+        <section class="factorySection active" id="tab-summary">
+          <div class="factoryInfoGrid">
+            <div class="accountSummaryCard">
+              <div class="accountSummaryHead">
+                <div>
+                  <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Resumen de cuenta</div>
+                  <div style="font-size:28px;font-weight:950;margin-top:8px" id="summaryCompanyName">Empresa registrada</div>
+                  <div class="muted" style="margin-top:8px" id="summaryCompanyMeta">Código de cuenta y contacto principal</div>
+                </div>
+                <div class="accountCode monoData" id="summaryCompanyCode">Cuenta TP · —</div>
+              </div>
+              <div class="kpiRow">
+                <div class="factoryKpi"><div class="factoryKpiLabel">Plan vigente</div><div class="factoryKpiValue" id="kpiPlan">Sin plan</div></div>
+                <div class="factoryKpi"><div class="factoryKpiLabel">Días vigentes</div><div class="factoryKpiValue" id="kpiDays">0</div></div>
+                <div class="factoryKpi"><div class="factoryKpiLabel">Publicaciones disponibles</div><div class="factoryKpiValue" id="kpiPublications">0</div></div>
+                <div class="factoryKpi"><div class="factoryKpiLabel">Búsquedas disponibles</div><div class="factoryKpiValue" id="kpiSearches">0</div></div>
+              </div>
+            </div>
+            <div class="factorySupport">
+              <strong>Consultas de cuenta</strong>
+              <div class="muted">Para soporte comercial o validaciones, escribinos a:</div>
+              <div style="margin-top:10px"><a href="mailto:factory@gmail.com" id="supportEmailLink">factory@gmail.com</a></div>
+              <div class="timelineNote">Colocá tu código de acceso y presioná Activar para que el sistema lo valide.</div>
+              <div class="couponRow" style="margin-top:16px">
+                <input class="input" id="specialAccessCode" placeholder="Código de acceso especial" />
+                <button class="btn btn-ghost" type="button" id="btnRedeemAccessCode">Activar</button>
+              </div>
+              <div class="timelineNote" id="specialAccessMsg">Si recibiste un código especial, activalo acá. Si es válido, la empresa obtendrá acceso total hasta la fecha definida.</div>
+            </div>
+          </div>
+
+          <div class="factoryMiniGrid">
+            <div class="factoryMiniCard">
+              <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Capacidad operativa</div>
+              <div class="sectionTitle">Resumen del plan activo</div>
+              <div class="quotaLine" id="quotaLineSummary"></div>
+              <div class="timelineNote" id="quotaSummaryMsg">Todavía no hay capacidad activa cargada.</div>
+              <div id="activePlanQueue" class="adminStack" style="margin-top:14px"></div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:16px">
+            <div class="toolbarCard">
+              <div>
+                <h2 style="margin:0">Documentos vigentes</h2>
+                <div class="muted">Acá ves solo tickets, pedidos o planes que siguen activos para tu empresa. El historial completo queda en trazabilidad administrativa.</div>
+              </div>
+              <div class="badge" id="summaryBadge">Cargando…</div>
+            </div>
+            <div class="factoryTableWrap">
+              <table class="factoryTable">
+                <thead>
+                  <tr>
+                    <th>Generado por</th>
+                    <th>Tipo de Doc.</th>
+                    <th>Documento Nº</th>
+                    <th>Fecha</th>
+                    <th>Vencimiento</th>
+                    <th>Estado</th>
+                    <th>Monto</th>
+                    <th>Moneda</th>
+                    <th>Detalle</th>
+                  </tr>
+                </thead>
+                <tbody id="ordersBody"></tbody>
+              </table>
+            </div>
+            <div id="orderDetailBox"></div>
+          </div>
+        </section>
+
+        <section class="factorySection" id="tab-plans">
+          <div class="card">
+            <div class="toolbarCard">
+              <div>
+                <h2 style="margin:0">Planes por tiempo</h2>
+                <div class="muted">Cada plan define días de vigencia, publicaciones permitidas y búsquedas permitidas. El servicio es el mismo: cambia la capacidad contratada.</div>
+              </div>
+              <div class="badge">Precios en pesos argentinos</div>
+            </div>
+            <div class="planGrid" id="planGrid" style="margin-top:16px"></div>
+            <div class="timelineNote">Podés combinar planes en el carrito. Los códigos de bonificación ajustan el importe y los accesos especiales se activan desde el resumen de cuenta.</div><div class="priceDisclaimer">* El precio de venta no incluye IVA. El impuesto se calcula al confirmar la compra.</div>
+          </div>
+
+          <div class="checkoutCard" id="checkoutCard" style="display:none">
+            <div class="toolbarCard">
+              <div>
+                <h2 style="margin:0" id="checkoutTitle">Verificá los datos que van a figurar en tu factura</h2>
+                <div class="muted" id="checkoutLead">Completá los datos de facturación. Si el importe es mayor a cero, después vas a continuar el pago en un proveedor externo seguro. Si el importe es cero, el sistema te va a preparar un ticket interno de validez sin costo para habilitar la prueba.</div>
+              </div>
+              <div class="badge" id="checkoutMsg">Pedido listo para validar</div>
+            </div>
+            <div class="checkoutGrid" style="margin-top:16px">
+              <div>
+                <div class="checkoutStack">
+                  <div><label>Razón social *</label><input class="input" id="billingName" placeholder="Razón social" /></div>
+                  <div><label>CUIT *</label><input class="input" id="billingTaxId" placeholder="CUIT" /></div>
+                  <div><label>Condición fiscal *</label><input class="input" id="billingTaxCondition" placeholder="Ej: Responsable Inscripto" /></div>
+                  <div><label>Provincia</label><input class="input" id="billingProvince" placeholder="Provincia" /></div>
+                  <div><label>Localidad</label><input class="input" id="billingCity" placeholder="Localidad" /></div>
+                  <div><label>Código postal *</label><input class="input" id="billingPostalCode" placeholder="Código postal" /></div>
+                  <div><label>Calle *</label><input class="input" id="billingStreet" placeholder="Calle" /></div>
+                  <div><label>Número *</label><input class="input" id="billingNumber" placeholder="Número" /></div>
+                  <div><label>Piso</label><input class="input" id="billingFloor" placeholder="Piso" /></div>
+                  <div><label>Depto.</label><input class="input" id="billingDept" placeholder="Depto." /></div>
+                  <div style="grid-column:1/-1"><label>E-mail *</label><input class="input" id="billingEmail" placeholder="facturacion@empresa.com" /><div class="timelineNote">A este mail se enviará la factura cuando la integración de pago quede confirmada.</div></div>
+                </div>
+                <div class="orderPreviewCard" style="margin-top:16px">
+                  <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Validación del pedido</div>
+                  <div style="font-size:20px;font-weight:900;margin:6px 0 12px 0" id="checkoutValidationTitle">Pedido y validación del servicio</div>
+                  <div class="secureNotice">
+                    <div class="secureLock">🔒</div>
+                    <div>
+                      <div style="font-weight:900">Talento PyME no procesa datos de tarjeta dentro de la plataforma</div>
+                      <div class="muted" style="margin-top:4px">Si el total es mayor a cero, al confirmar se crea el pedido interno y se continúa en un proveedor externo seguro. Si el total es cero, se emite un ticket interno de validez para habilitar la prueba del servicio sin cargo.</div>
+                      <div class="secureBadgeRow"><span class="secureBadge">Ticket sin cargo</span><span class="secureBadge">Cobro externo seguro</span><span class="secureBadge">Trazabilidad mínima</span></div>
+                    </div>
+                  </div>
+                  <div class="timelineNote" id="paymentRedirectHint">Si el total es cero, al confirmar se emitirá un ticket interno sin cargo y la capacidad quedará habilitada en el acto. Si el total es mayor a cero, el pedido quedará pendiente hasta que el proveedor externo confirme el cobro.</div>
+                  <div class="row" style="margin-top:16px">
+                    <button class="btn btn-ghost" type="button" id="btnBackToCart">Volver</button>
+                    <button class="btn btn-primary" type="button" id="btnCheckoutConfirm">Continuar</button>
+                  </div>
+                  <div id="checkoutResult" style="display:none"></div>
+                </div>
+              </div>
+
+              <aside class="orderPreviewCard">
+                <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Detalle de la compra</div>
+                <div style="font-size:22px;font-weight:900;margin:6px 0 12px 0">Resumen</div>
+                <div id="checkoutItems"></div>
+                <div class="cartTotals" id="checkoutTotals"></div>
+                <div class="couponRow" style="margin-top:12px">
+                  <input class="input" id="checkoutCouponCode" placeholder="Código de bonificación" />
+                  <button class="btn btn-ghost" type="button" id="btnApplyCheckoutCoupon">Habilitar</button>
+                </div>
+                <div class="timelineNote" id="checkoutCouponMsg">Si el código es válido, el total se recalcula automáticamente.</div>
+              </aside>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="factoryAside">
+        <div class="factoryCart" id="factoryCartPanel">
+          <div class="factoryCartHead">
+            <div>
+              <div class="small pageEyebrow" style="color:var(--tp-blue-900)">Mi carrito</div>
+              <div style="font-size:24px;font-weight:950;margin-top:4px">Factory</div>
+            </div>
+            <div class="row" style="margin:0;gap:8px">
+              <div class="badge" id="cartCount">0 ítem</div>
+              <button class="btn btn-ghost factoryCartToggle" type="button" id="btnToggleCart">Ocultar</button>
+            </div>
+          </div>
+          <div class="factoryCartBody" id="factoryCartBody">
+            <div id="cartItems"></div>
+            <div class="cartTotals" id="cartTotals"></div>
+            <div class="couponRow" style="margin-top:12px">
+              <input class="input" id="couponCode" placeholder="Código de bonificación" />
+              <button class="btn btn-ghost" type="button" id="btnApplyCoupon">Habilitar</button>
+            </div>
+            <div class="timelineNote" id="couponMsg">Ingresá un código de bonificación para intentar aplicarlo al total.</div>
+            <div class="row" style="margin-top:18px">
+              <button class="btn btn-ghost" type="button" id="btnContinueShopping">Seguir comprando</button>
+              <button class="btn btn-primary" type="button" id="btnOpenCheckout">Confirmar compra</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script src="/config.js?v=5.7.3"></script>
+  <script src="/auth.js?v=5.7.3"></script>
+  <script>
+    requireAuth();
+    applyRoleVisibility();
+    if(!['COMPANY','ADMIN'].includes(tpRole())) window.location.href = '/perfil.html';
+    document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); clearFactoryAdminSession(); purgeLegacyFactoryAdminStorage(); logout(); };
+
+    const state = {
+      bootstrap: null,
+      adminBootstrap: null,
+      activeTab: 'summary',
+      cart: loadCart(),
+      quote: null,
+      selectedOrderId: null,
+      adminItems: [],
+      couponCode: localStorage.getItem('tp_factory_coupon') || '',
+      couponFeedback: '',
+      adminAlias: '',
+      adminPassword: '',
+      pendingApprovedOrder: null,
+      cartCollapsed: false,
+    };
+
+    function purgeLegacyFactoryAdminStorage(){
+      try{
+        localStorage.removeItem('tp_factory_admin_alias');
+        localStorage.removeItem('tp_factory_admin_password');
+      }catch(_){ }
+    }
+
+    function clearFactoryAdminSession(){
+      state.adminAlias = '';
+      state.adminPassword = '';
+      state.adminBootstrap = null;
+      if(state.bootstrap) state.bootstrap.adminUnlocked = false;
+      const aliasEl = document.getElementById('factoryAdminAlias');
+      const passEl = document.getElementById('factoryAdminPassword');
+      if(aliasEl) aliasEl.value = state.bootstrap?.factoryAdmin?.aliasHint || '';
+      if(passEl) passEl.value = '';
+    }
+
+    purgeLegacyFactoryAdminStorage();
+    window.addEventListener('pagehide', ()=> clearFactoryAdminSession());
+
+    function setCartCollapsed(flag){
+      state.cartCollapsed = !!flag;
+      const panel = document.getElementById('factoryCartPanel');
+      const toggle = document.getElementById('btnToggleCart');
+      if(panel) panel.classList.toggle('is-collapsed', state.cartCollapsed);
+      if(toggle) toggle.textContent = state.cartCollapsed ? 'Mostrar' : 'Ocultar';
+    }
+
+    const moneyFmt = new Intl.NumberFormat('es-AR');
+    const dateFmt = new Intl.DateTimeFormat('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
+    const monthsFmt = new Intl.DateTimeFormat('es-AR', { month:'long', year:'numeric' });
+
+    function esc(s){ return String(s || '').replace(/[&<>"']/g, (c)=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function money(v){ return '$' + moneyFmt.format(Number(v || 0)); }
+    function when(v){ try{ return dateFmt.format(new Date(v)); }catch(_){ return '—'; } }
+    function statusLabel(status){ return ({ PAID:'Pagado', PENDING_PAYMENT:'Pendiente de pago', FAILED:'Fallido', EXPIRED:'Vencido', CANCELLED:'Cancelado' }[status] || status || 'Pendiente'); }
+    function loadCart(){ try{ return JSON.parse(localStorage.getItem('tp_factory_cart') || '[]'); }catch(_){ return []; } }
+    function saveCart(){ localStorage.setItem('tp_factory_cart', JSON.stringify(state.cart)); }
+    function getQuoteItems(){ return state.cart.map((it)=> ({ planCode: it.planCode, quantity: it.quantity })); }
+    function syncCouponInputs(){ document.getElementById('couponCode').value = state.couponCode || ''; const cc = document.getElementById('checkoutCouponCode'); if(cc) cc.value = state.couponCode || ''; }
+    function clearCheckoutResult(){ const box = document.getElementById('checkoutResult'); box.style.display='none'; box.innerHTML=''; state.pendingApprovedOrder = null; }
+    function showCheckoutResult(data){
+      const box = document.getElementById('checkoutResult');
+      const status = data?.status || data?.order?.status || 'PENDING_PAYMENT';
+      const order = data?.order || {};
+      const isTicketPreview = !!data?.ticketPreview && !data?.ticketIssued;
+      const isTicketIssued = !!data?.ticketIssued || String(order?.paymentProvider || '').toUpperCase() === 'INTERNAL_TICKET' && status === 'PAID';
+      const title = isTicketPreview
+        ? 'Ticket interno emitido'
+        : isTicketIssued
+          ? 'Ticket de validez confirmado'
+          : status === 'PAID'
+            ? 'Pago confirmado'
+            : 'Pedido creado';
+      const lead = isTicketPreview
+        ? 'Este ticket interno se emitió para habilitar la prueba sin cargo y dejar trazabilidad de la activación.'
+        : isTicketIssued
+          ? 'El servicio quedó habilitado sin cargo para que tu empresa pueda probar Talento PyME, sumar búsquedas reales y evaluar su funcionamiento con trazabilidad completa.'
+          : (data?.message || 'El pedido quedó listo para continuar en un proveedor externo seguro.');
+      box.style.display = '';
+      box.innerHTML = `<div class="payResult ${isTicketPreview || isTicketIssued ? 'ticketHero' : ''}"><div class="small pageEyebrow" style="color:var(--tp-blue-900)">${isTicketPreview || isTicketIssued ? 'Ticket interno de validez' : 'Pedido creado'}</div><h3>${esc(title)}</h3><div class="muted">${esc(lead)}</div>${isTicketPreview || isTicketIssued ? `<div class="ticketStamp"><span class="ticketRibbon">Promoción de prueba · sin costo</span><div class="ticketTitle">${esc(data?.ticketNo || order.documentNo || 'TCK')}</div><div class="ticketBody"><div>Esta promoción te habilita una prueba real del sistema sin costo para que puedas evaluar cómo se comportan las búsquedas, las publicaciones y el seguimiento operativo antes de la etapa comercial plena.</div><div>Con la emisión de este ticket, la empresa recibe una capacidad temporal controlada con trazabilidad documental, sin emitir factura de cobro y sin generar cargos mientras la promoción siga vigente.</div><div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Vigencia</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc((order?.days || data?.quote?.totalDays || 0) + ' días')}</div></div><div class="payMetaCard"><div class="mutedInline">Publicaciones</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc(order?.items?.reduce((acc,it)=>acc + Number(it.publicationsIncluded||0),0) || data?.quote?.totalPublications || 0)}</div></div><div class="payMetaCard"><div class="mutedInline">Búsquedas</div><div style="font-size:18px;font-weight:900;margin-top:6px">${esc(order?.items?.reduce((acc,it)=>acc + Number(it.searchesIncluded||it.openingsIncluded||0),0) || data?.quote?.totalOpenings || 0)}</div></div></div></div></div>` : `<div class="payMeta"><div class="payMetaCard"><div class="mutedInline">Pedido</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.orderId || order?.id || '—')}</div></div><div class="payMetaCard"><div class="mutedInline">Modalidad</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(data?.provider || order?.paymentProvider || 'Proveedor externo')}</div></div><div class="payMetaCard"><div class="mutedInline">Estado</div><div style="font-size:20px;font-weight:900;margin-top:6px">${esc(statusLabel(status))}</div></div><div class="payMetaCard"><div class="mutedInline">Total</div><div style="font-size:20px;font-weight:900;margin-top:6px">${money(order?.totals?.total || data?.quote?.total || 0)}</div></div></div>`}<div class="row" style="margin-top:14px">${isTicketPreview ? '<button class="btn btn-primary" type="button" id="btnValidateTicket">Validar ticket promocional</button>' : ''}<button class="btn ${isTicketIssued ? 'btn-primary' : 'btn-ghost'}" type="button" id="btnGoSummary">Ir al resumen de cuenta</button></div></div>`;
+      const goSummary = ()=> { clearCheckoutResult(); document.getElementById('checkoutCard').style.display='none'; setTab('summary'); renderSummary(); window.scrollTo({ top:0, behavior:'smooth' }); };
+      document.getElementById('btnGoSummary').onclick = goSummary;
+      const validateBtn = document.getElementById('btnValidateTicket');
+      if(validateBtn){
+        validateBtn.onclick = async ()=> {
+          validateBtn.disabled = true;
+          validateBtn.textContent = 'Validando…';
+          try{
+            const validated = await apiFactory(`/factory/tickets/${encodeURIComponent(data.orderId || order.id)}/validate`, { method:'POST' });
+            state.selectedOrderId = validated.orderId || validated.order?.id || null;
+            await loadBootstrap();
+            renderSummary();
+            showCheckoutResult(validated);
+          }catch(e){
+            validateBtn.disabled = false;
+            validateBtn.textContent = 'Validar ticket';
+            const hint = document.getElementById('paymentRedirectHint');
+            if(hint) hint.textContent = e.message || 'No se pudo validar el ticket.';
+          }
+        };
+      }
+    }
+
+    async function renderPaymentReturnState(){
+      const params = new URLSearchParams(window.location.search);
+      const orderId = String(params.get('orderId') || '').trim();
+      const paymentState = String(params.get('payment') || '').trim();
+      if(!orderId || !paymentState) return;
+      try{
+        const data = await apiFactory(`/factory/orders/${encodeURIComponent(orderId)}/status`);
+        state.selectedOrderId = orderId;
+        await loadBootstrap();
+        const message = paymentState === 'cancel'
+          ? 'El checkout externo fue cancelado. El pedido sigue disponible para reintentar el pago si corresponde.'
+          : 'Volviste desde el cobro externo seguro. Estamos consultando el estado actualizado de tu pedido.';
+        showCheckoutResult({ order: data.order, status: data.order?.status, provider: data.order?.paymentProvider, message });
+        setTab('summary');
+      }catch(_){ }
+    }
+    function factoryHeaders(){ const headers = {}; if(state.adminAlias) headers['x-factory-admin-alias'] = state.adminAlias; if(state.adminPassword) headers['x-factory-admin-password'] = state.adminPassword; if(state.adminPassword) headers['x-factory-admin-key'] = state.adminPassword; return headers; }
+    async function apiFactory(path, options = {}, admin = false){ const headers = Object.assign({}, options.headers || {}, factoryHeaders(admin)); return apiFetch(path, Object.assign({}, options, { headers })); }
+    function monthChoices(){ const base = new Date(); const arr = []; for(let i=0;i<12;i++){ const d = new Date(base.getFullYear(), base.getMonth()+i, 1); const value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; arr.push({ value, label: monthsFmt.format(d) }); } return arr; }
+    function quotaLineHTML(op){
+      if(!op) return '';
+      if(op.fullAccess) return `<span class="quotaPill">Acceso total hasta ${esc(when(op.fullAccessUntil))}</span>`;
+      const currentPlan = op.currentPlan || null;
+      const planName = currentPlan?.planName || 'Sin plan activo';
+      const daysRemaining = currentPlan?.daysRemaining || 0;
+      const expiresLabel = currentPlan?.expiresAt ? `Vence: ${esc(when(currentPlan.expiresAt))}` : 'Sin vencimiento cargado';
+      return `
+        <span class="quotaPill">Plan activo: ${esc(planName)}</span>
+        <span class="quotaPill">Días vigentes: ${esc(daysRemaining)}</span>
+        <span class="quotaPill">Publicaciones disponibles: ${esc(op.remainingPublications || 0)}</span>
+        <span class="quotaPill">Búsquedas disponibles: ${esc(op.remainingSearches || 0)}</span>
+        <span class="quotaPill">${expiresLabel}</span>`;
+    }
+
+    function updateCheckoutFlowCopy(){
+      const isFreeTicket = Number(state.quote?.total || 0) <= 0;
+      const openCheckoutBtn = document.getElementById('btnOpenCheckout');
+      if(openCheckoutBtn) openCheckoutBtn.textContent = isFreeTicket ? 'Emitir ticket' : 'Confirmar compra';
+    }
+
+    function planByCode(code){ return (state.bootstrap?.plans || []).find((it)=> it.code === code) || null; }
+    function activePlanByCode(code){ return (state.bootstrap?.plans || []).find((it)=> it.code === code && it.active !== false) || null; }
+    function setTab(tab){
+      state.activeTab = tab;
+      document.querySelectorAll('#segmentTabs [data-tab]').forEach((btn)=> btn.classList.toggle('active', btn.dataset.tab === tab));
+      document.querySelectorAll('.factorySection').forEach((sec)=> sec.classList.toggle('active', sec.id === 'tab-' + tab));
+      if(tab === 'plans') renderCheckout();
+      setCartCollapsed(tab !== 'plans');
+    }
+    document.querySelectorAll('#segmentTabs [data-tab]').forEach((btn)=> btn.onclick = ()=> setTab(btn.dataset.tab));
+
+    async function loadBootstrap(){
+      state.bootstrap = await apiFactory('/factory/bootstrap');
+      renderSummary();
+      renderPlans();
+      await refreshQuote();
+    }
+
+    async function refreshQuote(){
+      state.cart = state.cart.filter((it)=> !!activePlanByCode(it.planCode));
+      saveCart();
+      syncCouponInputs();
+      if(!state.cart.length){
+        state.quote = { items: [], subtotal:0, discountAmount:0, vatAmount:0, total:0, totalDays:0, totalPublications:0, totalOpenings:0, coupon:{message:''} };
+        renderCart(); renderCheckout(); return;
+      }
+      try{ state.quote = await apiFactory('/factory/quote', { method:'POST', body: JSON.stringify({ items: getQuoteItems(), couponCode: state.couponCode }) }); }
+      catch(e){ state.quote = { items: [], subtotal:0, discountAmount:0, vatAmount:0, total:0, totalDays:0, totalPublications:0, totalOpenings:0, coupon:{message:e.message} }; }
+      renderCart(); renderCheckout();
+    }
+
+    async function applyCouponCode(raw){
+      const code = String(raw || '').trim().toUpperCase();
+      state.couponFeedback = '';
+      if(!code){ state.couponCode = ''; localStorage.removeItem('tp_factory_coupon'); state.couponFeedback = 'Ingresá un código de bonificación.'; await refreshQuote(); return; }
+      try{
+        const quote = await apiFactory('/factory/quote', { method:'POST', body: JSON.stringify({ items: getQuoteItems(), couponCode: code }) });
+        if(!quote.coupon?.valid){ state.couponCode=''; localStorage.removeItem('tp_factory_coupon'); state.quote=quote; state.couponFeedback=(quote.coupon?.message||'Código no válido.')+' Se restableció el total inicial.'; syncCouponInputs(); renderCart(); renderCheckout(); return; }
+        state.couponCode = code; localStorage.setItem('tp_factory_coupon', code); state.quote = quote; state.couponFeedback = quote.coupon?.message || 'Bonificación aplicada correctamente.'; syncCouponInputs(); renderCart(); renderCheckout();
+      }catch(e){ state.couponCode=''; localStorage.removeItem('tp_factory_coupon'); state.couponFeedback = e.message || 'No se pudo validar el código.'; syncCouponInputs(); await refreshQuote(); }
+    }
+
+    function addPlan(code){ const plan = activePlanByCode(code); if(!plan) return; const row = state.cart.find((it)=> it.planCode === code); if(Number(plan.price || 0) <= 0){ if(row) row.quantity = 1; else state.cart = [{ planCode: code, quantity: 1 }]; } else if(row) row.quantity += 1; else state.cart.push({ planCode: code, quantity: 1 }); saveCart(); refreshQuote(); setCartCollapsed(false); document.getElementById('factoryCartPanel')?.scrollIntoView({ behavior:'smooth', block:'nearest' }); }
+    function changeQty(code, delta){ const row = state.cart.find((it)=> it.planCode === code); if(!row) return; const plan = planByCode(code) || {}; if(Number(plan.price || 0) <= 0){ row.quantity = 1; saveCart(); refreshQuote(); return; } row.quantity = Math.max(1, row.quantity + delta); saveCart(); refreshQuote(); }
+    function removeFromCart(code){ state.cart = state.cart.filter((it)=> it.planCode !== code); saveCart(); refreshQuote(); }
+
+
+    function statusText(order){ return order?.statusDisplay || statusLabel(order?.status); }
+    function formatShortDate(v){ if(!v) return 's/d'; try { return new Date(v).toLocaleDateString('es-AR'); } catch(_) { return String(v||'s/d'); } }
+    function renderActivePlanQueue(op){
+      const box = document.getElementById('activePlanQueue');
+      if(!box) return;
+      const queue = Array.isArray(op?.activeQueue) ? op.activeQueue : [];
+      if(!queue.length){ box.innerHTML = ''; return; }
+      box.innerHTML = queue.map((item, idx)=> `
+        <div class="factoryKpi" style="padding:14px 16px">
+          <div class="small pageEyebrow" style="color:var(--tp-blue-900)">${idx===0 ? 'Se consume primero' : 'Se usa después'}</div>
+          <div style="font-size:20px;font-weight:900;margin-top:6px">${esc(item.planName || 'Plan activo')}</div>
+          <div class="quotaLine" style="margin-top:10px">
+            <span class="quotaPill">Días vigentes: ${esc(item.daysRemaining || 0)}</span>
+            <span class="quotaPill">Vence: ${esc(formatShortDate(item.expiresAt))}</span>
+            <span class="quotaPill">Publicaciones: ${esc(`${item.remainingPublications || 0}/${item.publicationsIncluded || 0}`)}</span>
+            <span class="quotaPill">Búsquedas: ${esc(`${item.remainingSearches || 0}/${item.searchesIncluded || 0}`)}</span>
+          </div>
+          <div class="timelineNote" style="margin-top:10px">${idx===0 ? 'Esta capacidad se consume primero. Si se vence o si las publicaciones o búsquedas llegan a cero, el sistema pasa al siguiente bloque vigente.' : 'Este bloque queda en espera y se activará cuando el anterior venza o agote publicaciones o búsquedas.'}</div>
+        </div>`).join('');
+    }
+
+    function renderSummary(){
+      const boot = state.bootstrap; if(!boot) return;
+      const company = boot.company || {}; const op = boot.operationUsage || boot.openingUsage || {};
+      document.getElementById('summaryCompanyName').textContent = company.companyName || 'Empresa registrada';
+      document.getElementById('summaryCompanyMeta').textContent = `${company.contactEmail || 'sin mail'}${company.cuit ? ' • CUIT ' + company.cuit : ''}`;
+      document.getElementById('summaryCompanyCode').textContent = `Cuenta TP · ${company.companyCode || '—'}`;
+      const support = boot.supportEmail || 'factory@gmail.com';
+      const supportEl = document.getElementById('supportEmailLink'); supportEl.textContent = support; supportEl.href = `mailto:${support}`;
+      const currentPlan = op.currentPlan || null;
+      const queue = Array.isArray(op.activeQueue) ? op.activeQueue : [];
+      const primary = queue[0] || currentPlan || null;
+      document.getElementById('kpiPlan').textContent = op.fullAccess ? 'Acceso total' : (primary?.planName || 'Sin plan');
+      document.getElementById('kpiDays').textContent = op.fullAccess ? (currentPlan?.daysRemaining ?? '∞') : String(primary?.daysRemaining || 0);
+      document.getElementById('kpiPublications').textContent = op.fullAccess ? '∞' : String(op.remainingPublications || 0);
+      document.getElementById('kpiSearches').textContent = op.fullAccess ? '∞' : String(op.remainingSearches || op.remainingOpenings || 0);
+      document.getElementById('quotaLineSummary').innerHTML = quotaLineHTML(op);
+      document.getElementById('quotaSummaryMsg').textContent = op.fullAccess
+        ? `La empresa tiene acceso total habilitado hasta ${when(op.fullAccessUntil)}.`
+        : primary
+          ? `La capacidad activa se ordena por vencimiento. Primero se consume ${primary.planName} y, cuando se vence o agota días, publicaciones o búsquedas, el sistema pasa automáticamente al siguiente bloque vigente.`
+          : 'Hoy no hay un plan activo cargado. Cuando emitas o pagues un documento vigente, la capacidad aparecerá acá.';
+      renderActivePlanQueue(op);
+      const orders = boot.orders || [];
+      document.getElementById('summaryBadge').textContent = orders.length ? `${orders.length} documento(s) vigente(s)` : 'Sin documentos vigentes';
+      const tbody = document.getElementById('ordersBody');
+      if(!orders.length){ tbody.innerHTML = `<tr><td colspan="9"><div class="emptyStateFactory">Hoy no hay tickets, pedidos ni planes vigentes para mostrar en esta cuenta.</div></td></tr>`; document.getElementById('orderDetailBox').innerHTML=''; return; }
+      tbody.innerHTML = orders.map((order)=> `<tr><td><b>${esc(order.companyName)}</b><div class="muted monoData">Código ${esc(order.companyCode)}</div></td><td>${esc(order.docType)}</td><td class="monoData">${esc(order.documentNo)}</td><td>${when(order.date)}</td><td>${when(order.dueDate)}</td><td><span class="statusPill ${esc(order.status)}">${esc(statusText(order))}</span></td><td>${money(order.amount)}</td><td>${esc(order.currency)}</td><td><button class="btn btn-ghost btnOrderDetail" type="button" data-id="${order.id}">${state.selectedOrderId === order.id ? 'Ocultar' : 'Ver'}</button></td></tr>`).join('');
+      tbody.querySelectorAll('.btnOrderDetail').forEach((btn)=> btn.onclick = ()=>{ state.selectedOrderId = state.selectedOrderId === btn.dataset.id ? null : btn.dataset.id; renderSummary(); });
+      const active = orders.find((it)=> it.id === state.selectedOrderId);
+      if(!active){ document.getElementById('orderDetailBox').innerHTML=''; return; }
+      document.getElementById('orderDetailBox').innerHTML = `
+        <div class="orderDetailsCard">
+          <div class="toolbarCard"><div><div class="small pageEyebrow" style="color:var(--tp-blue-900)">Detalle del documento</div><div style="font-size:22px;font-weight:900;margin-top:6px">${esc(active.documentNo)}</div></div><div class="badge">${esc(statusText(active))}</div></div>
+          <div class="grid2" style="margin-top:16px">
+            <div><div><b>Empresa:</b> ${esc(active.companyName)}</div><div><b>Días contratados:</b> ${esc(active.days || 0)}</div><div><b>Proveedor:</b> ${esc(active.paymentProvider || 'No informado')}</div></div>
+            <div><div><b>Facturar a:</b> ${esc(active.billingName || 's/d')}</div><div><b>CUIT:</b> ${esc(active.billingTaxId || 's/d')}</div><div><b>E-mail:</b> ${esc(active.billingEmail || 's/d')}</div></div>
+          </div>
+          <div class="factoryTableWrap"><table class="factoryTable" style="min-width:620px"><thead><tr><th>Plan</th><th>Días</th><th>Publicaciones</th><th>Búsquedas</th><th>Cantidad</th><th>Subtotal</th></tr></thead><tbody>${(active.items || []).map((it)=> `<tr><td>${esc(it.planName)}</td><td>${esc(it.days)}</td><td>${esc(it.publicationsIncluded || 0)}</td><td>${esc(it.searchesIncluded || it.openingsIncluded || 0)}</td><td>${esc(it.quantity)}</td><td>${money(it.subtotal)}</td></tr>`).join('')}</tbody></table></div>
+          <div class="cartTotals"><div class="cartLine"><span>Subtotal</span><b>${money(active.totals.subtotal)}</b></div><div class="cartLine"><span>Bonificación</span><b>${money(active.totals.discountAmount)}</b></div><div class="cartLine"><span>IVA (21%)</span><b>${money(active.totals.vatAmount)}</b></div><div class="cartLine total"><span>Total</span><b>${money(active.totals.total)}</b></div></div>
+        </div>`;
+    }
+
+    function renderPlans(){
+      const plans = state.bootstrap?.plans || [];
+      document.getElementById('planGrid').innerHTML = plans.map((plan)=> `
+        <div class="planCard ${plan.active === false ? 'is-disabled' : ''}">
+          <div class="planDays">${plan.days} días</div>
+          <div class="planName">${esc(plan.name)}</div>
+          <div class="planPrice">${money(plan.price)}<small> ARS</small></div>
+          <div class="planLead">${esc(plan.highlight || '')}</div>
+          <div class="quotaLine"><span class="quotaPill">${plan.publications || 0} publicaciones</span><span class="quotaPill">${plan.searches || 0} búsquedas</span></div>
+          <div class="timelineNote">${plan.active === false ? 'Este plan está visible a modo informativo y hoy no se encuentra operativo.' : `Podrás operar durante ${plan.days} días con ${plan.publications || 0} publicaciones y ${plan.searches || 0} búsquedas completas disponibles.`}</div>
+          <div class="priceDisclaimer">Precio de venta sin IVA.</div>
+          <div class="planFoot"><span class="planBadge">${plan.active === false ? 'Plan apagado' : 'Contratación por tiempo'}</span><button class="btn btn-primary" type="button" data-plan="${plan.code}" ${plan.active === false ? 'disabled' : ''}>${plan.active === false ? 'No disponible' : 'Agregar al carrito'}</button></div>
+        </div>`).join('');
+      document.querySelectorAll('[data-plan]').forEach((btn)=> btn.onclick = ()=> addPlan(btn.dataset.plan));
+    }
+
+    function renderCart(){
+      const count = state.cart.reduce((acc, it)=> acc + it.quantity, 0);
+      document.getElementById('cartCount').textContent = `${count} ítem${count===1?'':'s'}`;
+      const q = state.quote || { subtotal:0, discountAmount:0, vatAmount:0, total:0, totalDays:0, totalPublications:0, totalOpenings:0, coupon:{message:''} };
+      if(!state.cart.length){
+        document.getElementById('cartItems').innerHTML = '<div class="emptyStateFactory" style="margin-top:14px">Todavía no agregaste planes.</div>';
+        document.getElementById('cartTotals').innerHTML = '<div class="cartLine"><span>Subtotal</span><b>$0</b></div><div class="cartLine total"><span>Total</span><b>$0</b></div>';
+        document.getElementById('couponMsg').textContent = state.couponFeedback || 'Ingresá un código de bonificación para intentar aplicarlo al total.';
+        document.getElementById('checkoutCouponMsg').textContent = state.couponFeedback || 'Si el código es válido, el total se recalcula automáticamente.';
+        return;
+      }
+      document.getElementById('cartItems').innerHTML = state.cart.map((row)=> { const plan = planByCode(row.planCode) || { name: row.planCode, days:0, price:0, publications:0, searches:0 }; const isFreePlan = Number(plan.price || 0) <= 0; return `
+        <div class="cartItem"><div class="cartItemHead"><div><div style="font-weight:900;font-size:18px">${esc(plan.name)}</div><div class="muted">${plan.days} días · ${plan.publications || 0} publicaciones · ${plan.searches || 0} búsquedas</div></div><button class="btn btn-ghost" type="button" data-remove="${plan.code}">Quitar</button></div><div class="rowBetween" style="margin-top:14px"><div class="qtyPill">${isFreePlan ? '<span style="font-weight:900;padding:0 12px">Ticket único</span>' : `<button type="button" data-qty="${plan.code}" data-delta="-1">−</button><b>${row.quantity}</b><button type="button" data-qty="${plan.code}" data-delta="1">+</button>`}</div><div style="font-size:24px;font-weight:950">${money(plan.price * row.quantity)}</div></div></div>`; }).join('');
+      document.querySelectorAll('[data-remove]').forEach((btn)=> btn.onclick = ()=> removeFromCart(btn.dataset.remove));
+      document.querySelectorAll('[data-qty]').forEach((btn)=> btn.onclick = ()=> changeQty(btn.dataset.qty, Number(btn.dataset.delta || 0)));
+      document.getElementById('couponMsg').textContent = state.couponFeedback || q.coupon?.message || 'Ingresá un código de bonificación para intentar aplicarlo al total.';
+      document.getElementById('checkoutCouponMsg').textContent = state.couponFeedback || q.coupon?.message || 'Si el código es válido, el total se recalcula automáticamente.';
+      document.getElementById('cartTotals').innerHTML = `
+        <div class="cartLine"><span>Subtotal</span><b>${money(q.subtotal)}</b></div>
+        <div class="cartLine"><span>Bonificaciones</span><b>${money(q.discountAmount)}</b></div>
+        <div class="cartLine"><span>IVA (21%)</span><b>${money(q.vatAmount)}</b></div>
+        <div class="cartLine"><span>Días acumulados</span><b>${q.totalDays || 0}</b></div>
+        <div class="cartLine"><span>Publicaciones acumuladas</span><b>${q.totalPublications || 0}</b></div>
+        <div class="cartLine"><span>Búsquedas acumuladas</span><b>${q.totalOpenings || 0}</b></div>
+        <div class="cartLine total"><span>Total</span><b>${money(q.total)}</b></div>`;
+      const activeFree = state.bootstrap?.activeFreeTicket;
+      if(activeFree && !state.cart.length){
+        document.getElementById('couponMsg').textContent = activeFree.pendingValidation
+          ? `Ya generaste el ticket ${activeFree.ticketNo}. Validalo desde el checkout para habilitar la prueba sin cargo.`
+          : `Ya tenés activo el ticket ${activeFree.ticketNo}. Restan ${activeFree.remainingPublications} publicaciones y ${activeFree.remainingSearches} búsquedas hasta ${when(activeFree.expiresAt)}.`;
+      }
+      const openCheckoutBtn = document.getElementById('btnOpenCheckout');
+      if(openCheckoutBtn) openCheckoutBtn.textContent = Number(q.total || 0) <= 0 ? 'Emitir ticket' : 'Confirmar compra';
+    }
+
+    function prefillCheckout(){
+      const c = state.bootstrap?.company || {};
+      document.getElementById('billingName').value = c.companyName || '';
+      document.getElementById('billingTaxId').value = c.cuit || '';
+      document.getElementById('billingTaxCondition').value = 'Responsable Inscripto';
+      document.getElementById('billingProvince').value = c.province || '';
+      document.getElementById('billingCity').value = c.city || '';
+      document.getElementById('billingStreet').value = c.address || '';
+      document.getElementById('billingNumber').value = '';
+      document.getElementById('billingFloor').value = '';
+      document.getElementById('billingDept').value = '';
+      document.getElementById('billingPostalCode').value = '';
+      document.getElementById('billingEmail').value = c.contactEmail || '';
+      updateCheckoutFlowCopy();
+    }
+
+    function renderCheckout(){
+      const q = state.quote || { items: [], subtotal:0, discountAmount:0, vatAmount:0, total:0, totalDays:0, totalPublications:0, totalOpenings:0 };
+      updateCheckoutFlowCopy();
+      const isFreeTicket = Number(q.total || 0) <= 0;
+      document.getElementById('checkoutTitle').textContent = isFreeTicket ? 'Revisá el ticket de validez y activación del servicio' : 'Verificá los datos que van a figurar en tu factura';
+      document.getElementById('checkoutLead').textContent = isFreeTicket ? 'Completá los datos mínimos y generá un ticket interno sin cargo para habilitar la prueba del sistema con trazabilidad completa.' : 'Completá los datos de facturación. Después vas a continuar el pago en un proveedor externo seguro.';
+      document.getElementById('checkoutValidationTitle').textContent = isFreeTicket ? 'Ticket de validez sin cargo' : 'Pedido y validación del servicio';
+      document.getElementById('checkoutMsg').textContent = isFreeTicket ? 'Ticket listo para emitir' : 'Pedido listo para validar';
+      document.getElementById('btnCheckoutConfirm').textContent = isFreeTicket ? 'Emitir ticket' : 'Continuar';
+      document.getElementById('paymentRedirectHint').textContent = isFreeTicket ? 'Al confirmar se emitirá un ticket interno sin cargo. La capacidad de prueba quedará habilitada automáticamente y el documento aparecerá en tu resumen de cuenta.' : 'El pedido quedará pendiente hasta que el proveedor externo confirme el cobro.';
+      document.getElementById('checkoutItems').innerHTML = (q.items || []).map((it)=> `<div class="cartItem" style="margin-top:0;margin-bottom:12px"><div style="font-weight:900">${esc(it.planName)}</div><div class="muted">${it.quantity} unidad(es) · ${it.days} días · ${it.publicationsPerUnit || 0} publicaciones · ${it.searchesPerUnit || 0} búsquedas</div><div style="margin-top:8px;font-size:22px;font-weight:950">${money(it.subtotal)}</div></div>`).join('') || '<div class="emptyStateFactory">Todavía no hay items en el resumen.</div>';
+      document.getElementById('checkoutTotals').innerHTML = `
+        <div class="cartLine"><span>Subtotal</span><b>${money(q.subtotal || 0)}</b></div>
+        <div class="cartLine"><span>Bonificaciones</span><b>${money(q.discountAmount || 0)}</b></div>
+        <div class="cartLine"><span>IVA (21%)</span><b>${money(q.vatAmount || 0)}</b></div>
+        <div class="cartLine"><span>Publicaciones</span><b>${q.totalPublications || 0}</b></div>
+        <div class="cartLine"><span>Búsquedas</span><b>${q.totalOpenings || 0}</b></div>
+        <div class="cartLine total"><span>Total</span><b>${money(q.total || 0)}</b></div>
+        <div class="priceDisclaimer" style="margin-top:4px">${isFreeTicket ? 'Este ticket no tiene costo. Se valida una sola vez por período operativo y deja trazabilidad del alta del servicio de prueba.' : 'El precio base del plan no incluye IVA; el total ya lo suma automáticamente.'}</div>`;
+    }
+
+    async function loadAdminBootstrap(){
+      try{ state.adminBootstrap = await apiFactory('/factory/admin/bootstrap', {}, true); }
+      catch(e){ const adminMsg = document.getElementById('adminUnlockMsg'); if(adminMsg) adminMsg.textContent = e.message; return; }
+      fillAdminSelectors();
+      renderAdminPlans();
+      renderAdminLists();
+      await loadAdminOrders();
+    }
+
+    function fillAdminSelectors(){
+      if(!document.getElementById('adminCouponCompany')) return;
+      const companies = state.adminBootstrap?.companies || [];
+      const optsAny = ['<option value="">Cualquier empresa</option>'].concat(companies.map((c)=> `<option value="${c.id}">${esc(c.companyName)}${c.cuit ? ' · ' + esc(c.cuit) : ''}</option>`));
+      document.getElementById('adminCouponCompany').innerHTML = optsAny.join('');
+      const optsReq = ['<option value="">Seleccioná empresa</option>'].concat(companies.map((c)=> `<option value="${c.id}">${esc(c.companyName)}${c.cuit ? ' · ' + esc(c.cuit) : ''}</option>`));
+      document.getElementById('adminAccessCompany').innerHTML = optsReq.join('');
+      document.getElementById('adminCouponPct').innerHTML = Array.from({length:10}, (_,i)=> (i+1)*10).map((v)=> `<option value="${v}">${v}%</option>`).join('');
+      document.getElementById('adminAccessMonth').innerHTML = monthChoices().map((m)=> `<option value="${m.value}">${esc(m.label)}</option>`).join('');
+    }
+
+    function renderAdminPlans(){
+      const mount = document.getElementById('adminPlanRows'); if(!mount) return;
+      const rows = state.adminBootstrap?.plans || [];
+      mount.innerHTML = rows.map((plan)=> `
+        <div class="adminPlanRow ${plan.active === false ? 'is-off' : ''}" data-plan-row data-code="${plan.code}">
+          <div class="field planName">
+            <label>Plan</label>
+            <input class="input" data-plan-field="name" data-code="${plan.code}" value="${esc(plan.name)}" />
+          </div>
+          <div class="field">
+            <label>Días</label>
+            <input class="input" type="number" min="1" step="1" inputmode="numeric" data-plan-field="days" data-code="${plan.code}" value="${plan.days}" />
+          </div>
+          <div class="field">
+            <label>Precio</label>
+            <input class="input" type="number" min="0" step="1000" inputmode="numeric" data-plan-field="price" data-code="${plan.code}" value="${plan.price}" />
+          </div>
+          <div class="field">
+            <label>Publicaciones</label>
+            <input class="input" type="number" min="0" step="1" inputmode="numeric" data-plan-field="publications" data-code="${plan.code}" value="${plan.publications || 0}" />
+          </div>
+          <div class="field">
+            <label>Búsquedas</label>
+            <input class="input" type="number" min="0" step="1" inputmode="numeric" data-plan-field="searches" data-code="${plan.code}" value="${plan.searches || 0}" />
+          </div>
+          <div class="adminToggleWrap">
+            <input type="checkbox" data-plan-field="active" data-code="${plan.code}" ${plan.active === false ? '' : 'checked'} />
+            <span>${plan.active === false ? 'Plan apagado temporalmente' : 'Plan operativo'}</span>
+          </div>
+        </div>`).join('');
+    }
+
+    function renderAdminLists(){
+      const couponList = document.getElementById('adminCouponsList'); if(!couponList) return;
+      const coupons = state.adminBootstrap?.coupons || [];
+      const usedCoupons = state.adminBootstrap?.usedCoupons || [];
+      couponList.innerHTML = coupons.length ? coupons.slice(0,20).map((c)=> `<div style="padding:8px 0;border-bottom:1px solid var(--tp-border)"><b>${esc(c.code)}</b> · ${c.grantsFullAccess ? 'Acceso total' : esc((c.discountPct||0) + '%')} ${c.companyId ? '· empresa específica' : '· uso abierto'}</div>`).join('') : 'Sin códigos activos todavía.';
+      const usedEl = document.getElementById('adminUsedCouponsList');
+      if(usedEl) usedEl.innerHTML = usedCoupons.length ? usedCoupons.slice(0,20).map((c)=> `<div class="usedCodeItem"><b>${esc(c.code)}</b> · ${c.grantsFullAccess ? 'Acceso total consumido' : 'Bonificación usada'}${c.companyId ? ' · empresa específica' : ''}</div>`).join('') : 'Sin códigos usados o desactivados recientemente.';
+      const grants = state.adminBootstrap?.grants || [];
+      document.getElementById('adminGrantsList').innerHTML = grants.length ? grants.slice(0,20).map((g)=> `<div style="padding:8px 0;border-bottom:1px solid var(--tp-border)"><b>${esc(g.company?.companyName || 'Empresa')}</b> · ${esc(g.code)} · hasta ${when(g.fullAccessUntil)}</div>`).join('') : 'Sin accesos especiales vigentes.';
+    }
+
+    async function loadAdminOrders(){
+      const list = document.getElementById('adminList');
+      if(!list) return;
+      list.innerHTML = '<div class="emptyStateFactory">Cargando panel administrador…</div>';
+      try{
+        const params = new URLSearchParams({ q: document.getElementById('adminSearch').value.trim(), days: document.getElementById('adminDays').value, sort: document.getElementById('adminSort').value });
+        const data = await apiFactory('/factory/admin/orders?' + params.toString(), {}, true);
+        state.adminItems = data.items || [];
+        if(!state.adminItems.length){ list.innerHTML = '<div class="emptyStateFactory">Todavía no hay compras registradas para mostrar.</div>'; return; }
+        list.innerHTML = state.adminItems.map((group)=> `<details class="adminCompanyGroup"><summary>${esc(group.companyName)} <span class="muted monoData">· ${esc(group.companyCode || '')}</span></summary><div class="factoryTableWrap" style="margin-top:12px"><table class="factoryTable" style="min-width:720px"><thead><tr><th>Documento</th><th>Fecha</th><th>Días</th><th>Estado</th><th>Total</th></tr></thead><tbody>${(group.documents || []).map((doc)=> `<tr><td>${esc(doc.documentNo)}</td><td>${when(doc.date)}</td><td>${doc.days || 0}</td><td><span class="statusPill ${esc(doc.status)}">${esc(statusLabel(doc.status))}</span></td><td>${money(doc.totals.total)}</td></tr>`).join('')}</tbody></table></div></details>`).join('');
+      }catch(e){ list.innerHTML = `<div class="emptyStateFactory">${esc(e.message)}</div>`; }
+    }
+
+    const el_btnSavePlans = document.getElementById('btnSavePlans'); if(el_btnSavePlans) el_btnSavePlans.onclick = async ()=> {
+      const rows = Array.from(document.querySelectorAll('#adminPlanRows [data-plan-row]')).map((row, idx)=> {
+        const inputs = row.querySelectorAll('[data-plan-field]');
+        const get = (field)=> Array.from(inputs).find((el)=> el.dataset.planField === field)?.value || '';
+        const code = row.dataset.code || inputs[0]?.dataset.code || `P${idx}`;
+        const activeEl = Array.from(inputs).find((el)=> el.dataset.planField === 'active');
+        return { code, name: get('name'), days: Number(get('days')||0), price: Number(get('price')||0), publications: Number(get('publications')||0), searches: Number(get('searches')||0), active: !!(activeEl && activeEl.checked) };
+      });
+      const msg = document.getElementById('adminPlanMsg'); msg.textContent = 'Guardando…';
+      try{ await apiFactory('/factory/admin/plans', { method:'POST', body: JSON.stringify({ plans: rows }) }, true); msg.textContent='Matriz actualizada.'; state.adminBootstrap=null; await loadBootstrap(); await loadAdminBootstrap(); }
+      catch(e){ msg.textContent=e.message; }
+    };
+
+    const el_btnCreateCoupon = document.getElementById('btnCreateCoupon'); if(el_btnCreateCoupon) el_btnCreateCoupon.onclick = async ()=> {
+      const msg = document.getElementById('adminCouponMsg'); msg.textContent='Guardando…';
+      try{
+        await apiFactory('/factory/admin/coupons', { method:'POST', body: JSON.stringify({ code: document.getElementById('adminCouponCode').value.trim(), discountPct: Number(document.getElementById('adminCouponPct').value || 0), companyId: document.getElementById('adminCouponCompany').value || null }) }, true);
+        msg.textContent='Código generado.'; document.getElementById('adminCouponCode').value=''; state.adminBootstrap=null; await loadAdminBootstrap();
+      }catch(e){ msg.textContent=e.message; }
+    };
+
+    const el_btnCreateAccess = document.getElementById('btnCreateAccess'); if(el_btnCreateAccess) el_btnCreateAccess.onclick = async ()=> {
+      const msg = document.getElementById('adminAccessMsg'); msg.textContent='Generando…';
+      try{
+        await apiFactory('/factory/admin/full-access', { method:'POST', body: JSON.stringify({ code: document.getElementById('adminAccessCode').value.trim(), companyId: document.getElementById('adminAccessCompany').value, untilMonth: document.getElementById('adminAccessMonth').value }) }, true);
+        msg.textContent='Código de acceso total creado.'; document.getElementById('adminAccessCode').value=''; state.adminBootstrap=null; await loadAdminBootstrap();
+      }catch(e){ msg.textContent=e.message; }
+    };
+
+    const el_btnAdminRefresh = document.getElementById('btnAdminRefresh'); if(el_btnAdminRefresh) el_btnAdminRefresh.onclick = loadAdminOrders;
+    const btnRedeemAccessCode = document.getElementById('btnRedeemAccessCode'); if(btnRedeemAccessCode) btnRedeemAccessCode.onclick = async ()=> {
+      const code = document.getElementById('specialAccessCode').value.trim();
+      const msg = document.getElementById('specialAccessMsg'); msg.textContent='Validando código…';
+      try{ const data = await apiFactory('/factory/redeem-access-code', { method:'POST', body: JSON.stringify({ code }) }); msg.textContent = data.message || 'Acceso especial activado.'; document.getElementById('specialAccessCode').value=''; await loadBootstrap(); }
+      catch(e){ msg.textContent = e.message; }
+    };
+
+    { const el = document.getElementById('btnToggleCart'); if(el) el.onclick = ()=> setCartCollapsed(!state.cartCollapsed); }
+    { const el = document.getElementById('btnApplyCoupon'); if(el) el.onclick = ()=> applyCouponCode(document.getElementById('couponCode').value); }
+    { const el = document.getElementById('btnApplyCheckoutCoupon'); if(el) el.onclick = ()=> applyCouponCode(document.getElementById('checkoutCouponCode').value); }
+    { const el = document.getElementById('btnContinueShopping'); if(el) el.onclick = ()=> setTab('plans'); }
+    { const el = document.getElementById('btnOpenCheckout'); if(el) el.onclick = ()=> { if(!state.cart.length){ document.getElementById('couponMsg').textContent = 'Primero agregá al menos un plan.'; return; } clearCheckoutResult(); setTab('plans'); document.getElementById('checkoutCard').style.display=''; prefillCheckout(); renderCheckout(); setCartCollapsed(false); document.getElementById('checkoutCard').scrollIntoView({ behavior:'smooth', block:'start' }); }; }
+    { const el = document.getElementById('btnBackToCart'); if(el) el.onclick = ()=> { clearCheckoutResult(); document.getElementById('checkoutCard').style.display='none'; window.scrollTo({ top:0, behavior:'smooth' }); }; }
+    { const el = document.getElementById('btnCheckoutConfirm'); if(el) el.onclick = async ()=> {
+      const msg = document.getElementById('checkoutMsg');
+      const btn = document.getElementById('btnCheckoutConfirm');
+      msg.textContent='Creando pedido seguro…';
+      btn.disabled = true;
+      try{
+        const payload = { items: getQuoteItems(), couponCode: state.couponCode, billing: { razonSocial: document.getElementById('billingName').value.trim(), cuit: document.getElementById('billingTaxId').value.trim(), condicionFiscal: document.getElementById('billingTaxCondition').value.trim(), provincia: document.getElementById('billingProvince').value.trim(), localidad: document.getElementById('billingCity').value.trim(), calle: document.getElementById('billingStreet').value.trim(), numero: document.getElementById('billingNumber').value.trim(), piso: document.getElementById('billingFloor').value.trim(), depto: document.getElementById('billingDept').value.trim(), codigoPostal: document.getElementById('billingPostalCode').value.trim(), email: document.getElementById('billingEmail').value.trim() } };
+        const data = await apiFactory('/factory/checkout', { method:'POST', body: JSON.stringify(payload) });
+        msg.textContent = data.message || 'Pedido creado.';
+        state.cart=[]; saveCart(); state.couponCode=''; state.couponFeedback=''; localStorage.removeItem('tp_factory_coupon');
+        state.selectedOrderId = data.orderId || data.order?.id || null;
+        await loadBootstrap();
+        renderSummary();
+        renderCart();
+        showCheckoutResult(data);
+        if(data.checkoutUrl){ window.location.href = data.checkoutUrl; return; }
+        document.getElementById('checkoutCard').scrollIntoView({ behavior:'smooth', block:'start' });
+      }catch(e){
+        msg.textContent = e.message;
+        const hint = document.getElementById('paymentRedirectHint');
+        if(hint) hint.textContent = e.message || 'No se pudo crear el pedido seguro.';
+      } finally {
+        btn.disabled = false;
+      }
+    }; }
+
+    setCartCollapsed(true);
+    renderPaymentReturnState();
+    loadBootstrap().catch((e)=> {
+      document.getElementById('summaryBadge').textContent = e.message;
+      document.getElementById('ordersBody').innerHTML = `<tr><td colspan="9"><div class="emptyStateFactory">${esc(e.message)}</div></td></tr>`;
+    });
+  </script>
+</body>
+</html>

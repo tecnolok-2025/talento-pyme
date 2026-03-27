@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Talento PyME · Mis Búsquedas</title>
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css?v=5.7.3" />
+</head>
+<body class="appShell">
+  <div class="header">
+    <div class="brand"><img src="/icon-192.png" alt="Talento PyME" /><div><div class="brandTitle">Talento PyME</div><div class="muted">Portal de empleo • <span class="tp-version"></span></div></div></div>
+    <div class="nav">
+      <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
+      <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
+      <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
+      <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
+      <a href="/mis-candidatos.html" data-role="COMPANY">Mis Candidatos</a>
+      <a href="/factory.html" data-role="COMPANY">Factory</a>
+      <a href="/asistencia.html">Ayuda IA</a><a href="#" id="btnLogout">Salir</a>
+    </div>
+  </div>
+
+  <div class="wrap wide">
+    <div class="heroPanel">
+      <div class="small pageEyebrow">Empresa · gestión de avisos</div>
+      <h2 style="margin:8px 0 6px 0">Mis Búsquedas</h2>
+      <div class="muted">Tus búsquedas quedan ordenadas por fecha, con lectura rápida, estado y acceso al detalle desplegable para revisar el contenido técnico publicado.</div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="toolbarCard"><div><h2 style="margin:0">Listado de avisos</h2><div class="muted">Tocá cada publicación para desplegar el contenido completo.</div></div><div class="badge" id="totalBadge">—</div></div>
+      <div id="msg" class="muted" style="margin-top:10px"></div>
+      <div id="list" class="listStack" style="margin-top:14px"></div>
+    </div>
+  </div>
+
+  <script src="/config.js?v=5.7.3"></script>
+  <script src="/auth.js?v=5.7.3"></script>
+  <script>
+    requireAuth(); applyRoleVisibility(); requireRole('COMPANY');
+    document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); logout(); };
+    function esc(s){ return String(s||'').replace(/[&<>"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
+    function fmt(d){ try{ return new Date(d).toLocaleDateString('es-AR'); }catch{ return 's/d'; } }
+    function formatSalary(v){ const digits = String(v||'').replace(/\D/g,''); if(!digits) return 'No informada'; return '$' + Number(digits).toLocaleString('es-AR'); }
+    function salarySummary(list){ const arr = Array.isArray(list) ? list.filter(Boolean).map(formatSalary) : []; return arr.length ? arr.join(' · ') : 'Sin pretensiones registradas'; }
+    (async ()=>{
+      const msg=document.getElementById('msg'); const list=document.getElementById('list'); const totalBadge=document.getElementById('totalBadge');
+      msg.textContent='Cargando...';
+      try{
+        const data=await apiFetch('/jobs/mine'); const jobs=data.jobs||[];
+        totalBadge.textContent = `${jobs.length} publicación(es)`;
+        msg.textContent = jobs.length ? 'Tus búsquedas activas aparecen de la más reciente a la más antigua.' : 'Sin publicaciones aún.';
+        list.innerHTML = jobs.map((j,idx)=>`<div class="accordionItem ${idx===0?'open':''} ${j.visibleToCandidates===false?'mutedJob':''}" data-id="${j.id}"><div class="accordionHead"><div><div style="font-size:20px">${esc(j.title)}</div><div class="muted small">${fmt(j.createdAt)} • ${esc(j.location||'Ubicación a definir')} • ${j.visibleToCandidates===false?'Oculta a candidatos':'Visible a candidatos'}</div><div class="small" style="margin-top:6px;font-weight:800;color:#0f172a">Pretensiones: ${esc(salarySummary(j.salaryPretensions))}</div></div><span>${idx===0?'−':'+'}</span></div><div class="accordionBody"><div class="talentMeta"><span class="tag">${esc(j.modality||'Modalidad no indicada')}</span><span class="tag">${j.applicationsCount || 0} CVs sin leer</span><span class="tag">${j.visibleToCandidates===false?'No mostrar':'Visible'}</span><span class="tag">Pretensiones ${esc(salarySummary(j.salaryPretensions))}</span></div><div class="sectionMini"><b>Pretensiones económicas</b><br>${esc(salarySummary(j.salaryPretensions))}</div><div class="sectionMini"><b>Descripción publicada</b><br>${esc(j.description||'')}</div>${j.requirements?`<div class="sectionMini"><b>Requisitos / detalle técnico</b><br>${esc(j.requirements)}</div>`:''}<div class="row" style="justify-content:flex-end"><button class="btn btn-ghost btnToggleVisibility" data-id="${j.id}" data-visible="${j.visibleToCandidates===false?'0':'1'}" type="button">${j.visibleToCandidates===false?'Mostrar':'No mostrar'}</button><button class="btn btn-ghost btnDeleteJob" data-id="${j.id}" type="button">Eliminar</button></div></div></div>`).join('');
+        list.querySelectorAll('.accordionItem').forEach(item=>{ item.querySelector('.accordionHead').onclick=()=>{ item.classList.toggle('open'); item.querySelector('.accordionHead span').textContent=item.classList.contains('open')?'−':'+'; }; });
+        list.querySelectorAll('.btnToggleVisibility').forEach(btn=>{ btn.onclick=async (ev)=>{ ev.stopPropagation(); msg.textContent='Actualizando visibilidad…'; try{ await apiFetch('/jobs/'+btn.dataset.id, { method:'PATCH', body: JSON.stringify({ visibleToCandidates: btn.dataset.visible !== '1' }) }); location.reload(); }catch(e){ msg.textContent=e.message; } }; });
+        list.querySelectorAll('.btnDeleteJob').forEach(btn=>{ btn.onclick=async (ev)=>{ ev.stopPropagation(); msg.textContent='Eliminando publicación…'; try{ await apiFetch('/jobs/'+btn.dataset.id, { method:'DELETE' }); location.reload(); }catch(e){ msg.textContent=e.message; } }; });
+      }catch(e){ msg.textContent=e.message; }
+    })();
+  </script>
+</body>
+</html>

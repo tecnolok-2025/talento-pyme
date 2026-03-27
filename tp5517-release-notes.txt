@@ -1,3 +1,9 @@
-Talento PyME v5.5.19
-- Se eliminó el texto de ayuda sobre coincidencia aproximada en la pantalla de inicio del login.
-- Versionado actualizado a 5.5.19 para forzar recarga del frontend y service worker.
+Talento PyME v5.7.3
+
+Cambios principales
+- Auditoría y corrección del Panel General / Administración.
+- La trazabilidad del lado candidato ahora muestra altas de perfiles, actualizaciones, postulaciones y consultas IA.
+- La trazabilidad del lado empresa ahora muestra altas de empresas, actualizaciones, búsquedas, documentos, aperturas y consultas IA.
+- Nuevos KPI visibles en trazabilidad: candidatos registrados y empresas registradas.
+- Se corrigió la lógica para que la trazabilidad muestre datos mínimos reales aun con poca carga inicial.
+- Versionado unificado a 5.7.3 en README, API, frontend y service worker.

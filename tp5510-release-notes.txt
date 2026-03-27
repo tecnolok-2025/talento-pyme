@@ -1,6 +1,22 @@
-Talento PyME v5.5.10
-- Factory: se removieron los textos comerciales solicitados.
-- Factory: el código de bonificación ahora se ingresa debajo del total en carrito y checkout.
-- Si el código no es válido o ya fue usado, se limpia el campo y el total vuelve al estado inicial.
-- Buscar Talento: se reemplazó la leyenda “Sistema gemelo de Bolsa de Trabajo UIC...”.
-- Mi Perfil candidato: se rehabilitó el botón Salir en la barra superior con formato de enlace.
+Talento PyME v5.6.0
+
+Cambios principales
+- Ayuda IA reforzada con respuestas más específicas por rol y por intención.
+- Se agregó fecha y hora visible en cada mensaje del chat.
+- Se agregó borrado de mensajes individuales.
+- Se agregó limpieza completa de la conversación.
+- Las sugerencias del chat ahora cambian según candidato, empresa o panel general.
+- Mejor respuesta para consultas concretas como “¿Cómo completo Mi Perfil?”.
+- Se mantiene la derivación a operador cuando la consulta requiere revisión humana.
+- Versionado unificado a 5.6.0 en frontend, service worker y API.
+
+Backend
+- Nuevos endpoints:
+  DELETE /support/messages/:id
+  DELETE /support/thread
+- Motor de respuestas ampliado con intenciones para candidato, empresa y superadmin.
+- Mejora en el uso de conocimiento reutilizable del operador.
+
+Deploy
+- No agrega cambios de Prisma.
+- Al desplegar debería verse talento-pyme-api@5.6.0 y la UI v5.6.0.

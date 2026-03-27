@@ -1,14 +1,21 @@
-Auditoría v5.5.10
+Panel General + Factory Admin v5.6.0
 
-Verificado:
-- apps/api/package.json -> 5.5.10
-- apps/web/config.js -> 5.5.10 / build 20260310_07
-- README.md -> v5.5.10
-- sw.js y HTMLs -> ?v=5.5.10
-- Sintaxis OK: index.js, app.js, auth.js, bolsa-candidato.js, config.js, sw.js, factory-inline.js
-- Script inline OK: buscar.html, factory.html
+1. En Render, dentro del servicio API, definir estas variables:
+   FACTORY_ADMIN_ALIAS=Talento PyME
+   FACTORY_ADMIN_PASSWORD=tu_clave_segura
+   FACTORY_SUPPORT_EMAIL=factory@gmail.com
+   FACTORY_ADMIN_ALLOWED_COMPANIES=Mengabo SA,Mengabo Sociedad Anonima
 
-Cambios funcionales auditados:
-- Factory: precios en pesos y aperturas por plan visibles
-- Buscar Talento: ficha completa protegida por aperturas disponibles
-- Texto de ayuda salarial redundante eliminado
+2. Guardar y hacer Redeploy.
+
+3. Para entrar al Panel General:
+   - Abrí la pantalla inicial.
+   - Elegí Empresa.
+   - En Empresa (nombre) escribí exactamente: Talento PyME
+   - En Contraseña escribí el valor de FACTORY_ADMIN_PASSWORD.
+
+4. El sistema redirige a /admin.html.
+
+5. Esta versión agrega tablas nuevas para soporte/chat, por lo que el build debe ejecutar:
+   npx prisma generate
+   npx prisma db push --accept-data-loss

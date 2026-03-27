@@ -1,0 +1,480 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CANDIDATE
+  COMPANY
+  ADMIN
+  ADMIN_CANDIDATE
+  ADMIN_COMPANY
+  SUPERADMIN
+}
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum BillingOrderStatus {
+  DRAFT
+  PENDING_PAYMENT
+  PAID
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+
+enum SupportThreadStatus {
+  OPEN
+  WAITING_USER
+  WAITING_OPERATOR
+  RESOLVED
+}
+
+enum SupportActor {
+  USER
+  ASSISTANT
+  OPERATOR
+  SYSTEM
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  passHash  String
+  role      UserRole @default(CANDIDATE)
+  createdAt DateTime @default(now())
+
+  candidateProfile Profile?
+  candidateBolsa   CandidateBolsa?
+  resume    Resume?
+  company   CompanyProfile?
+  jobs      Job[]
+  applications Application[]
+  supportThreads SupportThread[]
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  fullName    String?
+  fullNameNorm String?
+  dni         String?  @unique
+  city        String?
+  province    String?
+  phone       String?
+  address     String?
+  headline    String?
+  sector      String?
+  subSector   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id])
+  skills      Skill[]
+
+  @@index([fullNameNorm])
+}
+
+model Skill {
+  id        String   @id @default(cuid())
+  profileId String
+  name      String
+  level     Int?
+  createdAt DateTime @default(now())
+
+  profile   Profile  @relation(fields: [profileId], references: [id])
+
+  @@index([name])
+}
+
+
+model CandidateBolsa {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+
+  // Datos personales
+  nombre            String
+  apellido          String
+  dni               String
+  nacionalidad      String
+  estadoCivil       String
+  hijos             String
+  telefono          String
+  correo            String
+  localidad         String
+  direccion         String?
+
+  // Perfil laboral
+  areaTrabajo       String
+  nivel             String?
+  especialidad      String
+  especialidadOtro  String?
+
+  // Experiencia y formación
+  rangoExperiencia  String
+  nivelEducativo    String
+  tieneCapacitacion Boolean
+
+  // Preferencias
+  trabajaActualmente Boolean
+  sueldoPretendido   String?
+  ultimoTrabajo      String?
+  observaciones      String?
+  photoDataUrl       String?
+
+  // Herramientas (según área)
+  herramientasMecanica String[] @default([])
+  instrumentosElectrica String[] @default([])
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user               User     @relation(fields: [userId], references: [id])
+
+  @@index([areaTrabajo])
+  @@index([localidad])
+  @@index([especialidad])
+  @@index([nivel])
+}
+
+model Resume {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  summary        String?
+  experience     String?
+  education      String?
+  certifications String?
+  observations   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User     @relation(fields: [userId], references: [id])
+}
+
+model CompanyProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  companyName String
+  companyNameNorm String?
+  cuit        String?  @unique
+  address     String?
+  contactEmail String?
+  contactName String?
+  contactNameNorm String?
+  city        String?
+  province    String?
+  phone       String?
+  website     String?
+  companySummary String?
+  showCompanySummary Boolean @default(true)
+  candidateBookmarks String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id])
+  jobs        Job[]
+  billingOrders BillingOrder[]
+  couponRedemptions BillingCouponRedemption[]
+  candidateAccesses CompanyCandidateAccess[]
+  jobPublications CompanyJobPublication[]
+  factoryCoupons FactoryCoupon[]
+  factoryGrants CompanyFactoryGrant[]
+  supportThreads SupportThread[]
+
+  @@index([companyNameNorm])
+  @@index([contactNameNorm])
+}
+
+model JobCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  parentId  String?
+  parent    JobCategory? @relation("CatTree", fields: [parentId], references: [id])
+  children  JobCategory[] @relation("CatTree")
+  jobs      Job[]
+}
+
+model Job {
+  id          String   @id @default(cuid())
+  companyId   String
+  createdById String
+  title       String
+  location    String?
+  modality    String?
+  description String
+  requirements String?
+  categoryId  String?
+  status      JobStatus @default(PUBLISHED)
+  visibleToCandidates Boolean @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company     CompanyProfile @relation(fields: [companyId], references: [id])
+  createdBy   User           @relation(fields: [createdById], references: [id])
+  category    JobCategory?   @relation(fields: [categoryId], references: [id])
+  applications Application[]
+}
+
+model Application {
+  id          String   @id @default(cuid())
+  jobId       String
+  userId      String
+  coverNote   String?
+  createdAt   DateTime @default(now())
+
+  job         Job      @relation(fields: [jobId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([jobId, userId])
+}
+
+model BillingOrder {
+  id                   String             @id @default(cuid())
+  companyId            String
+  status               BillingOrderStatus @default(PENDING_PAYMENT)
+  companyNameSnapshot  String?
+  cuitSnapshot         String?
+  contactEmailSnapshot String?
+  billingName          String?
+  billingTaxId         String?
+  billingTaxCondition  String?
+  billingProvince      String?
+  billingCity          String?
+  billingAddress       String?
+  billingAddressNumber String?
+  billingFloor         String?
+  billingDept          String?
+  billingPostalCode    String?
+  billingEmail         String?
+  couponCode           String?
+  couponDiscountPct    Int?               @default(0)
+  subtotal             Int                @default(0)
+  discountAmount       Int                @default(0)
+  vatAmount            Int                @default(0)
+  total                Int                @default(0)
+  totalDays            Int                @default(0)
+  totalOpenings        Int                @default(0)
+  paymentProvider      String?
+  paymentSessionRef    String?
+  paymentProviderRef   String?
+  paymentApprovedAt    DateTime?
+  paymentFailureReason String?
+  paymentReceiptUrl    String?
+  cardBrand            String?
+  cardLast4            String?
+  paymentNote          String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  company              CompanyProfile     @relation(fields: [companyId], references: [id])
+  items                BillingOrderItem[]
+  webhookEvents        PaymentWebhookEvent[]
+
+  @@index([companyId, createdAt])
+  @@index([status])
+  @@index([paymentProvider, paymentSessionRef])
+}
+
+model BillingOrderItem {
+  id          String       @id @default(cuid())
+  orderId      String
+  planCode     String
+  planName     String
+  days         Int
+  unitPrice    Int
+  quantity     Int         @default(1)
+  subtotal     Int         @default(0)
+  openingsIncluded Int     @default(0)
+  publicationsIncluded Int @default(0)
+  createdAt    DateTime    @default(now())
+
+  order        BillingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  candidateAccesses CompanyCandidateAccess[]
+  jobPublications CompanyJobPublication[]
+
+  @@index([orderId])
+}
+
+model CompanyJobPublication {
+  id          String         @id @default(cuid())
+  companyId   String
+  jobId       String         @unique
+  orderItemId String?
+  expiresAt   DateTime
+  createdAt   DateTime       @default(now())
+
+  company     CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orderItem   BillingOrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, expiresAt])
+  @@index([orderItemId])
+}
+
+model CompanyCandidateAccess {
+  id          String         @id @default(cuid())
+  companyId    String
+  candidateId  String
+  orderItemId  String
+  expiresAt    DateTime
+  createdAt    DateTime      @default(now())
+
+  company      CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orderItem     BillingOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, expiresAt])
+  @@index([candidateId, expiresAt])
+  @@index([orderItemId])
+}
+
+model BillingCouponRedemption {
+  id          String         @id @default(cuid())
+  companyId   String
+  code        String
+  discountPct Int
+  createdAt   DateTime       @default(now())
+
+  company     CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId, createdAt])
+}
+
+
+model FactoryPlanConfig {
+  code               String   @id
+  name               String
+  days               Int
+  price              Int
+  publicationsLimit  Int      @default(0)
+  searchesLimit      Int      @default(0)
+  active             Boolean  @default(true)
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model FactoryCoupon {
+  code             String         @id
+  label            String?
+  discountPct      Int            @default(0)
+  companyId        String?
+  grantsFullAccess Boolean        @default(false)
+  fullAccessUntil  DateTime?
+  isActive         Boolean        @default(true)
+  singleUsePerCompany Boolean     @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  company          CompanyProfile? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, isActive])
+}
+
+model CompanyFactoryGrant {
+  id              String         @id @default(cuid())
+  companyId       String
+  code            String
+  fullAccessUntil DateTime
+  createdAt       DateTime       @default(now())
+
+  company         CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId, fullAccessUntil])
+}
+
+
+model PaymentWebhookEvent {
+  id               String        @id @default(cuid())
+  provider         String
+  providerEventId  String
+  orderId          String?
+  eventType        String
+  outcome          String?
+  signatureValid   Boolean       @default(false)
+  processed        Boolean       @default(false)
+  errorMessage     String?
+  payloadHash      String?
+  receivedAt       DateTime      @default(now())
+  processedAt      DateTime?
+
+  order            BillingOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, providerEventId])
+  @@index([orderId, receivedAt])
+}
+
+model SecurityEvent {
+  id             String   @id @default(cuid())
+  route          String
+  actorUserId    String?
+  actorCompanyId String?
+  orderId        String?
+  severity       String
+  eventType      String
+  message        String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([route, createdAt])
+  @@index([severity, createdAt])
+  @@index([orderId, createdAt])
+}
+
+model SupportThread {
+  id              String              @id @default(cuid())
+  role            UserRole
+  userId          String?
+  companyId       String?
+  subject         String?
+  status          SupportThreadStatus @default(OPEN)
+  needsHuman      Boolean             @default(false)
+  lastUserMessage String?
+  lastAiMessage   String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  user            User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  company         CompanyProfile?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  messages        SupportMessage[]
+
+  @@index([role, updatedAt])
+  @@index([companyId, updatedAt])
+  @@index([userId, updatedAt])
+}
+
+model SupportMessage {
+  id         String        @id @default(cuid())
+  threadId    String
+  actor       SupportActor
+  content     String
+  reusable    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+
+  thread      SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+}
+
+model SupportKnowledge {
+  id             String   @id @default(cuid())
+  scope          String   @default("GLOBAL")
+  keywords       String[] @default([])
+  questionSample String?
+  answer         String
+  source         String?  @default("seed")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([scope, isActive])
+}

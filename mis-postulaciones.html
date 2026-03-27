@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Talento PyME · Ayuda IA</title>
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css?v=5.7.3" />
+  <style>
+    .chatShell{display:grid;grid-template-columns:1.25fr .75fr;gap:18px}
+    @media(max-width:980px){.chatShell{grid-template-columns:1fr}}
+    .chatBox{display:grid;gap:14px}
+    .chatMessages{display:grid;gap:12px;max-height:62vh;overflow:auto;padding-right:4px}
+    .chatMsg{padding:14px 16px;border-radius:18px;border:1px solid var(--tp-border);background:#fff;position:relative}
+    .chatMsg.user{background:rgba(37,99,235,.08);border-color:rgba(37,99,235,.18)}
+    .chatMsg.assistant{background:rgba(16,185,129,.08);border-color:rgba(16,185,129,.18)}
+    .chatMsg.operator{background:rgba(249,115,22,.08);border-color:rgba(249,115,22,.18)}
+    .chatHead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:6px}
+    .chatMeta{font-size:12px;color:#5b6475;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .chatActor{font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#112a58}
+    .chatBody{line-height:1.55;color:#122033}
+    .chatTools{display:flex;gap:8px;align-items:center}
+    .iconMiniBtn{border:1px solid var(--tp-border);background:#fff;border-radius:10px;padding:6px 8px;font-weight:700;cursor:pointer}
+    .iconMiniBtn:hover{border-color:#2563eb;color:#2563eb}
+    .chatComposer{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
+    .chatSuggestion{cursor:pointer;text-align:left;justify-content:flex-start}
+    .chatTopBar{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+    #chatSuggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    @media(max-width:760px){#chatSuggestions{grid-template-columns:1fr}}
+  </style>
+</head>
+<body class="appShell">
+  <div class="header">
+    <div class="brand"><img src="/icon-192.png" alt="Talento PyME" /><div><div class="brandTitle">Talento PyME</div><div class="muted">Centro de ayuda • <span class="tp-version"></span></div></div></div>
+    <div class="nav">
+      <a href="/perfil.html" data-role="CANDIDATE">Mi Perfil</a>
+      <a href="/mis-oportunidades.html" data-role="CANDIDATE">Mis Oportunidades</a>
+      <a href="/mis-postulaciones.html" data-role="CANDIDATE">Mis Postulaciones</a>
+      <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
+      <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
+      <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
+      <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
+      <a href="/mis-candidatos.html" data-role="COMPANY">Mis Candidatos</a>
+      <a href="/factory.html" data-role="COMPANY">Factory</a>
+      <a href="/admin.html" data-role="ADMIN">Panel General</a>
+      <a href="/asistencia.html" class="active">Ayuda IA</a>
+      <a href="#" id="btnLogout">Salir</a>
+    </div>
+  </div>
+  <div class="wrap wide">
+    <div class="heroPanel">
+      <div class="small pageEyebrow">Talento PyME · soporte asistido</div>
+      <h2 style="margin:8px 0 6px 0" id="helpTitle">Ayuda IA + operador</h2>
+      <div class="muted" id="helpIntro">Este centro responde con conocimiento operativo del sistema, mantiene tono profesional y deriva al operador solo cuando hace falta una intervención humana.</div>
+    </div>
+    <div class="chatShell" style="margin-top:16px">
+      <div class="card chatBox">
+        <div class="chatTopBar"><div class="toolbarCard" style="flex:1"><div><h2 style="margin:0">Conversación</h2><div class="muted" id="chatStatus">Cargando hilo…</div></div><div class="badge" id="threadBadge">—</div></div><button class="btn btn-ghost" id="btnClearChat" type="button">Limpiar conversación</button></div>
+        <div id="chatMessages" class="chatMessages"></div>
+        <div class="chatComposer">
+          <div>
+            <label>Escribí tu consulta</label>
+            <textarea class="input" id="chatInput" rows="4" placeholder="Ej: ¿cómo completo mi perfil? ¿cómo se consumen las aperturas? ¿cómo publicar una búsqueda?"></textarea>
+          </div>
+          <button class="btn btn-primary" id="btnSendChat" type="button">Enviar</button>
+        </div>
+        <div class="muted" id="chatMsg"></div>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:0">Consultas sugeridas</h2>
+        <div class="listStack" id="chatSuggestions"></div>
+        <div class="timelineNote" style="margin-top:16px">El asistente responde con conocimiento operativo del sistema, guarda fecha y hora en cada respuesta y te permite limpiar el historial o borrar mensajes individuales cuando lo necesites.</div>
+      </div>
+    </div>
+  </div>
+  <script src="/config.js?v=5.7.3"></script>
+  <script src="/auth.js?v=5.7.3"></script>
+  <script>
+    requireAuth(); applyRoleVisibility(); document.getElementById('btnLogout').onclick=(e)=>{e.preventDefault();logout();};
+    const currentRole = normalizeRole(tpRole());
+    const helpTitleMap = { CANDIDATE:'Ayuda IA · lado candidato', COMPANY:'Ayuda IA · lado empresa', ADMIN:'Ayuda IA · administración general' };
+    const helpIntroMap = { CANDIDATE:'Este centro te guía para completar el perfil, cargar CV, mejorar tu visibilidad y usar Mis Oportunidades y Mis Postulaciones.', COMPANY:'Este centro te guía para buscar talento, publicar búsquedas, usar Factory y entender la capacidad operativa del lado empresa.', ADMIN:'Este centro concentra las conversaciones y el conocimiento operativo del Panel General.' };
+    document.getElementById('helpTitle').textContent = helpTitleMap[currentRole] || 'Ayuda IA + operador';
+    document.getElementById('helpIntro').textContent = helpIntroMap[currentRole] || 'Este centro responde con conocimiento operativo del sistema, mantiene tono profesional y deriva al operador cuando hace falta una intervención humana.';
+    function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+    function fd(v){try{return new Date(v).toLocaleString('es-AR');}catch(_){return v||'';}}
+    const actorLabel={USER:'Tu consulta',ASSISTANT:'Ayuda IA',OPERATOR:'Operador',SYSTEM:'Sistema'};
+    let currentThreadId='';
+    function renderMessages(items){
+      const box=document.getElementById('chatMessages');
+      if(!items.length){box.innerHTML='<div class="emptyStateFactory">Todavía no hay mensajes. Escribí la primera consulta o usá una sugerencia.</div>';return;}
+      box.innerHTML=items.map((m)=>`<div class="chatMsg ${String(m.actor||'').toLowerCase()}"><div class="chatHead"><div><div class="chatActor">${esc(actorLabel[m.actor]||m.actor)}</div><div class="chatMeta"><span>${esc(fd(m.createdAt))}</span></div></div><div class="chatTools"><button type="button" class="iconMiniBtn btnDeleteMsg" data-id="${m.id}" title="Eliminar mensaje">🗑</button></div></div><div class="chatBody">${esc(m.content).split('\n').join('<br>')}</div></div>`).join('');
+      box.querySelectorAll('.btnDeleteMsg').forEach((btn)=>btn.onclick=async()=>{ if(!confirm('¿Querés eliminar este mensaje del historial?')) return; const msg=document.getElementById('chatMsg'); msg.textContent='Eliminando…'; try{ const data=await apiFetch('/support/messages/'+btn.dataset.id,{method:'DELETE'}); renderMessages(data.messages||[]); updateThreadState(data.thread||{}); msg.textContent='Mensaje eliminado.'; }catch(e){ msg.textContent=e.message; } });
+      box.scrollTop=box.scrollHeight;
+    }
+    function updateThreadState(thread){
+      currentThreadId=thread?.id||currentThreadId||'';
+      const threadStatusLabel={WAITING_OPERATOR:'Revisión humana',WAITING_USER:'Respondido',OPEN:'Abierto',CLOSED:'Cerrado',RESOLVED:'Resuelto'};
+      document.getElementById('threadBadge').textContent=(threadStatusLabel[thread?.status]||'Abierto');
+      document.getElementById('chatStatus').textContent=thread?.needsHuman?'Este hilo quedó disponible para revisión humana.':'Conversación activa con respuesta asistida.';
+    }
+    async function loadChat(){
+      const data=await apiFetch('/support/bootstrap');
+      updateThreadState(data.thread||{});
+      renderMessages(data.messages||[]);
+      const sug=document.getElementById('chatSuggestions');
+      sug.innerHTML=(data.suggested||[]).map((q)=>`<button type="button" class="btn btn-ghost chatSuggestion">${esc(q)}</button>`).join('')||'<div class="muted">Todavía no hay sugerencias cargadas.</div>';
+      sug.querySelectorAll('.chatSuggestion').forEach((btn)=>btn.onclick=()=>{document.getElementById('chatInput').value=btn.textContent.trim(); document.getElementById('chatInput').focus();});
+    }
+    document.getElementById('btnSendChat').onclick=async()=>{
+      const content=document.getElementById('chatInput').value.trim();
+      const msg=document.getElementById('chatMsg');
+      if(!content){msg.textContent='Escribí una consulta antes de enviar.';return;}
+      msg.textContent='Enviando…';
+      try{ const data=await apiFetch('/support/message',{method:'POST',body:JSON.stringify({content})}); document.getElementById('chatInput').value=''; renderMessages(data.messages||[]); updateThreadState(data.thread||{}); msg.textContent=data.needsHuman?'La conversación quedó disponible para revisión humana.':'Respuesta recibida.'; }
+      catch(e){msg.textContent=e.message;}
+    };
+    document.getElementById('btnClearChat').onclick=async()=>{
+      const msg=document.getElementById('chatMsg');
+      if(!confirm('¿Querés limpiar toda la conversación actual?')) return;
+      msg.textContent='Limpiando…';
+      try{ const data=await apiFetch('/support/thread',{method:'DELETE'}); renderMessages(data.messages||[]); updateThreadState(data.thread||{}); msg.textContent='Conversación limpiada.'; }
+      catch(e){msg.textContent=e.message;}
+    };
+    loadChat().catch((e)=>{document.getElementById('chatStatus').textContent=e.message;});
+  </script>
+</body>
+</html>

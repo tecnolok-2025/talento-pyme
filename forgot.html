@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <title>Talento PyME • Mi Perfil</title>
+    <link rel="manifest" href="/manifest.webmanifest?v=5.7.3" />
+    <link rel="icon" href="/icon-192.png" />
+    <link rel="stylesheet" href="/styles.css?v=5.7.3" />
+  </head>
+  <body class="appShell">
+    <header class="header">
+      <div class="brand">
+        <img src="/icon-192.png" alt="Talento PyME" />
+        <div>
+          <div class="brandTitle">Talento PyME</div>
+          <div class="brandSub muted">Portal de empleo • <span class="appVersion tp-version"></span></div>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="/perfil.html" class="active" data-role="CANDIDATE">Mi Perfil</a>
+        <a href="/mis-oportunidades.html" data-role="CANDIDATE">Mis Oportunidades</a>
+        <a href="/mis-postulaciones.html" data-role="CANDIDATE">Mis Postulaciones</a>
+        <a href="/asistencia.html" data-role="CANDIDATE">Ayuda IA</a>
+        <a href="#" id="btnLogout" data-role="CANDIDATE">Salir</a>
+      </nav>
+    </header>
+
+    <main class="wrap wide">
+      <div id="bolsaRoot"></div>
+    </main>
+
+    <script src="/config.js?v=5.7.3"></script>
+    <script src="/auth.js?v=5.7.3"></script>
+    <script src="/app.js?v=5.7.3"></script>
+    
+  <script>
+    window.addEventListener("error", (e) => {
+      console.error(e.error || e.message);
+      if (typeof setPageError === "function") setPageError("bolsaRoot", "Error al abrir Mi Perfil", (e.error && e.error.message) ? e.error.message : (e.message || ""));
+    });
+    window.addEventListener("unhandledrejection", (e) => {
+      console.error(e.reason);
+      if (typeof setPageError === "function") setPageError("bolsaRoot", "Error al cargar datos", (e.reason && e.reason.message) ? e.reason.message : String(e.reason || ""));
+    });
+  </script>
+
+  <script src="/bolsa-candidato.js?v=5.7.3"></script>
+  </body>
+</html>

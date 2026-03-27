@@ -1,9 +1,34 @@
-Talento PyME v5.7.1
+# Talento PyME — v5.7.3
 
-Cambios principales:
-- Ticket sin cargo: al confirmar un plan de $0 se emite y habilita en el acto, sin quedar como pendiente de pago.
-- Factory: el resumen de cuenta ahora muestra la capacidad activa ordenada por vencimiento, incluyendo tickets y planes pagos.
-- Buscar Talento: el panel derecho muestra desde el inicio el estado operativo de la empresa y la cola de consumo de planes/tickets.
-- Documentos vigentes: se ordenan por vencimiento para ver primero lo que se consume antes.
-- Etiquetas de estado: los tickets se muestran como "Activo sin cargo".
-- Versionado unificado a v5.7.1.
+Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**.
+
+## Estado actual
+- **Frontend (Static Site Render):** https://talento-pyme.onrender.com
+- **API (Web Service Render):** https://talento-pyme-api.onrender.com
+- **DB:** Neon (PostgreSQL) via Prisma.
+
+## Roles (sin confusión)
+Solo existen **2 perfiles**:
+- **CANDIDATE (Candidato)**
+- **COMPANY (Empresa)**
+
+> En el panel de acceso siguen vigentes los perfiles candidato y empresa. Factory deja preparada una vista de superadministración para uso interno futuro.
+
+> Importante: el PDF que venías adjuntando es una **exportación** (foto en el tiempo). Para que el PDF “muestre” la nueva versión, hay que volver a exportarlo. El origen de la versión es este README + la versión que muestra la app.
+
+## Acceso (registro / ingreso)
+- **Registro (primera vez):**
+  - Candidato: Nombre y apellido, Email, DNI, Dirección, Localidad, Teléfono, Contraseña
+  - Empresa: Contacto (Nombre y apellido), Empresa, CUIT, Email, Dirección, Localidad, Teléfono, Contraseña
+- **Ingreso:**
+  - Empresa: ingresa con **nombre de la empresa** + contraseña
+  - Candidato: ingresa con **nombre y apellido** + contraseña
+- **Recupero de contraseña:** valida contra los datos de registro (DNI/CUIT, según corresponda).
+
+## PWA / caché
+La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y un botón en Acceso **“Actualizar versión”** para forzar refresh.
+
+
+## Versión única (anti-confusión)
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "4.3.0"`
+- API: `apps/api/package.json` → `4.3.0` y endpoint `/health`.

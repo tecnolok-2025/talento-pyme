@@ -1,0 +1,316 @@
+    requireAuth();
+    applyRoleVisibility();
+    if(!['COMPANY','ADMIN','SUPERADMIN'].includes(tpRole())) window.location.href='/perfil.html';
+    document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); logout(); };
+
+    const AREA_TRABAJO = [
+      "Eléctrica (Industrial)","Mecánica (Industrial)","Operaciones de planta y producción","Mantenimiento industrial (general)","Soldadura, cañerías y montaje","Calderería y recipientes","Climatización / Refrigeración industrial","Mecanizado y fabricación (taller)","Instrumentación, control y automatización (I&C)","Construcción y obra civil industrial","Proyectista / Oficina técnica / CAD-BIM","Calculista / Ingeniería de detalle","Supervisión / Capataz / Jefaturas operativas","Planificación y control (Planificador / Programación / Control de costos)","Calidad e inspección (QA/QC – Ensayos no destructivos)","Seguridad, higiene y ambiente (HSE)","Logística, depósito y abastecimiento","Administrativo / RR.HH. / Finanzas / Comercial","Sustentabilidad y Medio ambiente","Transporte y logística","Comercio exterior","IT / Software"
+    ];
+    const NIVEL_ELECTRO_MEC = ["Ayudante / Auxiliar", "Medio oficial", "Oficial", "Oficial especializado / Senior", "Técnico", "Supervisor"];
+    const RANGO_EXP = ["0–1", "2–5", "6–10", "11–20", "21–30", "31+"];
+    const NIVEL_EDU = ["Primaria", "Secundaria", "Terciaria", "Universitaria", "Otros"];
+    const LOCALIDADES = ["Campana", "Zárate", "Pilar", "Escobar", "Tigre", "Malvinas Argentinas", "San Fernando", "San Isidro", "Vicente López", "San Martín", "Hurlingham", "Morón", "CABA", "La Plata", "Mar del Plata", "Bahía Blanca", "Rosario", "Córdoba", "Mendoza", "San Juan", "Neuquén", "Comodoro Rivadavia", "Río Gallegos", "Salta", "Tucumán", "Otra"];
+    const SOLDADOR_CAT = ["No certificado / Sin certificación", "Soldador 1 (Nivel 1)", "Soldador 2 (Nivel 2)", "Soldador 3 (Nivel 3)", "Otro / No especifica"];
+    const MAQ_HERR_MECANICA = ["Torno paralelo (a tornillo)","Torno CNC","Fresadora universal","Fresadora CNC / Centro de mecanizado","Alesadora","Mandrinadora","Rectificadora (plana/cilíndrica)","Sierra cinta","Sierra circular / tronzadora industrial","Taladro de banco / radial","Mortajadora / chavetero","Prensa hidráulica","Plegadora","Guillotina","Roladora / cilindradora","Corte plasma","Corte oxicorte","Soldadora MIG/MAG (equipo)","Soldadora TIG (equipo)","Soldadora MMA / electrodo (equipo)","Equipo de alineación láser","Equipo de balanceo","Equipo de medición de vibraciones","Instrumental de metrología (comparador, alesómetro, etc.)","Puente grúa / izaje (operación)","Otros"];
+    const INSTR_ELECTRICA = ["Pinza amperométrica TRMS","Megóhmetro (Megger) – aislación","Telurómetro / medidor de puesta a tierra","Analizador de calidad de energía / armónicas","Osciloscopio","Termografía (cámara térmica)","Detector de tensión / fase","Secuencímetro (secuencia de fases)","Medidor de continuidad de puesta a tierra","Multímetro industrial TRMS (avanzado)","Calibrador de lazos 4–20 mA (I&C)","Generador de señal / calibrador","Medidor de aislamiento en MT","Equipo de prueba de relés/protecciones","Registrador de datos (datalogger) eléctrico","Medidor de fugas / diferencial","Luxómetro industrial","Tacómetro / estroboscopio","Otros"];
+    const ESPECIALIDADES = {
+      "Eléctrica (Industrial)": ["Electricista industrial","Oficial electricista","Técnico electricista","Tablerista","Montador de bandejas / canalizaciones","Instrumentista eléctrico","Bobinador de motores","Mantenimiento eléctrico","Guardia eléctrica","Protecciones / relés","Media tensión","Alta tensión","Iluminación industrial","Termografía eléctrica","Líneas y subestaciones","Otros"],
+      "Mecánica (Industrial)": ["Mecánico industrial","Técnico mecánico","Mecánico de mantenimiento","Alineación y balanceo","Bombas y válvulas","Compresores","Turbomáquinas","Motores","Hidráulica","Neumática","Reductores","Rodamientos","Lubricación","Mecánico de planta","Otros"],
+      "Operaciones de planta y producción": ["Operador de planta","Operador de sala de control","Operador de campo","Operador de producción","Operador de proceso","Operador de tratamiento de agua","Operador de caldera","Operador de utilidades","Operador Oil & Gas","Operador de carga/descarga","Otros"],
+      "Mantenimiento industrial (general)": ["Técnico de mantenimiento","Mantenimiento general","Mecánica y eléctrica","Mantenimiento preventivo","Mantenimiento correctivo","Lubricador industrial","Inspector de mantenimiento","Supervisor de mantenimiento","Otros"],
+      "Soldadura, cañerías y montaje": ["Soldador SMAW (electrodo)","Soldador MIG/MAG","Soldador TIG","Soldador 6G","Cañista / cañero","Montador de cañerías","Armador","Montajista","Gomería industrial (mangueras)","Aislación térmica","Otros"],
+      "Calderería y recipientes": ["Calderero","Armador de calderería","Trazador","Soldador calderería","Recipientes a presión","Tanques","Intercambiadores","Otros"],
+      "Climatización / Refrigeración industrial": ["Técnico en refrigeración","Frigorista","Climatización VRV/VRF","Chillers","Cámaras frigoríficas","HVAC industrial","Otros"],
+      "Mecanizado y fabricación (taller)": ["Tornero","Fresador","Alesador","CNC operador","CNC programador","Rectificador","Afilador","Ajustador","Plegador","Guillotinero","Otros"],
+      "Instrumentación, control y automatización (I&C)": ["Instrumentista","Técnico en instrumentación","PLC / SCADA","Automatista","Calibración","Válvulas de control","Lazo de control","DCS","Redes industriales","Otros"],
+      "Construcción y obra civil industrial": ["Albañil","Oficial de obra","Hormigonero","Encofrador","Fierrero","Pintor industrial","Andamiero","Gruista","Operador de excavadora","Operador de retro","Maquinista","Otros"],
+      "Proyectista / Oficina técnica / CAD-BIM": ["Dibujante técnico","Proyectista mecánico","Proyectista eléctrico","Proyectista piping","CADista","BIM modeler","Documentación técnica","Isométricos","Otros"],
+      "Calculista / Ingeniería de detalle": ["Calculista estructuras","Calculista piping","Calculista recipientes","Ingeniería de detalle","Cálculo mecánico","Cálculo eléctrico","Memorias de cálculo","Otros"],
+      "Supervisión / Capataz / Jefaturas operativas": ["Supervisor de obra","Capataz","Jefe de turno","Jefe de mantenimiento","Supervisor de montaje","Supervisor de producción","Inspector de campo","Otros"],
+      "Planificación y control (Planificador / Programación / Control de costos)": ["Planificador","Programador","Control de costos","Planner mantenimiento","Planner obra","MS Project","Primavera P6","Compras técnicas","Otros"],
+      "Calidad e inspección (QA/QC – Ensayos no destructivos)": ["Inspector QA/QC","Inspector soldadura","Inspector piping","Inspector estructuras","END - VT","END - PT","END - MT","END - UT","END - RT","Inspector dimensional","Otros"],
+      "Seguridad, higiene y ambiente (HSE)": ["Técnico en seguridad e higiene","Supervisor HSE","Permisos de trabajo","Auditor HSE","Brigadista","Gestión ambiental","Otros"],
+      "Logística, depósito y abastecimiento": ["Operario de depósito","Clarkista / autoelevador","Picker","Pañolero","Abastecedor de línea","Receptor","Expedición","Inventarios","Compras","Otros"],
+      "Administrativo / RR.HH. / Finanzas / Comercial": ["Administrativo","Asistente","RR.HH.","Liquidación de sueldos","Contabilidad","Tesorería","Facturación","Comercial","Atención al cliente","Otros"],
+      "Sustentabilidad y Medio ambiente": ["Gestión ambiental","Residuos","Sustentabilidad","Huella de carbono","ISO 14001","Reportes ESG","Otros"],
+      "Transporte y logística": ["Chofer camión","Chofer semi / batea","Chofer hidrogrúa","Chofer autoelevador (movimientos)","Despachante / tráfico","Coordinador de transporte","Ruteador","Operador de balanza","Supervisor logística","Otros"],
+      "Comercio exterior": ["Analista Comex","Despachante de aduana","Documentación de exportación","Documentación de importación","Clasificación arancelaria","Logística internacional","Forwarder","Compras internacionales","Otros"],
+      "IT / Software": ["Soporte técnico","Helpdesk","Administrador de sistemas","Redes","Ciberseguridad","Desarrollador frontend","Desarrollador backend","Full stack","QA / Testing","DevOps","Data / BI","Otros"]
+    };
+
+    const els = {
+      jobsQ: document.getElementById('jobsQ'), jobsArea: document.getElementById('jobsArea'), jobsLoc: document.getElementById('jobsLoc'), jobsNivel: document.getElementById('jobsNivel'), jobsEsp: document.getElementById('jobsEsp'), jobsExp: document.getElementById('jobsExp'), jobsEdu: document.getElementById('jobsEdu'), jobsCap: document.getElementById('jobsCap'), jobsTrab: document.getElementById('jobsTrab'), jobsSoldCat: document.getElementById('jobsSoldCat'), jobsHerr: document.getElementById('jobsHerr'), jobsInstr: document.getElementById('jobsInstr'), jobsFechaReg: document.getElementById('jobsFechaReg'), jobsOrden: document.getElementById('jobsOrden'), jobsErr: document.getElementById('jobsErr'), resultsList: document.getElementById('resultsList'), detailBody: document.getElementById('detailBody'), resultCount: document.getElementById('resultCount'), areaPills: document.getElementById('areaPills'), statsTotal: document.getElementById('statsTotal'), statsTopArea: document.getElementById('statsTopArea'), statsTopEsp: document.getElementById('statsTopEsp'), openingBadge: document.getElementById('openingBadge')
+    };
+    let jobsStats = null;
+    let jobsItems = [];
+    let jobsSelected = null;
+    let jobsOpenId = null;
+    let jobsOpeningUsage = null;
+    let jobsDetailsCache = {};
+
+    function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function formatDate(v){ try{return new Date(v).toLocaleString();}catch(_){return v||'';} }
+    function avatar(url, name){
+      const initial = esc((name || '?').trim().slice(0,1).toUpperCase() || '?');
+      return url ? `<img src="${esc(url)}" alt="${esc(name||'Foto')}" class="candidateThumb" />` : `<div class="candidateThumb placeholder"><span>${initial}</span></div>`;
+    }
+    function fillSelect(el, items, placeholder='(todos)') {
+      el.innerHTML = `<option value="">${placeholder}</option>` + items.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+    }
+    function sortedFacetEntries(obj){ return Object.entries(obj||{}).sort((a,b)=> b[1]-a[1]); }
+    function refreshSpecialties(){
+      const area = els.jobsArea.value;
+      const options = area ? (ESPECIALIDADES[area] || []) : [];
+      fillSelect(els.jobsEsp, options, area ? '(todas las especialidades del área)' : '(seleccioná un área)');
+    }
+    function renderAreaPills(){
+      const areaFacet = sortedFacetEntries(jobsStats?.facets?.area || {}).slice(0,8);
+      els.areaPills.innerHTML = areaFacet.map(([name,count])=> `<button type="button" data-area="${esc(name)}" class="${els.jobsArea.value===name?'active':''}">${esc(name)} · ${count}</button>`).join('');
+      els.areaPills.querySelectorAll('button').forEach(btn=>{
+        btn.onclick = ()=>{ els.jobsArea.value = btn.dataset.area || ''; refreshSpecialties(); renderAreaPills(); };
+      });
+    }
+    function renderStats(){
+      els.statsTotal.textContent = jobsStats?.total ?? '0';
+      const topArea = sortedFacetEntries(jobsStats?.facets?.area || {})[0];
+      els.statsTopArea.textContent = topArea ? `${topArea[0]} (${topArea[1]})` : '—';
+      const area = els.jobsArea.value;
+      const areaMap = area ? (jobsStats?.especialidad_by_area?.[area] || {}) : {};
+      const topEsp = sortedFacetEntries(areaMap)[0];
+      els.statsTopEsp.textContent = topEsp ? `${topEsp[0]} (${topEsp[1]})` : 'Seleccioná un área';
+      renderAreaPills();
+    }
+    function renderOpeningBadge(){
+      const usage = jobsOpeningUsage || {};
+      const remaining = Number(usage.remainingOpenings || 0);
+      const total = Number(usage.totalOpenings || 0);
+      const used = Number(usage.usedOpenings || 0);
+      els.openingBadge.classList.toggle('is-alert', remaining <= 0);
+      els.openingBadge.innerHTML = `Aperturas disponibles: <strong>${remaining}</strong><span class="muted">Usadas: ${used} · Cupo activo: ${total}</span>`;
+    }
+    function renderDetail(item){
+      renderOpeningBadge();
+      const isOpen = !!(item && jobsOpenId && item.id === jobsOpenId);
+      document.getElementById('detailPanel').classList.toggle('is-collapsed', !isOpen);
+      if(!isOpen){
+        els.detailBody.innerHTML = '<div class="muted">Usá la flecha del resultado que te interese para abrir su ficha completa acá, sin convertir la lista en una sábana larga.</div>';
+        return;
+      }
+      if(item.__loading){
+        els.detailBody.innerHTML = '<div class="muted">Abriendo ficha completa…</div>';
+        return;
+      }
+      if(item.__blockedMessage){
+        els.detailBody.innerHTML = `<div class="lockedPanel">${esc(item.__blockedMessage)}</div>`;
+        return;
+      }
+      const especialidad = item.especialidad === 'Otros' ? (item.especialidad_otro || 'Otros') : (item.especialidad || '');
+      els.detailBody.innerHTML = `
+        <div class="candidateLineDetail">${avatar(item.photoDataUrl, `${item.nombre || ''} ${item.apellido || ''}`)}<div><div style="font-size:22px;font-weight:900">${esc(item.apellido)}, ${esc(item.nombre)}</div>
+        <div class="muted" style="margin-top:4px">${esc(item.area_trabajo || '')}${item.nivel ? ` • ${esc(item.nivel)}` : ''}</div></div></div>
+        <div class="sectionMini"><b>DNI:</b> ${esc(item.dni || 's/d')}</div>
+        <div><b>Nacionalidad:</b> ${esc(item.nacionalidad || 's/d')} • <b>Estado civil:</b> ${esc(item.estado_civil || 's/d')} • <b>Hijos:</b> ${esc(item.hijos || 's/d')}</div>
+        <div><b>Contacto:</b> ${esc(item.telefono || 's/d')} • ${esc(item.correo || 's/d')}</div>
+        <div><b>Ubicación:</b> ${esc(item.localidad || 's/d')}${item.direccion ? ` • ${esc(item.direccion)}` : ''}</div>
+        <div><b>Especialidad:</b> ${esc(especialidad || 's/d')}</div>
+        ${item.soldador_categoria ? `<div><b>Soldador (cat.):</b> ${esc(item.soldador_categoria)}</div>` : ''}
+        ${Array.isArray(item.herramientas_mecanica) && item.herramientas_mecanica.length ? `<div><b>Máquinas herramienta:</b> ${esc(item.herramientas_mecanica.join(', '))}</div>` : ''}
+        ${Array.isArray(item.instrumentos_electrica) && item.instrumentos_electrica.length ? `<div><b>Instrumentos:</b> ${esc(item.instrumentos_electrica.join(', '))}</div>` : ''}
+        <div><b>Experiencia:</b> ${esc(item.rango_experiencia || 's/d')} • <b>Educación:</b> ${esc(item.nivel_educativo || 's/d')}</div>
+        <div><b>Capacitación:</b> ${item.tiene_capacitacion ? 'Sí' : 'No'} • <b>Trabaja:</b> ${item.trabaja_actualmente ? 'Sí' : 'No'}</div>
+        <div><b>Última actualización:</b> ${esc(formatDate(item.updated_at || item.created_at) || 's/d')}</div>
+        ${item.sueldo_pretendido ? `<div><b>Sueldo:</b> ${esc(item.sueldo_pretendido)}</div>` : ''}
+        ${item.ultimo_trabajo ? `<div><b>Último trabajo:</b> ${esc(item.ultimo_trabajo)}</div>` : ''}
+        ${item.observaciones ? `<div style="margin-top:8px"><b>Observaciones:</b><br>${esc(item.observaciones)}</div>` : ''}
+        ${item.__consumedMessage ? `<div class="talentHint" style="margin-top:12px">${esc(item.__consumedMessage)}</div>` : ''}
+        <div class="row" style="margin-top:14px"><button class="btn btn-primary" id="btnSaveCandidate" type="button">Guardar en Mis Candidatos</button><span class="muted" id="saveCandidateMsg"></span></div>
+      `;
+    }
+    function renderResults(){
+      els.resultCount.textContent = jobsItems.length ? `${jobsItems.length} resultado(s)` : 'Sin resultados';
+      if(!jobsItems.length){
+        els.resultsList.innerHTML = '<div class="muted">No hay perfiles para esos filtros. Probá limpiar o ampliar la búsqueda.</div>';
+        jobsSelected = null;
+        jobsOpenId = null;
+        renderDetail(null);
+        return;
+      }
+      els.resultsList.innerHTML = jobsItems.map((it)=>{
+        const especialidad = it.especialidad === 'Otros' ? (it.especialidad_otro || 'Otros') : (it.especialidad || '');
+        const isActive = jobsSelected && jobsSelected.id === it.id;
+        const isOpen = jobsOpenId && jobsOpenId === it.id;
+        const resumenBase = it.observaciones || it.ultimo_trabajo || 'Perfil sin observaciones cargadas.';
+        const sueldoVisible = (it.sueldo_pretendido || '').trim();
+        return `
+          <div class="talentCard ${isActive?'active':''} ${isOpen?'is-open':''}" data-id="${it.id}">
+            <div class="talentCardHead" data-action="toggle" data-id="${it.id}">
+              <div class="talentCardHeadMain">
+                <div class="candidateLine">${avatar(it.photoDataUrl, `${it.nombre || ''} ${it.apellido || ''}`)}<div><div style="font-weight:900;font-size:18px">${esc(it.apellido)}, ${esc(it.nombre)}</div>
+                <div class="muted">${esc(it.area_trabajo || '')}${it.nivel ? ` • ${esc(it.nivel)}` : ''}</div></div></div>
+                <div class="talentMeta">
+                  <span class="tag">${esc(it.localidad || 'Localidad s/d')}</span>
+                  ${especialidad ? `<span class="tag">${esc(especialidad)}</span>` : ''}
+                  ${it.rango_experiencia ? `<span class="tag">Exp. ${esc(it.rango_experiencia)}</span>` : ''}
+                  ${it.nivel_educativo ? `<span class="tag">${esc(it.nivel_educativo)}</span>` : ''}
+                </div>
+                <div class="salarySpot ${sueldoVisible ? '' : 'is-missing'}">
+                  <div>
+                    <div class="salarySpotLabel">Pretensión salarial</div>
+                    <div class="salarySpotValue">${esc(sueldoVisible || 'No informada')}</div>
+                  </div>
+                </div>
+                <div class="muted" style="margin-top:10px">${esc(resumenBase).slice(0,180)}${resumenBase.length>180?'…':''}</div>
+                <div class="small muted" style="margin-top:10px">Última actualización: ${esc(formatDate(it.updated_at || it.created_at) || 's/d')}</div>
+              </div>
+              <button class="talentToggle" type="button" data-action="toggle" data-id="${it.id}" aria-expanded="${isOpen ? 'true' : 'false'}">
+                ${isOpen ? 'Ocultar detalle' : 'Ver detalle'}
+                <span class="talentChevron">▾</span>
+              </button>
+            </div>
+            <div class="talentInlineBody">
+              <div class="talentInlineGrid">
+                <div class="talentMini"><b>Estado del panel</b>${isOpen ? 'Detalle completo abierto a la derecha.' : 'Toque “Ver detalle” para abrir la ficha completa.'}</div>
+                <div class="talentMini"><b>Lectura rápida</b>${esc(especialidad || it.area_trabajo || 'Perfil general')} • ${esc(it.rango_experiencia || 'Experiencia s/d')}</div>
+              </div>
+              <div class="talentHint">Este resultado quedó hermanado con el panel derecho. Si volvés a tocar la flecha, se cierra en ambos lados.</div>
+            </div>
+          </div>`;
+      }).join('');
+      els.resultsList.querySelectorAll('[data-action="toggle"]').forEach(node=>{
+        node.onclick = async (ev)=>{
+          ev.preventDefault();
+          ev.stopPropagation();
+          const id = node.dataset.id;
+          if(jobsOpenId === id){
+            jobsOpenId = null;
+            jobsSelected = null;
+            renderResults();
+            renderDetail(null);
+            return;
+          }
+          jobsOpenId = id;
+          const preview = jobsItems.find(x=> x.id === id) || null;
+          jobsSelected = jobsDetailsCache[id] || Object.assign({}, preview || {}, { __loading: true });
+          renderResults();
+          renderDetail(jobsSelected);
+          if(jobsDetailsCache[id]){
+            jobsSelected = jobsDetailsCache[id];
+            renderDetail(jobsSelected);
+            bindSaveButton();
+            return;
+          }
+          try{
+            const headers = { Authorization: 'Bearer ' + tpToken() };
+            const resp = await fetch(window.TP_API_URL + '/jobs/candidate/' + encodeURIComponent(id) + '/detail', { headers });
+            const data = await resp.json().catch(()=>({}));
+            if(!resp.ok){
+              if(data && data.openingUsage) jobsOpeningUsage = data.openingUsage;
+              throw new Error(data?.error || 'No se pudo abrir la ficha completa');
+            }
+            jobsOpeningUsage = data.openingUsage || jobsOpeningUsage;
+            const merged = Object.assign({}, preview || {}, data.item || {}, {
+              access_locked: false,
+              __consumedMessage: data.consumed ? 'Esta apertura quedó contabilizada para tu empresa dentro del cupo activo.' : ''
+            });
+            jobsDetailsCache[id] = merged;
+            if(jobsOpenId === id){
+              jobsSelected = merged;
+              renderResults();
+              renderDetail(jobsSelected);
+              bindSaveButton();
+            }
+          }catch(e){
+            const blocked = Object.assign({}, preview || {}, { __blockedMessage: e.message });
+            jobsSelected = blocked;
+            renderDetail(jobsSelected);
+          }
+        };
+      });
+      renderDetail(jobsSelected);
+      bindSaveButton();
+    }
+
+    function bindSaveButton(){
+      setTimeout(()=>{
+        const btn = document.getElementById('btnSaveCandidate');
+        if(btn && jobsSelected && jobsOpenId === jobsSelected.id && !jobsSelected.__blockedMessage){
+          btn.onclick = async ()=>{
+            const msg = document.getElementById('saveCandidateMsg');
+            msg.textContent = 'Guardando...';
+            try{
+              const data = await apiFetch('/company/candidates', { method:'POST', body: JSON.stringify({ candidateId: jobsSelected.id }) });
+              msg.textContent = `Candidato guardado. Total en carpeta: ${data.total || ''}`.trim();
+            }catch(e){ msg.textContent = e.message; }
+          };
+        }
+      },0);
+    }
+    async function loadStats(){
+      els.jobsErr.textContent = 'Actualizando estadísticas…';
+      try{
+        jobsStats = await apiFetch('/jobs/stats');
+        renderStats();
+        els.jobsErr.textContent = '';
+      }catch(e){ els.jobsErr.textContent = e.message; }
+    }
+    async function searchJobs(){
+      els.jobsErr.textContent = 'Buscando perfiles…';
+      const url = new URL(window.TP_API_URL + '/jobs/search');
+      const map = {
+        q: els.jobsQ.value.trim(), area: els.jobsArea.value, localidad: els.jobsLoc.value, nivel: els.jobsNivel.value,
+        especialidad: els.jobsEsp.value, rango_experiencia: els.jobsExp.value, nivel_educativo: els.jobsEdu.value,
+        tiene_capacitacion: els.jobsCap.value, trabaja_actualmente: els.jobsTrab.value, soldador_categoria: els.jobsSoldCat.value,
+        herramienta: els.jobsHerr.value, instrumento: els.jobsInstr.value, ultima_actualizacion: els.jobsFechaReg.value, orden: els.jobsOrden.value
+      };
+      Object.entries(map).forEach(([k,v])=>{ if(v) url.searchParams.set(k,v); });
+      try{
+        const headers = { Authorization: 'Bearer ' + tpToken() };
+        const r = await fetch(url.toString(), { headers });
+        const data = await r.json();
+        if(!r.ok) throw new Error(data?.error || 'No se pudo buscar talento');
+        jobsItems = data.items || [];
+        jobsOpeningUsage = data.openingUsage || jobsOpeningUsage;
+        jobsDetailsCache = {};
+        jobsSelected = null;
+        jobsOpenId = null;
+        renderResults();
+        els.jobsErr.textContent = jobsItems.length ? 'Búsqueda realizada correctamente.' : 'Sin coincidencias con los filtros actuales.';
+      }catch(e){
+        jobsItems = [];
+        renderResults();
+        els.jobsErr.textContent = e.message;
+      }
+    }
+    function clearFilters(){
+      Object.values(els).forEach(()=>{});
+      ['jobsQ','jobsArea','jobsLoc','jobsNivel','jobsEsp','jobsExp','jobsEdu','jobsCap','jobsTrab','jobsSoldCat','jobsHerr','jobsInstr','jobsFechaReg'].forEach(key=> els[key].value='');
+      els.jobsOrden.value = 'recientes';
+      refreshSpecialties();
+      renderStats();
+      jobsItems=[]; jobsDetailsCache={}; jobsSelected=null; jobsOpenId=null; renderResults();
+      els.jobsErr.textContent='Filtros limpiados.';
+    }
+
+    fillSelect(els.jobsArea, AREA_TRABAJO, '(todas las áreas)');
+    fillSelect(els.jobsLoc, LOCALIDADES, '(todas las localidades)');
+    fillSelect(els.jobsNivel, NIVEL_ELECTRO_MEC, '(todos los niveles)');
+    fillSelect(els.jobsExp, RANGO_EXP, '(cualquier experiencia)');
+    fillSelect(els.jobsEdu, NIVEL_EDU, '(cualquier nivel educativo)');
+    fillSelect(els.jobsCap, ['SI','NO'], '(sí o no)');
+    fillSelect(els.jobsTrab, ['SI','NO'], '(sí o no)');
+    fillSelect(els.jobsSoldCat, SOLDADOR_CAT, '(cualquier categoría)');
+    fillSelect(els.jobsHerr, MAQ_HERR_MECANICA, '(cualquier máquina)');
+    fillSelect(els.jobsInstr, INSTR_ELECTRICA, '(cualquier instrumento)');
+    fillSelect(els.jobsFechaReg, [{toString(){return '7d';}},'30d','90d','365d'].map(x=>typeof x==='string'?x:x.toString()), '(cualquier fecha)');
+    els.jobsFechaReg.innerHTML = '<option value="">(cualquier fecha)</option><option value="7d">Últimos 7 días</option><option value="30d">Últimos 30 días</option><option value="90d">Últimos 3 meses</option><option value="365d">Último año</option>';
+    els.jobsOrden.innerHTML = '<option value="recientes">Más recientes</option><option value="antiguos">Más antiguos</option>';
+    refreshSpecialties();
+
+    els.jobsArea.onchange = ()=>{ refreshSpecialties(); renderStats(); };
+    document.getElementById('btnRefreshStats').onclick = loadStats;
+    document.getElementById('btnSearch').onclick = searchJobs;
+    document.getElementById('btnClear').onclick = clearFilters;
+
+    loadStats();
+    renderOpeningBadge();
+    renderResults();
