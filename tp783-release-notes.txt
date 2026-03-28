@@ -1,0 +1,47 @@
+Talento PyME v7.8.4
+
+Foco de esta revisión
+- Construcción del backup lógico interno desde superadministración.
+- Política visible de resguardo: automático diario, retención de 2 días y respaldo externo del proveedor.
+- Centro de resguardo con ejecución manual, descarga del último backup e historial reciente.
+
+Cambios principales
+- Nueva tabla Prisma: AdminBackupLog.
+- Nuevo directorio operativo de backups locales: apps/api/backups (runtime ../backups).
+- Nuevas rutas administrativas:
+  GET  /admin/backup/status
+  POST /admin/backup/run
+  GET  /admin/backup/download/latest
+- Programación automática en la API:
+  - chequeo periódico configurable
+  - ejecución al iniciar
+  - ejecución de oportunidad al abrir superadministración
+- Backup lógico en JSON con datasets de:
+  usuarios, perfiles, skills, bolsa candidato, CV, empresas, búsquedas,
+  postulaciones, facturación, publicaciones, accesos, cupones, grants,
+  eventos de pago, seguridad, soporte y snapshots mensuales.
+- Historial visual de backups en la pestaña Capacidad operativa.
+- Botón Descargar último backup con autenticación admin.
+
+Variables nuevas / confirmadas
+- ADMIN_BACKUP_MODE=AUTOMATIC
+- ADMIN_BACKUP_FREQUENCY=DAILY
+- ADMIN_BACKUP_RETENTION_DAYS=2
+- ADMIN_BACKUP_PROVIDER=EXTERNAL_PROVIDER
+- ADMIN_LOCAL_BACKUP_ENABLED=true
+- ADMIN_BACKUP_CHECK_MINUTES=60
+- ADMIN_BACKUP_KEEP_FILES=2
+- ADMIN_UPGRADE_URL=...
+- ADMIN_BACKUP_URL=...
+- ADMIN_INFRA_URL=...
+
+Acciones requeridas al desplegar
+1. prisma generate
+2. prisma db push
+3. redeploy
+4. actualizar versión / recarga forzada de la PWA
+
+Nota importante
+- El backup automático implementado acá es un resguardo lógico gestionado por la app.
+- Para máxima solidez sigue siendo recomendable mantener activo también el backup del proveedor.
+- Si la infraestructura entra en sleep prolongado, el ciclo automático se retoma al iniciar la app, al intervalo programado o al abrir el panel admin.

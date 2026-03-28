@@ -9,6 +9,7 @@ import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
 import fs from "fs/promises";
 import path from "path";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { createPaymentProvider, getPaymentConfigFromEnv } from "./services/payments/index.js";
 import { assertNoCardData, listForbiddenPaymentFields, sanitizeCheckoutPayloadForLog, sha256Hex, PaymentProviderError, PaymentSecurityError } from "./services/payments/provider.js";
@@ -38,6 +39,13 @@ const ADMIN_BACKUP_MODE = String(process.env.ADMIN_BACKUP_MODE || 'AUTOMATIC').t
 const ADMIN_BACKUP_FREQUENCY = String(process.env.ADMIN_BACKUP_FREQUENCY || 'DAILY').trim().toUpperCase();
 const ADMIN_BACKUP_RETENTION_DAYS = Math.max(1, Number(process.env.ADMIN_BACKUP_RETENTION_DAYS || 2));
 const ADMIN_BACKUP_PROVIDER = String(process.env.ADMIN_BACKUP_PROVIDER || 'EXTERNAL_PROVIDER').trim().toUpperCase();
+const BACKUPS_DIR = path.resolve(__dirname, '../backups');
+const ADMIN_LOCAL_BACKUP_ENABLED = String(process.env.ADMIN_LOCAL_BACKUP_ENABLED || 'true').trim().toLowerCase() !== 'false';
+const ADMIN_BACKUP_CHECK_MINUTES = Math.max(15, Number(process.env.ADMIN_BACKUP_CHECK_MINUTES || 60));
+const ADMIN_BACKUP_KEEP_FILES = Math.max(1, Number(process.env.ADMIN_BACKUP_KEEP_FILES || ADMIN_BACKUP_RETENTION_DAYS || 2));
+
+let backupRunPromise = null;
+let backupSchedulerStarted = false;
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
@@ -79,6 +87,311 @@ function buildAdminBackupSummary(){
     return `Manual · conserva últimos ${ADMIN_BACKUP_RETENTION_DAYS} día(s) · respaldo ${providerLabel}`;
   }
   return `${modeLabel} · conserva últimos ${ADMIN_BACKUP_RETENTION_DAYS} día(s) · respaldo ${providerLabel}`;
+}
+
+function backupDateKey(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${y}${m}${day}_${hh}${mm}${ss}`;
+}
+
+function safeIso(value){
+  const d = value ? new Date(value) : null;
+  return d && !Number.isNaN(d.getTime()) ? d.toISOString() : null;
+}
+
+function formatFileSizeMb(bytes = 0){
+  const size = Number(bytes || 0);
+  return Number((size / (1024 * 1024)).toFixed(2));
+}
+
+function parseJsonOrNull(value){
+  if(!value) return null;
+  try { return typeof value === 'string' ? JSON.parse(value) : value; } catch { return null; }
+}
+
+function sha256String(value = ''){
+  return crypto.createHash('sha256').update(String(value || ''), 'utf8').digest('hex');
+}
+
+function validateLogicalBackupPayload(payload){
+  const datasets = payload && typeof payload === 'object' && payload.datasets && typeof payload.datasets === 'object' ? payload.datasets : null;
+  const requiredKeys = ['users', 'candidateBolsa', 'companyProfiles', 'billingOrders', 'adminMonthlySnapshots'];
+  const errors = [];
+  if(!payload || typeof payload !== 'object') errors.push('Payload inválido');
+  if(!payload?.meta || typeof payload.meta !== 'object') errors.push('Falta bloque meta');
+  if(!payload?.stats || typeof payload.stats !== 'object') errors.push('Falta bloque stats');
+  if(!datasets) errors.push('Falta bloque datasets');
+  const datasetNames = datasets ? Object.keys(datasets) : [];
+  requiredKeys.forEach((key) => {
+    if(!datasets || !Array.isArray(datasets[key])) errors.push(`Dataset requerido ausente: ${key}`);
+  });
+  const datasetCount = datasetNames.length;
+  const recordCount = datasetNames.reduce((acc, key) => acc + (Array.isArray(datasets?.[key]) ? datasets[key].length : 0), 0);
+  return {
+    ok: errors.length === 0,
+    errors,
+    datasetCount,
+    datasetNames,
+    recordCount,
+    appVersion: payload?.meta?.appVersion || null,
+    createdAt: payload?.meta?.createdAt || null,
+  };
+}
+
+async function inspectBackupFile(filePath, expectedChecksum = null){
+  const raw = await fs.readFile(filePath, 'utf8');
+  const parsed = JSON.parse(raw);
+  const verification = validateLogicalBackupPayload(parsed);
+  const checksumSha256 = sha256String(raw);
+  return {
+    ok: verification.ok && (!expectedChecksum || expectedChecksum === checksumSha256),
+    checksumSha256,
+    checksumMatches: expectedChecksum ? expectedChecksum === checksumSha256 : true,
+    fileSizeBytes: Buffer.byteLength(raw, 'utf8'),
+    fileSizeMb: formatFileSizeMb(Buffer.byteLength(raw, 'utf8')),
+    payload: parsed,
+    verification,
+  };
+}
+
+async function ensureBackupsDir(){
+  await fs.mkdir(BACKUPS_DIR, { recursive: true });
+  return BACKUPS_DIR;
+}
+
+async function createBackupLog(data = {}){
+  return prisma.adminBackupLog.create({ data }).catch(() => null);
+}
+
+async function updateBackupLog(id, data = {}){
+  if(!id) return null;
+  return prisma.adminBackupLog.update({ where: { id }, data }).catch(() => null);
+}
+
+async function getLatestCompletedBackupLog(){
+  return prisma.adminBackupLog.findFirst({ where: { status: 'COMPLETED' }, orderBy: [{ completedAt: 'desc' }, { startedAt: 'desc' }] }).catch(() => null);
+}
+
+async function getRecentBackupLogs(limit = 8){
+  return prisma.adminBackupLog.findMany({ orderBy: [{ startedAt: 'desc' }], take: Math.max(1, Math.min(20, Number(limit || 8))) }).catch(() => []);
+}
+
+async function pruneOldBackupArtifacts(){
+  const keepCount = Math.max(1, ADMIN_BACKUP_KEEP_FILES);
+  const logs = await prisma.adminBackupLog.findMany({ where: { status: 'COMPLETED' }, orderBy: [{ completedAt: 'desc' }, { startedAt: 'desc' }] }).catch(() => []);
+  if(!Array.isArray(logs) || !logs.length) return;
+  const keepIds = new Set(logs.slice(0, keepCount).map((item) => item.id));
+  const threshold = Date.now() - (ADMIN_BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  for (const log of logs.slice(keepCount)) {
+    const completedAt = log.completedAt ? new Date(log.completedAt).getTime() : 0;
+    if (completedAt && completedAt > threshold) continue;
+    if (log.filePath) {
+      await fs.unlink(log.filePath).catch(() => null);
+    }
+    if (!keepIds.has(log.id)) {
+      await prisma.adminBackupLog.delete({ where: { id: log.id } }).catch(() => null);
+    }
+  }
+}
+
+async function collectLogicalBackupPayload(){
+  const [
+    users, profiles, skills, candidateBolsa, resumes, companyProfiles, jobCategories, jobs, applications, billingOrders, billingOrderItems, companyJobPublications, companyCandidateAccesses, billingCouponRedemptions, factoryPlanConfigs, factoryCoupons, companyFactoryGrants, paymentWebhookEvents, securityEvents, supportThreads, supportMessages, supportKnowledge, adminMonthlySnapshots
+  ] = await Promise.all([
+    prisma.user.findMany().catch(() => []),
+    prisma.profile.findMany().catch(() => []),
+    prisma.skill.findMany().catch(() => []),
+    prisma.candidateBolsa.findMany().catch(() => []),
+    prisma.resume.findMany().catch(() => []),
+    prisma.companyProfile.findMany().catch(() => []),
+    prisma.jobCategory.findMany().catch(() => []),
+    prisma.job.findMany().catch(() => []),
+    prisma.application.findMany().catch(() => []),
+    prisma.billingOrder.findMany().catch(() => []),
+    prisma.billingOrderItem.findMany().catch(() => []),
+    prisma.companyJobPublication.findMany().catch(() => []),
+    prisma.companyCandidateAccess.findMany().catch(() => []),
+    prisma.billingCouponRedemption.findMany().catch(() => []),
+    prisma.factoryPlanConfig.findMany().catch(() => []),
+    prisma.factoryCoupon.findMany().catch(() => []),
+    prisma.companyFactoryGrant.findMany().catch(() => []),
+    prisma.paymentWebhookEvent.findMany().catch(() => []),
+    prisma.securityEvent.findMany().catch(() => []),
+    prisma.supportThread.findMany().catch(() => []),
+    prisma.supportMessage.findMany().catch(() => []),
+    prisma.supportKnowledge.findMany().catch(() => []),
+    prisma.adminMonthlySnapshot.findMany().catch(() => []),
+  ]);
+
+  const datasets = {
+    users, profiles, skills, candidateBolsa, resumes, companyProfiles, jobCategories, jobs, applications, billingOrders, billingOrderItems, companyJobPublications, companyCandidateAccesses, billingCouponRedemptions, factoryPlanConfigs, factoryCoupons, companyFactoryGrants, paymentWebhookEvents, securityEvents, supportThreads, supportMessages, supportKnowledge, adminMonthlySnapshots,
+  };
+  const recordCount = Object.values(datasets).reduce((acc, rows) => acc + (Array.isArray(rows) ? rows.length : 0), 0);
+  return {
+    meta: {
+      appVersion: APP_VERSION,
+      createdAt: new Date().toISOString(),
+      backupKind: 'LOGICAL_JSON',
+      containsSensitiveCredentials: true,
+      notes: 'Resguardo lógico interno para continuidad operativa y recuperación administrativa. Mantener bajo acceso restringido.',
+    },
+    stats: {
+      recordCount,
+      users: users.length,
+      candidates: candidateBolsa.length,
+      companies: companyProfiles.length,
+      billingOrders: billingOrders.length,
+      snapshots: adminMonthlySnapshots.length,
+    },
+    datasets,
+  };
+}
+
+async function runLogicalBackup(triggerSource = 'MANUAL'){
+  if(!ADMIN_LOCAL_BACKUP_ENABLED){
+    return { ok: false, skipped: true, reason: 'LOCAL_BACKUP_DISABLED' };
+  }
+  if (backupRunPromise) return backupRunPromise;
+  backupRunPromise = (async () => {
+    await ensureBackupsDir();
+    const startedAt = new Date();
+    const backupKey = `logical_${backupDateKey(startedAt)}`;
+    const fileName = `${backupKey}.json`;
+    const filePath = path.join(BACKUPS_DIR, fileName);
+    const log = await createBackupLog({
+      backupKey,
+      backupType: 'LOGICAL_JSON',
+      storageDriver: 'LOCAL',
+      status: 'RUNNING',
+      triggerSource,
+      fileName,
+      filePath,
+      retentionDays: ADMIN_BACKUP_RETENTION_DAYS,
+      providerMode: ADMIN_BACKUP_PROVIDER,
+      notes: 'Resguardo lógico generado desde superadministración.',
+      startedAt,
+    });
+    try {
+      const payload = await collectLogicalBackupPayload();
+      const fileContent = JSON.stringify(payload, null, 2);
+      await fs.writeFile(filePath, fileContent, 'utf8');
+      const stat = await fs.stat(filePath).catch(() => ({ size: 0 }));
+      const completedAt = new Date();
+      const result = {
+        ok: true,
+        backupKey,
+        fileName,
+        filePath,
+        fileSizeBytes: Number(stat.size || 0),
+        fileSizeMb: formatFileSizeMb(stat.size || 0),
+        recordCount: Number(payload?.stats?.recordCount || 0),
+        triggerSource,
+        startedAt: safeIso(startedAt),
+        completedAt: safeIso(completedAt),
+      };
+      const checksumSha256 = sha256String(fileContent);
+      const verification = validateLogicalBackupPayload(payload);
+      await updateBackupLog(log?.id, {
+        status: 'COMPLETED',
+        fileSizeBytes: result.fileSizeBytes,
+        recordCount: result.recordCount,
+        completedAt,
+        metadataJson: JSON.stringify({
+          stats: payload?.stats || {},
+          meta: payload?.meta || {},
+          checksumSha256,
+          integrityOk: verification.ok,
+          integrityErrors: verification.errors || [],
+          datasetCount: verification.datasetCount || 0,
+          datasetNames: verification.datasetNames || [],
+          verifiedAt: safeIso(completedAt),
+        }),
+      });
+      await pruneOldBackupArtifacts();
+      return result;
+    } catch (error) {
+      console.error('runLogicalBackup', error);
+      await fs.unlink(filePath).catch(() => null);
+      await updateBackupLog(log?.id, {
+        status: 'FAILED',
+        failureReason: String(error?.message || 'No se pudo generar el backup lógico.'),
+        completedAt: new Date(),
+      });
+      return { ok: false, error: String(error?.message || 'No se pudo generar el backup lógico.') };
+    } finally {
+      backupRunPromise = null;
+    }
+  })();
+  return backupRunPromise;
+}
+
+async function ensureAutomaticLogicalBackup(triggerSource = 'AUTO_CHECK'){
+  if(!ADMIN_LOCAL_BACKUP_ENABLED || ADMIN_BACKUP_MODE !== 'AUTOMATIC') return { ok: false, skipped: true, reason: 'AUTOMATIC_DISABLED' };
+  const latest = await getLatestCompletedBackupLog();
+  const lastTime = latest?.completedAt ? new Date(latest.completedAt).getTime() : 0;
+  const due = !lastTime || (Date.now() - lastTime) >= (24 * 60 * 60 * 1000);
+  if(!due) return { ok: true, skipped: true, latest };
+  return runLogicalBackup(triggerSource);
+}
+
+async function readBackupOperationalSummary(){
+  const recentLogs = await getRecentBackupLogs(6);
+  const latestCompleted = (recentLogs || []).find((item) => item.status === 'COMPLETED') || null;
+  const latestAny = recentLogs?.[0] || null;
+  const lastCompletedAt = latestCompleted?.completedAt || latestCompleted?.startedAt || null;
+  const lastCompletedTime = lastCompletedAt ? new Date(lastCompletedAt).getTime() : 0;
+  const nextDueAt = lastCompletedTime ? new Date(lastCompletedTime + (24 * 60 * 60 * 1000)) : null;
+  const isOverdue = ADMIN_BACKUP_MODE === 'AUTOMATIC' && (!!lastCompletedTime ? Date.now() > nextDueAt.getTime() : true);
+  return {
+    localBackupEnabled: ADMIN_LOCAL_BACKUP_ENABLED,
+    backupStorage: 'LOCAL_JSON',
+    backupScheduleCheckMinutes: ADMIN_BACKUP_CHECK_MINUTES,
+    retainedFiles: ADMIN_BACKUP_KEEP_FILES,
+    lastBackupAt: safeIso(lastCompletedAt),
+    lastBackupStatus: latestAny?.status || 'PENDING',
+    lastBackupKey: latestCompleted?.backupKey || null,
+    lastBackupFileName: latestCompleted?.fileName || null,
+    lastBackupSizeBytes: Number(latestCompleted?.fileSizeBytes || 0),
+    lastBackupSizeMb: formatFileSizeMb(latestCompleted?.fileSizeBytes || 0),
+    lastBackupRecordCount: Number(latestCompleted?.recordCount || 0),
+    lastBackupTrigger: latestCompleted?.triggerSource || null,
+    lastBackupChecksum: latestCompleted?.metadata?.checksumSha256 || null,
+    lastBackupIntegrityOk: latestCompleted?.metadata?.integrityOk !== false,
+    lastBackupVerifiedAt: latestCompleted?.metadata?.verifiedAt || null,
+    lastBackupDatasetCount: Number(latestCompleted?.metadata?.datasetCount || 0),
+    nextBackupAt: safeIso(nextDueAt),
+    backupOverdue: isOverdue,
+    recentBackups: (recentLogs || []).map((log) => ({
+      id: log.id,
+      backupKey: log.backupKey,
+      fileName: log.fileName,
+      status: log.status,
+      triggerSource: log.triggerSource,
+      startedAt: safeIso(log.startedAt),
+      completedAt: safeIso(log.completedAt),
+      fileSizeBytes: Number(log.fileSizeBytes || 0),
+      fileSizeMb: formatFileSizeMb(log.fileSizeBytes || 0),
+      recordCount: Number(log.recordCount || 0),
+      failureReason: log.failureReason || null,
+      metadata: parseJsonOrNull(log.metadataJson),
+    })),
+  };
+}
+
+function startAutomaticBackupScheduler(){
+  if (backupSchedulerStarted || !ADMIN_LOCAL_BACKUP_ENABLED || ADMIN_BACKUP_MODE !== 'AUTOMATIC') return;
+  backupSchedulerStarted = true;
+  setTimeout(() => { ensureAutomaticLogicalBackup('AUTO_BOOT').catch((err) => console.error('AUTO_BOOT backup', err)); }, 15000);
+  const timer = setInterval(() => {
+    ensureAutomaticLogicalBackup('AUTO_INTERVAL').catch((err) => console.error('AUTO_INTERVAL backup', err));
+  }, ADMIN_BACKUP_CHECK_MINUTES * 60 * 1000);
+  if (typeof timer.unref === 'function') timer.unref();
 }
 
 const PAYMENT_CONFIG = getPaymentConfigFromEnv(process.env);
@@ -3992,6 +4305,7 @@ app.delete('/support/thread', auth, async (req, res) => {
 });
 
 async function readDatabaseCapacityStatus(){
+  const backupInfo = await readBackupOperationalSummary().catch(() => ({ recentBackups: [] }));
   const fallback = {
     provider: 'PostgreSQL',
     dbName: 'principal',
@@ -4016,6 +4330,7 @@ async function readDatabaseCapacityStatus(){
     backupProviderLabel: adminBackupProviderLabel(ADMIN_BACKUP_PROVIDER),
     upgradeUrl: ADMIN_UPGRADE_URL || ADMIN_INFRA_URL || null,
     providerLoginNote: 'El enlace abre la consola del proveedor y puede pedir su propio acceso de infraestructura.',
+    ...backupInfo,
   };
   try {
     const rows = await prisma.$queryRawUnsafe(`SELECT current_database() AS db_name, pg_database_size(current_database()) AS size_bytes`);
@@ -4037,6 +4352,11 @@ async function readDatabaseCapacityStatus(){
       statusLabel = 'Atención';
       headline = 'La base de datos está creciendo y merece seguimiento preventivo.';
       recommendation = 'Revisá la consola del proveedor y evaluá ampliar memoria/capacidad antes de llegar al punto crítico.';
+    }
+    if (backupInfo.backupOverdue) {
+      status = status === 'CRITICAL' ? 'CRITICAL' : 'WARNING';
+      statusLabel = status === 'CRITICAL' ? 'Crítico' : 'Atención';
+      recommendation = 'El backup automático está vencido o sin ejecución reciente. Revisá el resguardo lógico y el respaldo del proveedor.';
     }
     return {
       ...fallback,
@@ -4409,6 +4729,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         source: useSnapshot ? 'SNAPSHOT' : 'LIVE',
       };
     })]));
+    await ensureAutomaticLogicalBackup('AUTO_ADMIN').catch(() => null);
     const operationalStatus = await readDatabaseCapacityStatus();
 
     return res.json({
@@ -4469,6 +4790,18 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
           lastClosedMonth: (snapshots || []).filter((row) => row.monthKey !== currentMonthKey).slice(-1)[0]?.monthKey || null,
           currentMonthKey,
         },
+      },
+      backupStatus: {
+        lastBackupAt: operationalStatus.lastBackupAt || null,
+        lastBackupStatus: operationalStatus.lastBackupStatus || 'PENDING',
+        lastBackupKey: operationalStatus.lastBackupKey || null,
+        lastBackupFileName: operationalStatus.lastBackupFileName || null,
+        lastBackupSizeMb: Number(operationalStatus.lastBackupSizeMb || 0),
+        lastBackupRecordCount: Number(operationalStatus.lastBackupRecordCount || 0),
+        nextBackupAt: operationalStatus.nextBackupAt || null,
+        recentBackups: operationalStatus.recentBackups || [],
+        retainedFiles: Number(operationalStatus.retainedFiles || 0),
+        localBackupEnabled: !!operationalStatus.localBackupEnabled,
       },
       candidates: normalizedCandidates,
       companies: normalizedCompanies,
@@ -4545,9 +4878,100 @@ app.get('/admin/knowledge', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
   }
 });
 
+app.get('/admin/backup/status', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const summary = await readBackupOperationalSummary();
+    return res.json({ ok: true, ...summary });
+  } catch (err) {
+    console.error('GET /admin/backup/status', err);
+    return res.status(500).json({ error: 'No se pudo leer el estado del backup.' });
+  }
+});
+
+app.post('/admin/backup/run', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const result = await runLogicalBackup('MANUAL_ADMIN');
+    if (!result?.ok) return res.status(500).json({ error: result?.error || 'No se pudo generar el backup.' });
+    const summary = await readBackupOperationalSummary();
+    return res.json({ ok: true, result, summary });
+  } catch (err) {
+    console.error('POST /admin/backup/run', err);
+    return res.status(500).json({ error: 'No se pudo ejecutar el backup.' });
+  }
+});
+
+app.get('/admin/backup/download/latest', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const latest = await getLatestCompletedBackupLog();
+    if (!latest?.filePath || !latest?.fileName) return res.status(404).json({ error: 'No hay backup disponible para descargar.' });
+    return res.download(latest.filePath, latest.fileName);
+  } catch (err) {
+    console.error('GET /admin/backup/download/latest', err);
+    return res.status(500).json({ error: 'No se pudo descargar el backup.' });
+  }
+});
+
+app.get('/admin/backup/verify/latest', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const latest = await getLatestCompletedBackupLog();
+    if (!latest?.filePath || !latest?.fileName) return res.status(404).json({ error: 'No hay backup disponible para verificar.' });
+    const expectedChecksum = latest?.metadata?.checksumSha256 || null;
+    const report = await inspectBackupFile(latest.filePath, expectedChecksum);
+    return res.json({
+      ok: true,
+      verification: {
+        fileName: latest.fileName,
+        backupKey: latest.backupKey,
+        verifiedAt: new Date().toISOString(),
+        checksumSha256: report.checksumSha256,
+        checksumMatches: report.checksumMatches,
+        fileSizeMb: report.fileSizeMb,
+        datasetCount: report.verification.datasetCount,
+        recordCount: report.verification.recordCount,
+        integrityOk: report.verification.ok,
+        errors: report.verification.errors,
+        createdAt: report.verification.createdAt,
+        appVersion: report.verification.appVersion,
+      },
+    });
+  } catch (err) {
+    console.error('GET /admin/backup/verify/latest', err);
+    return res.status(500).json({ error: 'No se pudo verificar el último backup.' });
+  }
+});
+
+app.get('/admin/backup/restore/preview/latest', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const latest = await getLatestCompletedBackupLog();
+    if (!latest?.filePath || !latest?.fileName) return res.status(404).json({ error: 'No hay backup disponible para simular restauración.' });
+    const report = await inspectBackupFile(latest.filePath, latest?.metadata?.checksumSha256 || null);
+    const stats = report.payload?.stats || {};
+    return res.json({
+      ok: true,
+      preview: {
+        fileName: latest.fileName,
+        backupKey: latest.backupKey,
+        createdAt: report.payload?.meta?.createdAt || null,
+        appVersion: report.payload?.meta?.appVersion || null,
+        checksumSha256: report.checksumSha256,
+        integrityOk: report.verification.ok,
+        datasets: report.verification.datasetNames,
+        datasetCount: report.verification.datasetCount,
+        recordCount: report.verification.recordCount,
+        stats,
+        note: 'Simulación de restauración: permite confirmar que el archivo es legible y contiene la estructura necesaria antes de usarlo como resguardo administrativo.',
+      },
+    });
+  } catch (err) {
+    console.error('GET /admin/backup/restore/preview/latest', err);
+    return res.status(500).json({ error: 'No se pudo simular la restauración del último backup.' });
+  }
+});
+
 const PORT = process.env.PORT || 10000;
 const IS_MAIN = process.argv[1] && path.resolve(process.argv[1]) === __filename;
 if (IS_MAIN) {
+  startAutomaticBackupScheduler();
   app.listen(PORT, "0.0.0.0", () => console.log("Talento PyME API escuchando en", PORT, "(v"+APP_VERSION+")"));
 }
 

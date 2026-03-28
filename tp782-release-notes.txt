@@ -1,10 +1,10 @@
-Talento PyME · v7.8.2
+Talento PyME · v7.8.4
 
 - Capacidad operativa: agregado botón específico “Ampliar capacidad DB”.
 - Resguardo: política visible en panel con modo Automático diario, retención de 2 días y respaldo externo del proveedor.
 - Indicadores: resumen más claro de auditoría mensual e interpretación ejecutiva.
 - Configuración: nuevas variables ADMIN_UPGRADE_URL, ADMIN_BACKUP_FREQUENCY, ADMIN_BACKUP_RETENTION_DAYS y ADMIN_BACKUP_PROVIDER en .env.example.
-- Versionado unificado a 7.8.2.
+- Versionado unificado a 7.8.4.
 
 Importante:
 La política queda declarada y visible en el sistema. Para que el backup externo opere efectivamente, hay que dejarlo activado también en la consola del proveedor o hosting.

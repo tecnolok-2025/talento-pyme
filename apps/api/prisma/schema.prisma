@@ -495,3 +495,29 @@ model AdminMonthlySnapshot {
   @@unique([year, month])
   @@index([year, month])
 }
+
+model AdminBackupLog {
+  id            String   @id @default(cuid())
+  backupKey     String   @unique
+  backupType    String   @default("LOGICAL_JSON")
+  storageDriver String   @default("LOCAL")
+  status        String   @default("COMPLETED")
+  triggerSource String   @default("MANUAL")
+  fileName      String?
+  filePath      String?
+  fileSizeBytes Int?
+  recordCount   Int      @default(0)
+  retentionDays Int      @default(2)
+  providerMode  String   @default("EXTERNAL_PROVIDER")
+  notes         String?
+  failureReason String?
+  metadataJson  String?
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status, startedAt])
+  @@index([completedAt])
+}
+

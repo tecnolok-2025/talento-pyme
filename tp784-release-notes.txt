@@ -1,0 +1,37 @@
+Talento PyME v7.8.4
+
+Foco de esta revisión
+- Avance concreto del backup con verificación de integridad y simulación de restauración.
+- Continuidad del centro de resguardo dentro de Capacidad operativa.
+- Preparación administrativa para validar que el archivo respaldado sea legible antes de necesitarlo.
+
+Cambios principales
+- Nuevo endpoint: GET /admin/backup/verify/latest
+- Nuevo endpoint: GET /admin/backup/restore/preview/latest
+- El backup lógico ahora guarda checksum SHA-256 e información de integridad en metadata.
+- La UI agrega dos acciones nuevas:
+  - Verificar último backup
+  - Simular restauración
+- Nuevo bloque visual en admin:
+  - Integridad del último backup
+  - Simulación de restauración
+- La verificación confirma:
+  - legibilidad del archivo
+  - estructura mínima esperada
+  - cantidad de datasets
+  - cantidad de registros
+  - coincidencia de checksum
+
+Validación hecha
+- apps/api/src/index.js -> sintaxis OK
+- apps/web/config.js -> sintaxis OK
+- apps/web/sw.js -> sintaxis OK
+- script inline de apps/web/admin.html -> sintaxis OK
+
+Acciones al desplegar
+1. redeploy
+2. actualizar versión / recarga forzada de la PWA
+
+Nota importante
+- Esta revisión no restaura automáticamente la base; incorpora la verificación y la simulación previa.
+- El backup externo del proveedor sigue dependiendo de la consola e infraestructura del hosting/DB.
