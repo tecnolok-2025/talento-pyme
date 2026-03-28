@@ -1,13 +1,13 @@
-// Talento PyME service worker (v5.7.5)
+// Talento PyME service worker (v5.7.6)
 // Objetivo: evitar "versiones pegadas" por cache. 
 // Estrategia:
 // - HTML (navegación): network-first (si hay red, siempre busca lo último).
 // - Assets (css/js/img): stale-while-revalidate.
 // - Al cambiar VERSION, se crea un cache nuevo y se limpian caches viejos.
 
-importScripts("/config.js?v=5.7.5");
+importScripts("/config.js?v=5.7.6");
 
-const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "5.7.5";
+const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "5.7.6";
 const CACHE_NAME = `tp-cache-${VERSION}`;
 
 const PRECACHE = [
@@ -19,11 +19,11 @@ const PRECACHE = [
   "/factory.html",
   "/admin.html",
   "/asistencia.html",
-  "/styles.css?v=5.7.5",
-  "/auth.js?v=5.7.5",
-  "/app.js?v=5.7.5",
-  "/bolsa-candidato.js?v=5.7.5",
-  "/config.js?v=5.7.5",
+  "/styles.css?v=5.7.6",
+  "/auth.js?v=5.7.6",
+  "/app.js?v=5.7.6",
+  "/bolsa-candidato.js?v=5.7.6",
+  "/config.js?v=5.7.6",
   "/manifest.webmanifest",
   "/icon-192.png",
   "/icon-512.png"

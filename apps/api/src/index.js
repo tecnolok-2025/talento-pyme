@@ -3969,32 +3969,54 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       return new Date(Date.now() - (days * 24 * 60 * 60 * 1000));
     };
     const since30 = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
-    const candidateDays = String(req.query.candidateDays || '30').toUpperCase();
-    const companyDays = String(req.query.companyDays || '30').toUpperCase();
+    const candidateDays = String(req.query.candidateDays || 'ALL').toUpperCase();
+    const companyDays = String(req.query.companyDays || 'ALL').toUpperCase();
     const candidatePage = Math.max(1, num(req.query.candidatePage, 1));
     const companyPage = Math.max(1, num(req.query.companyPage, 1));
     const candidatePerPage = Math.min(100, Math.max(10, num(req.query.candidatePerPage, 50)));
     const companyPerPage = Math.min(100, Math.max(10, num(req.query.companyPerPage, 50)));
     const candidateSince = parseDaysFilter(candidateDays);
     const companySince = parseDaysFilter(companyDays);
-    const candidateWhere = candidateSince ? { updatedAt: { gte: candidateSince } } : {};
-    const companyWhere = companySince ? { updatedAt: { gte: companySince } } : {};
-    const [candidateCount, companyCount, jobsCount, applicationCount, orderCount, paidTotal, filteredCandidateCount, filteredCompanyCount, candidates, companies, recentThreads, candidateUpdated30, candidateApplications30, candidateChats30, companyUpdated30, companyJobs30, companyChats30, companyAccess30, candidateRecentApplications, companyRecentOrders, companyRecentOpenings, candidateRecentThreads, companyRecentThreads, recentJobs] = await Promise.all([
-      prisma.candidateBolsa.count(),
-      prisma.companyProfile.count(),
-      prisma.job.count(),
-      prisma.application.count(),
-      prisma.billingOrder.count(),
+
+    const candidateRoleFilter = { in: ['CANDIDATE', 'ADMIN_CANDIDATE'] };
+    const companyRoleFilter = { in: ['COMPANY', 'ADMIN_COMPANY'] };
+    const candidateUserWhere = candidateSince ? { role: candidateRoleFilter, createdAt: { gte: candidateSince } } : { role: candidateRoleFilter };
+    const companyUserWhere = companySince ? { role: companyRoleFilter, createdAt: { gte: companySince } } : { role: companyRoleFilter };
+
+    const [candidateCount, companyCount, jobsCount, applicationCount, orderCount, paidTotal, filteredCandidateCount, filteredCompanyCount, candidateUsers, companyUsers, recentThreads, candidateUpdated30, candidateApplications30, candidateChats30, companyUpdated30, companyJobs30, companyChats30, companyAccess30, candidateRecentApplications, companyRecentOrders, companyRecentOpenings, candidateRecentThreads, companyRecentThreads, recentJobs] = await Promise.all([
+      prisma.user.count({ where: { role: candidateRoleFilter } }).catch(() => 0),
+      prisma.user.count({ where: { role: companyRoleFilter } }).catch(() => 0),
+      prisma.job.count().catch(() => 0),
+      prisma.application.count().catch(() => 0),
+      prisma.billingOrder.count().catch(() => 0),
       prisma.billingOrder.aggregate({ _sum: { total: true }, where: { status: 'PAID' } }).catch(() => ({ _sum: { total: 0 } })),
-      prisma.candidateBolsa.count({ where: candidateWhere }).catch(() => 0),
-      prisma.companyProfile.count({ where: companyWhere }).catch(() => 0),
-      prisma.candidateBolsa.findMany({ where: candidateWhere, orderBy: { updatedAt: 'desc' }, skip: (candidatePage - 1) * candidatePerPage, take: candidatePerPage, select: { id:true, nombre:true, apellido:true, areaTrabajo:true, especialidad:true, localidad:true, createdAt:true, updatedAt:true, sueldoPretendido:true } }),
-      prisma.companyProfile.findMany({ where: companyWhere, orderBy: { updatedAt: 'desc' }, skip: (companyPage - 1) * companyPerPage, take: companyPerPage, select: { id:true, companyName:true, cuit:true, contactEmail:true, city:true, province:true, createdAt:true, updatedAt:true } }),
+      prisma.user.count({ where: candidateUserWhere }).catch(() => 0),
+      prisma.user.count({ where: companyUserWhere }).catch(() => 0),
+      prisma.user.findMany({
+        where: candidateUserWhere,
+        orderBy: { createdAt: 'desc' },
+        skip: (candidatePage - 1) * candidatePerPage,
+        take: candidatePerPage,
+        include: {
+          candidateBolsa: { select: { nombre:true, apellido:true, areaTrabajo:true, especialidad:true, localidad:true, sueldoPretendido:true, updatedAt:true, createdAt:true } },
+          candidateProfile: { select: { fullName:true, city:true, province:true, updatedAt:true, createdAt:true } },
+          resume: { select: { updatedAt:true, createdAt:true } },
+        }
+      }).catch(() => []),
+      prisma.user.findMany({
+        where: companyUserWhere,
+        orderBy: { createdAt: 'desc' },
+        skip: (companyPage - 1) * companyPerPage,
+        take: companyPerPage,
+        include: {
+          company: { select: { companyName:true, cuit:true, contactEmail:true, city:true, province:true, updatedAt:true, createdAt:true } },
+        }
+      }).catch(() => []),
       prisma.supportThread.findMany({ orderBy: { updatedAt: 'desc' }, take: 40, include: { company: { select: { companyName: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'desc' }, take: 1 } } }).catch(() => []),
-      prisma.candidateBolsa.count({ where: { updatedAt: { gte: since30 } } }).catch(() => 0),
+      prisma.user.count({ where: { role: candidateRoleFilter, createdAt: { gte: since30 } } }).catch(() => 0),
       prisma.application.count({ where: { createdAt: { gte: since30 } } }).catch(() => 0),
       prisma.supportThread.count({ where: { role: 'CANDIDATE', updatedAt: { gte: since30 } } }).catch(() => 0),
-      prisma.companyProfile.count({ where: { updatedAt: { gte: since30 } } }).catch(() => 0),
+      prisma.user.count({ where: { role: companyRoleFilter, createdAt: { gte: since30 } } }).catch(() => 0),
       prisma.job.count({ where: { createdAt: { gte: since30 } } }).catch(() => 0),
       prisma.supportThread.count({ where: { role: 'COMPANY', updatedAt: { gte: since30 } } }).catch(() => 0),
       prisma.companyCandidateAccess.count({ where: { createdAt: { gte: since30 } } }).catch(() => 0),
@@ -4006,6 +4028,38 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.job.findMany({ orderBy: { createdAt: 'desc' }, take: 40, include: { company: { select: { companyName: true } } } }).catch(() => []),
     ]);
 
+    const normalizedCandidates = (candidateUsers || []).map((u) => {
+      const bolsa = u.candidateBolsa || {};
+      const profile = u.candidateProfile || {};
+      const [nameFromProfile = '', lastFromProfile = ''] = String(profile.fullName || '').trim().split(/\s+/);
+      return {
+        id: u.id,
+        nombre: bolsa.nombre || nameFromProfile || u.email?.split('@')[0] || 'Candidato',
+        apellido: bolsa.apellido || lastFromProfile || '',
+        areaTrabajo: bolsa.areaTrabajo || profile.sector || 'Perfil general',
+        especialidad: bolsa.especialidad || profile.subSector || '',
+        localidad: bolsa.localidad || profile.city || '',
+        sueldoPretendido: bolsa.sueldoPretendido || 'No informada',
+        createdAt: bolsa.createdAt || profile.createdAt || u.createdAt,
+        updatedAt: bolsa.updatedAt || profile.updatedAt || u.createdAt,
+        email: u.email,
+      };
+    });
+
+    const normalizedCompanies = (companyUsers || []).map((u) => {
+      const c = u.company || {};
+      return {
+        id: u.id,
+        companyName: c.companyName || u.email || 'Empresa',
+        cuit: c.cuit || '',
+        contactEmail: c.contactEmail || u.email || '',
+        city: c.city || '',
+        province: c.province || '',
+        createdAt: c.createdAt || u.createdAt,
+        updatedAt: c.updatedAt || u.createdAt,
+      };
+    });
+
     const uniqueEvents = (events) => {
       const seen = new Set();
       return (events || []).filter((ev) => {
@@ -4016,18 +4070,13 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       });
     };
 
-    const candidateProfileEvents = (candidates || []).slice(0, 20).map((it) => {
-      const createdAt = it.createdAt || it.updatedAt || new Date();
-      const updatedAt = it.updatedAt || createdAt;
-      const changed = Math.abs(new Date(updatedAt).getTime() - new Date(createdAt).getTime()) > 60_000;
-      return {
-        type: changed ? 'perfil_actualizado' : 'alta_candidato',
-        createdAt: changed ? updatedAt : createdAt,
-        title: `${it.apellido || ''}, ${it.nombre || ''}`.replace(/^,\s*/, '').trim() || 'Candidato',
-        actor: `${it.nombre || ''} ${it.apellido || ''}`.trim() || 'Candidato',
-        context: changed ? 'Perfil candidato actualizado' : 'Alta de candidato en bolsa',
-      };
-    });
+    const candidateProfileEvents = normalizedCandidates.slice(0, 20).map((it) => ({
+      type: 'alta_candidato',
+      createdAt: it.updatedAt || it.createdAt || new Date(),
+      title: `${it.apellido || ''}, ${it.nombre || ''}`.replace(/^,\s*/, '').trim() || 'Candidato',
+      actor: `${it.nombre || ''} ${it.apellido || ''}`.trim() || it.email || 'Candidato',
+      context: 'Registro o actualización del lado candidato',
+    }));
 
     const candidateChatEvents = (candidateRecentThreads || []).map((it) => ({
       type: 'consulta_ia',
@@ -4045,18 +4094,13 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       context: it.job?.company?.companyName ? `Postulación a ${it.job.company.companyName}` : 'Postulación enviada',
     }));
 
-    const companyProfileEvents = (companies || []).slice(0, 20).map((it) => {
-      const createdAt = it.createdAt || it.updatedAt || new Date();
-      const updatedAt = it.updatedAt || createdAt;
-      const changed = Math.abs(new Date(updatedAt).getTime() - new Date(createdAt).getTime()) > 60_000;
-      return {
-        type: changed ? 'empresa_actualizada' : 'alta_empresa',
-        createdAt: changed ? updatedAt : createdAt,
-        title: it.companyName || 'Empresa',
-        actor: it.companyName || 'Empresa',
-        context: changed ? 'Perfil empresa actualizado' : 'Alta de empresa en el portal',
-      };
-    });
+    const companyProfileEvents = normalizedCompanies.slice(0, 20).map((it) => ({
+      type: 'alta_empresa',
+      createdAt: it.updatedAt || it.createdAt || new Date(),
+      title: it.companyName || 'Empresa',
+      actor: it.companyName || 'Empresa',
+      context: 'Registro o actualización del lado empresa',
+    }));
 
     const companyOrderEvents = (companyRecentOrders || []).map((it) => ({
       type: 'documento',
@@ -4120,8 +4164,8 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
           ]).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50),
         },
       },
-      candidates,
-      companies,
+      candidates: normalizedCandidates,
+      companies: normalizedCompanies,
       candidatePaging: {
         days: candidateDays,
         page: candidatePage,

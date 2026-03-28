@@ -1,0 +1,5 @@
+Talento PyME v5.7.6
+
+- Superadministración corregida: ahora muestra candidatos y empresas registrados desde usuarios base, aunque no hayan completado toda la bolsa.
+- Se separaron las pantallas Resumen candidato y Resumen empresa para evitar compresión y mejorar la trazabilidad.
+- Paginación y filtros de períodos operativos en ambos listados.
