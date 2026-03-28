@@ -1,0 +1,4 @@
+v5.7.5
+- Administración: candidatos y empresas cargan por defecto en "Todos" y el resumen ya no queda bloqueado si otra sección falla.
+- Inicio y recuperación: DNI actualizado a "DNI (Número de registro 11 dígitos)".
+- Versionado unificado a 5.7.5.

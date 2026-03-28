@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Talento PyME</title>
   <meta name="theme-color" content="#0B1220" />
-  <link rel="manifest" href="/manifest.webmanifest?v=5.7.4" />
+  <link rel="manifest" href="/manifest.webmanifest?v=5.7.5" />
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.7.4" />
+  <link rel="stylesheet" href="/styles.css?v=5.7.5" />
 </head>
 <body class="authBody">
   <div class="authTop">
@@ -79,7 +79,7 @@
                 <label>Email</label>
                 <input class="input" id="regEmail" placeholder="tu@email.com" />
 
-                <label>DNI</label>
+                <label>DNI (Número de registro 11 dígitos)</label>
                 <input class="input" id="regDni" placeholder="Solo números" inputmode="numeric" />
 
 
@@ -182,8 +182,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.7.4"></script>
-  <script src="/auth.js?v=5.7.4"></script>
+  <script src="/config.js?v=5.7.5"></script>
+  <script src="/auth.js?v=5.7.5"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));

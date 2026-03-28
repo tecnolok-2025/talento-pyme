@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.7.4" />
+  <link rel="stylesheet" href="/styles.css?v=5.7.5" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -48,8 +48,8 @@
   </div>
   <section class="tabPane active" id="tab-overview">
     <div class="adminColumns">
-      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Candidatos registrados</h2><div class="muted">Podés revisar todos los candidatos por períodos y avanzar por páginas para no perder ningún registro.</div></div><div class="row" style="gap:8px;flex-wrap:wrap"><select class="input" id="candidateDaysFilter" style="min-width:160px"><option value="30">Últimos 30 días</option><option value="60">Últimos 60 días</option><option value="100">Últimos 100 días</option><option value="365">Último año</option><option value="730">Últimos 2 años</option><option value="ALL">Todos</option></select><select class="input" id="candidatePerPage" style="min-width:110px"><option value="50">50 por página</option><option value="100">100 por página</option></select></div></div><div class="row" style="margin-top:12px;justify-content:space-between;gap:10px"><span class="muted" id="candidatePagingInfo">Sin datos.</span><div class="row" style="gap:8px"><button class="btn btn-ghost" id="btnCandidatePrev" type="button">Anterior</button><button class="btn btn-ghost" id="btnCandidateNext" type="button">Siguiente</button></div></div><div id="candidateList" class="adminList" style="margin-top:16px"></div></div>
-      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Empresas registradas</h2><div class="muted">Podés revisar todas las empresas por períodos de tiempo y navegar página por página.</div></div><div class="row" style="gap:8px;flex-wrap:wrap"><select class="input" id="companyDaysFilter" style="min-width:160px"><option value="30">Últimos 30 días</option><option value="60">Últimos 60 días</option><option value="100">Últimos 100 días</option><option value="365">Último año</option><option value="730">Últimos 2 años</option><option value="ALL">Todos</option></select><select class="input" id="companyPerPage" style="min-width:110px"><option value="50">50 por página</option><option value="100">100 por página</option></select></div></div><div class="row" style="margin-top:12px;justify-content:space-between;gap:10px"><span class="muted" id="companyPagingInfo">Sin datos.</span><div class="row" style="gap:8px"><button class="btn btn-ghost" id="btnCompanyPrev" type="button">Anterior</button><button class="btn btn-ghost" id="btnCompanyNext" type="button">Siguiente</button></div></div><div id="companyList" class="adminList" style="margin-top:16px"></div></div>
+      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Candidatos registrados</h2><div class="muted">Podés revisar todos los candidatos por períodos y avanzar por páginas para no perder ningún registro.</div></div><div class="row" style="gap:8px;flex-wrap:wrap"><select class="input" id="candidateDaysFilter" style="min-width:160px"><option value="30">Últimos 30 días</option><option value="60">Últimos 60 días</option><option value="100">Últimos 100 días</option><option value="365">Último año</option><option value="730">Últimos 2 años</option><option value="ALL" selected>Todos</option></select><select class="input" id="candidatePerPage" style="min-width:110px"><option value="50">50 por página</option><option value="100">100 por página</option></select></div></div><div class="row" style="margin-top:12px;justify-content:space-between;gap:10px"><span class="muted" id="candidatePagingInfo">Sin datos.</span><div class="row" style="gap:8px"><button class="btn btn-ghost" id="btnCandidatePrev" type="button">Anterior</button><button class="btn btn-ghost" id="btnCandidateNext" type="button">Siguiente</button></div></div><div id="candidateList" class="adminList" style="margin-top:16px"></div></div>
+      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Empresas registradas</h2><div class="muted">Podés revisar todas las empresas por períodos de tiempo y navegar página por página.</div></div><div class="row" style="gap:8px;flex-wrap:wrap"><select class="input" id="companyDaysFilter" style="min-width:160px"><option value="30">Últimos 30 días</option><option value="60">Últimos 60 días</option><option value="100">Últimos 100 días</option><option value="365">Último año</option><option value="730">Últimos 2 años</option><option value="ALL" selected>Todos</option></select><select class="input" id="companyPerPage" style="min-width:110px"><option value="50">50 por página</option><option value="100">100 por página</option></select></div></div><div class="row" style="margin-top:12px;justify-content:space-between;gap:10px"><span class="muted" id="companyPagingInfo">Sin datos.</span><div class="row" style="gap:8px"><button class="btn btn-ghost" id="btnCompanyPrev" type="button">Anterior</button><button class="btn btn-ghost" id="btnCompanyNext" type="button">Siguiente</button></div></div><div id="companyList" class="adminList" style="margin-top:16px"></div></div>
     </div>
     <div class="adminColumns" style="margin-top:18px">
       <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Trazabilidad · lado candidato</h2><div class="muted">Seguimiento operativo de perfiles, altas, postulaciones y consultas del portal candidato.</div></div></div><div class="traceKpiRow"><div class="traceMini"><span class="muted small">Candidatos registrados</span><b id="traceCandidateTotal">—</b></div><div class="traceMini"><span class="muted small">Perfiles actualizados 30 días</span><b id="traceCandidateUpdated">—</b></div><div class="traceMini"><span class="muted small">Postulaciones 30 días</span><b id="traceCandidateApplications">—</b></div><div class="traceMini"><span class="muted small">Consultas IA 30 días</span><b id="traceCandidateChats">—</b></div></div><div class="muted traceHint">Esta vista combina altas, actualizaciones y movimientos recientes del lado candidato para que la trazabilidad ya muestre información aun con poca carga inicial.</div><div id="candidateTraceList" class="adminList" style="margin-top:16px"></div></div>
@@ -70,14 +70,14 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=5.7.4"></script>
-<script src="/auth.js?v=5.7.4"></script>
+<script src="/config.js?v=5.7.5"></script>
+<script src="/auth.js?v=5.7.5"></script>
 <script>
 requireAuth(); applyRoleVisibility(); requireRole('ADMIN'); document.getElementById('btnLogout').onclick=(e)=>{e.preventDefault();logout();};
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function money(n){const v=Number(n||0); return '$'+v.toLocaleString('es-AR');}
 function fd(v){try{return new Date(v).toLocaleString('es-AR');}catch(_){return v||'';}}
-const state={overview:null,factory:null,threads:[],selectedThreadId:null,filters:{candidateDays:'30',candidatePage:1,candidatePerPage:50,companyDays:'30',companyPage:1,companyPerPage:50}};
+const state={overview:null,factory:null,threads:[],selectedThreadId:null,filters:{candidateDays:'ALL',candidatePage:1,candidatePerPage:50,companyDays:'ALL',companyPage:1,companyPerPage:50}};
 const threadRoleLabel={COMPANY:'Ayuda IA · lado empresa',CANDIDATE:'Ayuda IA · lado candidato',SUPERADMIN:'Ayuda IA · administración'};
 let activeThreadRole='ALL';
 function actorLabelEs(actor){ return ({USER:'Usuario',ASSISTANT:'Asistente',OPERATOR:'Operador',SYSTEM:'Sistema'}[actor] || actor || 'Sistema'); }
@@ -112,7 +112,7 @@ document.getElementById('btnCompanyNext').onclick=()=>{state.filters.companyPage
 
 document.getElementById('btnRefreshThreads').onclick=()=>loadThreads();
 document.getElementById('btnSendOperatorReply').onclick=async()=>{const threadId=state.selectedThreadId;const content=document.getElementById('operatorReply').value.trim();const msg=document.getElementById('operatorReplyMsg');if(!threadId||!content){msg.textContent='Seleccioná un hilo y escribí la respuesta.';return;}msg.textContent='Enviando…';try{await apiFetch('/admin/chat/reply',{method:'POST',body:JSON.stringify({threadId,content,reusable:document.getElementById('replyReusable').checked})});document.getElementById('operatorReply').value='';document.getElementById('replyReusable').checked=false;msg.textContent='Respuesta enviada.';await loadThreads();}catch(e){msg.textContent=e.message;}};
-Promise.all([loadOverview(),loadFactoryAdmin(),loadThreads()]).catch((e)=>{document.getElementById('sumCandidates').textContent='—';console.error(e);});
+Promise.allSettled([loadOverview(),loadFactoryAdmin(),loadThreads()]).then((results)=>{results.forEach((r)=>{if(r.status==='rejected') console.error(r.reason);});if(results[0]?.status==='rejected'){document.getElementById('sumCandidates').textContent='—';document.getElementById('sumCompanies').textContent='—';}});
 </script>
 </body>
 </html>
