@@ -3959,6 +3959,7 @@ app.delete('/support/thread', auth, async (req, res) => {
 app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   try {
     await ensureSupportKnowledgeSeed();
+
     const num = (v, d) => {
       const n = Number(v);
       return Number.isFinite(n) && n > 0 ? n : d;
@@ -3968,55 +3969,94 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       const days = num(value, 30);
       return new Date(Date.now() - (days * 24 * 60 * 60 * 1000));
     };
+    const parseBillingStatus = (value) => {
+      const raw = String(value || 'ALL').toUpperCase();
+      return ['ALL','DRAFT','PENDING_PAYMENT','PAID','FAILED','EXPIRED','CANCELLED'].includes(raw) ? raw : 'ALL';
+    };
+    const billingStatusLabel = (status) => ({
+      DRAFT: 'Borrador',
+      PENDING_PAYMENT: 'Pendiente de pago',
+      PAID: 'Pagada',
+      FAILED: 'Fallida',
+      EXPIRED: 'Expirada',
+      CANCELLED: 'Cancelada',
+    }[String(status || '').toUpperCase()] || String(status || 'Documento'));
+
     const since30 = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
     const candidateDays = String(req.query.candidateDays || 'ALL').toUpperCase();
     const companyDays = String(req.query.companyDays || 'ALL').toUpperCase();
+    const billingDays = String(req.query.billingDays || 'ALL').toUpperCase();
     const candidatePage = Math.max(1, num(req.query.candidatePage, 1));
     const companyPage = Math.max(1, num(req.query.companyPage, 1));
+    const billingPage = Math.max(1, num(req.query.billingPage, 1));
     const candidatePerPage = Math.min(100, Math.max(10, num(req.query.candidatePerPage, 50)));
     const companyPerPage = Math.min(100, Math.max(10, num(req.query.companyPerPage, 50)));
+    const billingPerPage = Math.min(100, Math.max(10, num(req.query.billingPerPage, 50)));
+    const billingStatus = parseBillingStatus(req.query.billingStatus || 'ALL');
+
     const candidateSince = parseDaysFilter(candidateDays);
     const companySince = parseDaysFilter(companyDays);
+    const billingSince = parseDaysFilter(billingDays);
 
-    const candidateRoleFilter = { in: ['CANDIDATE', 'ADMIN_CANDIDATE'] };
-    const companyRoleFilter = { in: ['COMPANY', 'ADMIN_COMPANY'] };
-    const candidateUserWhere = candidateSince ? { role: candidateRoleFilter, createdAt: { gte: candidateSince } } : { role: candidateRoleFilter };
-    const companyUserWhere = companySince ? { role: companyRoleFilter, createdAt: { gte: companySince } } : { role: companyRoleFilter };
+    const candidateWhere = candidateSince ? { createdAt: { gte: candidateSince } } : {};
+    const companyWhere = companySince ? { createdAt: { gte: companySince } } : {};
+    const billingWhere = {
+      ...(billingSince ? { createdAt: { gte: billingSince } } : {}),
+      ...(billingStatus !== 'ALL' ? { status: billingStatus } : {}),
+    };
 
-    const [candidateCount, companyCount, jobsCount, applicationCount, orderCount, paidTotal, filteredCandidateCount, filteredCompanyCount, candidateUsers, companyUsers, recentThreads, candidateUpdated30, candidateApplications30, candidateChats30, companyUpdated30, companyJobs30, companyChats30, companyAccess30, candidateRecentApplications, companyRecentOrders, companyRecentOpenings, candidateRecentThreads, companyRecentThreads, recentJobs] = await Promise.all([
-      prisma.user.count({ where: { role: candidateRoleFilter } }).catch(() => 0),
-      prisma.user.count({ where: { role: companyRoleFilter } }).catch(() => 0),
+    const [candidateCount, companyCount, jobsCount, applicationCount, orderCount, paidAgg, pendingAgg, paidOrderCount, filteredCandidateCount, filteredCompanyCount, filteredBillingCount, candidateRows, companyRows, billingRows, recentThreads, candidateUpdated30, candidateApplications30, candidateChats30, companyUpdated30, companyJobs30, companyChats30, companyAccess30, candidateRecentApplications, companyRecentOrders, companyRecentOpenings, candidateRecentThreads, companyRecentThreads, recentJobs] = await Promise.all([
+      prisma.candidateBolsa.count().catch(() => 0),
+      prisma.companyProfile.count().catch(() => 0),
       prisma.job.count().catch(() => 0),
       prisma.application.count().catch(() => 0),
       prisma.billingOrder.count().catch(() => 0),
       prisma.billingOrder.aggregate({ _sum: { total: true }, where: { status: 'PAID' } }).catch(() => ({ _sum: { total: 0 } })),
-      prisma.user.count({ where: candidateUserWhere }).catch(() => 0),
-      prisma.user.count({ where: companyUserWhere }).catch(() => 0),
-      prisma.user.findMany({
-        where: candidateUserWhere,
-        orderBy: { createdAt: 'desc' },
+      prisma.billingOrder.aggregate({ _sum: { total: true }, where: { status: { in: ['PENDING_PAYMENT', 'DRAFT'] } } }).catch(() => ({ _sum: { total: 0 } })),
+      prisma.billingOrder.count({ where: { status: 'PAID' } }).catch(() => 0),
+      prisma.candidateBolsa.count({ where: candidateWhere }).catch(() => 0),
+      prisma.companyProfile.count({ where: companyWhere }).catch(() => 0),
+      prisma.billingOrder.count({ where: billingWhere }).catch(() => 0),
+      prisma.candidateBolsa.findMany({
+        where: candidateWhere,
+        orderBy: [{ createdAt: 'desc' }, { updatedAt: 'desc' }],
         skip: (candidatePage - 1) * candidatePerPage,
         take: candidatePerPage,
         include: {
-          candidateBolsa: { select: { nombre:true, apellido:true, areaTrabajo:true, especialidad:true, localidad:true, sueldoPretendido:true, updatedAt:true, createdAt:true } },
-          candidateProfile: { select: { fullName:true, city:true, province:true, updatedAt:true, createdAt:true } },
-          resume: { select: { updatedAt:true, createdAt:true } },
-        }
+          user: {
+            select: {
+              email: true,
+              createdAt: true,
+              candidateProfile: { select: { fullName: true, city: true, province: true, updatedAt: true, createdAt: true } },
+              resume: { select: { updatedAt: true, createdAt: true } },
+            },
+          },
+        },
       }).catch(() => []),
-      prisma.user.findMany({
-        where: companyUserWhere,
-        orderBy: { createdAt: 'desc' },
+      prisma.companyProfile.findMany({
+        where: companyWhere,
+        orderBy: [{ createdAt: 'desc' }, { updatedAt: 'desc' }],
         skip: (companyPage - 1) * companyPerPage,
         take: companyPerPage,
         include: {
-          company: { select: { companyName:true, cuit:true, contactEmail:true, city:true, province:true, updatedAt:true, createdAt:true } },
-        }
+          user: { select: { email: true, createdAt: true } },
+        },
+      }).catch(() => []),
+      prisma.billingOrder.findMany({
+        where: billingWhere,
+        orderBy: [{ createdAt: 'desc' }, { updatedAt: 'desc' }],
+        skip: (billingPage - 1) * billingPerPage,
+        take: billingPerPage,
+        include: {
+          company: { select: { companyName: true, cuit: true, contactEmail: true } },
+          items: { select: { planCode: true, planName: true, days: true, quantity: true, subtotal: true, openingsIncluded: true, publicationsIncluded: true } },
+        },
       }).catch(() => []),
       prisma.supportThread.findMany({ orderBy: { updatedAt: 'desc' }, take: 40, include: { company: { select: { companyName: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'desc' }, take: 1 } } }).catch(() => []),
-      prisma.user.count({ where: { role: candidateRoleFilter, createdAt: { gte: since30 } } }).catch(() => 0),
+      prisma.candidateBolsa.count({ where: { updatedAt: { gte: since30 } } }).catch(() => 0),
       prisma.application.count({ where: { createdAt: { gte: since30 } } }).catch(() => 0),
       prisma.supportThread.count({ where: { role: 'CANDIDATE', updatedAt: { gte: since30 } } }).catch(() => 0),
-      prisma.user.count({ where: { role: companyRoleFilter, createdAt: { gte: since30 } } }).catch(() => 0),
+      prisma.companyProfile.count({ where: { updatedAt: { gte: since30 } } }).catch(() => 0),
       prisma.job.count({ where: { createdAt: { gte: since30 } } }).catch(() => 0),
       prisma.supportThread.count({ where: { role: 'COMPANY', updatedAt: { gte: since30 } } }).catch(() => 0),
       prisma.companyCandidateAccess.count({ where: { createdAt: { gte: since30 } } }).catch(() => 0),
@@ -4028,35 +4068,55 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.job.findMany({ orderBy: { createdAt: 'desc' }, take: 40, include: { company: { select: { companyName: true } } } }).catch(() => []),
     ]);
 
-    const normalizedCandidates = (candidateUsers || []).map((u) => {
-      const bolsa = u.candidateBolsa || {};
-      const profile = u.candidateProfile || {};
-      const [nameFromProfile = '', lastFromProfile = ''] = String(profile.fullName || '').trim().split(/\s+/);
-      return {
-        id: u.id,
-        nombre: bolsa.nombre || nameFromProfile || u.email?.split('@')[0] || 'Candidato',
-        apellido: bolsa.apellido || lastFromProfile || '',
-        areaTrabajo: bolsa.areaTrabajo || profile.sector || 'Perfil general',
-        especialidad: bolsa.especialidad || profile.subSector || '',
-        localidad: bolsa.localidad || profile.city || '',
-        sueldoPretendido: bolsa.sueldoPretendido || 'No informada',
-        createdAt: bolsa.createdAt || profile.createdAt || u.createdAt,
-        updatedAt: bolsa.updatedAt || profile.updatedAt || u.createdAt,
-        email: u.email,
-      };
-    });
+    const normalizedCandidates = (candidateRows || []).map((it) => ({
+      id: it.id,
+      nombre: it.nombre || it.user?.candidateProfile?.fullName?.split(/\s+/)?.[0] || 'Candidato',
+      apellido: it.apellido || it.user?.candidateProfile?.fullName?.split(/\s+/).slice(1).join(' ') || '',
+      dni: it.dni || '',
+      areaTrabajo: it.areaTrabajo || 'Perfil general',
+      especialidad: it.especialidad === 'Otros' ? (it.especialidadOtro || 'Otros') : (it.especialidad || ''),
+      localidad: it.localidad || it.user?.candidateProfile?.city || '',
+      province: it.user?.candidateProfile?.province || '',
+      sueldoPretendido: it.sueldoPretendido || 'No informada',
+      createdAt: it.createdAt || it.user?.createdAt,
+      updatedAt: it.updatedAt || it.user?.candidateProfile?.updatedAt || it.user?.resume?.updatedAt || it.user?.createdAt,
+      email: it.correo || it.user?.email || '',
+    }));
 
-    const normalizedCompanies = (companyUsers || []).map((u) => {
-      const c = u.company || {};
+    const normalizedCompanies = (companyRows || []).map((it) => ({
+      id: it.id,
+      companyName: it.companyName || it.user?.email || 'Empresa',
+      cuit: it.cuit || '',
+      contactEmail: it.contactEmail || it.user?.email || '',
+      city: it.city || '',
+      province: it.province || '',
+      createdAt: it.createdAt || it.user?.createdAt,
+      updatedAt: it.updatedAt || it.user?.createdAt,
+    }));
+
+    const normalizedBilling = (billingRows || []).map((it) => {
+      const items = Array.isArray(it.items) ? it.items : [];
+      const totalPublications = Number(it.items?.reduce((acc, item) => acc + Number(item?.publicationsIncluded || 0), 0) || 0);
+      const totalOpenings = Number(it.totalOpenings || items.reduce((acc, item) => acc + Number(item?.openingsIncluded || 0), 0) || 0);
+      const totalDays = Number(it.totalDays || items.reduce((acc, item) => acc + (Number(item?.days || 0) * Number(item?.quantity || 1)), 0) || 0);
       return {
-        id: u.id,
-        companyName: c.companyName || u.email || 'Empresa',
-        cuit: c.cuit || '',
-        contactEmail: c.contactEmail || u.email || '',
-        city: c.city || '',
-        province: c.province || '',
-        createdAt: c.createdAt || u.createdAt,
-        updatedAt: c.updatedAt || u.createdAt,
+        id: it.id,
+        documentNo: buildInternalTicketNumber(it.id),
+        companyName: it.company?.companyName || it.companyNameSnapshot || 'Empresa',
+        billingName: it.billingName || it.companyNameSnapshot || it.company?.companyName || 'Sin razón social',
+        billingTaxId: it.billingTaxId || it.cuitSnapshot || it.company?.cuit || '',
+        billingEmail: it.billingEmail || it.contactEmailSnapshot || it.company?.contactEmail || '',
+        status: it.status,
+        statusLabel: billingStatusLabel(it.status),
+        subtotal: Number(it.subtotal || 0),
+        total: Number(it.total || 0),
+        totalDays,
+        totalOpenings,
+        totalPublications,
+        createdAt: it.createdAt,
+        updatedAt: it.updatedAt,
+        paidAt: it.paymentApprovedAt || null,
+        itemsSummary: items.map((item) => `${item.planName || item.planCode || 'Plan'} x${Number(item.quantity || 1)}`).join(', '),
       };
     });
 
@@ -4105,9 +4165,9 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
     const companyOrderEvents = (companyRecentOrders || []).map((it) => ({
       type: 'documento',
       createdAt: it.createdAt,
-      title: it.documentNo || buildInternalTicketNumber(it.id),
+      title: buildInternalTicketNumber(it.id),
       actor: it.company?.companyName || 'Empresa',
-      context: statusLabel(it.status),
+      context: billingStatusLabel(it.status),
     }));
 
     const companyOpeningEvents = (companyRecentOpenings || []).map((it) => ({
@@ -4136,7 +4196,16 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
 
     return res.json({
       ok: true,
-      summary: { candidateCount, companyCount, jobsCount, applicationCount, orderCount, paidTotal: Number(paidTotal?._sum?.total || 0) },
+      summary: {
+        candidateCount,
+        companyCount,
+        jobsCount,
+        applicationCount,
+        orderCount,
+        paidOrderCount,
+        paidTotal: Number(paidAgg?._sum?.total || 0),
+        pendingTotal: Number(pendingAgg?._sum?.total || 0),
+      },
       traceability: {
         candidate: {
           totalRegistered: candidateCount,
@@ -4166,6 +4235,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       },
       candidates: normalizedCandidates,
       companies: normalizedCompanies,
+      billingOrders: normalizedBilling,
       candidatePaging: {
         days: candidateDays,
         page: candidatePage,
@@ -4180,7 +4250,15 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         total: filteredCompanyCount,
         totalPages: Math.max(1, Math.ceil((filteredCompanyCount || 0) / companyPerPage)),
       },
-      threads: recentThreads
+      billingPaging: {
+        days: billingDays,
+        status: billingStatus,
+        page: billingPage,
+        perPage: billingPerPage,
+        total: filteredBillingCount,
+        totalPages: Math.max(1, Math.ceil((filteredBillingCount || 0) / billingPerPage)),
+      },
+      threads: recentThreads,
     });
   } catch (err) {
     console.error('GET /admin/bootstrap', err);

@@ -1,0 +1,14 @@
+Talento PyME v5.7.7
+
+Correcciones principales:
+- Superadministración: se corrigió el fallo crítico de /admin/bootstrap que dejaba el panel vacío por una referencia interna inexistente.
+- Conteos y listados de candidatos: ahora se toman desde CandidateBolsa (base operativa visible para empresa) para que coincidan con el portal empresa.
+- Conteos y listados de empresas: ahora se toman desde CompanyProfile (base real de empresas registradas).
+- Se agregó la pestaña real "Resumen facturación" dentro de superadministración, separada del padrón de empresas.
+- Se incorporó trazabilidad visible con detalle de DNI/mail en candidatos y CUIT/mail en empresas.
+- Se mantuvo el texto de identificación: "DNI (Número de registro 11 dígitos)" en registro y recuperación de clave.
+- Versionado unificado a 5.7.7 en README, package.json, config.js, sw.js y referencias frontend.
+
+Validación local:
+- apps/api/src/index.js -> sintaxis OK
+- script inline de apps/web/admin.html -> sintaxis OK
