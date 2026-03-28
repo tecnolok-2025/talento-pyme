@@ -1,20 +1,8 @@
-Talento PyME v5.5.10
-
-Cambios principales:
-- Factory ahora muestra aperturas incluidas por plan.
-- Planes configurados con estos cupos:
-  - 7 días: 15 aperturas
-  - 14 días: 25 aperturas
-  - 30 días: 45 aperturas
-  - 60 días: 70 aperturas
-- Las aperturas se contabilizan por empresa.
-- Buscar Talento ya no expone los datos sensibles en el resultado previo.
-- La ficha completa del candidato se abre consumiendo una apertura del cupo activo.
-- Si la empresa no tiene aperturas disponibles, el sistema bloquea la apertura y muestra el mensaje correspondiente.
-- Pretensión salarial sigue visible en la ficha cerrada.
-- Se eliminó el texto "Visible aun con la ficha cerrada" del bloque salarial.
-- Versionado unificado a 5.5.10.
-
-Nota técnica:
-- Esta revisión agrega el modelo Prisma CompanyCandidateAccess y nuevos campos de aperturas en BillingOrder/BillingOrderItem.
-- En Render, al desplegar, es necesario ejecutar prisma db push para crear/actualizar tablas y columnas nuevas.
+Auditoría v5.5.10
+- Revisado: apps/web/factory.html
+- Revisado: apps/web/buscar.html
+- Revisado: apps/web/perfil.html
+- Revisado: apps/web/config.js
+- Revisado: apps/web/sw.js
+- Revisado: apps/api/package.json
+- Cambio de versión global: 5.5.10

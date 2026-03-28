@@ -1,261 +1,249 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Talento PyME · Publicar Búsqueda</title>
-  <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.7.3" />
-  <style>
-    .publishSection{background:linear-gradient(180deg,rgba(191,219,254,.98),rgba(147,197,253,.82));border:1px solid rgba(37,99,235,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
-    .publishSection .sectionTitle{color:#103a7a}
-    .publishSection .muted{color:#475569}
-    .conditionsGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px}
-    @media(max-width:980px){.conditionsGrid{grid-template-columns:1fr}}
-    .conditionCard{padding:18px;border-radius:22px;background:rgba(255,255,255,.82);border:1px solid rgba(37,99,235,.18);box-shadow:0 12px 28px rgba(37,99,235,.08)}
-    .conditionCard h4{margin:0 0 6px 0;font-size:16px;color:#103a7a}
-    .conditionCard .muted{margin-bottom:10px;font-size:13px}
-    .conditionCard .pillGrid{gap:12px}.conditionCard .pillBtn{background:rgba(255,255,255,.94);min-width:132px;justify-content:center;box-shadow:0 8px 18px rgba(15,23,42,.04)}
-  </style>
-</head>
-<body class="appShell">
-  <div class="header">
-    <div class="brand">
-      <img src="/icon-192.png" alt="Talento PyME" />
-      <div><div class="brandTitle">Talento PyME</div><div class="muted">Portal de empleo • <span class="tp-version"></span></div></div>
-    </div>
-    <div class="nav">
-      <a href="/buscar.html" data-role="COMPANY">Buscar Talento</a>
-      <a href="/empresa.html" data-role="COMPANY">Mi Empresa</a>
-      <a href="/publicar.html" data-role="COMPANY">Publicar Búsqueda</a>
-      <a href="/mis-busquedas.html" data-role="COMPANY">Mis Búsquedas</a>
-      <a href="/mis-candidatos.html" data-role="COMPANY">Mis Candidatos</a>
-      <a href="/factory.html" data-role="COMPANY">Factory</a>
-      <a href="/asistencia.html">Ayuda IA</a><a href="#" id="btnLogout">Salir</a>
-    </div>
-  </div>
+# Talento PyME v5.6.3 — remediación integral de pagos, seguridad y gobernanza
 
-  <div class="wrap wide">
-    <div class="heroPanel">
-      <div class="small pageEyebrow">Empresa · publicar búsqueda</div>
-      <h2 style="margin:8px 0 6px 0">Publicar búsqueda con asistencia inteligente</h2>
-      <div class="muted">Completá el perfil del puesto y, si querés, dejá que la IA te ayude a redactar un aviso más claro, técnico y convincente para el candidato.</div>
-    </div>
+## 1. Resumen ejecutivo
 
-    <div class="card" style="margin-top:16px">
-      <div class="toolbarCard">
-        <div>
-          <h2 style="margin:0">Información del aviso</h2>
-          <div class="muted">Los campos marcados construyen el aviso principal. El sistema genera una descripción y requisitos listos para publicar.</div>
-        </div>
-        <div class="row" style="margin-top:0">
-          <button class="btn btn-ghost" id="btnAIDraft" type="button">Corregir con IA</button>
-          <button class="btn btn-primary" id="btnPost" type="button">Completar y Publicar</button>
-        </div>
-      </div>
+Se ejecutó una remediación real sobre la base `v5.6.1` para eliminar el manejo directo de datos de tarjeta dentro de Talento PyME y reemplazarlo por un flujo de **pedido interno + checkout externo + webhook firmado**.
 
-      <div class="filtersGrid" style="margin-top:18px">
-        <div>
-          <label>Título del puesto</label>
-          <input class="input" id="title" placeholder="Ej: Supervisor de Mantenimiento" />
-        </div>
-        <div>
-          <label>Cantidad de vacantes</label>
-          <input class="input" id="vacancies" placeholder="Ej: 1" inputmode="numeric" />
-        </div>
-        <div>
-          <label>Código interno</label>
-          <input class="input" id="code" placeholder="Ej: MNT-24" />
-        </div>
-        <div>
-          <label>Nivel / seniority</label>
-          <select class="input" id="seniority">
-            <option value="Junior">Junior</option>
-            <option value="Semi Senior" selected>Semi Senior</option>
-            <option value="Senior">Senior</option>
-            <option value="Jefatura">Jefatura</option>
-          </select>
-        </div>
-        <div>
-          <label>Área principal</label>
-          <select class="input" id="area">
-            <option>Mantenimiento</option>
-            <option>Producción</option>
-            <option>Logística</option>
-            <option>Ingeniería</option>
-            <option>Administración</option>
-            <option>Comercial</option>
-          </select>
-        </div>
-        <div>
-          <label>Subárea / especialidad</label>
-          <input class="input" id="specialty" placeholder="Ej: Electromecánica industrial" />
-        </div>
-        <div>
-          <label>Provincia</label>
-          <input class="input" id="province" placeholder="Ej: Buenos Aires" />
-        </div>
-        <div>
-          <label>Ciudad</label>
-          <input class="input" id="location" placeholder="Ej: Campana" />
-        </div>
-      </div>
+Resultado principal:
+- el frontend propio ya no pide PAN, CVV ni vencimiento;
+- `POST /factory/checkout` rechaza explícitamente cualquier intento de mandar datos de tarjeta;
+- se eliminó la simulación local de pago por tarjeta;
+- las órdenes nacen como `PENDING_PAYMENT`;
+- el pase a `PAID` ocurre únicamente por webhook válido del proveedor;
+- se agregó trazabilidad de seguridad y de webhooks;
+- el PWA deja fuera de caché los endpoints sensibles de checkout/pagos.
 
-      <div class="sectionBox publishSection" style="margin-top:18px">
-        <div class="sectionTitle">Condiciones del puesto</div>
-        <div class="muted">Agrupá el tipo de contratación, la dedicación horaria y la modalidad para que el aviso se lea de forma más ordenada, clara y atractiva.</div>
-        <div class="conditionsGrid">
-          <div class="conditionCard">
-            <h4>Tipo de contratación</h4>
-            <div class="muted">Elegí la forma de vínculo principal que tendrá el puesto.</div>
-            <div class="pillGrid" id="contractPills">
-              <button type="button" data-value="Indeterminado" class="pillBtn active">Indeterminado</button>
-              <button type="button" data-value="Temporal" class="pillBtn">Temporal</button>
-              <button type="button" data-value="Pasantía" class="pillBtn">Pasantía</button>
-              <button type="button" data-value="Autónomo" class="pillBtn">Autónomo</button>
-            </div>
-          </div>
-          <div class="conditionCard">
-            <h4>Jornada y disponibilidad</h4>
-            <div class="muted">Mostrá rápido si el puesto es part-time, full-time o por turnos.</div>
-            <div class="pillGrid" id="shiftPills">
-              <button type="button" data-value="Part-time" class="pillBtn">Part-time</button>
-              <button type="button" data-value="Full-time" class="pillBtn active">Full-time</button>
-              <button type="button" data-value="Por turnos" class="pillBtn">Por turnos</button>
-              <button type="button" data-value="Nocturno" class="pillBtn">Nocturno</button>
-            </div>
-          </div>
-          <div class="conditionCard">
-            <h4>Modalidad de trabajo</h4>
-            <div class="muted">Definí si la posición es presencial, remota o híbrida.</div>
-            <div class="pillGrid" id="modalityPills">
-              <button type="button" data-value="Presencial" class="pillBtn active">Presencial</button>
-              <button type="button" data-value="Remoto" class="pillBtn">Remoto</button>
-              <button type="button" data-value="Híbrido" class="pillBtn">Híbrido</button>
-            </div>
-          </div>
-        </div>
-      </div>
+## 2. Hallazgos del flujo actual (base auditada v5.6.1)
 
-      <div class="grid2" style="margin-top:18px">
-        <div>
-          <label>Beneficios</label>
-          <input class="input" id="benefits" placeholder="Ej: comedor, prepaga, bono, movilidad" />
-        </div>
-        <div>
-          <label>Competencias / habilidades</label>
-          <input class="input" id="skills" placeholder="Ej: liderazgo técnico, SAP PM, TPM, seguridad" />
-        </div>
-      </div>
+### Hallazgos bloqueantes de producción
 
-      <div class="sectionBox publishSection" style="margin-top:18px">
-        <div class="rowBetween" style="align-items:flex-start">
-          <div>
-            <div class="sectionTitle">Descripción y alcance</div>
-            <div class="muted">Podés redactarla vos mismo o pedirle a la IA que la amplíe según el nivel, el área y el resumen de tu empresa.</div>
-          </div>
-          <label class="toggleRow"><input type="checkbox" id="useAI" checked /> Quiero que la IA me ayude a redactar</label>
-        </div>
-        <textarea id="responsibilities" placeholder="Describí las responsabilidades, contexto operativo, indicadores, equipos, seguridad, interacción con otras áreas..."></textarea>
-      </div>
+1. `apps/web/factory.html`
+   - líneas aprox. 231-237
+   - inputs operativos de tarjeta: `cardBrand`, `cardNumber`, `cardHolder`, `cardHolderDni`, `cardExpiry`, `cardCvv`
+   - riesgo: exposición directa de PAN/CVV/expiry en frontend propio
+   - acción aplicada: eliminación del DOM y del flujo asociado
 
-      <div class="sectionBox publishSection" style="margin-top:18px">
-        <div class="sectionTitle">Requisitos y perfil buscado</div>
-        <textarea id="requirements" placeholder="Años de experiencia, conocimientos técnicos, estudios, certificaciones, disponibilidad, herramientas, idiomas, etc."></textarea>
-      </div>
+2. `apps/web/factory.html`
+   - línea aprox. 836
+   - payload `payment` con datos de tarjeta hacia `/factory/checkout`
+   - riesgo: transmisión de datos de tarjeta al backend propio
+   - acción aplicada: payload reducido a `items`, `couponCode`, `billing`
 
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <button class="btn btn-ghost" id="btnDiscard" type="button">Descartar</button>
-        <span class="muted" id="msg"></span>
-      </div>
-    </div>
-  </div>
+3. `apps/api/src/index.js`
+   - línea aprox. 2282
+   - endpoint `POST /factory/checkout`
+   - riesgo: aceptación y procesamiento de tarjeta en backend
+   - acción aplicada: guard clause de seguridad + rediseño a orden pendiente + sesión externa
 
-  <script src="/config.js?v=5.7.3"></script>
-  <script src="/auth.js?v=5.7.3"></script>
-  <script>
-    requireAuth(); applyRoleVisibility(); requireRole('COMPANY');
-    document.getElementById('btnLogout').onclick = (e)=>{ e.preventDefault(); logout(); };
+4. `apps/api/src/index.js`
+   - líneas aprox. 131-196
+   - funciones `luhnCheck`, `detectCardBrand`, `parseExpiry`, `simulateFactoryPayment`
+   - riesgo: lógica local de autorización falsa y tratamiento directo de tarjeta
+   - acción aplicada: eliminación completa
 
-    const msg = document.getElementById('msg');
-    let company = null;
-    function pickActive(containerId){
-      const active = document.querySelector(`#${containerId} .pillBtn.active`);
-      return active ? active.dataset.value : '';
-    }
-    function bindPills(containerId){
-      document.querySelectorAll(`#${containerId} .pillBtn`).forEach(btn=>{
-        btn.onclick = ()=>{
-          document.querySelectorAll(`#${containerId} .pillBtn`).forEach(x=>x.classList.remove('active'));
-          btn.classList.add('active');
-        };
-      });
-    }
-    ['contractPills','shiftPills','modalityPills'].forEach(bindPills);
+5. `apps/api/prisma/schema.prisma`
+   - líneas aprox. 265-267
+   - campos `cardBrand`, `cardLast4`, `paymentNote`
+   - riesgo: diseño orientado a simulación local; conservación de rastros innecesarios
+   - acción aplicada: se preservan `cardBrand` y `cardLast4` solo para datos mínimos que entregue el proveedor; `paymentNote` queda deprecado y sin uso nuevo
 
-    async function loadCompany(){
-      company = await apiFetch('/company/me').catch(()=>null);
-      if(company?.province && !province.value) province.value = company.province;
-      if(company?.city && !location.value) location.value = company.city;
-    }
+### Hallazgos adicionales
 
-    async function buildAIDraft(){
-      msg.textContent = 'Generando borrador asistido…'; document.getElementById('btnAIDraft').disabled = true;
-      try{
-        const data = await apiFetch('/jobs/ai-draft', { method:'POST', body: JSON.stringify({
-          title: title.value.trim(),
-          seniority: seniority.value,
-          area: `${area.value}${specialty.value.trim() ? ` / ${specialty.value.trim()}` : ''}`,
-          companyName: company?.companyName || '',
-          companySummary: company?.companySummary || '',
-          responsibilities: responsibilities.value.trim(),
-          skills: skills.value.trim(),
-          modality: pickActive('modalityPills'),
-          location: location.value.trim()
-        }) });
-        if(data?.description) responsibilities.value = data.description;
-        if(data?.requirements) requirements.value = data.requirements;
-        msg.textContent = 'La IA dejó una versión más completa del aviso.'; document.getElementById('btnAIDraft').disabled = false;
-      }catch(e){ msg.textContent = e.message; document.getElementById('btnAIDraft').disabled = false; }
-    }
+6. `apps/web/factory-inline.js` y `apps/web/factory-extracted.js`
+   - contenían copias del flujo inseguro con lectura de campos de tarjeta y payload `payment`
+   - acción aplicada: eliminación de archivos obsoletos
 
-    btnAIDraft.onclick = async ()=>{ await buildAIDraft(); };
-    btnDiscard.onclick = ()=>{ document.querySelectorAll('input, textarea').forEach(el=>{ if(el.type !== 'checkbox') el.value=''; }); msg.textContent='Formulario limpiado.'; };
-    btnPost.onclick = async ()=>{
-      msg.textContent='Publicando...';
-      try{
-        if(!title.value.trim()) throw new Error('Primero completá el título del puesto para activar la asistencia IA y publicar.');
-        if(!responsibilities.value.trim()) throw new Error('Completá la descripción del puesto');
-        if(document.getElementById('useAI').checked && (!requirements.value.trim() || responsibilities.value.trim().length < 80)){
-          await buildAIDraft();
-        }
-        const modality = `${pickActive('modalityPills')} · ${pickActive('shiftPills')} · ${pickActive('contractPills')}`;
-        const fullDescription = [
-          responsibilities.value.trim(),
-          `Vacantes: ${vacancies.value.trim() || '1'}.`,
-          `Código interno: ${code.value.trim() || 's/d'}.`,
-          `Área: ${area.value}${specialty.value.trim() ? ` · ${specialty.value.trim()}` : ''}.`,
-          `Nivel: ${seniority.value}.`,
-          benefits.value.trim() ? `Beneficios: ${benefits.value.trim()}.` : ''
-        ].filter(Boolean).join('\n\n');
-        const fullRequirements = [
-          requirements.value.trim(),
-          skills.value.trim() ? `Competencias y habilidades: ${skills.value.trim()}.` : '',
-          company?.showCompanySummary !== false && company?.companySummary ? `Resumen institucional visible al candidato: ${company.companySummary}.` : ''
-        ].filter(Boolean).join('\n\n');
-        await apiFetch('/jobs', { method:'POST', body: JSON.stringify({
-          title: title.value.trim(),
-          location: location.value.trim() || null,
-          modality,
-          description: fullDescription,
-          requirements: fullRequirements || null,
-          categoryId: null
-        }) });
-        msg.textContent='Publicado OK. Revisalo en Mis Búsquedas.';
-      }catch(e){ msg.textContent=e.message; }
-    };
+7. `apps/web/sw.js`
+   - estrategia anterior cacheaba respuestas same-origin sin distinguir rutas sensibles
+   - riesgo: persistencia local de respuestas de checkout/billing
+   - acción aplicada: exclusión explícita de `/factory/`, `/payments/`, `/admin/`, `/support/` y JSON sensible
 
-    loadCompany();
-  </script>
-</body>
-</html>
+## 3. Riesgos críticos
+
+- tratamiento directo de tarjeta fuera de pasarela PCI
+- aprobación local falsa de pagos
+- posibilidad de que PAN/CVV viajara desde navegador a backend propio
+- estados `PAID` sin confirmación externa verificable
+- riesgo de trazas/logs inseguros y caché de endpoints sensibles
+- falta de idempotencia y control de replay en webhooks
+
+## 4. Diseño objetivo propuesto
+
+Flujo objetivo implementado:
+1. el usuario arma el carrito en Factory;
+2. Talento PyME crea una orden interna `PENDING_PAYMENT`;
+3. Talento PyME crea una sesión de checkout con proveedor externo;
+4. el frontend redirige al `checkoutUrl` del proveedor;
+5. el proveedor cobra y notifica por webhook firmado;
+6. Talento PyME verifica firma + idempotencia + monto + orden;
+7. la orden pasa a `PAID`, `FAILED`, `EXPIRED` o `CANCELLED`;
+8. se actualiza la capacidad operativa solo a partir de órdenes `PAID`.
+
+## 5. Plan de remediación por fases
+
+### Fase 1 — bloqueo inmediato
+- eliminar inputs de tarjeta
+- bloquear payloads con tarjeta
+- eliminar simulación local
+
+### Fase 2 — checkout externo
+- crear orden pendiente
+- desacoplar proveedor en `services/payments/`
+- devolver `checkoutUrl`
+
+### Fase 3 — confirmación segura
+- webhook dedicado
+- validación de firma
+- idempotencia
+- logging de seguridad
+
+### Fase 4 — endurecimiento operativo
+- no cachear checkout/pagos
+- checklist manual y tests automáticos
+- documentación de variables de entorno
+
+## 6. Cambios concretos de frontend
+
+### `apps/web/factory.html`
+- eliminado DOM de tarjeta
+- eliminado payload `payment`
+- reemplazado mensaje por:
+  - “Pedido creado”
+  - “Serás redirigido a una pasarela segura para completar el pago”
+  - “Talento PyME no procesa directamente los datos de tu tarjeta”
+- agregado manejo de retorno `payment=success|cancel`
+- agregado estado `PENDING_PAYMENT`, `FAILED`, `EXPIRED`, `CANCELLED`
+- eliminado detalle visual de “tarjeta/autorización simulada”
+
+### `apps/web/sw.js`
+- no cachea rutas de pagos/factory/admin/support
+- no cachea respuestas JSON sensibles
+- no cachea requests no-GET
+
+## 7. Cambios concretos de backend
+
+### `apps/api/src/index.js`
+- `POST /factory/checkout`
+  - ahora rechaza tarjeta con 400
+  - crea orden `PENDING_PAYMENT`
+  - llama al proveedor
+  - guarda refs mínimas de la sesión
+  - devuelve `checkoutUrl`
+- nuevo `GET /factory/orders/:orderId/status`
+- nuevo `POST /payments/webhook/provider`
+  - raw body
+  - verificación de firma
+  - idempotencia
+  - control de replay
+  - control de monto
+  - transición de estado por webhook
+- agregado registro de eventos de seguridad
+- eliminado uso de `simulateFactoryPayment`, `luhnCheck`, `detectCardBrand`, `parseExpiry`
+
+## 8. Cambios concretos de Prisma / DB
+
+### BillingOrder
+Se agregaron:
+- `paymentProvider`
+- `paymentSessionRef`
+- `paymentProviderRef`
+- `paymentApprovedAt`
+- `paymentFailureReason`
+- `paymentReceiptUrl`
+
+Se mantienen:
+- `cardBrand`
+- `cardLast4`
+solo para metadatos mínimos que entregue el proveedor, nunca derivados de un PAN recibido por Talento PyME.
+
+### Nuevos modelos
+- `PaymentWebhookEvent`
+  - idempotencia y auditoría de webhooks
+- `SecurityEvent`
+  - trazabilidad operativa y de seguridad
+
+### Estados
+`BillingOrderStatus` queda en:
+- `DRAFT`
+- `PENDING_PAYMENT`
+- `PAID`
+- `FAILED`
+- `EXPIRED`
+- `CANCELLED`
+
+## 9. Estructura propuesta para integración del proveedor
+
+Se agregó:
+- `apps/api/src/services/payments/provider.js`
+- `apps/api/src/services/payments/index.js`
+- `apps/api/src/services/payments/stripe.js`
+- `apps/api/src/services/payments/mock-redirect.js`
+
+Capa abstracta:
+- `createCheckoutSession(order)`
+- `getPaymentStatus(reference)`
+- `verifyWebhook(signature, rawBody, headers)`
+- `parseWebhookEvent(rawEvent)`
+
+## 10. Tests
+
+Automáticos agregados:
+- rechazo de `payment.cardNumber`
+- rechazo de `payment.cvv`
+- sanitización de logs
+- verificación de firma de webhook Stripe
+- rechazo de webhook inválido
+- creación de `checkoutUrl` sin tocar tarjeta
+- inspección del DOM para asegurar ausencia de inputs de tarjeta
+- verificación de exclusión de caché sensible en PWA
+
+Resultado ejecutado en la remediación:
+- `8/8` tests OK
+
+## 11. Variables de entorno
+
+Backend:
+- `PAYMENT_PROVIDER`
+- `PAYMENT_PROVIDER_API_KEY`
+- `PAYMENT_PROVIDER_WEBHOOK_SECRET`
+- `PAYMENT_PROVIDER_PUBLIC_KEY`
+- `PAYMENT_SUCCESS_URL`
+- `PAYMENT_CANCEL_URL`
+- `PAYMENT_WEBHOOK_URL`
+- `PAYMENT_CURRENCY`
+- `PAYMENT_MODE`
+- `APP_BASE_URL`
+
+No deben exponerse al frontend:
+- `PAYMENT_PROVIDER_API_KEY`
+- `PAYMENT_PROVIDER_WEBHOOK_SECRET`
+- claves administrativas privadas
+
+## 12. Diffs / bloques de cambio clave
+
+- eliminación total del bloque de tarjeta en `apps/web/factory.html`
+- guard clause de seguridad al inicio de `POST /factory/checkout`
+- nuevo webhook firmado `POST /payments/webhook/provider`
+- nuevo adaptador de proveedor en `services/payments/`
+- nuevo esquema de persistencia de sesión/ref/eventos
+
+## 13. Checklist final de validación
+
+- [x] no hay inputs operativos de tarjeta en el frontend propio
+- [x] no se envía `payment.cardNumber`, `payment.cvv` ni `payment.expiry`
+- [x] `/factory/checkout` rechaza datos de tarjeta
+- [x] ya no existe la simulación local de tarjeta
+- [x] la orden nace como `PENDING_PAYMENT`
+- [x] el pago pasa a `PAID` solo por webhook válido
+- [x] no se guarda PAN/CVV/expiry en base
+- [x] no se cachean endpoints sensibles en PWA
+- [x] se agregó trazabilidad de seguridad y webhook
+- [x] quedó base preparada para proveedor PCI externo
+
+## Notas de despliegue
+
+1. correr `npx prisma generate`
+2. correr `npx prisma db push --accept-data-loss`
+3. configurar variables de entorno de pagos
+4. desplegar backend
+5. validar redirect + webhook en entorno test del proveedor

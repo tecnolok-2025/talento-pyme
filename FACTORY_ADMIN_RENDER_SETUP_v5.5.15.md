@@ -1,1 +1,30 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Talento PyME · Redirección</title><link rel="icon" href="/icon-192.png" /></head><body><script src="/config.js?v=5.7.3"></script><script src="/auth.js?v=5.7.3"></script><script>const role=tpRole(); location.replace(role==="ADMIN"?"/admin.html":(role==="COMPANY"?"/buscar.html":"/perfil.html"));</script></body></html>
+# Factory Admin · configuración en Render (v5.5.15)
+
+Estas variables van en el servicio **API** de Render:
+
+- `FACTORY_ADMIN_ALIAS`
+- `FACTORY_ADMIN_PASSWORD`
+- `FACTORY_SUPPORT_EMAIL`
+- `FACTORY_ADMIN_ALLOWED_COMPANIES`
+
+## Ejemplo recomendado
+
+- `FACTORY_ADMIN_ALIAS=TalentoPyme`
+- `FACTORY_ADMIN_PASSWORD=tu_clave_superadmin`
+- `FACTORY_SUPPORT_EMAIL=factory@gmail.com`
+- `FACTORY_ADMIN_ALLOWED_COMPANIES=Mengabo SA,Mengabo Sociedad Anonima`
+
+## Pasos
+
+1. Entrá a Render.
+2. Abrí el servicio `talento-pyme-api`.
+3. Entrá a **Environment**.
+4. Creá o editá las variables anteriores.
+5. Guardá.
+6. Hacé **Redeploy**.
+
+## Importante
+
+- Factory Admin **solo va a aparecer** en la empresa cuyo nombre coincida con alguno de los valores de `FACTORY_ADMIN_ALLOWED_COMPANIES`.
+- En las demás empresas, Factory sigue visible pero **Factory Admin queda oculto**.
+- El acceso administrativo queda habilitado **solo durante la sesión actual**. Al salir o volver a entrar a Factory, se vuelve a pedir el nombre Factory y la clave.

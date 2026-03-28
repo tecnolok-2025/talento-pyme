@@ -1,9 +1,10 @@
-Talento PyME v5.7.2
+Talento PyME v5.5.19
 
 Cambios principales:
-- La capacidad operativa ahora se consume por bloque vigente completo.
-- Si un bloque agota días, publicaciones o búsquedas, el sistema pasa al siguiente bloque activo.
-- Factory y Buscar Talento muestran la cola de consumo con más claridad.
-- El resumen total ahora toma la cola vigente real, no mezcla cupos ya agotados.
-- El ticket promocional y los planes pagos se ordenan por vencimiento dentro de la cola operativa.
-- Versionado unificado a v5.7.2 en frontend, API y service worker.
+- Factory Admin ahora tiene botón con ojo para mostrar u ocultar la clave escrita en el campo de acceso.
+- Los códigos usados o desactivados salen automáticamente de la lista de códigos activos.
+- Los descuentos Factory pasan a ser de uso único real: una vez usados, se desactivan.
+- Los códigos de acceso total free también se desactivan al ser activados.
+- El carrito Factory ahora es desplegable/ocultable y arranca colapsado fuera de la pestaña de planes para no tapar la pantalla.
+- En pantallas más angostas, el carrito baja debajo del contenido principal para evitar superposiciones.
+- Versionado unificado a 5.5.19.

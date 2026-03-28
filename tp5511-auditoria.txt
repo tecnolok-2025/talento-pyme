@@ -1,5 +1,16 @@
-Talento PyME v5.6.3
+Auditoría v5.5.12
 
-- Se ampliaron las consultas sugeridas de Ayuda IA para candidato, empresa y panel general, con más variedad lógica y sin repetir conceptos.
-- La columna de sugerencias ahora se muestra en dos columnas en escritorio y una en móvil para soportar más preguntas sin desorden visual.
-- Se unificó el versionado a 5.6.3 en frontend, service worker, API y README.
+Verificado
+- apps/api/package.json = 5.5.12
+- apps/web/config.js = 5.5.12
+- apps/web/*.html con cache busting 5.5.12
+- apps/web/sw.js = 5.5.12
+- sintaxis JS validada con node --check en frontend y backend
+- Factory Admin documentado en FACTORY_ADMIN_RENDER_SETUP.md
+
+Cambios de base de datos
+- FactoryPlanConfig
+- FactoryCoupon
+- CompanyFactoryGrant
+- CompanyJobPublication
+- BillingOrderItem.publicationsIncluded

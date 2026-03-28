@@ -1,14 +1,9 @@
-Auditoría v5.5.10
+Talento PyME v5.7.4
 
-Verificado:
-- apps/api/package.json -> 5.5.10
-- apps/web/config.js -> 5.5.10 / build 20260310_07
-- README.md -> v5.5.10
-- sw.js y HTMLs -> ?v=5.5.10
-- Sintaxis OK: index.js, app.js, auth.js, bolsa-candidato.js, config.js, sw.js, factory-inline.js
-- Script inline OK: buscar.html, factory.html
-
-Cambios funcionales auditados:
-- Factory: precios en pesos y aperturas por plan visibles
-- Buscar Talento: ficha completa protegida por aperturas disponibles
-- Texto de ayuda salarial redundante eliminado
+Cambios principales
+- Auditoría y corrección del Panel General / Administración.
+- La trazabilidad del lado candidato ahora muestra altas de perfiles, actualizaciones, postulaciones y consultas IA.
+- La trazabilidad del lado empresa ahora muestra altas de empresas, actualizaciones, búsquedas, documentos, aperturas y consultas IA.
+- Nuevos KPI visibles en trazabilidad: candidatos registrados y empresas registradas.
+- Se corrigió la lógica para que la trazabilidad muestre datos mínimos reales aun con poca carga inicial.
+- Versionado unificado a 5.7.4 en README, API, frontend y service worker.

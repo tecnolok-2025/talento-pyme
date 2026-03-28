@@ -1,10 +1,5 @@
-Talento PyME v5.6.3
-
-Cambios principales
-- El acceso administrativo general con alias Talento PyME ahora funciona desde la pantalla inicial tanto si entrás por Candidato como por Empresa.
-- Mi Perfil del candidato vuelve a mostrar el acceso directo a Ayuda IA en la navegación.
-- Mi Empresa mejora la narración del resumen institucional generado desde el sitio web para evitar textos tipo menú o navegación.
-- Buscar Talento y Publicar Búsqueda ajustan sus bloques visuales con un celeste medio más visible y una mejor organización de las condiciones del puesto.
-- Factory elimina el acceso visible a Factory Admin y deja solo el resumen de cuenta, códigos especiales, planes y checkout.
-- El texto de consultas de cuenta en Factory se simplifica para indicar solo cómo activar un código.
-- El Panel General separa las conversaciones por Ayuda IA del lado empresa, del lado candidato y de administración, y traduce las etiquetas visibles al castellano.
+Talento PyME v5.5.15
+- Factory con pago virtual simulado y aprobación inmediata.
+- Portal seguro de pago virtual con marcas, monto a autorizar y resguardo de tarjeta (solo marca y últimos 4).
+- Planes y admin con nota de precio sin IVA.
+- Factory Admin con edición reforzada de días, publicaciones, búsquedas y precio.

@@ -1,11 +1,29 @@
-Talento PyME v5.6.3
+Talento PyME · v5.5.12
 
-- Se eliminó el manejo directo de tarjeta en Factory.
-- El frontend ya no muestra ni envía PAN, CVV ni vencimiento.
-- POST /factory/checkout ahora rechaza explícitamente datos de tarjeta.
-- La compra crea una orden PENDING_PAYMENT y deriva a una pasarela externa.
-- Se agregó webhook firmado /payments/webhook/provider.
-- Se agregó trazabilidad con PaymentWebhookEvent y SecurityEvent.
-- El service worker deja fuera de caché los endpoints sensibles.
-- Se agregó arquitectura de proveedor en apps/api/src/services/payments/.
-- Se agregaron tests automáticos de seguridad y checklist manual.
+Cambios principales
+- lado empresa: Mis Candidatos muestra pretensión económica formateada como $2.000.000
+- lado empresa: Mis Búsquedas muestra pretensiones económicas detectadas en postulaciones
+- Factory rediseñado con matriz por días / publicaciones / búsquedas
+- planes configurados en esta revisión:
+  - 7 días · 7 publicaciones · 7 búsquedas
+  - 14 días · 12 publicaciones · 12 búsquedas
+  - 30 días · 20 publicaciones · 20 búsquedas
+  - 60 días · 35 publicaciones · 35 búsquedas
+- precios mantenidos
+- Factory Admin con clave definida por variable de entorno en Render
+- Factory Admin permite:
+  - editar matriz de planes
+  - crear códigos de bonificación de 10% a 100%
+  - crear códigos de acceso total free por empresa con vigencia mensual
+- activación de código especial desde Factory
+- publicación de búsquedas ahora consume cupos del plan contratado
+- apertura de fichas completas sigue consumiendo cupos del plan o acceso total free
+- mail de soporte de Factory configurable por Render
+
+Variables nuevas en Render
+- FACTORY_SUPERADMIN_KEY
+- FACTORY_SUPPORT_EMAIL
+
+Migración requerida
+- npx prisma generate
+- npx prisma db push --accept-data-loss

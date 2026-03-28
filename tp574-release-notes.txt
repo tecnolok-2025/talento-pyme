@@ -1,0 +1,8 @@
+Talento PyME v5.7.4
+
+Cambios principales:
+- Panel General: candidatos y empresas dejan de ser solo 'recientes' y ahora pueden consultarse por período.
+- Nuevos filtros en administración: últimos 30 días, 60 días, 100 días, 1 año, 2 años o todos.
+- Paginación real para listados de candidatos y empresas: 50 o 100 registros por página.
+- Navegación con botones Anterior / Siguiente para no perder registros cuando el volumen crezca.
+- Versionado unificado a v5.7.4.

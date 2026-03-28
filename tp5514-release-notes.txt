@@ -1,6 +1,9 @@
-Talento PyME v5.7.0
-- Factory muestra solo documentos vigentes y vence pedidos pendientes a las 24 horas.
-- Resumen operativo con plan activo, días vigentes, publicaciones y búsquedas restantes.
-- Buscar Talento muestra el estado del plan desde el inicio.
-- Ticket promocional corregido y planes apagados completamente cubiertos.
-- Versionado unificado a v5.7.0.
+Talento PyME v5.5.15
+
+- Factory: simulación de pago virtual más tolerante para pruebas.
+- La marca de tarjeta ahora se autodetecta desde el número ingresado.
+- Se agregaron accesos rápidos para cargar tarjetas de prueba Visa, Mastercard, Amex y Diners.
+- Si la marca elegida no coincide con la detectada, la simulación prioriza la detectada en vez de bloquear el pago.
+- El CVV de prueba acepta 3 o 4 dígitos en entorno simulado.
+- Se deshabilita el botón mientras autoriza y se muestran errores de validación en pantalla.
+- Versionado unificado a 5.5.15.
