@@ -1,4 +1,4 @@
-# Talento PyME — v7.8.1
+# Talento PyME — v7.8.2
 
 Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**.
 
@@ -32,3 +32,12 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 ## Versión única (anti-confusión)
 - UI: `apps/web/config.js` → `TP_APP_VERSION = "4.3.0"`
 - API: `apps/api/package.json` → `4.3.0` y endpoint `/health`.
+
+
+## Resguardo y capacidad operativa
+- Panel de superadministración con semáforo de capacidad DB.
+- Política visible de backup: automático diario, conservando los últimos 2 días, con respaldo externo del proveedor.
+- Botón específico para **Ampliar capacidad DB** mediante URL configurable (`ADMIN_UPGRADE_URL`).
+- Tabla histórica `AdminMonthlySnapshot` para consolidación mensual de trazabilidad.
+
+> Importante: el tablero muestra y documenta la política de resguardo. La ejecución real del backup externo depende de que el proveedor/hosting tenga esa rutina activada en su consola.

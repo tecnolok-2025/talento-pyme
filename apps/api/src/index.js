@@ -33,7 +33,11 @@ const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB 
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
 const ADMIN_BACKUP_URL = String(process.env.ADMIN_BACKUP_URL || '').trim();
-const ADMIN_BACKUP_MODE = String(process.env.ADMIN_BACKUP_MODE || 'PENDING').trim().toUpperCase();
+const ADMIN_UPGRADE_URL = String(process.env.ADMIN_UPGRADE_URL || process.env.ADMIN_INFRA_URL || '').trim();
+const ADMIN_BACKUP_MODE = String(process.env.ADMIN_BACKUP_MODE || 'AUTOMATIC').trim().toUpperCase();
+const ADMIN_BACKUP_FREQUENCY = String(process.env.ADMIN_BACKUP_FREQUENCY || 'DAILY').trim().toUpperCase();
+const ADMIN_BACKUP_RETENTION_DAYS = Math.max(1, Number(process.env.ADMIN_BACKUP_RETENTION_DAYS || 2));
+const ADMIN_BACKUP_PROVIDER = String(process.env.ADMIN_BACKUP_PROVIDER || 'EXTERNAL_PROVIDER').trim().toUpperCase();
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
@@ -50,6 +54,32 @@ const FACTORY_ADMIN_ALLOWED_COMPANIES = String(
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
+
+
+function adminBackupModeLabel(mode){
+  return ({ AUTOMATIC:'Automático', MANUAL:'Manual', PENDING:'Pendiente de configurar' }[String(mode || '').toUpperCase()] || 'Pendiente de configurar');
+}
+
+function adminBackupFrequencyLabel(freq){
+  return ({ DAILY:'Diario', WEEKLY:'Semanal', MONTHLY:'Mensual' }[String(freq || '').toUpperCase()] || String(freq || 'Diario'));
+}
+
+function adminBackupProviderLabel(provider){
+  return ({ EXTERNAL_PROVIDER:'Proveedor externo', PROVIDER:'Proveedor externo', INTERNAL:'Interno', MIXED:'Mixto' }[String(provider || '').toUpperCase()] || 'Proveedor externo');
+}
+
+function buildAdminBackupSummary(){
+  const modeLabel = adminBackupModeLabel(ADMIN_BACKUP_MODE);
+  const frequencyLabel = adminBackupFrequencyLabel(ADMIN_BACKUP_FREQUENCY).toLowerCase();
+  const providerLabel = adminBackupProviderLabel(ADMIN_BACKUP_PROVIDER).toLowerCase();
+  if (ADMIN_BACKUP_MODE === 'AUTOMATIC') {
+    return `Automático ${frequencyLabel} · conserva últimos ${ADMIN_BACKUP_RETENTION_DAYS} día(s) · respaldo ${providerLabel}`;
+  }
+  if (ADMIN_BACKUP_MODE === 'MANUAL') {
+    return `Manual · conserva últimos ${ADMIN_BACKUP_RETENTION_DAYS} día(s) · respaldo ${providerLabel}`;
+  }
+  return `${modeLabel} · conserva últimos ${ADMIN_BACKUP_RETENTION_DAYS} día(s) · respaldo ${providerLabel}`;
+}
 
 const PAYMENT_CONFIG = getPaymentConfigFromEnv(process.env);
 const PAYMENT_PROVIDER_NAME = PAYMENT_CONFIG.provider;
@@ -3976,8 +4006,15 @@ async function readDatabaseCapacityStatus(){
     recommendation: 'Verificá el proveedor de base de datos y configurá los umbrales de capacidad para dejar este tablero operativo.',
     infraUrl: ADMIN_INFRA_URL || null,
     backupUrl: ADMIN_BACKUP_URL || null,
-    backupMode: ADMIN_BACKUP_MODE || 'PENDING',
-    backupLabel: ({ AUTOMATIC:'Automático', MANUAL:'Manual', PENDING:'Pendiente de configurar' }[ADMIN_BACKUP_MODE] || 'Pendiente de configurar'),
+    backupMode: ADMIN_BACKUP_MODE || 'AUTOMATIC',
+    backupLabel: adminBackupModeLabel(ADMIN_BACKUP_MODE),
+    backupSummary: buildAdminBackupSummary(),
+    backupFrequency: ADMIN_BACKUP_FREQUENCY,
+    backupFrequencyLabel: adminBackupFrequencyLabel(ADMIN_BACKUP_FREQUENCY),
+    backupRetentionDays: ADMIN_BACKUP_RETENTION_DAYS,
+    backupProvider: ADMIN_BACKUP_PROVIDER,
+    backupProviderLabel: adminBackupProviderLabel(ADMIN_BACKUP_PROVIDER),
+    upgradeUrl: ADMIN_UPGRADE_URL || ADMIN_INFRA_URL || null,
     providerLoginNote: 'El enlace abre la consola del proveedor y puede pedir su propio acceso de infraestructura.',
   };
   try {

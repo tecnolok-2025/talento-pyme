@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.8.1" />
+  <link rel="stylesheet" href="/styles.css?v=7.8.2" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -194,7 +194,7 @@
             <span class="opsHeadlinePill unknown" id="opsStatusPill">Sin lectura</span>
             <h2 style="margin:0" id="opsHeadline">Todavía no se cargó el diagnóstico operativo.</h2>
             <div class="muted" id="opsRecommendation">Cuando el panel lea la base, acá vas a ver si la capacidad está saludable, en observación o en estado crítico.</div>
-            <div class="opsAlertBox"><b id="opsDbName">Base principal</b><div class="muted" id="opsProviderNote" style="margin-top:6px">El enlace abre la consola del proveedor y puede pedir su propio acceso de infraestructura.</div><div class="opsActionRow"><a class="btn btn-ghost" id="btnInfraConsole" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Abrir consola de infraestructura</a><a class="btn btn-ghost" id="btnBackupConsole" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Abrir backup / proveedor</a></div></div>
+            <div class="opsAlertBox"><b id="opsDbName">Base principal</b><div class="muted" id="opsProviderNote" style="margin-top:6px">El enlace abre la consola del proveedor y puede pedir su propio acceso de infraestructura.</div><div class="opsActionRow"><a class="btn btn-primary" id="btnUpgradeDb" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Ampliar capacidad DB</a><a class="btn btn-ghost" id="btnInfraConsole" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Abrir consola de infraestructura</a><a class="btn btn-ghost" id="btnBackupConsole" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Abrir backup / proveedor</a></div></div>
           </div>
         </div>
       </div>
@@ -204,7 +204,7 @@
           <div class="opsMetric"><span class="muted small">Uso actual de DB</span><b id="opsSizeMb">—</b><div class="muted" id="opsUsagePct">—</div></div>
           <div class="opsMetric"><span class="muted small">Umbral de atención</span><b id="opsWarningMb">—</b><div class="muted">Lectura preventiva</div></div>
           <div class="opsMetric"><span class="muted small">Umbral crítico</span><b id="opsCriticalMb">—</b><div class="muted">Acción recomendada</div></div>
-          <div class="opsMetric"><span class="muted small">Modo de backup</span><b id="opsBackupMode">—</b><div class="muted" id="opsSnapshotCount">—</div></div>
+          <div class="opsMetric"><span class="muted small">Modo de backup</span><b id="opsBackupMode">—</b><div class="muted" id="opsBackupSummary">—</div></div><div class="opsMetric"><span class="muted small">Auditoría mensual</span><b id="opsSnapshotCount">—</b><div class="muted" id="opsSnapshotPolicy">Consolidación histórica activa</div></div>
         </div>
         <div class="opsMiniCard" style="margin-top:16px"><span class="muted small">Ocupación estimada sobre el umbral crítico</span><div class="opsProgress"><div class="opsProgressFill" id="opsProgressFill" style="width:0%"></div></div><div class="muted" id="opsProgressLabel" style="margin-top:8px">Sin lectura todavía.</div></div>
       </div>
@@ -212,7 +212,7 @@
     <div class="opsSecondaryGrid">
       <div class="opsMiniCard"><span class="muted small">Auditoría histórica mensual</span><b id="opsLastClosedMonth" style="display:block;font-size:24px;margin-top:6px">—</b><div class="muted">Último mes consolidado sin depender de la tabla operativa en vivo.</div></div>
       <div class="opsMiniCard"><span class="muted small">Mes vivo en seguimiento</span><b id="opsCurrentMonth" style="display:block;font-size:24px;margin-top:6px">—</b><div class="muted">Este mes se sigue actualizando en tiempo real a medida que crece la plataforma.</div></div>
-      <div class="opsMiniCard"><span class="muted small">Interpretación ejecutiva</span><div id="opsExecutiveNote" class="muted" style="margin-top:8px">Este tablero te ayuda a decidir cuándo reforzar infraestructura, revisar backups y seguir la salud de la base.</div></div>
+      <div class="opsMiniCard"><span class="muted small">Interpretación ejecutiva</span><div id="opsExecutiveNote" class="muted" style="margin-top:8px">Este tablero te ayuda a decidir cuándo reforzar infraestructura, revisar backups y seguir la salud de la base.</div></div><div class="opsMiniCard"><span class="muted small">Política de resguardo</span><b id="opsBackupPolicyTitle" style="display:block;font-size:20px;margin-top:6px">—</b><div class="muted" id="opsBackupPolicyNote" style="margin-top:8px">Todavía no se informó la política de backup.</div></div>
     </div>
   </section>
   <section class="tabPane" id="tab-factory">
@@ -229,8 +229,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.8.1"></script>
-<script src="/auth.js?v=7.8.1"></script>
+<script src="/config.js?v=7.8.2"></script>
+<script src="/auth.js?v=7.8.2"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -383,10 +383,16 @@ function renderOperationalStatus(){
   document.getElementById('opsWarningMb').textContent = `${Number(ops.warningMb || 0).toLocaleString('es-AR')} MB`;
   document.getElementById('opsCriticalMb').textContent = `${Number(ops.criticalMb || 0).toLocaleString('es-AR')} MB`;
   document.getElementById('opsBackupMode').textContent = ops.backupLabel || 'Pendiente de configurar';
+  document.getElementById('opsBackupSummary').textContent = ops.backupSummary || 'Sin política de backup visible todavía.';
   const capturedMonths = Number(ops.snapshotInfo?.capturedMonths || 0);
   document.getElementById('opsSnapshotCount').textContent = `${capturedMonths} mes(es) auditados`;
+  document.getElementById('opsSnapshotPolicy').textContent = capturedMonths ? 'Consolidación histórica activa' : 'Esperando consolidación histórica';
   document.getElementById('opsLastClosedMonth').textContent = ops.snapshotInfo?.lastClosedMonth ? monthLabelFromKey(ops.snapshotInfo.lastClosedMonth, 'long') : 'Sin cierre';
   document.getElementById('opsCurrentMonth').textContent = ops.snapshotInfo?.currentMonthKey ? monthLabelFromKey(ops.snapshotInfo.currentMonthKey, 'long') : 'Sin dato';
+  document.getElementById('opsBackupPolicyTitle').textContent = ops.backupMode === 'AUTOMATIC' ? 'Resguardo automático diario' : (ops.backupLabel || 'Política no definida');
+  document.getElementById('opsBackupPolicyNote').textContent = ops.backupMode === 'AUTOMATIC'
+    ? `Se conservan los últimos ${Number(ops.backupRetentionDays || 0).toLocaleString('es-AR')} día(s) y se considera respaldo ${String(ops.backupProviderLabel || 'Proveedor externo').toLowerCase()}.`
+    : (ops.backupSummary || 'Todavía no se informó la política de backup.');
   const fillPct = Math.max(0, Math.min(100, Number(ops.usagePct || 0)));
   document.getElementById('opsProgressFill').style.width = `${fillPct}%`;
   document.getElementById('opsProgressLabel').textContent = `Uso estimado: ${fillPct.toLocaleString('es-AR')}% sobre el umbral crítico configurado.`;
@@ -397,8 +403,10 @@ function renderOperationalStatus(){
       : status === 'OK'
         ? 'Estado saludable: la capacidad actual permite seguir creciendo, con trazabilidad y auditoría histórica bajo monitoreo.'
         : 'Lectura incompleta: revisá la conexión con PostgreSQL y configurá los umbrales del tablero para obtener una interpretación automática.';
+  const upgrade = document.getElementById('btnUpgradeDb');
   const infra = document.getElementById('btnInfraConsole');
   const backup = document.getElementById('btnBackupConsole');
+  if(ops.upgradeUrl){ upgrade.href = ops.upgradeUrl; upgrade.style.display = ''; } else { upgrade.removeAttribute('href'); upgrade.style.display = 'none'; }
   if(ops.infraUrl){ infra.href = ops.infraUrl; infra.style.display = ''; } else { infra.removeAttribute('href'); infra.style.display = 'none'; }
   if(ops.backupUrl){ backup.href = ops.backupUrl; backup.style.display = ''; } else { backup.removeAttribute('href'); backup.style.display = 'none'; }
 }
