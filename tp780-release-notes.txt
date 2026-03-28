@@ -1,0 +1,9 @@
+Talento PyME · revisión 7.8.0
+
+Cambios principales
+- Nueva pestaña Trazabilidad en superadministración, ubicada después de Resumen facturación.
+- Gráfico mensual con ventanas de 4 meses y navegación hacia períodos anteriores o posteriores.
+- Gráfico anual con vista completa de 12 meses y navegación por año.
+- Cada grupo muestra 3 barras: candidatos, empresas y facturación/tickets emitidos.
+- Se agregó ayuda contextual en el registro de candidatos para explicar el uso del DNI / número de registro de 11 dígitos como medida de seguridad y recuperación de clave.
+- Versionado unificado a 7.8.0.

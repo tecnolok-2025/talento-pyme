@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Talento PyME</title>
   <meta name="theme-color" content="#0B1220" />
-  <link rel="manifest" href="/manifest.webmanifest?v=5.7.7" />
+  <link rel="manifest" href="/manifest.webmanifest?v=7.8.0" />
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=5.7.7" />
+  <link rel="stylesheet" href="/styles.css?v=7.8.0" />
 </head>
 <body class="authBody">
   <div class="authTop">
@@ -81,7 +81,7 @@
 
                 <label>DNI (Número de registro 11 dígitos)</label>
                 <input class="input" id="regDni" placeholder="Solo números" inputmode="numeric" />
-
+                <div class="muted small" id="regDniHint" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid #bfdbfe;border-radius:14px;background:#eff6ff;color:#1e3a8a">El número de registro se solicita únicamente para reforzar la confiabilidad y seguridad del sistema. Te servirá para blanquear o reconfigurar tu clave si alguna vez lo necesitás. También podés ingresar 11 dígitos que no tengan relación con tu número de registro real, pero en ese caso tendrás que recordarlos exactamente porque serán tu referencia para recuperar la clave.</div>
 
                 <label>Dirección</label>
                 <input class="input" id="regAddress" placeholder="Ej: Av. Siempre Viva 742" />
@@ -182,8 +182,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=5.7.7"></script>
-  <script src="/auth.js?v=5.7.7"></script>
+  <script src="/config.js?v=7.8.0"></script>
+  <script src="/auth.js?v=7.8.0"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));
@@ -231,6 +231,14 @@
     $("tabRegister")?.addEventListener("click", () => setMode("REGISTER"));
     $("btnBackToLogin")?.addEventListener("click", () => setMode("LOGIN"));
     $("btnUpdate")?.addEventListener("click", () => forceUpdate());
+    const regDni = $("regDni");
+    const regDniHint = $("regDniHint");
+    const showRegDniHint = () => { if(regDniHint) regDniHint.style.display = "block"; };
+    const hideRegDniHint = () => { if(regDniHint && !(regDni?.value || "").trim()) regDniHint.style.display = "none"; };
+    regDni?.addEventListener("focus", showRegDniHint);
+    regDni?.addEventListener("click", showRegDniHint);
+    regDni?.addEventListener("input", showRegDniHint);
+    regDni?.addEventListener("blur", hideRegDniHint);
 
     async function post(path, body){
       const r = await fetch(`${window.TP_API_URL}${path}`,{

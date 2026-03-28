@@ -3981,6 +3981,30 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       EXPIRED: 'Expirada',
       CANCELLED: 'Cancelada',
     }[String(status || '').toUpperCase()] || String(status || 'Documento'));
+    const monthKeyOf = (value) => {
+      const d = value ? new Date(value) : null;
+      if (!d || Number.isNaN(d.getTime())) return null;
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+    const shiftMonth = (date, delta) => new Date(date.getFullYear(), date.getMonth() + delta, 1);
+    const monthStart = (value) => {
+      const d = value ? new Date(value) : new Date();
+      return new Date(d.getFullYear(), d.getMonth(), 1);
+    };
+    const monthLabel = (key, format = 'short') => {
+      const [year, month] = String(key || '').split('-').map((v) => Number(v));
+      if (!year || !month) return '—';
+      return new Date(year, month - 1, 1).toLocaleDateString('es-AR', { month: format, year: 'numeric' });
+    };
+    const buildMonthMap = (rows) => {
+      const map = new Map();
+      (rows || []).forEach((row) => {
+        const key = monthKeyOf(row?.createdAt);
+        if (!key) return;
+        map.set(key, Number(map.get(key) || 0) + 1);
+      });
+      return map;
+    };
 
     const since30 = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
     const candidateDays = String(req.query.candidateDays || 'ALL').toUpperCase();
@@ -4005,7 +4029,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       ...(billingStatus !== 'ALL' ? { status: billingStatus } : {}),
     };
 
-    const [candidateCount, companyCount, jobsCount, applicationCount, orderCount, paidAgg, pendingAgg, paidOrderCount, filteredCandidateCount, filteredCompanyCount, filteredBillingCount, candidateRows, companyRows, billingRows, recentThreads, candidateUpdated30, candidateApplications30, candidateChats30, companyUpdated30, companyJobs30, companyChats30, companyAccess30, candidateRecentApplications, companyRecentOrders, companyRecentOpenings, candidateRecentThreads, companyRecentThreads, recentJobs] = await Promise.all([
+    const [candidateCount, companyCount, jobsCount, applicationCount, orderCount, paidAgg, pendingAgg, paidOrderCount, filteredCandidateCount, filteredCompanyCount, filteredBillingCount, candidateRows, companyRows, billingRows, recentThreads, candidateUpdated30, candidateApplications30, candidateChats30, companyUpdated30, companyJobs30, companyChats30, companyAccess30, candidateRecentApplications, companyRecentOrders, companyRecentOpenings, candidateRecentThreads, companyRecentThreads, recentJobs, candidateTimelineRows, companyTimelineRows, billingTimelineRows] = await Promise.all([
       prisma.candidateBolsa.count().catch(() => 0),
       prisma.companyProfile.count().catch(() => 0),
       prisma.job.count().catch(() => 0),
@@ -4038,9 +4062,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         orderBy: [{ createdAt: 'desc' }, { updatedAt: 'desc' }],
         skip: (companyPage - 1) * companyPerPage,
         take: companyPerPage,
-        include: {
-          user: { select: { email: true, createdAt: true } },
-        },
+        include: { user: { select: { email: true, createdAt: true } } },
       }).catch(() => []),
       prisma.billingOrder.findMany({
         where: billingWhere,
@@ -4066,6 +4088,9 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.supportThread.findMany({ where: { role: 'CANDIDATE' }, orderBy: { updatedAt: 'desc' }, take: 30, include: { user: { select: { email: true } }, messages: { orderBy: { createdAt: 'desc' }, take: 1 } } }).catch(() => []),
       prisma.supportThread.findMany({ where: { role: 'COMPANY' }, orderBy: { updatedAt: 'desc' }, take: 30, include: { company: { select: { companyName: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'desc' }, take: 1 } } }).catch(() => []),
       prisma.job.findMany({ orderBy: { createdAt: 'desc' }, take: 40, include: { company: { select: { companyName: true } } } }).catch(() => []),
+      prisma.candidateBolsa.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
+      prisma.companyProfile.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
+      prisma.billingOrder.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
     ]);
 
     const normalizedCandidates = (candidateRows || []).map((it) => ({
@@ -4137,7 +4162,6 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       actor: `${it.nombre || ''} ${it.apellido || ''}`.trim() || it.email || 'Candidato',
       context: 'Registro o actualización del lado candidato',
     }));
-
     const candidateChatEvents = (candidateRecentThreads || []).map((it) => ({
       type: 'consulta_ia',
       createdAt: it.updatedAt || it.createdAt,
@@ -4145,7 +4169,6 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       actor: it.user?.email || 'Candidato',
       context: 'Ayuda IA del candidato',
     }));
-
     const candidateApplicationEvents = (candidateRecentApplications || []).map((it) => ({
       type: 'postulacion',
       createdAt: it.createdAt,
@@ -4153,7 +4176,6 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       actor: it.user?.email || 'Candidato',
       context: it.job?.company?.companyName ? `Postulación a ${it.job.company.companyName}` : 'Postulación enviada',
     }));
-
     const companyProfileEvents = normalizedCompanies.slice(0, 20).map((it) => ({
       type: 'alta_empresa',
       createdAt: it.updatedAt || it.createdAt || new Date(),
@@ -4161,7 +4183,6 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       actor: it.companyName || 'Empresa',
       context: 'Registro o actualización del lado empresa',
     }));
-
     const companyOrderEvents = (companyRecentOrders || []).map((it) => ({
       type: 'documento',
       createdAt: it.createdAt,
@@ -4169,7 +4190,6 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       actor: it.company?.companyName || 'Empresa',
       context: billingStatusLabel(it.status),
     }));
-
     const companyOpeningEvents = (companyRecentOpenings || []).map((it) => ({
       type: 'apertura',
       createdAt: it.createdAt,
@@ -4177,7 +4197,6 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       actor: it.company?.companyName || 'Empresa',
       context: 'Apertura de candidato desde Buscar Talento',
     }));
-
     const companyJobEvents = (recentJobs || []).map((it) => ({
       type: 'busqueda',
       createdAt: it.createdAt,
@@ -4185,7 +4204,6 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       actor: it.company?.companyName || 'Empresa',
       context: String(it.status || 'PUBLISHED') === 'PUBLISHED' ? 'Búsqueda publicada' : 'Búsqueda en borrador',
     }));
-
     const companyChatEvents = (companyRecentThreads || []).map((it) => ({
       type: 'consulta_ia',
       createdAt: it.updatedAt || it.createdAt,
@@ -4193,6 +4211,43 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       actor: it.company?.companyName || it.user?.email || 'Empresa',
       context: 'Ayuda IA del lado empresa',
     }));
+
+    const candidateMonthMap = buildMonthMap(candidateTimelineRows);
+    const companyMonthMap = buildMonthMap(companyTimelineRows);
+    const billingMonthMap = buildMonthMap(billingTimelineRows);
+    const historicalDates = [
+      candidateTimelineRows?.[0]?.createdAt,
+      companyTimelineRows?.[0]?.createdAt,
+      billingTimelineRows?.[0]?.createdAt,
+    ].filter(Boolean).map((value) => new Date(value)).filter((d) => !Number.isNaN(d.getTime()));
+    const currentMonth = monthStart(new Date());
+    const baselineStart = shiftMonth(currentMonth, -23);
+    const firstMonth = historicalDates.length ? monthStart(historicalDates.sort((a,b) => a - b)[0]) : currentMonth;
+    const chartStart = firstMonth < baselineStart ? firstMonth : baselineStart;
+    const monthKeys = [];
+    for (let cursor = new Date(chartStart); cursor <= currentMonth; cursor = shiftMonth(cursor, 1)) {
+      monthKeys.push(monthKeyOf(cursor));
+    }
+    const monthlySeries = monthKeys.map((key) => ({
+      key,
+      label: monthLabel(key, 'long'),
+      shortLabel: monthLabel(key, 'short').replace('.', ''),
+      candidates: Number(candidateMonthMap.get(key) || 0),
+      companies: Number(companyMonthMap.get(key) || 0),
+      billing: Number(billingMonthMap.get(key) || 0),
+    }));
+    const availableYears = Array.from(new Set(monthKeys.map((key) => Number(String(key).slice(0, 4))))).sort((a, b) => a - b);
+    const annualSeriesByYear = Object.fromEntries(availableYears.map((year) => [String(year), Array.from({ length: 12 }, (_, index) => {
+      const key = `${year}-${String(index + 1).padStart(2, '0')}`;
+      return {
+        key,
+        label: monthLabel(key, 'long'),
+        shortLabel: new Date(year, index, 1).toLocaleDateString('es-AR', { month: 'short' }).replace('.', ''),
+        candidates: Number(candidateMonthMap.get(key) || 0),
+        companies: Number(companyMonthMap.get(key) || 0),
+        billing: Number(billingMonthMap.get(key) || 0),
+      };
+    })]));
 
     return res.json({
       ok: true,
@@ -4216,7 +4271,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
             ...candidateProfileEvents,
             ...candidateApplicationEvents,
             ...candidateChatEvents,
-          ]).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50),
+          ]).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50),
         },
         company: {
           totalRegistered: companyCount,
@@ -4230,8 +4285,15 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
             ...companyOpeningEvents,
             ...companyJobEvents,
             ...companyChatEvents,
-          ]).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50),
+          ]).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50),
         },
+      },
+      traceabilityCharts: {
+        monthlyWindowSize: 4,
+        currentYear: new Date().getFullYear(),
+        monthlySeries,
+        availableYears,
+        annualSeriesByYear,
       },
       candidates: normalizedCandidates,
       companies: normalizedCompanies,
