@@ -29,6 +29,11 @@ app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
 const APP_VERSION = process.env.npm_package_version || "dev";
+const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
+const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
+const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
+const ADMIN_BACKUP_URL = String(process.env.ADMIN_BACKUP_URL || '').trim();
+const ADMIN_BACKUP_MODE = String(process.env.ADMIN_BACKUP_MODE || 'PENDING').trim().toUpperCase();
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
@@ -3956,6 +3961,113 @@ app.delete('/support/thread', auth, async (req, res) => {
   }
 });
 
+async function readDatabaseCapacityStatus(){
+  const fallback = {
+    provider: 'PostgreSQL',
+    dbName: 'principal',
+    sizeBytes: 0,
+    sizeMb: 0,
+    warningMb: ADMIN_DB_WARNING_MB,
+    criticalMb: ADMIN_DB_CRITICAL_MB,
+    usagePct: 0,
+    status: 'UNKNOWN',
+    statusLabel: 'Sin lectura',
+    headline: 'No se pudo leer el tamaño actual de la base.',
+    recommendation: 'Verificá el proveedor de base de datos y configurá los umbrales de capacidad para dejar este tablero operativo.',
+    infraUrl: ADMIN_INFRA_URL || null,
+    backupUrl: ADMIN_BACKUP_URL || null,
+    backupMode: ADMIN_BACKUP_MODE || 'PENDING',
+    backupLabel: ({ AUTOMATIC:'Automático', MANUAL:'Manual', PENDING:'Pendiente de configurar' }[ADMIN_BACKUP_MODE] || 'Pendiente de configurar'),
+    providerLoginNote: 'El enlace abre la consola del proveedor y puede pedir su propio acceso de infraestructura.',
+  };
+  try {
+    const rows = await prisma.$queryRawUnsafe(`SELECT current_database() AS db_name, pg_database_size(current_database()) AS size_bytes`);
+    const row = Array.isArray(rows) ? rows[0] || {} : {};
+    const sizeBytes = Number(row?.size_bytes || 0);
+    const sizeMb = Number((sizeBytes / (1024 * 1024)).toFixed(2));
+    const usagePct = Math.min(999, Number(((sizeMb / ADMIN_DB_CRITICAL_MB) * 100).toFixed(1)));
+    let status = 'OK';
+    let statusLabel = 'Operativo';
+    let headline = 'La capacidad actual se encuentra en un rango saludable.';
+    let recommendation = 'Seguí monitoreando este tablero y revisá periódicamente la evolución del tamaño de la base.';
+    if (sizeMb >= ADMIN_DB_CRITICAL_MB) {
+      status = 'CRITICAL';
+      statusLabel = 'Crítico';
+      headline = 'La base de datos está entrando en una zona crítica de capacidad.';
+      recommendation = 'Conviene ampliar capacidad o reforzar el plan de base de datos para no comprometer la continuidad operativa ni la trazabilidad histórica.';
+    } else if (sizeMb >= ADMIN_DB_WARNING_MB) {
+      status = 'WARNING';
+      statusLabel = 'Atención';
+      headline = 'La base de datos está creciendo y merece seguimiento preventivo.';
+      recommendation = 'Revisá la consola del proveedor y evaluá ampliar memoria/capacidad antes de llegar al punto crítico.';
+    }
+    return {
+      ...fallback,
+      dbName: String(row?.db_name || 'principal'),
+      sizeBytes,
+      sizeMb,
+      usagePct,
+      status,
+      statusLabel,
+      headline,
+      recommendation,
+    };
+  } catch (error) {
+    console.error('readDatabaseCapacityStatus', error);
+    return fallback;
+  }
+}
+
+async function ensureMonthlyAuditSnapshots({ monthKeys = [], candidateMonthMap = new Map(), companyMonthMap = new Map(), billingMonthMap = new Map(), currentMonthKey = null }) {
+  if (!Array.isArray(monthKeys) || !monthKeys.length) return [];
+  const payloads = monthKeys.map((key) => ({
+    monthKey: key,
+    year: Number(String(key).slice(0, 4)),
+    month: Number(String(key).slice(5, 7)),
+    candidateCount: Number(candidateMonthMap.get(key) || 0),
+    companyCount: Number(companyMonthMap.get(key) || 0),
+    billingCount: Number(billingMonthMap.get(key) || 0),
+    source: key === currentMonthKey ? 'LIVE_OPEN' : 'LIVE_CLOSED',
+    closedAt: key === currentMonthKey ? null : new Date(),
+  }));
+  const closedPayloads = payloads.filter((item) => item.monthKey !== currentMonthKey);
+  if (closedPayloads.length) {
+    await prisma.adminMonthlySnapshot.createMany({ data: closedPayloads, skipDuplicates: true }).catch(() => null);
+  }
+  const currentPayload = payloads.find((item) => item.monthKey === currentMonthKey);
+  if (currentPayload) {
+    await prisma.adminMonthlySnapshot.upsert({
+      where: { monthKey: currentPayload.monthKey },
+      update: {
+        candidateCount: currentPayload.candidateCount,
+        companyCount: currentPayload.companyCount,
+        billingCount: currentPayload.billingCount,
+        source: currentPayload.source,
+        closedAt: null,
+      },
+      create: currentPayload,
+    }).catch(() => null);
+  }
+  return prisma.adminMonthlySnapshot.findMany({ orderBy: [{ year: 'asc' }, { month: 'asc' }] }).catch(() => []);
+}
+
+function mergeOperationalSeriesWithSnapshots({ monthKeys = [], liveCandidateMap = new Map(), liveCompanyMap = new Map(), liveBillingMap = new Map(), snapshots = [], currentMonthKey = null, monthLabel }) {
+  const snapshotMap = new Map((snapshots || []).map((row) => [row.monthKey, row]));
+  return monthKeys.map((key) => {
+    const snapshot = snapshotMap.get(key);
+    const useSnapshot = snapshot && key !== currentMonthKey;
+    return {
+      key,
+      label: monthLabel(key, 'long'),
+      shortLabel: monthLabel(key, 'short'),
+      candidates: Number(useSnapshot ? snapshot.candidateCount : (liveCandidateMap.get(key) || 0)),
+      companies: Number(useSnapshot ? snapshot.companyCount : (liveCompanyMap.get(key) || 0)),
+      billing: Number(useSnapshot ? snapshot.billingCount : (liveBillingMap.get(key) || 0)),
+      source: useSnapshot ? 'SNAPSHOT' : 'LIVE',
+    };
+  });
+}
+
 app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   try {
     await ensureSupportKnowledgeSeed();
@@ -4228,26 +4340,39 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
     for (let cursor = new Date(chartStart); cursor <= currentMonth; cursor = shiftMonth(cursor, 1)) {
       monthKeys.push(monthKeyOf(cursor));
     }
-    const monthlySeries = monthKeys.map((key) => ({
-      key,
-      label: monthLabel(key, 'long'),
-      shortLabel: monthLabel(key, 'short').replace('.', ''),
-      candidates: Number(candidateMonthMap.get(key) || 0),
-      companies: Number(companyMonthMap.get(key) || 0),
-      billing: Number(billingMonthMap.get(key) || 0),
-    }));
+    const currentMonthKey = monthKeyOf(currentMonth);
+    const snapshots = await ensureMonthlyAuditSnapshots({
+      monthKeys,
+      candidateMonthMap,
+      companyMonthMap,
+      billingMonthMap,
+      currentMonthKey,
+    });
+    const monthlySeries = mergeOperationalSeriesWithSnapshots({
+      monthKeys,
+      liveCandidateMap: candidateMonthMap,
+      liveCompanyMap: companyMonthMap,
+      liveBillingMap: billingMonthMap,
+      snapshots,
+      currentMonthKey,
+      monthLabel,
+    }).map((row) => ({ ...row, shortLabel: String(row.shortLabel || '').replace('.', '') }));
     const availableYears = Array.from(new Set(monthKeys.map((key) => Number(String(key).slice(0, 4))))).sort((a, b) => a - b);
     const annualSeriesByYear = Object.fromEntries(availableYears.map((year) => [String(year), Array.from({ length: 12 }, (_, index) => {
       const key = `${year}-${String(index + 1).padStart(2, '0')}`;
+      const snapshot = (snapshots || []).find((row) => row.monthKey === key);
+      const useSnapshot = !!snapshot && key !== currentMonthKey;
       return {
         key,
         label: monthLabel(key, 'long'),
         shortLabel: new Date(year, index, 1).toLocaleDateString('es-AR', { month: 'short' }).replace('.', ''),
-        candidates: Number(candidateMonthMap.get(key) || 0),
-        companies: Number(companyMonthMap.get(key) || 0),
-        billing: Number(billingMonthMap.get(key) || 0),
+        candidates: Number(useSnapshot ? snapshot.candidateCount : (candidateMonthMap.get(key) || 0)),
+        companies: Number(useSnapshot ? snapshot.companyCount : (companyMonthMap.get(key) || 0)),
+        billing: Number(useSnapshot ? snapshot.billingCount : (billingMonthMap.get(key) || 0)),
+        source: useSnapshot ? 'SNAPSHOT' : 'LIVE',
       };
     })]));
+    const operationalStatus = await readDatabaseCapacityStatus();
 
     return res.json({
       ok: true,
@@ -4294,6 +4419,19 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         monthlySeries,
         availableYears,
         annualSeriesByYear,
+        snapshotInfo: {
+          capturedMonths: Number(snapshots?.length || 0),
+          lastClosedMonth: (snapshots || []).filter((row) => row.monthKey !== currentMonthKey).slice(-1)[0]?.monthKey || null,
+          currentMonthKey,
+        },
+      },
+      operationalStatus: {
+        ...operationalStatus,
+        snapshotInfo: {
+          capturedMonths: Number(snapshots?.length || 0),
+          lastClosedMonth: (snapshots || []).filter((row) => row.monthKey !== currentMonthKey).slice(-1)[0]?.monthKey || null,
+          currentMonthKey,
+        },
       },
       candidates: normalizedCandidates,
       companies: normalizedCompanies,

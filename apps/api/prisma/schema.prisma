@@ -478,3 +478,20 @@ model SupportKnowledge {
 
   @@index([scope, isActive])
 }
+
+
+model AdminMonthlySnapshot {
+  monthKey       String   @id
+  year           Int
+  month          Int
+  candidateCount Int      @default(0)
+  companyCount   Int      @default(0)
+  billingCount   Int      @default(0)
+  source         String   @default("LIVE")
+  closedAt       DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([year, month])
+  @@index([year, month])
+}

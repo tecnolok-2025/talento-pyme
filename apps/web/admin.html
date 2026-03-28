@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.8.0" />
+  <link rel="stylesheet" href="/styles.css?v=7.8.1" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -58,6 +58,32 @@
     .traceSummaryBox{border:1px solid var(--tp-border);border-radius:16px;padding:12px;background:#fff}
     .traceSummaryBox b{display:block;font-size:24px;margin-top:4px}
     .traceChartFootnote{margin-top:12px}
+    .opsShell{display:grid;grid-template-columns:200px 1fr;gap:20px;align-items:center;margin-top:12px}
+    @media(max-width:960px){.opsShell{grid-template-columns:1fr}}
+    .opsSignalPanel{padding:18px;border-radius:24px;background:linear-gradient(180deg,#0f172a 0%,#1e293b 100%);display:flex;align-items:center;justify-content:center;min-height:300px;box-shadow:inset 0 0 0 1px rgba(148,163,184,.16)}
+    .opsSemaphore{width:96px;border-radius:40px;padding:18px 16px;background:linear-gradient(180deg,#111827 0%,#334155 100%);display:flex;flex-direction:column;gap:14px;align-items:center;box-shadow:0 18px 40px rgba(15,23,42,.35)}
+    .opsLight{width:52px;height:52px;border-radius:999px;background:rgba(255,255,255,.12);border:3px solid rgba(255,255,255,.12);box-shadow:inset 0 10px 18px rgba(255,255,255,.12)}
+    .opsLight.active.ok{background:radial-gradient(circle at 35% 30%,#dcfce7 0%,#22c55e 40%,#15803d 100%);border-color:#bbf7d0;box-shadow:0 0 0 6px rgba(34,197,94,.15),0 0 22px rgba(34,197,94,.45)}
+    .opsLight.active.warning{background:radial-gradient(circle at 35% 30%,#fef3c7 0%,#f59e0b 42%,#b45309 100%);border-color:#fde68a;box-shadow:0 0 0 6px rgba(245,158,11,.14),0 0 22px rgba(245,158,11,.42)}
+    .opsLight.active.critical{background:radial-gradient(circle at 35% 30%,#fee2e2 0%,#ef4444 42%,#b91c1c 100%);border-color:#fecaca;box-shadow:0 0 0 6px rgba(239,68,68,.14),0 0 24px rgba(239,68,68,.45)}
+    .opsHeadlineBox{display:grid;gap:10px}
+    .opsHeadlinePill{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;font-weight:900;letter-spacing:.05em;text-transform:uppercase;width:max-content}
+    .opsHeadlinePill.ok{background:rgba(22,163,74,.1);color:#166534}
+    .opsHeadlinePill.warning{background:rgba(245,158,11,.14);color:#b45309}
+    .opsHeadlinePill.critical{background:rgba(239,68,68,.12);color:#b91c1c}
+    .opsHeadlinePill.unknown{background:rgba(100,116,139,.14);color:#334155}
+    .opsAlertBox{border:1px solid var(--tp-border);border-radius:18px;padding:14px;background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%)}
+    .opsMetrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}
+    @media(max-width:1100px){.opsMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:720px){.opsMetrics{grid-template-columns:1fr}}
+    .opsMetric{border:1px solid var(--tp-border);border-radius:18px;padding:14px;background:#fff}
+    .opsMetric b{display:block;font-size:22px;margin-top:4px}
+    .opsActionRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    .opsSecondaryGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}
+    @media(max-width:980px){.opsSecondaryGrid{grid-template-columns:1fr}}
+    .opsMiniCard{border:1px solid var(--tp-border);border-radius:18px;padding:14px;background:#fff}
+    .opsProgress{position:relative;height:14px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin-top:10px}
+    .opsProgressFill{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:linear-gradient(90deg,#22c55e 0%,#f59e0b 70%,#ef4444 100%)}
     @media(max-width:960px){.traceChartLayout{grid-template-columns:1fr}.traceAxisY{display:none}.traceChartSummary{grid-template-columns:1fr}.traceBars{gap:4px}.traceBarWrap{width:24px}.traceBar{width:18px}.tracePlot{padding-left:8px;padding-right:8px}}
     @media(max-width:960px){.matrixRow{grid-template-columns:repeat(2,minmax(0,1fr))}.matrixRow .wide{grid-column:1/-1}.matrixRow .toggleCell{grid-column:1/-1}}
   </style>
@@ -78,6 +104,7 @@
     <button class="btn btn-ghost" data-tab="company" type="button">Resumen empresa</button>
     <button class="btn btn-ghost" data-tab="billing" type="button">Resumen facturación</button>
     <button class="btn btn-ghost" data-tab="traceability" type="button">Trazabilidad</button>
+    <button class="btn btn-ghost" data-tab="operations" type="button">Capacidad operativa</button>
     <button class="btn btn-ghost" data-tab="factory" type="button">Factory Admin</button>
     <button class="btn btn-ghost" data-tab="chat" type="button">Chat operador</button>
   </div>
@@ -151,6 +178,43 @@
       </div>
     </div>
   </section>
+  <section class="tabPane" id="tab-operations">
+    <div class="adminColumns">
+      <div class="card">
+        <div class="toolbarCard"><div><h2 style="margin:0">Capacidad operativa</h2><div class="muted">Lectura interpretativa del estado actual de la base y del sostén operativo del sistema.</div></div></div>
+        <div class="opsShell">
+          <div class="opsSignalPanel">
+            <div class="opsSemaphore" id="opsSemaphore">
+              <div class="opsLight" data-light="ok" title="Operativo"></div>
+              <div class="opsLight" data-light="warning" title="Atención"></div>
+              <div class="opsLight" data-light="critical" title="Crítico"></div>
+            </div>
+          </div>
+          <div class="opsHeadlineBox">
+            <span class="opsHeadlinePill unknown" id="opsStatusPill">Sin lectura</span>
+            <h2 style="margin:0" id="opsHeadline">Todavía no se cargó el diagnóstico operativo.</h2>
+            <div class="muted" id="opsRecommendation">Cuando el panel lea la base, acá vas a ver si la capacidad está saludable, en observación o en estado crítico.</div>
+            <div class="opsAlertBox"><b id="opsDbName">Base principal</b><div class="muted" id="opsProviderNote" style="margin-top:6px">El enlace abre la consola del proveedor y puede pedir su propio acceso de infraestructura.</div><div class="opsActionRow"><a class="btn btn-ghost" id="btnInfraConsole" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Abrir consola de infraestructura</a><a class="btn btn-ghost" id="btnBackupConsole" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Abrir backup / proveedor</a></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="toolbarCard"><div><h2 style="margin:0">Indicadores críticos</h2><div class="muted">Sirven para anticipar crecimiento y evitar pérdida de continuidad histórica.</div></div></div>
+        <div class="opsMetrics">
+          <div class="opsMetric"><span class="muted small">Uso actual de DB</span><b id="opsSizeMb">—</b><div class="muted" id="opsUsagePct">—</div></div>
+          <div class="opsMetric"><span class="muted small">Umbral de atención</span><b id="opsWarningMb">—</b><div class="muted">Lectura preventiva</div></div>
+          <div class="opsMetric"><span class="muted small">Umbral crítico</span><b id="opsCriticalMb">—</b><div class="muted">Acción recomendada</div></div>
+          <div class="opsMetric"><span class="muted small">Modo de backup</span><b id="opsBackupMode">—</b><div class="muted" id="opsSnapshotCount">—</div></div>
+        </div>
+        <div class="opsMiniCard" style="margin-top:16px"><span class="muted small">Ocupación estimada sobre el umbral crítico</span><div class="opsProgress"><div class="opsProgressFill" id="opsProgressFill" style="width:0%"></div></div><div class="muted" id="opsProgressLabel" style="margin-top:8px">Sin lectura todavía.</div></div>
+      </div>
+    </div>
+    <div class="opsSecondaryGrid">
+      <div class="opsMiniCard"><span class="muted small">Auditoría histórica mensual</span><b id="opsLastClosedMonth" style="display:block;font-size:24px;margin-top:6px">—</b><div class="muted">Último mes consolidado sin depender de la tabla operativa en vivo.</div></div>
+      <div class="opsMiniCard"><span class="muted small">Mes vivo en seguimiento</span><b id="opsCurrentMonth" style="display:block;font-size:24px;margin-top:6px">—</b><div class="muted">Este mes se sigue actualizando en tiempo real a medida que crece la plataforma.</div></div>
+      <div class="opsMiniCard"><span class="muted small">Interpretación ejecutiva</span><div id="opsExecutiveNote" class="muted" style="margin-top:8px">Este tablero te ayuda a decidir cuándo reforzar infraestructura, revisar backups y seguir la salud de la base.</div></div>
+    </div>
+  </section>
   <section class="tabPane" id="tab-factory">
     <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Matriz comercial</h2><div class="muted">Editá días, publicaciones, búsquedas, precio sin IVA y encendido de cada plan.</div></div><div class="row"><button class="btn btn-primary" id="btnSaveMatrix" type="button">Guardar matriz</button><span class="muted" id="matrixMsg"></span></div></div><div id="matrixRows" style="margin-top:16px"></div></div>
     <div class="adminColumns">
@@ -165,8 +229,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.8.0"></script>
-<script src="/auth.js?v=7.8.0"></script>
+<script src="/config.js?v=7.8.1"></script>
+<script src="/auth.js?v=7.8.1"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -294,6 +358,51 @@ function renderTraceability(){
   document.getElementById('traceAnnualBillingTotal').textContent = String(annualTotals.billing || 0);
 }
 
+function renderOperationalStatus(){
+  const ops = state.overview?.operationalStatus || {};
+  const status = String(ops.status || 'UNKNOWN').toUpperCase();
+  const statusClass = ({ OK:'ok', WARNING:'warning', CRITICAL:'critical', UNKNOWN:'unknown' }[status] || 'unknown');
+  const lights = { OK:'ok', WARNING:'warning', CRITICAL:'critical' };
+  document.querySelectorAll('#opsSemaphore [data-light]').forEach((el) => {
+    const lightKey = String(el.dataset.light || '').toLowerCase();
+    const active = lights[status] === lightKey;
+    el.classList.toggle('active', active);
+    el.classList.toggle('ok', active && lightKey === 'ok');
+    el.classList.toggle('warning', active && lightKey === 'warning');
+    el.classList.toggle('critical', active && lightKey === 'critical');
+  });
+  const pill = document.getElementById('opsStatusPill');
+  pill.className = `opsHeadlinePill ${statusClass}`;
+  pill.textContent = ops.statusLabel || 'Sin lectura';
+  document.getElementById('opsHeadline').textContent = ops.headline || 'Sin diagnóstico operativo disponible.';
+  document.getElementById('opsRecommendation').textContent = ops.recommendation || 'Revisá la capacidad y el proveedor de base de datos.';
+  document.getElementById('opsDbName').textContent = `Base: ${ops.dbName || 'principal'} · ${ops.provider || 'PostgreSQL'}`;
+  document.getElementById('opsProviderNote').textContent = ops.providerLoginNote || 'El enlace abre la consola del proveedor y puede pedir su propio acceso de infraestructura.';
+  document.getElementById('opsSizeMb').textContent = `${Number(ops.sizeMb || 0).toLocaleString('es-AR')} MB`;
+  document.getElementById('opsUsagePct').textContent = `${Number(ops.usagePct || 0).toLocaleString('es-AR')}% del umbral crítico`;
+  document.getElementById('opsWarningMb').textContent = `${Number(ops.warningMb || 0).toLocaleString('es-AR')} MB`;
+  document.getElementById('opsCriticalMb').textContent = `${Number(ops.criticalMb || 0).toLocaleString('es-AR')} MB`;
+  document.getElementById('opsBackupMode').textContent = ops.backupLabel || 'Pendiente de configurar';
+  const capturedMonths = Number(ops.snapshotInfo?.capturedMonths || 0);
+  document.getElementById('opsSnapshotCount').textContent = `${capturedMonths} mes(es) auditados`;
+  document.getElementById('opsLastClosedMonth').textContent = ops.snapshotInfo?.lastClosedMonth ? monthLabelFromKey(ops.snapshotInfo.lastClosedMonth, 'long') : 'Sin cierre';
+  document.getElementById('opsCurrentMonth').textContent = ops.snapshotInfo?.currentMonthKey ? monthLabelFromKey(ops.snapshotInfo.currentMonthKey, 'long') : 'Sin dato';
+  const fillPct = Math.max(0, Math.min(100, Number(ops.usagePct || 0)));
+  document.getElementById('opsProgressFill').style.width = `${fillPct}%`;
+  document.getElementById('opsProgressLabel').textContent = `Uso estimado: ${fillPct.toLocaleString('es-AR')}% sobre el umbral crítico configurado.`;
+  document.getElementById('opsExecutiveNote').textContent = status === 'CRITICAL'
+    ? 'Alerta fuerte: conviene reforzar cuanto antes la capacidad o el plan de base de datos y revisar el esquema de backup.'
+    : status === 'WARNING'
+      ? 'Atención preventiva: el sistema está sano, pero el crecimiento ya amerita mirar capacidad y respaldo con criterio anticipado.'
+      : status === 'OK'
+        ? 'Estado saludable: la capacidad actual permite seguir creciendo, con trazabilidad y auditoría histórica bajo monitoreo.'
+        : 'Lectura incompleta: revisá la conexión con PostgreSQL y configurá los umbrales del tablero para obtener una interpretación automática.';
+  const infra = document.getElementById('btnInfraConsole');
+  const backup = document.getElementById('btnBackupConsole');
+  if(ops.infraUrl){ infra.href = ops.infraUrl; infra.style.display = ''; } else { infra.removeAttribute('href'); infra.style.display = 'none'; }
+  if(ops.backupUrl){ backup.href = ops.backupUrl; backup.style.display = ''; } else { backup.removeAttribute('href'); backup.style.display = 'none'; }
+}
+
 async function loadOverview(){
   const f = state.filters || {};
   const qs = new URLSearchParams({
@@ -352,6 +461,7 @@ async function loadOverview(){
   document.getElementById('candidateTraceList').innerHTML = (tc.recentEvents || []).map((ev) => traceEventHtml(ev, 'Candidato')).join('') || '<div class="muted">Sin eventos recientes del lado candidato.</div>';
   document.getElementById('companyTraceList').innerHTML = (te.recentEvents || []).map((ev) => traceEventHtml(ev, 'Empresa')).join('') || '<div class="muted">Sin eventos recientes del lado empresa.</div>';
   renderTraceability();
+  renderOperationalStatus();
 }
 
 function fillFactorySelects(companies){

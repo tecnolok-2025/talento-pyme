@@ -1,0 +1,20 @@
+Talento PyME · revisión 7.8.1
+
+Qué se agregó:
+- Nueva pestaña "Capacidad operativa" en superadministración, al lado de Trazabilidad.
+- Semáforo visual con estados Operativo / Atención / Crítico según el tamaño actual de la base PostgreSQL.
+- Indicadores interpretativos: uso actual de DB, umbral de atención, umbral crítico, modo de backup y cobertura de auditoría histórica.
+- Botones configurables para abrir la consola de infraestructura y el proveedor/backup (según variables de entorno).
+- Capa de auditoría histórica mensual mediante la nueva tabla AdminMonthlySnapshot.
+- La trazabilidad mensual/anual ahora puede apoyarse en snapshots cerrados de meses anteriores para no depender solo de la lectura viva.
+
+Variables nuevas sugeridas en apps/api/.env.example:
+- ADMIN_DB_WARNING_MB
+- ADMIN_DB_CRITICAL_MB
+- ADMIN_INFRA_URL
+- ADMIN_BACKUP_URL
+- ADMIN_BACKUP_MODE
+
+Importante:
+- Para que la nueva tabla exista en producción, al desplegar conviene ejecutar prisma generate + prisma db push.
+- El enlace a consola/proveedor abre la URL configurada, pero el proveedor puede pedir su propio login de infraestructura.
