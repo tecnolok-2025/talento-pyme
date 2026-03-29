@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.8.4" />
+  <link rel="stylesheet" href="/styles.css?v=7.8.5" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -214,7 +214,7 @@
             <span class="opsHeadlinePill unknown" id="opsStatusPill">Sin lectura</span>
             <h2 style="margin:0" id="opsHeadline">Todavía no se cargó el diagnóstico operativo.</h2>
             <div class="muted" id="opsRecommendation">Cuando el panel lea la base, acá vas a ver si la capacidad está saludable, en observación o en estado crítico.</div>
-            <div class="opsAlertBox"><b id="opsDbName">Base principal</b><div class="muted" id="opsProviderNote" style="margin-top:6px">El enlace abre la consola del proveedor y puede pedir su propio acceso de infraestructura.</div><div class="opsActionRow"><a class="btn btn-primary" id="btnUpgradeDb" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Ampliar capacidad DB</a><a class="btn btn-ghost" id="btnInfraConsole" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Abrir consola de infraestructura</a><a class="btn btn-ghost" id="btnBackupConsole" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Abrir backup / proveedor</a></div></div>
+            <div class="opsAlertBox"><b id="opsDbName">Base principal</b><div class="muted" id="opsProviderNote" style="margin-top:6px">El enlace abre la consola del proveedor y puede pedir su propio acceso de infraestructura.</div><div class="opsActionRow"><button class="btn btn-primary" id="btnUpgradeDb" type="button">Ampliar capacidad DB</button><a class="btn btn-ghost" id="btnInfraConsole" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Abrir consola de infraestructura</a><a class="btn btn-ghost" id="btnBackupConsole" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Abrir backup / proveedor</a></div><div class="muted small" id="opsUpgradeHint" style="margin-top:8px">Te pedirá tu clave personal antes de abrir la consola o el panel de ampliación.</div></div>
           </div>
         </div>
       </div>
@@ -253,7 +253,7 @@
           </div>
           <div class="backupSubGrid">
             <div class="backupNoteCard"><span class="muted small">Integridad del último backup</span><b id="backupIntegrityTitle" style="display:block;font-size:20px;margin-top:6px">—</b><div class="muted" id="backupIntegrityNote" style="margin-top:8px">Todavía no se verificó ningún archivo.</div></div>
-            <div class="backupNoteCard"><span class="muted small">Simulación de restauración</span><b id="backupRestoreTitle" style="display:block;font-size:20px;margin-top:6px">—</b><div class="muted" id="backupRestoreNote" style="margin-top:8px">Todavía no se ejecutó ninguna simulación.</div></div>
+            <div class="backupNoteCard"><span class="muted small">Simulación de restauración</span><b id="backupRestoreTitle" style="display:block;font-size:20px;margin-top:6px">—</b><div class="muted" id="backupRestoreNote" style="margin-top:8px">Todavía no se ejecutó ninguna simulación.</div></div><div class="backupNoteCard"><span class="muted small">Protección anti-regresión</span><b id="backupGuardTitle" style="display:block;font-size:20px;margin-top:6px">—</b><div class="muted" id="backupGuardNote" style="margin-top:8px">El sistema compara peso y registros contra el último backup confiable.</div></div><div class="backupNoteCard"><span class="muted small">Último backup confiable</span><b id="backupTrustedTitle" style="display:block;font-size:20px;margin-top:6px">—</b><div class="muted" id="backupTrustedNote" style="margin-top:8px">Se mantiene como referencia segura hasta confirmar uno nuevo.</div></div>
           </div>
         </div>
         <div class="card">
@@ -285,8 +285,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.8.4"></script>
-<script src="/auth.js?v=7.8.4"></script>
+<script src="/config.js?v=7.8.5"></script>
+<script src="/auth.js?v=7.8.5"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -464,7 +464,11 @@ function renderOperationalStatus(){
   const upgrade = document.getElementById('btnUpgradeDb');
   const infra = document.getElementById('btnInfraConsole');
   const backup = document.getElementById('btnBackupConsole');
-  if(ops.upgradeUrl){ upgrade.href = ops.upgradeUrl; upgrade.style.display = ''; } else { upgrade.removeAttribute('href'); upgrade.style.display = 'none'; }
+  upgrade.dataset.url = ops.upgradeUrl || '';
+  upgrade.style.display = '';
+  document.getElementById('opsUpgradeHint').textContent = ops.upgradeUrl
+    ? 'Te pedirá tu clave personal antes de abrir la consola o el panel de ampliación.'
+    : 'El botón queda visible y te validará la clave. Si no hay URL configurada, te lo informará para no abrir un destino incorrecto.';
   if(ops.infraUrl){ infra.href = ops.infraUrl; infra.style.display = ''; } else { infra.removeAttribute('href'); infra.style.display = 'none'; }
   if(ops.backupUrl){ backup.href = ops.backupUrl; backup.style.display = ''; } else { backup.removeAttribute('href'); backup.style.display = 'none'; }
 }
@@ -481,11 +485,12 @@ function backupStatusClass(status){
   if(key === 'COMPLETED') return 'completed';
   if(key === 'RUNNING') return 'running';
   if(key === 'FAILED') return 'failed';
+  if(key === 'BLOCKED') return 'pending';
   return 'pending';
 }
 
 function backupStatusLabel(status){
-  return ({ COMPLETED:'Completado', RUNNING:'En curso', FAILED:'Fallido', PENDING:'Pendiente' }[String(status || '').toUpperCase()] || 'Pendiente');
+  return ({ COMPLETED:'Completado', RUNNING:'En curso', FAILED:'Fallido', BLOCKED:'Bloqueado por resguardo', PENDING:'Pendiente' }[String(status || '').toUpperCase()] || 'Pendiente');
 }
 
 function backupTriggerLabel(trigger){
@@ -524,6 +529,14 @@ function renderBackupCenter(){
   document.getElementById('backupRestoreNote').textContent = preview
     ? `${Number(preview.recordCount || 0).toLocaleString('es-AR')} registro(s) · ${Number(preview.datasetCount || 0).toLocaleString('es-AR')} dataset(s) · ${formatDateTime(preview.createdAt)}.`
     : 'Todavía no se ejecutó ninguna simulación.';
+  document.getElementById('backupGuardTitle').textContent = backup.lastBlockedBackupAt ? 'Alerta de resguardo activa' : 'Protección activa';
+  document.getElementById('backupGuardNote').textContent = backup.lastBlockedBackupAt
+    ? `${backup.lastBlockedBackupReason || 'Se bloqueó el último backup.'} Último bloqueo: ${formatDateTime(backup.lastBlockedBackupAt)}.`
+    : `Se bloquean respaldos que bajen de ${Math.round(Number(backup.backupGuardMinRatio || 0.8) * 100)}% del último backup confiable.`;
+  document.getElementById('backupTrustedTitle').textContent = backup.trustedBackupAt ? formatDateTime(backup.trustedBackupAt) : 'Sin referencia todavía';
+  document.getElementById('backupTrustedNote').textContent = backup.trustedBackupAt
+    ? `${backup.trustedBackupFileName || backup.trustedBackupKey || 'Backup confiable'} permanece como base segura para continuidad histórica.`
+    : 'Todavía no existe un backup confiable registrado.';
   const history = Array.isArray(backup.recentBackups) ? backup.recentBackups : [];
   document.getElementById('backupHistory').innerHTML = history.map((item) => `
     <div class="backupRow">
@@ -546,6 +559,7 @@ async function triggerManualBackup(){
     await loadOverview();
   } catch (err) {
     msg.textContent = err?.message || 'No se pudo ejecutar el backup.';
+    await loadOverview().catch(() => null);
   }
 }
 
@@ -597,6 +611,21 @@ async function previewRestoreLatest(){
     msg.textContent = state.backupRestorePreview?.integrityOk ? 'Simulación correcta. El archivo puede revisarse como base de restauración.' : 'Simulación con observaciones. Revisá integridad y estructura.';
   } catch (err) {
     msg.textContent = err?.message || 'No se pudo simular la restauración del último backup.';
+  }
+}
+
+async function openUpgradeAccess(){
+  const hint = document.getElementById('opsUpgradeHint');
+  const password = window.prompt('Ingresá tu clave personal para abrir la ampliación de capacidad DB.');
+  if(password === null) return;
+  hint.textContent = 'Validando clave personal...';
+  try {
+    const data = await apiFetch('/admin/upgrade/access', { method:'POST', body: JSON.stringify({ password }) });
+    if(!data?.url) throw new Error('No hay una URL de ampliación/configuración definida todavía.');
+    window.open(data.url, '_blank', 'noopener');
+    hint.textContent = data?.providerNote || 'Acceso validado. El proveedor puede pedir un segundo login propio.';
+  } catch (err) {
+    hint.textContent = err?.message || 'No se pudo validar el acceso a ampliación de capacidad.';
   }
 }
 
@@ -756,6 +785,7 @@ document.getElementById('btnRunBackup').onclick = () => triggerManualBackup();
 document.getElementById('btnDownloadBackup').onclick = () => downloadLatestBackup();
 document.getElementById('btnVerifyBackup').onclick = () => verifyLatestBackup();
 document.getElementById('btnPreviewRestore').onclick = () => previewRestoreLatest();
+document.getElementById('btnUpgradeDb').onclick = () => openUpgradeAccess();
 document.getElementById('btnSendOperatorReply').onclick = async () => {
   const threadId = state.selectedThreadId;
   const content = document.getElementById('operatorReply').value.trim();

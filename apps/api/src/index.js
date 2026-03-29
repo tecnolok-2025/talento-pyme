@@ -43,6 +43,8 @@ const BACKUPS_DIR = path.resolve(__dirname, '../backups');
 const ADMIN_LOCAL_BACKUP_ENABLED = String(process.env.ADMIN_LOCAL_BACKUP_ENABLED || 'true').trim().toLowerCase() !== 'false';
 const ADMIN_BACKUP_CHECK_MINUTES = Math.max(15, Number(process.env.ADMIN_BACKUP_CHECK_MINUTES || 60));
 const ADMIN_BACKUP_KEEP_FILES = Math.max(1, Number(process.env.ADMIN_BACKUP_KEEP_FILES || ADMIN_BACKUP_RETENTION_DAYS || 2));
+const ADMIN_BACKUP_MIN_SAFE_RATIO = Math.min(0.99, Math.max(0.1, Number(process.env.ADMIN_BACKUP_MIN_SAFE_RATIO || 0.8)));
+const DEFAULT_PROVIDER_CONSOLE_URL = String(process.env.ADMIN_PROVIDER_CONSOLE_URL || '').trim();
 
 let backupRunPromise = null;
 let backupSchedulerStarted = false;
@@ -108,6 +110,49 @@ function safeIso(value){
 function formatFileSizeMb(bytes = 0){
   const size = Number(bytes || 0);
   return Number((size / (1024 * 1024)).toFixed(2));
+}
+
+function guessProviderConsoleUrl(dbName = ''){
+  const key = String(dbName || '').toLowerCase();
+  if (DEFAULT_PROVIDER_CONSOLE_URL) return DEFAULT_PROVIDER_CONSOLE_URL;
+  if (key.includes('neon')) return 'https://console.neon.tech';
+  return '';
+}
+
+function buildBackupGuardAssessment({ previousRecordCount = 0, currentRecordCount = 0, previousFileSizeBytes = 0, currentFileSizeBytes = 0, previousStats = {}, currentStats = {} } = {}){
+  const ratioFloor = Number(ADMIN_BACKUP_MIN_SAFE_RATIO || 0.8);
+  const issues = [];
+  const details = [];
+  const protectedDatasets = [
+    ['users', 'usuarios'],
+    ['candidates', 'candidatos'],
+    ['companies', 'empresas'],
+    ['billingOrders', 'facturación/tickets'],
+  ];
+  if (previousRecordCount > 0) {
+    const recordRatio = currentRecordCount / previousRecordCount;
+    details.push({ key:'recordCount', previous: previousRecordCount, current: currentRecordCount, ratio: Number(recordRatio.toFixed(4)) });
+    if (recordRatio < ratioFloor) issues.push(`La cantidad total de registros cayó por debajo del ${(ratioFloor * 100).toFixed(0)}% del último backup confiable.`);
+  }
+  if (previousFileSizeBytes > 0) {
+    const sizeRatio = currentFileSizeBytes / previousFileSizeBytes;
+    details.push({ key:'fileSizeBytes', previous: previousFileSizeBytes, current: currentFileSizeBytes, ratio: Number(sizeRatio.toFixed(4)) });
+    if (sizeRatio < ratioFloor) issues.push(`El peso estimado del backup cayó por debajo del ${(ratioFloor * 100).toFixed(0)}% del último backup confiable.`);
+  }
+  for (const [key, label] of protectedDatasets) {
+    const prev = Number(previousStats?.[key] || 0);
+    if (!prev) continue;
+    const cur = Number(currentStats?.[key] || 0);
+    const ratio = cur / prev;
+    details.push({ key, previous: prev, current: cur, ratio: Number(ratio.toFixed(4)) });
+    if (ratio < ratioFloor) issues.push(`La base protegida de ${label} quedó por debajo del ${(ratioFloor * 100).toFixed(0)}% respecto del último backup confiable.`);
+  }
+  return {
+    ok: issues.length === 0,
+    ratioFloor,
+    issues,
+    details,
+  };
 }
 
 function parseJsonOrNull(value){
@@ -280,6 +325,45 @@ async function runLogicalBackup(triggerSource = 'MANUAL'){
     try {
       const payload = await collectLogicalBackupPayload();
       const fileContent = JSON.stringify(payload, null, 2);
+      const estimatedSizeBytes = Buffer.byteLength(fileContent, 'utf8');
+      const latestTrusted = await getLatestCompletedBackupLog();
+      const latestMeta = latestTrusted?.metadata || parseJsonOrNull(latestTrusted?.metadataJson) || {};
+      const guard = buildBackupGuardAssessment({
+        previousRecordCount: Number(latestTrusted?.recordCount || 0),
+        currentRecordCount: Number(payload?.stats?.recordCount || 0),
+        previousFileSizeBytes: Number(latestTrusted?.fileSizeBytes || 0),
+        currentFileSizeBytes: estimatedSizeBytes,
+        previousStats: latestMeta?.stats || {},
+        currentStats: payload?.stats || {},
+      });
+
+      if (latestTrusted && guard.ok === false) {
+        const blockedAt = new Date();
+        await updateBackupLog(log?.id, {
+          status: 'BLOCKED',
+          failureReason: `Resguardo preventivo: el backup actual quedó por debajo del ${Math.round((guard.ratioFloor || 0) * 100)}% del último backup confiable.`,
+          completedAt: blockedAt,
+          fileSizeBytes: estimatedSizeBytes,
+          recordCount: Number(payload?.stats?.recordCount || 0),
+          metadataJson: JSON.stringify({
+            stats: payload?.stats || {},
+            meta: payload?.meta || {},
+            guard,
+            blockedAt: safeIso(blockedAt),
+            trustedBackupKey: latestTrusted?.backupKey || null,
+            trustedBackupAt: safeIso(latestTrusted?.completedAt || latestTrusted?.startedAt),
+          }),
+        });
+        return {
+          ok: false,
+          blocked: true,
+          reason: 'GUARD_BLOCKED',
+          backupKey,
+          trustedBackupKey: latestTrusted?.backupKey || null,
+          guard,
+        };
+      }
+
       await fs.writeFile(filePath, fileContent, 'utf8');
       const stat = await fs.stat(filePath).catch(() => ({ size: 0 }));
       const completedAt = new Date();
@@ -311,6 +395,12 @@ async function runLogicalBackup(triggerSource = 'MANUAL'){
           datasetCount: verification.datasetCount || 0,
           datasetNames: verification.datasetNames || [],
           verifiedAt: safeIso(completedAt),
+          guard: {
+            ok: true,
+            ratioFloor: Number(ADMIN_BACKUP_MIN_SAFE_RATIO || 0.8),
+            issues: [],
+            details: guard?.details || [],
+          },
         }),
       });
       await pruneOldBackupArtifacts();
@@ -341,18 +431,23 @@ async function ensureAutomaticLogicalBackup(triggerSource = 'AUTO_CHECK'){
 }
 
 async function readBackupOperationalSummary(){
-  const recentLogs = await getRecentBackupLogs(6);
+  const recentLogs = await getRecentBackupLogs(8);
   const latestCompleted = (recentLogs || []).find((item) => item.status === 'COMPLETED') || null;
+  const latestBlocked = (recentLogs || []).find((item) => item.status === 'BLOCKED') || null;
   const latestAny = recentLogs?.[0] || null;
   const lastCompletedAt = latestCompleted?.completedAt || latestCompleted?.startedAt || null;
   const lastCompletedTime = lastCompletedAt ? new Date(lastCompletedAt).getTime() : 0;
   const nextDueAt = lastCompletedTime ? new Date(lastCompletedTime + (24 * 60 * 60 * 1000)) : null;
   const isOverdue = ADMIN_BACKUP_MODE === 'AUTOMATIC' && (!!lastCompletedTime ? Date.now() > nextDueAt.getTime() : true);
+  const trustedMeta = latestCompleted?.metadata || parseJsonOrNull(latestCompleted?.metadataJson) || {};
+  const blockedMeta = latestBlocked?.metadata || parseJsonOrNull(latestBlocked?.metadataJson) || {};
   return {
     localBackupEnabled: ADMIN_LOCAL_BACKUP_ENABLED,
     backupStorage: 'LOCAL_JSON',
     backupScheduleCheckMinutes: ADMIN_BACKUP_CHECK_MINUTES,
     retainedFiles: ADMIN_BACKUP_KEEP_FILES,
+    backupGuardEnabled: true,
+    backupGuardMinRatio: Number(ADMIN_BACKUP_MIN_SAFE_RATIO || 0.8),
     lastBackupAt: safeIso(lastCompletedAt),
     lastBackupStatus: latestAny?.status || 'PENDING',
     lastBackupKey: latestCompleted?.backupKey || null,
@@ -361,12 +456,20 @@ async function readBackupOperationalSummary(){
     lastBackupSizeMb: formatFileSizeMb(latestCompleted?.fileSizeBytes || 0),
     lastBackupRecordCount: Number(latestCompleted?.recordCount || 0),
     lastBackupTrigger: latestCompleted?.triggerSource || null,
-    lastBackupChecksum: latestCompleted?.metadata?.checksumSha256 || null,
-    lastBackupIntegrityOk: latestCompleted?.metadata?.integrityOk !== false,
-    lastBackupVerifiedAt: latestCompleted?.metadata?.verifiedAt || null,
-    lastBackupDatasetCount: Number(latestCompleted?.metadata?.datasetCount || 0),
+    lastBackupChecksum: trustedMeta?.checksumSha256 || null,
+    lastBackupIntegrityOk: trustedMeta?.integrityOk !== false,
+    lastBackupVerifiedAt: trustedMeta?.verifiedAt || null,
+    lastBackupDatasetCount: Number(trustedMeta?.datasetCount || 0),
     nextBackupAt: safeIso(nextDueAt),
     backupOverdue: isOverdue,
+    trustedBackupAt: safeIso(lastCompletedAt),
+    trustedBackupKey: latestCompleted?.backupKey || null,
+    trustedBackupFileName: latestCompleted?.fileName || null,
+    trustedBackupStatus: latestCompleted ? 'COMPLETED' : 'PENDING',
+    lastBlockedBackupAt: safeIso(latestBlocked?.completedAt || latestBlocked?.startedAt),
+    lastBlockedBackupKey: latestBlocked?.backupKey || null,
+    lastBlockedBackupReason: latestBlocked?.failureReason || null,
+    lastBlockedBackupGuardIssues: Array.isArray(blockedMeta?.guard?.issues) ? blockedMeta.guard.issues : [],
     recentBackups: (recentLogs || []).map((log) => ({
       id: log.id,
       backupKey: log.backupKey,
@@ -4328,7 +4431,7 @@ async function readDatabaseCapacityStatus(){
     backupRetentionDays: ADMIN_BACKUP_RETENTION_DAYS,
     backupProvider: ADMIN_BACKUP_PROVIDER,
     backupProviderLabel: adminBackupProviderLabel(ADMIN_BACKUP_PROVIDER),
-    upgradeUrl: ADMIN_UPGRADE_URL || ADMIN_INFRA_URL || null,
+    upgradeUrl: ADMIN_UPGRADE_URL || ADMIN_INFRA_URL || guessProviderConsoleUrl('principal') || null,
     providerLoginNote: 'El enlace abre la consola del proveedor y puede pedir su propio acceso de infraestructura.',
     ...backupInfo,
   };
@@ -4353,7 +4456,11 @@ async function readDatabaseCapacityStatus(){
       headline = 'La base de datos está creciendo y merece seguimiento preventivo.';
       recommendation = 'Revisá la consola del proveedor y evaluá ampliar memoria/capacidad antes de llegar al punto crítico.';
     }
-    if (backupInfo.backupOverdue) {
+    if (backupInfo.lastBlockedBackupAt) {
+      status = status === 'CRITICAL' ? 'CRITICAL' : 'WARNING';
+      statusLabel = status === 'CRITICAL' ? 'Crítico' : 'Atención';
+      recommendation = 'Se bloqueó un backup por caída brusca de peso o registros. Se conserva el último backup confiable y conviene auditar la base antes de seguir.';
+    } else if (backupInfo.backupOverdue) {
       status = status === 'CRITICAL' ? 'CRITICAL' : 'WARNING';
       statusLabel = status === 'CRITICAL' ? 'Crítico' : 'Atención';
       recommendation = 'El backup automático está vencido o sin ejecución reciente. Revisá el resguardo lógico y el respaldo del proveedor.';
@@ -4368,6 +4475,7 @@ async function readDatabaseCapacityStatus(){
       statusLabel,
       headline,
       recommendation,
+      upgradeUrl: ADMIN_UPGRADE_URL || ADMIN_INFRA_URL || guessProviderConsoleUrl(String(row?.db_name || 'principal')) || null,
     };
   } catch (error) {
     console.error('readDatabaseCapacityStatus', error);
@@ -4802,6 +4910,15 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         recentBackups: operationalStatus.recentBackups || [],
         retainedFiles: Number(operationalStatus.retainedFiles || 0),
         localBackupEnabled: !!operationalStatus.localBackupEnabled,
+        backupGuardEnabled: !!operationalStatus.backupGuardEnabled,
+        backupGuardMinRatio: Number(operationalStatus.backupGuardMinRatio || 0.8),
+        trustedBackupAt: operationalStatus.trustedBackupAt || null,
+        trustedBackupKey: operationalStatus.trustedBackupKey || null,
+        trustedBackupFileName: operationalStatus.trustedBackupFileName || null,
+        lastBlockedBackupAt: operationalStatus.lastBlockedBackupAt || null,
+        lastBlockedBackupKey: operationalStatus.lastBlockedBackupKey || null,
+        lastBlockedBackupReason: operationalStatus.lastBlockedBackupReason || null,
+        lastBlockedBackupGuardIssues: operationalStatus.lastBlockedBackupGuardIssues || [],
       },
       candidates: normalizedCandidates,
       companies: normalizedCompanies,
@@ -4878,6 +4995,37 @@ app.get('/admin/knowledge', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
   }
 });
 
+app.post('/admin/upgrade/access', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const password = String(req.body?.password || '').trim();
+    if(!password) return res.status(400).json({ error: 'Ingresá tu clave personal para continuar.' });
+
+    let passwordOk = false;
+    if (req.user?.id === VIRTUAL_ADMIN_USER_ID) {
+      passwordOk = password === FACTORY_ADMIN_PASSWORD;
+    } else {
+      const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } }).catch(() => null);
+      if (!currentUser?.passHash) return res.status(404).json({ error: 'No se pudo validar el usuario actual.' });
+      passwordOk = await bcrypt.compare(password, currentUser.passHash);
+    }
+    if(!passwordOk) return res.status(401).json({ error: 'La clave ingresada no coincide con la sesión actual.' });
+
+    const ops = await readDatabaseCapacityStatus().catch(() => ({}));
+    const url = ops?.upgradeUrl || ops?.infraUrl || ops?.backupUrl || guessProviderConsoleUrl(String(ops?.dbName || 'principal')) || null;
+    if(!url) return res.status(400).json({ error: 'Todavía no hay una URL de ampliación/configuración definida para la base.' });
+
+    return res.json({
+      ok: true,
+      url,
+      providerNote: ops?.providerLoginNote || 'El proveedor puede pedir un segundo acceso propio de infraestructura.',
+      dbName: ops?.dbName || 'principal',
+    });
+  } catch (err) {
+    console.error('POST /admin/upgrade/access', err);
+    return res.status(500).json({ error: 'No se pudo validar el acceso a la ampliación de capacidad.' });
+  }
+});
+
 app.get('/admin/backup/status', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   try {
     const summary = await readBackupOperationalSummary();
@@ -4891,6 +5039,13 @@ app.get('/admin/backup/status', auth, requireAnyRole(['ADMIN','SUPERADMIN']), as
 app.post('/admin/backup/run', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   try {
     const result = await runLogicalBackup('MANUAL_ADMIN');
+    if (result?.blocked) {
+      return res.status(409).json({
+        error: result?.guard?.issues?.[0] || 'El backup fue bloqueado por resguardo preventivo.',
+        blocked: true,
+        result,
+      });
+    }
     if (!result?.ok) return res.status(500).json({ error: result?.error || 'No se pudo generar el backup.' });
     const summary = await readBackupOperationalSummary();
     return res.json({ ok: true, result, summary });

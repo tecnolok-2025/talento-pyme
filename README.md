@@ -1,4 +1,4 @@
-# Talento PyME — v7.8.4
+# Talento PyME — v7.8.5
 
 Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**.
 
@@ -41,3 +41,6 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 - Tabla histórica `AdminMonthlySnapshot` para consolidación mensual de trazabilidad.
 
 > Importante: el tablero muestra y documenta la política de resguardo. La ejecución real del backup externo depende de que el proveedor/hosting tenga esa rutina activada en su consola.
+
+- Protección anti-regresión del backup: si el resguardo nuevo cae bruscamente en peso o cantidad de registros frente al último backup confiable, el sistema lo bloquea y conserva la referencia anterior.
+- Validación adicional para abrir **Ampliar capacidad DB** desde superadministración con clave personal de la sesión.

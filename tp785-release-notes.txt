@@ -1,0 +1,22 @@
+Talento PyME — revisión v7.8.5
+
+Qué se corrigió
+- Protección anti-regresión del backup lógico: si el respaldo nuevo cae bruscamente en peso o cantidad de registros frente al último backup confiable, el sistema lo bloquea y conserva la referencia anterior.
+- El historial de backups ahora puede mostrar ejecuciones bloqueadas por resguardo preventivo.
+- Superadministración muestra el último backup confiable y el estado de la protección anti-regresión.
+- El botón “Ampliar capacidad DB” queda visible y exige la clave personal de la sesión antes de abrir la consola o el panel del proveedor.
+- Si no hay URL explícita de upgrade, el sistema puede caer en la consola general del proveedor cuando esté configurada.
+
+Variables nuevas
+- ADMIN_BACKUP_MIN_SAFE_RATIO=0.8
+- ADMIN_PROVIDER_CONSOLE_URL=
+
+Validación
+- apps/api/src/index.js: sintaxis OK
+- apps/web/config.js: sintaxis OK
+- script inline de apps/web/admin.html: sintaxis OK
+
+Notas
+- El backup lógico sigue siendo append-only por archivo; cada ejecución genera un archivo propio.
+- Un backup bloqueado no reemplaza al último backup confiable.
+- Para producción conviene mantener también el backup externo del proveedor.
