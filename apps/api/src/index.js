@@ -289,7 +289,7 @@ async function collectLogicalBackupPayload(){
     stats: {
       recordCount,
       users: users.length,
-      candidates: candidateBolsa.length,
+      candidates: users.filter((item) => String(item?.role || '').toUpperCase() === 'CANDIDATE').length,
       companies: companyProfiles.length,
       billingOrders: billingOrders.length,
       snapshots: adminMonthlySnapshots.length,
@@ -2361,6 +2361,7 @@ app.get("/resume/me", auth, async (req, res) => {
 app.put("/resume/me", auth, async (req, res) => {
   const parsed = resumeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const data = parsed.data;
 
   const r = await prisma.resume.upsert({
     where: { userId: req.user.id },
@@ -4533,6 +4534,136 @@ function mergeOperationalSeriesWithSnapshots({ monthKeys = [], liveCandidateMap 
   });
 }
 
+const adminCandidateRetentionSchema = z.object({
+  keepIndefinitely: z.boolean(),
+});
+
+app.get('/admin/candidates/:userId/detail', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const userId = String(req.params.userId || '').trim();
+    if(!userId) return res.status(400).json({ error: 'Falta identificar al candidato.' });
+    const candidate = await prisma.user.findFirst({
+      where: { id: userId, role: 'CANDIDATE' },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        candidateKeepIndefinitely: true,
+        createdAt: true,
+        candidateProfile: {
+          select: {
+            id: true,
+            fullName: true,
+            dni: true,
+            city: true,
+            province: true,
+            phone: true,
+            address: true,
+            headline: true,
+            sector: true,
+            subSector: true,
+            createdAt: true,
+            updatedAt: true,
+            skills: { select: { id: true, name: true, level: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
+          },
+        },
+        candidateBolsa: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+            dni: true,
+            nacionalidad: true,
+            estadoCivil: true,
+            hijos: true,
+            telefono: true,
+            correo: true,
+            localidad: true,
+            direccion: true,
+            areaTrabajo: true,
+            nivel: true,
+            especialidad: true,
+            especialidadOtro: true,
+            rangoExperiencia: true,
+            nivelEducativo: true,
+            tieneCapacitacion: true,
+            trabajaActualmente: true,
+            sueldoPretendido: true,
+            ultimoTrabajo: true,
+            observaciones: true,
+            photoDataUrl: true,
+            herramientasMecanica: true,
+            instrumentosElectrica: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+        resume: {
+          select: {
+            id: true,
+            summary: true,
+            experience: true,
+            education: true,
+            certifications: true,
+            observations: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+        applications: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            coverNote: true,
+            createdAt: true,
+            job: {
+              select: {
+                id: true,
+                title: true,
+                location: true,
+                modality: true,
+                status: true,
+                company: { select: { companyName: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if(!candidate) return res.status(404).json({ error: 'Candidato no encontrado.' });
+    return res.json({
+      ok: true,
+      item: {
+        ...candidate,
+        keepIndefinitely: candidate.candidateKeepIndefinitely !== false,
+        profileStatus: candidate.candidateBolsa ? 'CV cargado' : (candidate.candidateProfile ? 'Registro inicial' : 'Registro pendiente'),
+      },
+    });
+  } catch (err) {
+    console.error('GET /admin/candidates/:userId/detail', err);
+    return res.status(500).json({ error: 'No se pudo abrir el perfil completo del candidato.' });
+  }
+});
+
+app.patch('/admin/candidates/:userId/retention', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const userId = String(req.params.userId || '').trim();
+    const parsed = adminCandidateRetentionSchema.safeParse(req.body);
+    if(!userId || !parsed.success) return res.status(400).json({ error: 'La selección de permanencia no es válida.' });
+    const existing = await prisma.user.findFirst({ where: { id: userId, role: 'CANDIDATE' }, select: { id: true } });
+    if(!existing) return res.status(404).json({ error: 'Candidato no encontrado.' });
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { candidateKeepIndefinitely: parsed.data.keepIndefinitely },
+      select: { id: true, candidateKeepIndefinitely: true },
+    });
+    return res.json({ ok: true, userId: updated.id, keepIndefinitely: updated.candidateKeepIndefinitely !== false });
+  } catch (err) {
+    console.error('PATCH /admin/candidates/:userId/retention', err);
+    return res.status(500).json({ error: 'No se pudo guardar la permanencia del candidato.' });
+  }
+});
+
 app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   try {
     await ensureSupportKnowledgeSeed();
@@ -4599,7 +4730,10 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
     const companySince = parseDaysFilter(companyDays);
     const billingSince = parseDaysFilter(billingDays);
 
-    const candidateWhere = candidateSince ? { createdAt: { gte: candidateSince } } : {};
+    const candidateWhere = {
+      role: 'CANDIDATE',
+      ...(candidateSince ? { createdAt: { gte: candidateSince } } : {}),
+    };
     const companyWhere = companySince ? { createdAt: { gte: companySince } } : {};
     const billingWhere = {
       ...(billingSince ? { createdAt: { gte: billingSince } } : {}),
@@ -4607,7 +4741,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
     };
 
     const [candidateCount, companyCount, jobsCount, applicationCount, orderCount, paidAgg, pendingAgg, paidOrderCount, filteredCandidateCount, filteredCompanyCount, filteredBillingCount, candidateRows, companyRows, billingRows, recentThreads, candidateUpdated30, candidateApplications30, candidateChats30, companyUpdated30, companyJobs30, companyChats30, companyAccess30, candidateRecentApplications, companyRecentOrders, companyRecentOpenings, candidateRecentThreads, companyRecentThreads, recentJobs, candidateTimelineRows, companyTimelineRows, billingTimelineRows] = await Promise.all([
-      prisma.candidateBolsa.count().catch(() => 0),
+      prisma.user.count({ where: { role: 'CANDIDATE' } }).catch(() => 0),
       prisma.companyProfile.count().catch(() => 0),
       prisma.job.count().catch(() => 0),
       prisma.application.count().catch(() => 0),
@@ -4615,23 +4749,48 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.billingOrder.aggregate({ _sum: { total: true }, where: { status: 'PAID' } }).catch(() => ({ _sum: { total: 0 } })),
       prisma.billingOrder.aggregate({ _sum: { total: true }, where: { status: { in: ['PENDING_PAYMENT', 'DRAFT'] } } }).catch(() => ({ _sum: { total: 0 } })),
       prisma.billingOrder.count({ where: { status: 'PAID' } }).catch(() => 0),
-      prisma.candidateBolsa.count({ where: candidateWhere }).catch(() => 0),
+      prisma.user.count({ where: candidateWhere }).catch(() => 0),
       prisma.companyProfile.count({ where: companyWhere }).catch(() => 0),
       prisma.billingOrder.count({ where: billingWhere }).catch(() => 0),
-      prisma.candidateBolsa.findMany({
+      prisma.user.findMany({
         where: candidateWhere,
-        orderBy: [{ createdAt: 'desc' }, { updatedAt: 'desc' }],
+        orderBy: { createdAt: 'desc' },
         skip: (candidatePage - 1) * candidatePerPage,
         take: candidatePerPage,
-        include: {
-          user: {
+        select: {
+          id: true,
+          email: true,
+          candidateKeepIndefinitely: true,
+          createdAt: true,
+          candidateProfile: {
             select: {
-              email: true,
+              id: true,
+              fullName: true,
+              dni: true,
+              city: true,
+              province: true,
+              phone: true,
+              updatedAt: true,
               createdAt: true,
-              candidateProfile: { select: { fullName: true, city: true, province: true, updatedAt: true, createdAt: true } },
-              resume: { select: { updatedAt: true, createdAt: true } },
             },
           },
+          candidateBolsa: {
+            select: {
+              id: true,
+              nombre: true,
+              apellido: true,
+              dni: true,
+              areaTrabajo: true,
+              especialidad: true,
+              especialidadOtro: true,
+              localidad: true,
+              sueldoPretendido: true,
+              correo: true,
+              updatedAt: true,
+              createdAt: true,
+            },
+          },
+          resume: { select: { updatedAt: true, createdAt: true } },
         },
       }).catch(() => []),
       prisma.companyProfile.findMany({
@@ -4665,25 +4824,40 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.supportThread.findMany({ where: { role: 'CANDIDATE' }, orderBy: { updatedAt: 'desc' }, take: 30, include: { user: { select: { email: true } }, messages: { orderBy: { createdAt: 'desc' }, take: 1 } } }).catch(() => []),
       prisma.supportThread.findMany({ where: { role: 'COMPANY' }, orderBy: { updatedAt: 'desc' }, take: 30, include: { company: { select: { companyName: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'desc' }, take: 1 } } }).catch(() => []),
       prisma.job.findMany({ orderBy: { createdAt: 'desc' }, take: 40, include: { company: { select: { companyName: true } } } }).catch(() => []),
-      prisma.candidateBolsa.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
+      prisma.user.findMany({ where: { role: 'CANDIDATE' }, select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
       prisma.companyProfile.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
       prisma.billingOrder.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
     ]);
 
-    const normalizedCandidates = (candidateRows || []).map((it) => ({
-      id: it.id,
-      nombre: it.nombre || it.user?.candidateProfile?.fullName?.split(/\s+/)?.[0] || 'Candidato',
-      apellido: it.apellido || it.user?.candidateProfile?.fullName?.split(/\s+/).slice(1).join(' ') || '',
-      dni: it.dni || '',
-      areaTrabajo: it.areaTrabajo || 'Perfil general',
-      especialidad: it.especialidad === 'Otros' ? (it.especialidadOtro || 'Otros') : (it.especialidad || ''),
-      localidad: it.localidad || it.user?.candidateProfile?.city || '',
-      province: it.user?.candidateProfile?.province || '',
-      sueldoPretendido: it.sueldoPretendido || 'No informada',
-      createdAt: it.createdAt || it.user?.createdAt,
-      updatedAt: it.updatedAt || it.user?.candidateProfile?.updatedAt || it.user?.resume?.updatedAt || it.user?.createdAt,
-      email: it.correo || it.user?.email || '',
-    }));
+    const normalizedCandidates = (candidateRows || []).map((it) => {
+      const bolsa = it.candidateBolsa || null;
+      const profile = it.candidateProfile || null;
+      const fullNameParts = String(profile?.fullName || '').trim().split(/\s+/).filter(Boolean);
+      const updatedDates = [bolsa?.updatedAt, profile?.updatedAt, it.resume?.updatedAt, it.createdAt]
+        .filter(Boolean)
+        .map((value) => new Date(value))
+        .filter((value) => !Number.isNaN(value.getTime()))
+        .sort((a, b) => b - a);
+      return {
+        id: it.id,
+        userId: it.id,
+        bolsaId: bolsa?.id || null,
+        profileId: profile?.id || null,
+        nombre: bolsa?.nombre || fullNameParts[0] || 'Candidato',
+        apellido: bolsa?.apellido || fullNameParts.slice(1).join(' ') || '',
+        dni: bolsa?.dni || profile?.dni || '',
+        areaTrabajo: bolsa?.areaTrabajo || 'Perfil todavía incompleto',
+        especialidad: bolsa?.especialidad === 'Otros' ? (bolsa?.especialidadOtro || 'Otros') : (bolsa?.especialidad || ''),
+        localidad: bolsa?.localidad || profile?.city || '',
+        province: profile?.province || '',
+        sueldoPretendido: bolsa?.sueldoPretendido || 'No informada',
+        createdAt: it.createdAt,
+        updatedAt: updatedDates[0] || it.createdAt,
+        email: bolsa?.correo || it.email || '',
+        keepIndefinitely: it.candidateKeepIndefinitely !== false,
+        profileStatus: bolsa ? 'CV cargado' : (profile ? 'Registro inicial' : 'Registro pendiente'),
+      };
+    });
 
     const normalizedCompanies = (companyRows || []).map((it) => ({
       id: it.id,

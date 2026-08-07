@@ -47,11 +47,12 @@ enum SupportActor {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  passHash  String
-  role      UserRole @default(CANDIDATE)
-  createdAt DateTime @default(now())
+  id                        String   @id @default(cuid())
+  email                     String   @unique
+  passHash                  String
+  role                      UserRole @default(CANDIDATE)
+  candidateKeepIndefinitely Boolean  @default(true)
+  createdAt                 DateTime @default(now())
 
   candidateProfile Profile?
   candidateBolsa   CandidateBolsa?
@@ -520,4 +521,3 @@ model AdminBackupLog {
   @@index([status, startedAt])
   @@index([completedAt])
 }
-

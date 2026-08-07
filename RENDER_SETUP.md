@@ -19,6 +19,8 @@ Corre Node/Express y se conecta a Neon.
 - Build Command: `npm install && npx prisma generate`
 - Start Command: `npm start`
 
+> Desde v7.8.6, `npm start` ejecuta primero `prisma db push`. Esto agrega en forma automática y no destructiva el estado de permanencia indefinida de cada candidato antes de iniciar la API.
+
 ### Environment Variables (OBLIGATORIAS)
 - DATABASE_URL: pegar el connection string de Neon (pooler ON)
 - JWT_SECRET: clave larga

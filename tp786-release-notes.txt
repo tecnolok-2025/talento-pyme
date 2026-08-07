@@ -1,0 +1,44 @@
+Talento PyME — revisión v7.8.6
+
+Objetivo principal
+- Incorporar en Superadministración un botón específico para revisar los perfiles completos de todos los candidatos.
+- Permitir abrir el currículum completo al tocar un candidato y cerrarlo al volver a tocarlo.
+- Mantener a cada candidato de forma indefinida por defecto, con una selección individual persistente.
+
+Cambios realizados
+- Nueva pestaña “Perfiles candidatos” dentro del Panel General.
+- Vista tipo acordeón: cada candidato abre y cierra su ficha sin salir del panel.
+- La ficha administrativa muestra toda la información disponible del lado candidato:
+  - datos personales y de contacto
+  - perfil profesional y habilidades
+  - experiencia, formación y preferencias
+  - herramientas e instrumentos
+  - observaciones del perfil
+  - resumen, experiencia, educación, certificaciones y observaciones extraídas del CV
+  - postulaciones realizadas
+  - foto de perfil, cuando fue cargada
+- Nueva opción “Mantener indefinidamente”, activada por defecto para candidatos nuevos y existentes.
+- La selección de permanencia se guarda individualmente en la base de datos.
+- El contador y los listados administrativos ahora toman todas las cuentas CANDIDATE, incluso las que sólo completaron el registro inicial y todavía no cargaron el CV laboral.
+- Los perfiles incompletos se identifican como “Registro inicial”, evitando que desaparezcan del panel.
+- Se corrigió el guardado de los campos estructurados del currículum en `/resume/me`.
+- La protección del backup cuenta candidatos registrados y no solamente CV laborales completos.
+- La versión de la PWA, archivos web y API quedó unificada en 7.8.6.
+- `npm start` ejecuta el ajuste no destructivo de Prisma antes de iniciar la API, para incorporar el campo de permanencia sin borrar datos.
+
+Validación
+- Sintaxis de `apps/api/src/index.js`: OK.
+- Sintaxis del script administrativo de `apps/web/admin.html`: OK.
+- Esquema Prisma: validado.
+- Pruebas automatizadas existentes: OK.
+- Revisión de versionado y referencias de caché PWA: OK.
+
+Acciones al desplegar
+1. Publicar la API y la web de la revisión 7.8.6.
+2. La API aplicará automáticamente el nuevo campo de permanencia al ejecutar `npm start`.
+3. Usar “Actualizar versión” o efectuar una recarga forzada para renovar la PWA.
+
+Resguardo de datos
+- No se incorpora ninguna eliminación automática de candidatos.
+- Los candidatos existentes reciben permanencia indefinida por defecto.
+- Desmarcar la opción sólo registra la decisión administrativa; no elimina información en forma inmediata.

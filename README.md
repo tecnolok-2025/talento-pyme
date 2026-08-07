@@ -1,4 +1,4 @@
-# Talento PyME — v7.8.5
+# Talento PyME — v7.8.6
 
 Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**.
 
@@ -7,12 +7,13 @@ Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App S
 - **API (Web Service Render):** https://talento-pyme-api.onrender.com
 - **DB:** Neon (PostgreSQL) via Prisma.
 
-## Roles (sin confusión)
-Solo existen **2 perfiles**:
+## Accesos (sin confusión)
+El portal conserva **3 maneras de ingreso**:
 - **CANDIDATE (Candidato)**
 - **COMPANY (Empresa)**
+- **ADMIN / SUPERADMIN (Administración)**
 
-> En el panel de acceso siguen vigentes los perfiles candidato y empresa. Factory deja preparada una vista de superadministración para uso interno futuro.
+> Candidato y empresa conservan sus funciones y visibilidad diferenciadas. Administración concentra la vista general, los perfiles completos, la trazabilidad, Factory Admin, la capacidad operativa y el chat operador.
 
 > Importante: el PDF que venías adjuntando es una **exportación** (foto en el tiempo). Para que el PDF “muestre” la nueva versión, hay que volver a exportarlo. El origen de la versión es este README + la versión que muestra la app.
 
@@ -30,8 +31,15 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "4.3.0"`
-- API: `apps/api/package.json` → `4.3.0` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.8.6"`
+- API: `apps/api/package.json` → `7.8.6` y endpoint `/health`.
+
+## Administración de candidatos
+- El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.
+- La pestaña **Perfiles candidatos** permite abrir y cerrar cada ficha individual.
+- La ficha muestra datos personales, perfil profesional, experiencia, formación, herramientas, resumen extraído del CV, observaciones y postulaciones.
+- Cada candidato tiene **Mantener indefinidamente** activado por defecto, con persistencia individual en la base.
+- `npm start` aplica el ajuste de esquema requerido antes de iniciar la API, sin borrar los registros existentes.
 
 
 ## Resguardo y capacidad operativa

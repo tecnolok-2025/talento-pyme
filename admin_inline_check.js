@@ -1,4 +1,3 @@
-
 requireAuth();
 applyRoleVisibility();
 requireRole('ADMIN');
@@ -13,6 +12,8 @@ function monthLabelFromKey(key, format='short'){ const [y,m] = String(key || '')
 
 const state = {
   overview: null,
+  backupVerification: null,
+  backupRestorePreview: null,
   factory: null,
   threads: [],
   selectedThreadId: null,
@@ -45,7 +46,151 @@ document.querySelectorAll('#chatRoleTabs [data-role-filter]').forEach((btn) => b
 });
 
 function candidateRowHtml(it){
-  return `<div class="adminRow"><b>${esc(it.apellido || '')}, ${esc(it.nombre || '')}</b><div class="muted">${esc(it.areaTrabajo || 'Perfil general')} ${it.especialidad ? '· ' + esc(it.especialidad) : ''} ${it.localidad ? '· ' + esc(it.localidad) : ''}</div><div class="muted">DNI: ${esc(it.dni || 'sin dato')} · ${esc(it.email || 'sin mail')}</div><div class="muted">Pretensión: ${esc(it.sueldoPretendido || 'No informada')} · ${fd(it.updatedAt)}</div></div>`;
+  const name = `${it.apellido || ''}${it.apellido && it.nombre ? ', ' : ''}${it.nombre || ''}`.trim() || 'Candidato';
+  return `<div class="adminRow"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap"><b>${esc(name)}</b><span class="candidateProfileBadge">${esc(it.profileStatus || 'Registro')}</span></div><div class="muted">${esc(it.areaTrabajo || 'Perfil general')} ${it.especialidad ? '· ' + esc(it.especialidad) : ''} ${it.localidad ? '· ' + esc(it.localidad) : ''}</div><div class="muted">DNI: ${esc(it.dni || 'sin dato')} · ${esc(it.email || 'sin mail')}</div><div class="muted">Pretensión: ${esc(it.sueldoPretendido || 'No informada')} · ${fd(it.updatedAt)}</div></div>`;
+}
+function candidateName(it){
+  const bolsa = it?.candidateBolsa || {};
+  const profile = it?.candidateProfile || {};
+  return `${bolsa.nombre || ''} ${bolsa.apellido || ''}`.trim() || String(profile.fullName || '').trim() || String(it?.email || '').trim() || 'Candidato';
+}
+function candidateDetailValue(value, fallback='No informado'){
+  if(Array.isArray(value)) return value.length ? value.join(', ') : fallback;
+  if(typeof value === 'boolean') return value ? 'Sí' : 'No';
+  if(value === 0) return '0';
+  const text = String(value ?? '').trim();
+  return text || fallback;
+}
+function candidateDetailDate(value){
+  if(!value) return 'No informado';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? candidateDetailValue(value) : date.toLocaleString('es-AR');
+}
+function candidateField(label, value){
+  return `<div class="candidateField"><div class="candidateFieldLabel">${esc(label)}</div><div class="candidateFieldValue">${esc(candidateDetailValue(value))}</div></div>`;
+}
+function candidateSection(title, fields, wide=false){
+  return `<section class="candidateDetailSection ${wide ? 'wide' : ''}"><h3>${esc(title)}</h3>${fields.join('')}</section>`;
+}
+function candidateDirectoryRowHtml(it){
+  const name = `${it.nombre || ''} ${it.apellido || ''}`.trim() || it.email || 'Candidato';
+  const checked = it.keepIndefinitely === false ? '' : 'checked';
+  return `<article class="candidateAccordion" data-user-id="${esc(it.userId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(name)}</span><span class="muted" style="display:block;margin-top:4px">${esc(it.areaTrabajo || 'Perfil todavía incompleto')} ${it.localidad ? '· ' + esc(it.localidad) : ''} · DNI ${esc(it.dni || 'sin dato')}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.profileStatus || 'Registro')}</span></span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button><div><label class="candidateRetention"><input class="candidateRetentionInput" type="checkbox" ${checked}> Mantener indefinidamente</label><div class="candidateSaveMsg" aria-live="polite"></div></div></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
+}
+function renderCandidateDetail(it){
+  const profile = it?.candidateProfile || {};
+  const bolsa = it?.candidateBolsa || {};
+  const resume = it?.resume || {};
+  const skills = Array.isArray(profile.skills) ? profile.skills.map((skill) => `${skill.name || 'Habilidad'}${skill.level ? ` · nivel ${skill.level}/5` : ''}`) : [];
+  const applications = Array.isArray(it?.applications) ? it.applications.map((application) => {
+    const job = application.job || {};
+    const company = job.company?.companyName || 'Empresa no informada';
+    const where = [job.location, job.modality].filter(Boolean).join(' · ');
+    return `${job.title || 'Búsqueda'} · ${company}${where ? ` · ${where}` : ''} · ${candidateDetailDate(application.createdAt)}${application.coverNote ? `\nPresentación: ${application.coverNote}` : ''}`;
+  }) : [];
+  const photo = String(bolsa.photoDataUrl || '');
+  const photoHtml = /^data:image\/[a-z0-9.+-]+;base64,/i.test(photo)
+    ? `<img class="candidatePhoto" src="${esc(photo)}" alt="Foto de ${esc(candidateName(it))}">`
+    : '<div class="candidatePhotoPlaceholder">Sin foto cargada</div>';
+  const header = `<div class="candidateDetailHero">${photoHtml}<div><span class="candidateProfileBadge">${esc(it.profileStatus || 'Registro')}</span><h2 style="margin:8px 0 4px">${esc(candidateName(it))}</h2><div class="muted">${esc(bolsa.areaTrabajo || profile.headline || 'Perfil laboral pendiente')} ${bolsa.especialidad ? '· ' + esc(bolsa.especialidad === 'Otros' ? (bolsa.especialidadOtro || 'Otros') : bolsa.especialidad) : ''}</div><div class="muted" style="margin-top:6px">Alta: ${esc(candidateDetailDate(it.createdAt))} · Última actualización: ${esc(candidateDetailDate(bolsa.updatedAt || profile.updatedAt || resume.updatedAt || it.createdAt))}</div></div></div>`;
+  const sections = [
+    candidateSection('Datos personales y de contacto', [
+      candidateField('Nombre y apellido', candidateName(it)),
+      candidateField('DNI', bolsa.dni || profile.dni),
+      candidateField('Nacionalidad', bolsa.nacionalidad),
+      candidateField('Estado civil', bolsa.estadoCivil),
+      candidateField('Hijos', bolsa.hijos),
+      candidateField('Teléfono', bolsa.telefono || profile.phone),
+      candidateField('Correo', bolsa.correo || it.email),
+      candidateField('Localidad', bolsa.localidad || profile.city),
+      candidateField('Provincia', profile.province),
+      candidateField('Dirección', bolsa.direccion || profile.address),
+    ]),
+    candidateSection('Perfil profesional', [
+      candidateField('Titular profesional', profile.headline),
+      candidateField('Sector', profile.sector),
+      candidateField('Subsector', profile.subSector),
+      candidateField('Área de trabajo', bolsa.areaTrabajo),
+      candidateField('Nivel', bolsa.nivel),
+      candidateField('Especialidad', bolsa.especialidad),
+      candidateField('Otra especialidad', bolsa.especialidadOtro),
+      candidateField('Habilidades', skills),
+    ]),
+    candidateSection('Experiencia, formación y preferencias', [
+      candidateField('Rango de experiencia', bolsa.rangoExperiencia),
+      candidateField('Nivel educativo', bolsa.nivelEducativo),
+      candidateField('Tiene capacitación', bolsa.tieneCapacitacion),
+      candidateField('Trabaja actualmente', bolsa.trabajaActualmente),
+      candidateField('Sueldo pretendido', bolsa.sueldoPretendido),
+      candidateField('Último trabajo', bolsa.ultimoTrabajo),
+      candidateField('Herramientas de mecánica', bolsa.herramientasMecanica),
+      candidateField('Instrumentos de electricidad', bolsa.instrumentosElectrica),
+    ]),
+    candidateSection('Resumen curricular cargado por el candidato', [
+      candidateField('Observaciones del perfil', bolsa.observaciones),
+      candidateField('Resumen extraído del CV', resume.summary),
+      candidateField('Experiencia del CV', resume.experience),
+      candidateField('Educación del CV', resume.education),
+      candidateField('Certificaciones y cursos', resume.certifications),
+      candidateField('Otras observaciones del CV', resume.observations),
+    ], true),
+    candidateSection('Postulaciones realizadas', [
+      candidateField('Cantidad', applications.length),
+      candidateField('Detalle', applications),
+    ], true),
+    candidateSection('Estado administrativo', [
+      candidateField('Permanencia indefinida', it.keepIndefinitely !== false),
+      candidateField('Estado del perfil', it.profileStatus),
+      candidateField('Identificador interno', it.id),
+    ], true),
+  ];
+  return header + `<div class="candidateDetailGrid">${sections.join('')}</div>`;
+}
+function wireCandidateDirectory(){
+  const host = document.getElementById('candidateDirectoryList');
+  if(!host) return;
+  host.querySelectorAll('.candidateAccordionTrigger').forEach((trigger) => {
+    trigger.onclick = async () => {
+      const row = trigger.closest('.candidateAccordion');
+      const body = row.querySelector('.candidateAccordionBody');
+      const icon = row.querySelector('.candidateAccordionIcon');
+      const willOpen = !row.classList.contains('open');
+      row.classList.toggle('open', willOpen);
+      trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      icon.textContent = willOpen ? '−' : '+';
+      if(!willOpen || body.dataset.loaded === 'true') return;
+      body.innerHTML = '<div class="muted">Cargando perfil completo…</div>';
+      try {
+        const data = await apiFetch(`/admin/candidates/${encodeURIComponent(row.dataset.userId)}/detail`);
+        body.innerHTML = renderCandidateDetail(data.item || {});
+        body.dataset.loaded = 'true';
+      } catch (err) {
+        body.innerHTML = `<div class="muted">${esc(err?.message || 'No se pudo abrir el perfil completo.')}</div>`;
+      }
+    };
+  });
+  host.querySelectorAll('.candidateRetentionInput').forEach((input) => {
+    input.onchange = async () => {
+      const row = input.closest('.candidateAccordion');
+      const msg = row.querySelector('.candidateSaveMsg');
+      const keepIndefinitely = !!input.checked;
+      input.disabled = true;
+      msg.textContent = 'Guardando…';
+      try {
+        await apiFetch(`/admin/candidates/${encodeURIComponent(row.dataset.userId)}/retention`, { method:'PATCH', body:JSON.stringify({ keepIndefinitely }) });
+        const item = (state.overview?.candidates || []).find((candidate) => String(candidate.userId || candidate.id) === String(row.dataset.userId));
+        if(item) item.keepIndefinitely = keepIndefinitely;
+        msg.textContent = keepIndefinitely ? 'Permanencia indefinida activa.' : 'Permanencia desactivada.';
+        const detailBody = row.querySelector('.candidateAccordionBody');
+        if(detailBody?.dataset.loaded === 'true') detailBody.dataset.loaded = 'false';
+      } catch (err) {
+        input.checked = !keepIndefinitely;
+        msg.textContent = err?.message || 'No se pudo guardar.';
+      } finally {
+        input.disabled = false;
+      }
+    };
+  });
 }
 function companyRowHtml(it){
   return `<div class="adminRow"><b>${esc(it.companyName || 'Empresa')}</b><div class="muted">${esc(it.city || '')} ${it.province ? '· ' + esc(it.province) : ''}</div><div class="muted">CUIT: ${esc(it.cuit || 'sin dato')} · ${esc(it.contactEmail || 'sin mail')}</div><div class="muted">${fd(it.updatedAt)}</div></div>`;
@@ -173,7 +318,11 @@ function renderOperationalStatus(){
   const upgrade = document.getElementById('btnUpgradeDb');
   const infra = document.getElementById('btnInfraConsole');
   const backup = document.getElementById('btnBackupConsole');
-  if(ops.upgradeUrl){ upgrade.href = ops.upgradeUrl; upgrade.style.display = ''; } else { upgrade.removeAttribute('href'); upgrade.style.display = 'none'; }
+  upgrade.dataset.url = ops.upgradeUrl || '';
+  upgrade.style.display = '';
+  document.getElementById('opsUpgradeHint').textContent = ops.upgradeUrl
+    ? 'Te pedirá tu clave personal antes de abrir la consola o el panel de ampliación.'
+    : 'El botón queda visible y te validará la clave. Si no hay URL configurada, te lo informará para no abrir un destino incorrecto.';
   if(ops.infraUrl){ infra.href = ops.infraUrl; infra.style.display = ''; } else { infra.removeAttribute('href'); infra.style.display = 'none'; }
   if(ops.backupUrl){ backup.href = ops.backupUrl; backup.style.display = ''; } else { backup.removeAttribute('href'); backup.style.display = 'none'; }
 }
@@ -190,15 +339,25 @@ function backupStatusClass(status){
   if(key === 'COMPLETED') return 'completed';
   if(key === 'RUNNING') return 'running';
   if(key === 'FAILED') return 'failed';
+  if(key === 'BLOCKED') return 'pending';
   return 'pending';
 }
 
 function backupStatusLabel(status){
-  return ({ COMPLETED:'Completado', RUNNING:'En curso', FAILED:'Fallido', PENDING:'Pendiente' }[String(status || '').toUpperCase()] || 'Pendiente');
+  return ({ COMPLETED:'Completado', RUNNING:'En curso', FAILED:'Fallido', BLOCKED:'Bloqueado por resguardo', PENDING:'Pendiente' }[String(status || '').toUpperCase()] || 'Pendiente');
 }
 
 function backupTriggerLabel(trigger){
   return ({ MANUAL_ADMIN:'Manual desde panel', MANUAL:'Manual', AUTO_BOOT:'Automático al iniciar', AUTO_INTERVAL:'Automático programado', AUTO_ADMIN:'Automático al abrir panel' }[String(trigger || '').toUpperCase()] || (trigger || 'Sistema'));
+}
+
+function backupIntegrityLabel(ok){
+  return ok ? 'Íntegro y legible' : 'Requiere revisión';
+}
+
+function shortChecksum(value){
+  const s = String(value || '');
+  return s ? `${s.slice(0, 12)}…` : '—';
 }
 
 function renderBackupCenter(){
@@ -211,6 +370,27 @@ function renderBackupCenter(){
   document.getElementById('backupLastRecords').textContent = `${Number(backup.lastBackupRecordCount || 0).toLocaleString('es-AR')} registro(s) incluidos`;
   document.getElementById('backupRetained').textContent = `${Number(backup.retainedFiles || 0).toLocaleString('es-AR')} archivo(s)`;
   document.getElementById('backupRetentionNote').textContent = backup.localBackupEnabled === false ? 'El backup lógico local está desactivado por configuración.' : 'Se conserva la ventana definida de resguardo.';
+  const verification = state.backupVerification;
+  const integrityOk = verification ? (verification.integrityOk !== false && verification.checksumMatches !== false) : (backup.lastBackupIntegrityOk !== false);
+  document.getElementById('backupIntegrityTitle').textContent = backupIntegrityLabel(integrityOk);
+  document.getElementById('backupIntegrityNote').textContent = verification
+    ? `Checksum ${shortChecksum(verification.checksumSha256)} · verificado ${formatDateTime(verification.verifiedAt)} · ${Number(verification.datasetCount || 0).toLocaleString('es-AR')} dataset(s).`
+    : backup.lastBackupAt
+      ? `Checksum ${shortChecksum(backup.lastBackupChecksum)} · verificado ${formatDateTime(backup.lastBackupVerifiedAt || backup.lastBackupAt)} · ${Number(backup.lastBackupDatasetCount || 0).toLocaleString('es-AR')} dataset(s).`
+      : 'Todavía no se verificó ningún archivo.';
+  const preview = state.backupRestorePreview;
+  document.getElementById('backupRestoreTitle').textContent = preview?.integrityOk ? 'Archivo apto para revisión' : (preview ? 'Simulación con observaciones' : 'Pendiente');
+  document.getElementById('backupRestoreNote').textContent = preview
+    ? `${Number(preview.recordCount || 0).toLocaleString('es-AR')} registro(s) · ${Number(preview.datasetCount || 0).toLocaleString('es-AR')} dataset(s) · ${formatDateTime(preview.createdAt)}.`
+    : 'Todavía no se ejecutó ninguna simulación.';
+  document.getElementById('backupGuardTitle').textContent = backup.lastBlockedBackupAt ? 'Alerta de resguardo activa' : 'Protección activa';
+  document.getElementById('backupGuardNote').textContent = backup.lastBlockedBackupAt
+    ? `${backup.lastBlockedBackupReason || 'Se bloqueó el último backup.'} Último bloqueo: ${formatDateTime(backup.lastBlockedBackupAt)}.`
+    : `Se bloquean respaldos que bajen de ${Math.round(Number(backup.backupGuardMinRatio || 0.8) * 100)}% del último backup confiable.`;
+  document.getElementById('backupTrustedTitle').textContent = backup.trustedBackupAt ? formatDateTime(backup.trustedBackupAt) : 'Sin referencia todavía';
+  document.getElementById('backupTrustedNote').textContent = backup.trustedBackupAt
+    ? `${backup.trustedBackupFileName || backup.trustedBackupKey || 'Backup confiable'} permanece como base segura para continuidad histórica.`
+    : 'Todavía no existe un backup confiable registrado.';
   const history = Array.isArray(backup.recentBackups) ? backup.recentBackups : [];
   document.getElementById('backupHistory').innerHTML = history.map((item) => `
     <div class="backupRow">
@@ -233,6 +413,7 @@ async function triggerManualBackup(){
     await loadOverview();
   } catch (err) {
     msg.textContent = err?.message || 'No se pudo ejecutar el backup.';
+    await loadOverview().catch(() => null);
   }
 }
 
@@ -254,6 +435,51 @@ async function downloadLatestBackup(){
     msg.textContent = `Descarga lista: ${filename}.`;
   } catch (err) {
     msg.textContent = err?.message || 'No se pudo descargar el backup.';
+  }
+}
+
+async function verifyLatestBackup(){
+  const msg = document.getElementById('backupActionMsg');
+  msg.textContent = 'Verificando integridad del último backup...';
+  try {
+    const data = await apiFetch('/admin/backup/verify/latest');
+    state.backupVerification = data?.verification || null;
+    const verification = state.backupVerification;
+    document.getElementById('backupIntegrityTitle').textContent = backupIntegrityLabel(verification?.integrityOk !== false && verification?.checksumMatches !== false);
+    document.getElementById('backupIntegrityNote').textContent = verification
+      ? `Checksum ${shortChecksum(verification.checksumSha256)} · ${Number(verification.recordCount || 0).toLocaleString('es-AR')} registro(s) · ${Number(verification.datasetCount || 0).toLocaleString('es-AR')} dataset(s).`
+      : 'No se pudo leer la verificación.';
+    msg.textContent = verification?.integrityOk ? 'Verificación correcta. El backup es legible y consistente.' : 'La verificación detectó observaciones. Revisá el archivo.';
+  } catch (err) {
+    msg.textContent = err?.message || 'No se pudo verificar el último backup.';
+  }
+}
+
+async function previewRestoreLatest(){
+  const msg = document.getElementById('backupActionMsg');
+  msg.textContent = 'Simulando restauración del último backup...';
+  try {
+    const data = await apiFetch('/admin/backup/restore/preview/latest');
+    state.backupRestorePreview = data?.preview || null;
+    renderBackupCenter();
+    msg.textContent = state.backupRestorePreview?.integrityOk ? 'Simulación correcta. El archivo puede revisarse como base de restauración.' : 'Simulación con observaciones. Revisá integridad y estructura.';
+  } catch (err) {
+    msg.textContent = err?.message || 'No se pudo simular la restauración del último backup.';
+  }
+}
+
+async function openUpgradeAccess(){
+  const hint = document.getElementById('opsUpgradeHint');
+  const password = window.prompt('Ingresá tu clave personal para abrir la ampliación de capacidad DB.');
+  if(password === null) return;
+  hint.textContent = 'Validando clave personal...';
+  try {
+    const data = await apiFetch('/admin/upgrade/access', { method:'POST', body: JSON.stringify({ password }) });
+    if(!data?.url) throw new Error('No hay una URL de ampliación/configuración definida todavía.');
+    window.open(data.url, '_blank', 'noopener');
+    hint.textContent = data?.providerNote || 'Acceso validado. El proveedor puede pedir un segundo login propio.';
+  } catch (err) {
+    hint.textContent = err?.message || 'No se pudo validar el acceso a ampliación de capacidad.';
   }
 }
 
@@ -279,6 +505,8 @@ async function loadOverview(){
   document.getElementById('sumBilling').textContent = money(data.summary?.paidTotal || 0);
 
   document.getElementById('candidateList').innerHTML = (data.candidates || []).map(candidateRowHtml).join('') || '<div class="muted">Sin candidatos en el período seleccionado.</div>';
+  document.getElementById('candidateDirectoryList').innerHTML = (data.candidates || []).map(candidateDirectoryRowHtml).join('') || '<div class="muted">Sin candidatos en el período seleccionado.</div>';
+  wireCandidateDirectory();
   document.getElementById('companyList').innerHTML = (data.companies || []).map(companyRowHtml).join('') || '<div class="muted">Sin empresas en el período seleccionado.</div>';
   document.getElementById('billingList').innerHTML = (data.billingOrders || []).map(billingRowHtml).join('') || '<div class="muted">Sin documentos en el período seleccionado.</div>';
   document.getElementById('candidatePreview').innerHTML = (data.candidates || []).slice(0, 5).map(candidateRowHtml).join('') || '<div class="muted">Todavía no hay candidatos visibles para este filtro.</div>';
@@ -288,14 +516,21 @@ async function loadOverview(){
   const sp = data.companyPaging || {};
   const bp = data.billingPaging || {};
   document.getElementById('candidatePagingInfo').textContent = `Mostrando página ${cp.page || 1} de ${cp.totalPages || 1} · ${cp.total || 0} candidato(s)`;
+  document.getElementById('candidateDirectoryPagingInfo').textContent = `Mostrando página ${cp.page || 1} de ${cp.totalPages || 1} · ${cp.total || 0} candidato(s)`;
   document.getElementById('companyPagingInfo').textContent = `Mostrando página ${sp.page || 1} de ${sp.totalPages || 1} · ${sp.total || 0} empresa(s)`;
   document.getElementById('billingPagingInfo').textContent = `Mostrando página ${bp.page || 1} de ${bp.totalPages || 1} · ${bp.total || 0} documento(s)`;
   document.getElementById('btnCandidatePrev').disabled = (cp.page || 1) <= 1;
   document.getElementById('btnCandidateNext').disabled = (cp.page || 1) >= (cp.totalPages || 1);
+  document.getElementById('btnCandidateDirectoryPrev').disabled = (cp.page || 1) <= 1;
+  document.getElementById('btnCandidateDirectoryNext').disabled = (cp.page || 1) >= (cp.totalPages || 1);
   document.getElementById('btnCompanyPrev').disabled = (sp.page || 1) <= 1;
   document.getElementById('btnCompanyNext').disabled = (sp.page || 1) >= (sp.totalPages || 1);
   document.getElementById('btnBillingPrev').disabled = (bp.page || 1) <= 1;
   document.getElementById('btnBillingNext').disabled = (bp.page || 1) >= (bp.totalPages || 1);
+  document.getElementById('candidateDaysFilter').value = f.candidateDays;
+  document.getElementById('candidateDirectoryDaysFilter').value = f.candidateDays;
+  document.getElementById('candidatePerPage').value = String(f.candidatePerPage);
+  document.getElementById('candidateDirectoryPerPage').value = String(f.candidatePerPage);
 
   const tc = data.traceability?.candidate || {};
   const te = data.traceability?.company || {};
@@ -392,6 +627,8 @@ document.getElementById('btnCreateFreeAdmin').onclick = async () => {
 
 document.getElementById('candidateDaysFilter').onchange = (e) => { state.filters.candidateDays = e.target.value; state.filters.candidatePage = 1; loadOverview(); };
 document.getElementById('candidatePerPage').onchange = (e) => { state.filters.candidatePerPage = Number(e.target.value || 50); state.filters.candidatePage = 1; loadOverview(); };
+document.getElementById('candidateDirectoryDaysFilter').onchange = (e) => { state.filters.candidateDays = e.target.value; state.filters.candidatePage = 1; loadOverview(); };
+document.getElementById('candidateDirectoryPerPage').onchange = (e) => { state.filters.candidatePerPage = Number(e.target.value || 50); state.filters.candidatePage = 1; loadOverview(); };
 document.getElementById('companyDaysFilter').onchange = (e) => { state.filters.companyDays = e.target.value; state.filters.companyPage = 1; loadOverview(); };
 document.getElementById('companyPerPage').onchange = (e) => { state.filters.companyPerPage = Number(e.target.value || 50); state.filters.companyPage = 1; loadOverview(); };
 document.getElementById('billingDaysFilter').onchange = (e) => { state.filters.billingDays = e.target.value; state.filters.billingPage = 1; loadOverview(); };
@@ -399,6 +636,8 @@ document.getElementById('billingStatusFilter').onchange = (e) => { state.filters
 document.getElementById('billingPerPage').onchange = (e) => { state.filters.billingPerPage = Number(e.target.value || 50); state.filters.billingPage = 1; loadOverview(); };
 document.getElementById('btnCandidatePrev').onclick = () => { if(state.filters.candidatePage > 1){ state.filters.candidatePage -= 1; loadOverview(); } };
 document.getElementById('btnCandidateNext').onclick = () => { state.filters.candidatePage += 1; loadOverview(); };
+document.getElementById('btnCandidateDirectoryPrev').onclick = () => { if(state.filters.candidatePage > 1){ state.filters.candidatePage -= 1; loadOverview(); } };
+document.getElementById('btnCandidateDirectoryNext').onclick = () => { state.filters.candidatePage += 1; loadOverview(); };
 document.getElementById('btnCompanyPrev').onclick = () => { if(state.filters.companyPage > 1){ state.filters.companyPage -= 1; loadOverview(); } };
 document.getElementById('btnCompanyNext').onclick = () => { state.filters.companyPage += 1; loadOverview(); };
 document.getElementById('btnBillingPrev').onclick = () => { if(state.filters.billingPage > 1){ state.filters.billingPage -= 1; loadOverview(); } };
@@ -411,6 +650,9 @@ document.getElementById('btnTraceYearNext').onclick = () => { const years = (sta
 document.getElementById('btnRefreshThreads').onclick = () => loadThreads();
 document.getElementById('btnRunBackup').onclick = () => triggerManualBackup();
 document.getElementById('btnDownloadBackup').onclick = () => downloadLatestBackup();
+document.getElementById('btnVerifyBackup').onclick = () => verifyLatestBackup();
+document.getElementById('btnPreviewRestore').onclick = () => previewRestoreLatest();
+document.getElementById('btnUpgradeDb').onclick = () => openUpgradeAccess();
 document.getElementById('btnSendOperatorReply').onclick = async () => {
   const threadId = state.selectedThreadId;
   const content = document.getElementById('operatorReply').value.trim();

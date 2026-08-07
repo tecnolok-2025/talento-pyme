@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.8.5" />
+  <link rel="stylesheet" href="/styles.css?v=7.8.6" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -104,8 +104,35 @@
     .backupBadge.running{background:rgba(37,99,235,.10);color:#1d4ed8;border:1px solid rgba(37,99,235,.18)}
     .backupBadge.failed{background:rgba(239,68,68,.12);color:#b91c1c;border:1px solid rgba(239,68,68,.18)}
     .backupBadge.pending{background:rgba(100,116,139,.12);color:#334155;border:1px solid rgba(100,116,139,.18)}
+    .candidateDirectory{display:grid;gap:12px;margin-top:16px}
+    .candidateAccordion{border:1px solid var(--tp-border);border-radius:20px;background:#fff;overflow:hidden;transition:border-color .18s ease,box-shadow .18s ease}
+    .candidateAccordion.open{border-color:#93c5fd;box-shadow:0 12px 28px rgba(37,99,235,.10)}
+    .candidateAccordionTop{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px 16px}
+    .candidateAccordionTrigger{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;width:100%;padding:0;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer;font:inherit}
+    .candidateAccordionTrigger:focus-visible{outline:3px solid rgba(37,99,235,.28);outline-offset:6px;border-radius:12px}
+    .candidateAccordionName{font-weight:900;font-size:16px}
+    .candidateAccordionIcon{width:32px;height:32px;border-radius:999px;background:#eff6ff;color:#1d4ed8;display:grid;place-items:center;font-size:22px;font-weight:800;flex:0 0 auto}
+    .candidateRetention{display:flex;align-items:center;gap:9px;padding:10px 12px;border-radius:14px;background:rgba(22,163,74,.08);color:#166534;font-size:12px;font-weight:900;white-space:nowrap}
+    .candidateRetention input{width:18px;height:18px;accent-color:#16a34a}
+    .candidateAccordionBody{display:none;border-top:1px solid var(--tp-border);padding:16px;background:linear-gradient(180deg,#f8fbff 0%,#fff 100%)}
+    .candidateAccordion.open .candidateAccordionBody{display:block}
+    .candidateDetailHero{display:grid;grid-template-columns:110px minmax(0,1fr);gap:16px;align-items:start}
+    .candidatePhoto{width:110px;height:110px;border-radius:20px;object-fit:cover;border:1px solid var(--tp-border);background:#e2e8f0}
+    .candidatePhotoPlaceholder{width:110px;height:110px;border-radius:20px;border:1px solid var(--tp-border);background:#e2e8f0;display:grid;place-items:center;color:#475569;font-weight:900;text-align:center;padding:8px}
+    .candidateDetailGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:16px}
+    .candidateDetailSection{border:1px solid var(--tp-border);border-radius:18px;padding:14px;background:#fff;min-width:0}
+    .candidateDetailSection.wide{grid-column:1/-1}
+    .candidateDetailSection h3{margin:0 0 10px;font-size:15px}
+    .candidateField{display:grid;grid-template-columns:minmax(140px,.42fr) minmax(0,1fr);gap:10px;padding:7px 0;border-top:1px solid rgba(226,232,240,.75)}
+    .candidateField:first-of-type{border-top:0}
+    .candidateFieldLabel{font-size:12px;font-weight:900;color:#475569}
+    .candidateFieldValue{white-space:pre-wrap;overflow-wrap:anywhere;color:#0f172a}
+    .candidateProfileBadge{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
+    .candidateSaveMsg{font-size:12px;color:#475569;min-height:18px;margin-top:5px;text-align:right}
     @media(max-width:960px){.traceChartLayout{grid-template-columns:1fr}.traceAxisY{display:none}.traceChartSummary{grid-template-columns:1fr}.traceBars{gap:4px}.traceBarWrap{width:24px}.traceBar{width:18px}.tracePlot{padding-left:8px;padding-right:8px}}
     @media(max-width:960px){.matrixRow{grid-template-columns:repeat(2,minmax(0,1fr))}.matrixRow .wide{grid-column:1/-1}.matrixRow .toggleCell{grid-column:1/-1}}
+    @media(max-width:820px){.candidateAccordionTop{grid-template-columns:1fr}.candidateRetention{white-space:normal}.candidateSaveMsg{text-align:left}.candidateDetailGrid{grid-template-columns:1fr}.candidateDetailSection.wide{grid-column:auto}}
+    @media(max-width:560px){.candidateDetailHero{grid-template-columns:1fr}.candidateField{grid-template-columns:1fr;gap:3px}.candidatePhoto,.candidatePhotoPlaceholder{width:92px;height:92px}}
   </style>
 </head>
 <body class="appShell">
@@ -113,7 +140,7 @@
 <div class="wrap wide">
   <div class="heroPanel"><div class="small pageEyebrow">Talento PyME · superadministración</div><h2 style="margin:8px 0 6px 0">Vista general del sistema</h2><div class="muted">Entraste con el acceso general de Talento PyME. Desde acá ves candidatos, empresas, chat operador y la misma matriz comercial que hoy usás en Factory Admin.</div></div>
   <div class="adminGrid">
-    <div class="adminCard"><div class="small muted">Candidatos</div><div class="num" id="sumCandidates">—</div><div class="filterNote">Perfiles activos en bolsa.</div></div>
+    <div class="adminCard"><div class="small muted">Candidatos</div><div class="num" id="sumCandidates">—</div><div class="filterNote">Personas registradas como candidatas.</div></div>
     <div class="adminCard"><div class="small muted">Empresas</div><div class="num" id="sumCompanies">—</div><div class="filterNote">Empresas registradas.</div></div>
     <div class="adminCard"><div class="small muted">Búsquedas</div><div class="num" id="sumJobs">—</div><div class="filterNote">Avisos publicados y borradores.</div></div>
     <div class="adminCard"><div class="small muted">Facturación total</div><div class="num" id="sumBilling">—</div><div class="filterNote">Órdenes verificadas o pagas.</div></div>
@@ -121,6 +148,7 @@
   <div class="tabs" id="adminTabs">
     <button class="btn btn-ghost active" data-tab="overview" type="button">Resumen</button>
     <button class="btn btn-ghost" data-tab="candidate" type="button">Resumen candidato</button>
+    <button class="btn btn-ghost" data-tab="candidate-records" type="button">Perfiles candidatos</button>
     <button class="btn btn-ghost" data-tab="company" type="button">Resumen empresa</button>
     <button class="btn btn-ghost" data-tab="billing" type="button">Resumen facturación</button>
     <button class="btn btn-ghost" data-tab="traceability" type="button">Trazabilidad</button>
@@ -132,6 +160,23 @@
     <div class="adminColumns">
       <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Resumen candidato</h2><div class="muted">Vista rápida de altas, actividad reciente y últimos registros del lado candidato.</div></div></div><div class="traceKpiRow"><div class="traceMini"><span class="muted small">Candidatos registrados</span><b id="traceCandidateTotal">—</b></div><div class="traceMini"><span class="muted small">Perfiles actualizados 30 días</span><b id="traceCandidateUpdated">—</b></div><div class="traceMini"><span class="muted small">Postulaciones 30 días</span><b id="traceCandidateApplications">—</b></div><div class="traceMini"><span class="muted small">Consultas IA 30 días</span><b id="traceCandidateChats">—</b></div></div><div class="muted traceHint">Desde la pestaña Resumen candidato podés recorrer el padrón completo y su trazabilidad.</div><div id="candidatePreview" class="adminList" style="margin-top:16px"></div></div>
       <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Resumen empresa</h2><div class="muted">Vista rápida de cuentas registradas, actividad comercial y últimos movimientos del lado empresa.</div></div></div><div class="traceKpiRow" style="grid-template-columns:repeat(5,minmax(0,1fr))"><div class="traceMini"><span class="muted small">Empresas registradas</span><b id="traceCompanyTotal">—</b></div><div class="traceMini"><span class="muted small">Empresas activas 30 días</span><b id="traceCompanyUpdated">—</b></div><div class="traceMini"><span class="muted small">Búsquedas 30 días</span><b id="traceCompanyJobs">—</b></div><div class="traceMini"><span class="muted small">Consultas IA 30 días</span><b id="traceCompanyChats">—</b></div><div class="traceMini"><span class="muted small">Aperturas 30 días</span><b id="traceCompanyOpenings">—</b></div></div><div class="muted traceHint">Desde la pestaña Resumen empresa podés revisar el padrón completo, búsquedas y movimientos comerciales.</div><div id="companyPreview" class="adminList" style="margin-top:16px"></div></div>
+    </div>
+  </section>
+  <section class="tabPane" id="tab-candidate-records">
+    <div class="card">
+      <div class="toolbarCard">
+        <div><h2 style="margin:0">Perfiles completos de candidatos</h2><div class="muted">Abrí cada candidato para ver el 100% de la información cargada en su currículum. Al volver a tocar su nombre, la ficha se cierra.</div></div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <select class="input" id="candidateDirectoryDaysFilter" style="min-width:160px"><option value="30">Últimos 30 días</option><option value="60">Últimos 60 días</option><option value="100">Últimos 100 días</option><option value="365">Último año</option><option value="730">Últimos 2 años</option><option value="ALL" selected>Todos</option></select>
+          <select class="input" id="candidateDirectoryPerPage" style="min-width:110px"><option value="50">50 por página</option><option value="100">100 por página</option></select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;justify-content:space-between;gap:10px">
+        <span class="muted" id="candidateDirectoryPagingInfo">Sin datos.</span>
+        <div class="row" style="gap:8px"><button class="btn btn-ghost" id="btnCandidateDirectoryPrev" type="button">Anterior</button><button class="btn btn-ghost" id="btnCandidateDirectoryNext" type="button">Siguiente</button></div>
+      </div>
+      <div class="muted traceHint">“Mantener indefinidamente” está activado por defecto para todos los candidatos, incluidos los registros existentes. Desmarcarlo no elimina información en forma inmediata.</div>
+      <div id="candidateDirectoryList" class="candidateDirectory"></div>
     </div>
   </section>
   <section class="tabPane" id="tab-candidate">
@@ -285,8 +330,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.8.5"></script>
-<script src="/auth.js?v=7.8.5"></script>
+<script src="/config.js?v=7.8.6"></script>
+<script src="/auth.js?v=7.8.6"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -336,7 +381,151 @@ document.querySelectorAll('#chatRoleTabs [data-role-filter]').forEach((btn) => b
 });
 
 function candidateRowHtml(it){
-  return `<div class="adminRow"><b>${esc(it.apellido || '')}, ${esc(it.nombre || '')}</b><div class="muted">${esc(it.areaTrabajo || 'Perfil general')} ${it.especialidad ? '· ' + esc(it.especialidad) : ''} ${it.localidad ? '· ' + esc(it.localidad) : ''}</div><div class="muted">DNI: ${esc(it.dni || 'sin dato')} · ${esc(it.email || 'sin mail')}</div><div class="muted">Pretensión: ${esc(it.sueldoPretendido || 'No informada')} · ${fd(it.updatedAt)}</div></div>`;
+  const name = `${it.apellido || ''}${it.apellido && it.nombre ? ', ' : ''}${it.nombre || ''}`.trim() || 'Candidato';
+  return `<div class="adminRow"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap"><b>${esc(name)}</b><span class="candidateProfileBadge">${esc(it.profileStatus || 'Registro')}</span></div><div class="muted">${esc(it.areaTrabajo || 'Perfil general')} ${it.especialidad ? '· ' + esc(it.especialidad) : ''} ${it.localidad ? '· ' + esc(it.localidad) : ''}</div><div class="muted">DNI: ${esc(it.dni || 'sin dato')} · ${esc(it.email || 'sin mail')}</div><div class="muted">Pretensión: ${esc(it.sueldoPretendido || 'No informada')} · ${fd(it.updatedAt)}</div></div>`;
+}
+function candidateName(it){
+  const bolsa = it?.candidateBolsa || {};
+  const profile = it?.candidateProfile || {};
+  return `${bolsa.nombre || ''} ${bolsa.apellido || ''}`.trim() || String(profile.fullName || '').trim() || String(it?.email || '').trim() || 'Candidato';
+}
+function candidateDetailValue(value, fallback='No informado'){
+  if(Array.isArray(value)) return value.length ? value.join(', ') : fallback;
+  if(typeof value === 'boolean') return value ? 'Sí' : 'No';
+  if(value === 0) return '0';
+  const text = String(value ?? '').trim();
+  return text || fallback;
+}
+function candidateDetailDate(value){
+  if(!value) return 'No informado';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? candidateDetailValue(value) : date.toLocaleString('es-AR');
+}
+function candidateField(label, value){
+  return `<div class="candidateField"><div class="candidateFieldLabel">${esc(label)}</div><div class="candidateFieldValue">${esc(candidateDetailValue(value))}</div></div>`;
+}
+function candidateSection(title, fields, wide=false){
+  return `<section class="candidateDetailSection ${wide ? 'wide' : ''}"><h3>${esc(title)}</h3>${fields.join('')}</section>`;
+}
+function candidateDirectoryRowHtml(it){
+  const name = `${it.nombre || ''} ${it.apellido || ''}`.trim() || it.email || 'Candidato';
+  const checked = it.keepIndefinitely === false ? '' : 'checked';
+  return `<article class="candidateAccordion" data-user-id="${esc(it.userId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(name)}</span><span class="muted" style="display:block;margin-top:4px">${esc(it.areaTrabajo || 'Perfil todavía incompleto')} ${it.localidad ? '· ' + esc(it.localidad) : ''} · DNI ${esc(it.dni || 'sin dato')}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.profileStatus || 'Registro')}</span></span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button><div><label class="candidateRetention"><input class="candidateRetentionInput" type="checkbox" ${checked}> Mantener indefinidamente</label><div class="candidateSaveMsg" aria-live="polite"></div></div></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
+}
+function renderCandidateDetail(it){
+  const profile = it?.candidateProfile || {};
+  const bolsa = it?.candidateBolsa || {};
+  const resume = it?.resume || {};
+  const skills = Array.isArray(profile.skills) ? profile.skills.map((skill) => `${skill.name || 'Habilidad'}${skill.level ? ` · nivel ${skill.level}/5` : ''}`) : [];
+  const applications = Array.isArray(it?.applications) ? it.applications.map((application) => {
+    const job = application.job || {};
+    const company = job.company?.companyName || 'Empresa no informada';
+    const where = [job.location, job.modality].filter(Boolean).join(' · ');
+    return `${job.title || 'Búsqueda'} · ${company}${where ? ` · ${where}` : ''} · ${candidateDetailDate(application.createdAt)}${application.coverNote ? `\nPresentación: ${application.coverNote}` : ''}`;
+  }) : [];
+  const photo = String(bolsa.photoDataUrl || '');
+  const photoHtml = /^data:image\/[a-z0-9.+-]+;base64,/i.test(photo)
+    ? `<img class="candidatePhoto" src="${esc(photo)}" alt="Foto de ${esc(candidateName(it))}">`
+    : '<div class="candidatePhotoPlaceholder">Sin foto cargada</div>';
+  const header = `<div class="candidateDetailHero">${photoHtml}<div><span class="candidateProfileBadge">${esc(it.profileStatus || 'Registro')}</span><h2 style="margin:8px 0 4px">${esc(candidateName(it))}</h2><div class="muted">${esc(bolsa.areaTrabajo || profile.headline || 'Perfil laboral pendiente')} ${bolsa.especialidad ? '· ' + esc(bolsa.especialidad === 'Otros' ? (bolsa.especialidadOtro || 'Otros') : bolsa.especialidad) : ''}</div><div class="muted" style="margin-top:6px">Alta: ${esc(candidateDetailDate(it.createdAt))} · Última actualización: ${esc(candidateDetailDate(bolsa.updatedAt || profile.updatedAt || resume.updatedAt || it.createdAt))}</div></div></div>`;
+  const sections = [
+    candidateSection('Datos personales y de contacto', [
+      candidateField('Nombre y apellido', candidateName(it)),
+      candidateField('DNI', bolsa.dni || profile.dni),
+      candidateField('Nacionalidad', bolsa.nacionalidad),
+      candidateField('Estado civil', bolsa.estadoCivil),
+      candidateField('Hijos', bolsa.hijos),
+      candidateField('Teléfono', bolsa.telefono || profile.phone),
+      candidateField('Correo', bolsa.correo || it.email),
+      candidateField('Localidad', bolsa.localidad || profile.city),
+      candidateField('Provincia', profile.province),
+      candidateField('Dirección', bolsa.direccion || profile.address),
+    ]),
+    candidateSection('Perfil profesional', [
+      candidateField('Titular profesional', profile.headline),
+      candidateField('Sector', profile.sector),
+      candidateField('Subsector', profile.subSector),
+      candidateField('Área de trabajo', bolsa.areaTrabajo),
+      candidateField('Nivel', bolsa.nivel),
+      candidateField('Especialidad', bolsa.especialidad),
+      candidateField('Otra especialidad', bolsa.especialidadOtro),
+      candidateField('Habilidades', skills),
+    ]),
+    candidateSection('Experiencia, formación y preferencias', [
+      candidateField('Rango de experiencia', bolsa.rangoExperiencia),
+      candidateField('Nivel educativo', bolsa.nivelEducativo),
+      candidateField('Tiene capacitación', bolsa.tieneCapacitacion),
+      candidateField('Trabaja actualmente', bolsa.trabajaActualmente),
+      candidateField('Sueldo pretendido', bolsa.sueldoPretendido),
+      candidateField('Último trabajo', bolsa.ultimoTrabajo),
+      candidateField('Herramientas de mecánica', bolsa.herramientasMecanica),
+      candidateField('Instrumentos de electricidad', bolsa.instrumentosElectrica),
+    ]),
+    candidateSection('Resumen curricular cargado por el candidato', [
+      candidateField('Observaciones del perfil', bolsa.observaciones),
+      candidateField('Resumen extraído del CV', resume.summary),
+      candidateField('Experiencia del CV', resume.experience),
+      candidateField('Educación del CV', resume.education),
+      candidateField('Certificaciones y cursos', resume.certifications),
+      candidateField('Otras observaciones del CV', resume.observations),
+    ], true),
+    candidateSection('Postulaciones realizadas', [
+      candidateField('Cantidad', applications.length),
+      candidateField('Detalle', applications),
+    ], true),
+    candidateSection('Estado administrativo', [
+      candidateField('Permanencia indefinida', it.keepIndefinitely !== false),
+      candidateField('Estado del perfil', it.profileStatus),
+      candidateField('Identificador interno', it.id),
+    ], true),
+  ];
+  return header + `<div class="candidateDetailGrid">${sections.join('')}</div>`;
+}
+function wireCandidateDirectory(){
+  const host = document.getElementById('candidateDirectoryList');
+  if(!host) return;
+  host.querySelectorAll('.candidateAccordionTrigger').forEach((trigger) => {
+    trigger.onclick = async () => {
+      const row = trigger.closest('.candidateAccordion');
+      const body = row.querySelector('.candidateAccordionBody');
+      const icon = row.querySelector('.candidateAccordionIcon');
+      const willOpen = !row.classList.contains('open');
+      row.classList.toggle('open', willOpen);
+      trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      icon.textContent = willOpen ? '−' : '+';
+      if(!willOpen || body.dataset.loaded === 'true') return;
+      body.innerHTML = '<div class="muted">Cargando perfil completo…</div>';
+      try {
+        const data = await apiFetch(`/admin/candidates/${encodeURIComponent(row.dataset.userId)}/detail`);
+        body.innerHTML = renderCandidateDetail(data.item || {});
+        body.dataset.loaded = 'true';
+      } catch (err) {
+        body.innerHTML = `<div class="muted">${esc(err?.message || 'No se pudo abrir el perfil completo.')}</div>`;
+      }
+    };
+  });
+  host.querySelectorAll('.candidateRetentionInput').forEach((input) => {
+    input.onchange = async () => {
+      const row = input.closest('.candidateAccordion');
+      const msg = row.querySelector('.candidateSaveMsg');
+      const keepIndefinitely = !!input.checked;
+      input.disabled = true;
+      msg.textContent = 'Guardando…';
+      try {
+        await apiFetch(`/admin/candidates/${encodeURIComponent(row.dataset.userId)}/retention`, { method:'PATCH', body:JSON.stringify({ keepIndefinitely }) });
+        const item = (state.overview?.candidates || []).find((candidate) => String(candidate.userId || candidate.id) === String(row.dataset.userId));
+        if(item) item.keepIndefinitely = keepIndefinitely;
+        msg.textContent = keepIndefinitely ? 'Permanencia indefinida activa.' : 'Permanencia desactivada.';
+        const detailBody = row.querySelector('.candidateAccordionBody');
+        if(detailBody?.dataset.loaded === 'true') detailBody.dataset.loaded = 'false';
+      } catch (err) {
+        input.checked = !keepIndefinitely;
+        msg.textContent = err?.message || 'No se pudo guardar.';
+      } finally {
+        input.disabled = false;
+      }
+    };
+  });
 }
 function companyRowHtml(it){
   return `<div class="adminRow"><b>${esc(it.companyName || 'Empresa')}</b><div class="muted">${esc(it.city || '')} ${it.province ? '· ' + esc(it.province) : ''}</div><div class="muted">CUIT: ${esc(it.cuit || 'sin dato')} · ${esc(it.contactEmail || 'sin mail')}</div><div class="muted">${fd(it.updatedAt)}</div></div>`;
@@ -651,6 +840,8 @@ async function loadOverview(){
   document.getElementById('sumBilling').textContent = money(data.summary?.paidTotal || 0);
 
   document.getElementById('candidateList').innerHTML = (data.candidates || []).map(candidateRowHtml).join('') || '<div class="muted">Sin candidatos en el período seleccionado.</div>';
+  document.getElementById('candidateDirectoryList').innerHTML = (data.candidates || []).map(candidateDirectoryRowHtml).join('') || '<div class="muted">Sin candidatos en el período seleccionado.</div>';
+  wireCandidateDirectory();
   document.getElementById('companyList').innerHTML = (data.companies || []).map(companyRowHtml).join('') || '<div class="muted">Sin empresas en el período seleccionado.</div>';
   document.getElementById('billingList').innerHTML = (data.billingOrders || []).map(billingRowHtml).join('') || '<div class="muted">Sin documentos en el período seleccionado.</div>';
   document.getElementById('candidatePreview').innerHTML = (data.candidates || []).slice(0, 5).map(candidateRowHtml).join('') || '<div class="muted">Todavía no hay candidatos visibles para este filtro.</div>';
@@ -660,14 +851,21 @@ async function loadOverview(){
   const sp = data.companyPaging || {};
   const bp = data.billingPaging || {};
   document.getElementById('candidatePagingInfo').textContent = `Mostrando página ${cp.page || 1} de ${cp.totalPages || 1} · ${cp.total || 0} candidato(s)`;
+  document.getElementById('candidateDirectoryPagingInfo').textContent = `Mostrando página ${cp.page || 1} de ${cp.totalPages || 1} · ${cp.total || 0} candidato(s)`;
   document.getElementById('companyPagingInfo').textContent = `Mostrando página ${sp.page || 1} de ${sp.totalPages || 1} · ${sp.total || 0} empresa(s)`;
   document.getElementById('billingPagingInfo').textContent = `Mostrando página ${bp.page || 1} de ${bp.totalPages || 1} · ${bp.total || 0} documento(s)`;
   document.getElementById('btnCandidatePrev').disabled = (cp.page || 1) <= 1;
   document.getElementById('btnCandidateNext').disabled = (cp.page || 1) >= (cp.totalPages || 1);
+  document.getElementById('btnCandidateDirectoryPrev').disabled = (cp.page || 1) <= 1;
+  document.getElementById('btnCandidateDirectoryNext').disabled = (cp.page || 1) >= (cp.totalPages || 1);
   document.getElementById('btnCompanyPrev').disabled = (sp.page || 1) <= 1;
   document.getElementById('btnCompanyNext').disabled = (sp.page || 1) >= (sp.totalPages || 1);
   document.getElementById('btnBillingPrev').disabled = (bp.page || 1) <= 1;
   document.getElementById('btnBillingNext').disabled = (bp.page || 1) >= (bp.totalPages || 1);
+  document.getElementById('candidateDaysFilter').value = f.candidateDays;
+  document.getElementById('candidateDirectoryDaysFilter').value = f.candidateDays;
+  document.getElementById('candidatePerPage').value = String(f.candidatePerPage);
+  document.getElementById('candidateDirectoryPerPage').value = String(f.candidatePerPage);
 
   const tc = data.traceability?.candidate || {};
   const te = data.traceability?.company || {};
@@ -764,6 +962,8 @@ document.getElementById('btnCreateFreeAdmin').onclick = async () => {
 
 document.getElementById('candidateDaysFilter').onchange = (e) => { state.filters.candidateDays = e.target.value; state.filters.candidatePage = 1; loadOverview(); };
 document.getElementById('candidatePerPage').onchange = (e) => { state.filters.candidatePerPage = Number(e.target.value || 50); state.filters.candidatePage = 1; loadOverview(); };
+document.getElementById('candidateDirectoryDaysFilter').onchange = (e) => { state.filters.candidateDays = e.target.value; state.filters.candidatePage = 1; loadOverview(); };
+document.getElementById('candidateDirectoryPerPage').onchange = (e) => { state.filters.candidatePerPage = Number(e.target.value || 50); state.filters.candidatePage = 1; loadOverview(); };
 document.getElementById('companyDaysFilter').onchange = (e) => { state.filters.companyDays = e.target.value; state.filters.companyPage = 1; loadOverview(); };
 document.getElementById('companyPerPage').onchange = (e) => { state.filters.companyPerPage = Number(e.target.value || 50); state.filters.companyPage = 1; loadOverview(); };
 document.getElementById('billingDaysFilter').onchange = (e) => { state.filters.billingDays = e.target.value; state.filters.billingPage = 1; loadOverview(); };
@@ -771,6 +971,8 @@ document.getElementById('billingStatusFilter').onchange = (e) => { state.filters
 document.getElementById('billingPerPage').onchange = (e) => { state.filters.billingPerPage = Number(e.target.value || 50); state.filters.billingPage = 1; loadOverview(); };
 document.getElementById('btnCandidatePrev').onclick = () => { if(state.filters.candidatePage > 1){ state.filters.candidatePage -= 1; loadOverview(); } };
 document.getElementById('btnCandidateNext').onclick = () => { state.filters.candidatePage += 1; loadOverview(); };
+document.getElementById('btnCandidateDirectoryPrev').onclick = () => { if(state.filters.candidatePage > 1){ state.filters.candidatePage -= 1; loadOverview(); } };
+document.getElementById('btnCandidateDirectoryNext').onclick = () => { state.filters.candidatePage += 1; loadOverview(); };
 document.getElementById('btnCompanyPrev').onclick = () => { if(state.filters.companyPage > 1){ state.filters.companyPage -= 1; loadOverview(); } };
 document.getElementById('btnCompanyNext').onclick = () => { state.filters.companyPage += 1; loadOverview(); };
 document.getElementById('btnBillingPrev').onclick = () => { if(state.filters.billingPage > 1){ state.filters.billingPage -= 1; loadOverview(); } };
