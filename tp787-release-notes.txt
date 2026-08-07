@@ -1,0 +1,14 @@
+Talento PyME — revisión v7.8.7
+
+Objetivo de esta revisión
+- Permitir que Administración vea dentro del despliegue de cada candidato el contenido realmente obtenido del CV, aun cuando el candidato haya dejado otros campos sin informar.
+
+Cambios realizados
+1. Al procesar un CV, la API guarda automáticamente en la tabla Resume el resumen generado y las secciones extraídas de experiencia, educación, certificaciones y otras observaciones.
+2. El archivo original del CV no se guarda de forma permanente: se conserva sólo su contenido útil extraído y resumido, respetando el criterio ya informado en el portal.
+3. En Administración > Perfiles candidatos se agregó un bloque específico “CV cargado · contenido disponible para Administración”.
+4. Ese bloque muestra resumen automático, experiencia, educación/formación, certificaciones/cursos, otros datos y las observaciones guardadas en el perfil.
+5. Compatibilidad con candidatos existentes: si un CV antiguo dejó su resumen únicamente en candidateBolsa.observaciones, Administración lo usa como respaldo y lo muestra como resumen curricular, sin requerir migración ni borrar información.
+6. Se corrigió el estado visual del candidato: ya no se interpreta cualquier perfil laboral como “CV cargado”. Ahora se distingue entre “CV / resumen cargado”, “Perfil laboral cargado”, “Registro inicial” y “Registro pendiente”.
+7. No se modificó el esquema de base de datos ni se eliminan registros existentes.
+8. Versión de UI, PWA, caché y API unificada en 7.8.7.

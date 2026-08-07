@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.8.6" />
+  <link rel="stylesheet" href="/styles.css?v=7.8.7" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -330,8 +330,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.8.6"></script>
-<script src="/auth.js?v=7.8.6"></script>
+<script src="/config.js?v=7.8.7"></script>
+<script src="/auth.js?v=7.8.7"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -461,13 +461,17 @@ function renderCandidateDetail(it){
       candidateField('Herramientas de mecánica', bolsa.herramientasMecanica),
       candidateField('Instrumentos de electricidad', bolsa.instrumentosElectrica),
     ]),
-    candidateSection('Resumen curricular cargado por el candidato', [
-      candidateField('Observaciones del perfil', bolsa.observaciones),
-      candidateField('Resumen extraído del CV', resume.summary),
-      candidateField('Experiencia del CV', resume.experience),
-      candidateField('Educación del CV', resume.education),
-      candidateField('Certificaciones y cursos', resume.certifications),
-      candidateField('Otras observaciones del CV', resume.observations),
+    candidateSection('CV cargado · contenido disponible para Administración', [
+      candidateField('Estado', it.cvContentAvailable ? 'Contenido curricular disponible' : 'Sin contenido curricular guardado'),
+      candidateField('Resumen generado automáticamente', resume.summary || bolsa.observaciones),
+      candidateField('Experiencia extraída del CV', resume.experience),
+      candidateField('Educación / formación extraída', resume.education),
+      candidateField('Certificaciones y cursos extraídos', resume.certifications),
+      candidateField('Otros datos extraídos del CV', resume.observations),
+      candidateField('Observaciones guardadas en el perfil', bolsa.observaciones),
+      candidateField('Aclaración', it.cvContentAvailable
+        ? 'Se muestra el contenido extraído y resumido del CV. El archivo original no se conserva de forma permanente.'
+        : 'No hay texto extraído del CV disponible para este candidato.'),
     ], true),
     candidateSection('Postulaciones realizadas', [
       candidateField('Cantidad', applications.length),

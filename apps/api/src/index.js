@@ -2346,7 +2346,23 @@ app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
     const sections = splitByHeadings(text);
     const analysis = analyzeResumeText(text, sections);
     const summaryText = buildResumeSummary(text, sections, analysis);
-    return res.json({ ok:true, sections, analysis, summaryText });
+
+    // v7.8.7: conservar el contenido útil del CV en Resume apenas se procesa.
+    // El archivo original sigue sin persistirse; sólo se guardan texto extraído y resumen.
+    const resumeData = {
+      summary: clampText(summaryText || analysis?.summary || sections?.summary || "", 12000) || null,
+      experience: clampText(sections?.experience || "", 20000) || null,
+      education: clampText(sections?.education || "", 12000) || null,
+      certifications: clampText(sections?.certifications || "", 12000) || null,
+      observations: clampText(sections?.observations || "", 12000) || null,
+    };
+    const savedResume = await prisma.resume.upsert({
+      where: { userId: req.user.id },
+      update: resumeData,
+      create: { userId: req.user.id, ...resumeData },
+    });
+
+    return res.json({ ok:true, sections, analysis, summaryText, resume: savedResume });
   }catch(err){
     console.error("resume/parse error:", err);
     return res.status(500).json({ error: "Error al procesar el archivo." });
@@ -4631,12 +4647,36 @@ app.get('/admin/candidates/:userId/detail', auth, requireAnyRole(['ADMIN','SUPER
       },
     });
     if(!candidate) return res.status(404).json({ error: 'Candidato no encontrado.' });
+    const resumeHasContent = !!candidate.resume && [
+      candidate.resume.summary,
+      candidate.resume.experience,
+      candidate.resume.education,
+      candidate.resume.certifications,
+      candidate.resume.observations,
+    ].some((value) => String(value || '').trim());
+    const legacyCvSummary = String(candidate.candidateBolsa?.observaciones || '').trim();
+    const cvContentAvailable = resumeHasContent || !!legacyCvSummary;
+    const resumeForAdmin = candidate.resume
+      ? { ...candidate.resume, summary: candidate.resume.summary || legacyCvSummary || null }
+      : (legacyCvSummary ? {
+          id: null,
+          summary: legacyCvSummary,
+          experience: null,
+          education: null,
+          certifications: null,
+          observations: null,
+          createdAt: candidate.candidateBolsa?.createdAt || candidate.createdAt,
+          updatedAt: candidate.candidateBolsa?.updatedAt || candidate.createdAt,
+        } : null);
     return res.json({
       ok: true,
       item: {
         ...candidate,
+        resume: resumeForAdmin,
+        cvContentAvailable,
+        cvContentOrigin: resumeHasContent ? 'RESUME' : (legacyCvSummary ? 'LEGACY_SUMMARY' : 'NONE'),
         keepIndefinitely: candidate.candidateKeepIndefinitely !== false,
-        profileStatus: candidate.candidateBolsa ? 'CV cargado' : (candidate.candidateProfile ? 'Registro inicial' : 'Registro pendiente'),
+        profileStatus: cvContentAvailable ? 'CV / resumen cargado' : (candidate.candidateBolsa ? 'Perfil laboral cargado' : (candidate.candidateProfile ? 'Registro inicial' : 'Registro pendiente')),
       },
     });
   } catch (err) {
@@ -4790,7 +4830,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
               createdAt: true,
             },
           },
-          resume: { select: { updatedAt: true, createdAt: true } },
+          resume: { select: { summary: true, updatedAt: true, createdAt: true } },
         },
       }).catch(() => []),
       prisma.companyProfile.findMany({
@@ -4855,7 +4895,9 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         updatedAt: updatedDates[0] || it.createdAt,
         email: bolsa?.correo || it.email || '',
         keepIndefinitely: it.candidateKeepIndefinitely !== false,
-        profileStatus: bolsa ? 'CV cargado' : (profile ? 'Registro inicial' : 'Registro pendiente'),
+        profileStatus: ([it.resume?.summary, bolsa?.observaciones].some((value) => String(value || '').trim()))
+          ? 'CV / resumen cargado'
+          : (bolsa ? 'Perfil laboral cargado' : (profile ? 'Registro inicial' : 'Registro pendiente')),
       };
     });
 
