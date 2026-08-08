@@ -1,4 +1,4 @@
-Talento PyME v7.8.13 - Final audit results
+Talento PyME v7.8.14 - Final audit results
 Date: 2026-08-08
 
 [1] Standalone JavaScript syntax
@@ -75,8 +75,8 @@ ok 11 - correo institucional sigue unificado sin segunda dirección
   duration_ms: 0.924373
   type: 'test'
   ...
-# Subtest: frontend y cache declaran 7.8.13
-ok 12 - frontend y cache declaran 7.8.13
+# Subtest: frontend y cache declaran 7.8.14
+ok 12 - frontend y cache declaran 7.8.14
   ---
   duration_ms: 0.467493
   type: 'test'
@@ -236,7 +236,7 @@ ok 36 - Administración instruye configurar la variable unificada
 # duration_ms 870.463121
 
 [4] Runtime version consistency
-OK - API/UI/PWA 7.8.13
+OK - API/UI/PWA 7.8.14
 
 [5] Runtime email identity checks
 OK - FACTORY_SUPPORT_EMAIL is the only institutional identity

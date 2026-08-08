@@ -1,4 +1,4 @@
-# Talento PyME — v7.8.13
+# Talento PyME — v7.8.14
 
 Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**.
 
@@ -40,8 +40,8 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.8.13"`
-- API: `apps/api/package.json` → `7.8.13` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.8.14"`
+- API: `apps/api/package.json` → `7.8.14` y endpoint `/health`.
 
 ## Administración de candidatos y empresas
 - El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.

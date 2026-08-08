@@ -1,0 +1,14 @@
+Talento PyME v7.8.14
+
+Correcciones de recuperación de contraseña
+- El enlace "Olvidé mi contraseña" conserva el rol elegido en la portada.
+- Si el usuario llega desde Empresa, la recuperación abre y permanece en Empresa; Candidato mantiene Candidato.
+- CUIT: etiqueta "solo 11 números", máximo 11 dígitos y limpieza automática de guiones/espacios.
+- El enlace enviado por email conserva también el rol.
+- SMTP Gmail usa timeouts explícitos para evitar esperas prolongadas y devuelve un error controlado ante fallos de red.
+
+Diagnóstico de infraestructura
+- En Render Free los puertos SMTP salientes 25/465/587 están bloqueados por la plataforma. La contraseña de aplicación Gmail puede estar correctamente configurada y aun así el envío no funcionará hasta ejecutar la API en una instancia Render paga o migrar el envío a una API HTTPS de correo.
+- La lectura IMAP administrativa continúa separada del envío SMTP.
+
+No se modifica ni borra ningún registro de base de datos.

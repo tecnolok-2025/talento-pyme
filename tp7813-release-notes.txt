@@ -1,4 +1,4 @@
-Talento PyME v7.8.13 · Auditoría final de seguridad y estabilidad
+Talento PyME v7.8.14 · Auditoría final de seguridad y estabilidad
 ===============================================================
 
 Objetivo
@@ -17,7 +17,7 @@ Seguridad de acceso
 
 Corrección crítica detectada en auditoría
 - Una compatibilidad antigua permitía que una cuenta incompleta de versiones previas reemplazara su passHash al repetir el registro con el mismo email.
-- Desde 7.8.13 el registro nunca reemplaza la contraseña de una cuenta existente. Para completar un registro legado se debe demostrar la clave actual; de lo contrario se deriva a “Olvidé mi contraseña”.
+- Desde 7.8.14 el registro nunca reemplaza la contraseña de una cuenta existente. Para completar un registro legado se debe demostrar la clave actual; de lo contrario se deriva a “Olvidé mi contraseña”.
 
 Integridad y superficie de ataque
 - Analizar web valida que el destino sea un sitio público, bloquea localhost/redes privadas, limita redirecciones, tiempo y tamaño de respuesta para evitar SSRF/lecturas internas.

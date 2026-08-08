@@ -58,7 +58,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
 const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
-// v7.8.13: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
+// v7.8.14: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
 // Se reutiliza la configuración ya existente en Render para soporte, consultas, recuperaciones y buzón administrativo.
 const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || '').trim().toLowerCase();
 const GMAIL_USER = FACTORY_SUPPORT_EMAIL;
@@ -600,6 +600,9 @@ async function getSmtpTransport(){
   const auth = await getGmailAuth();
   return nodemailer.createTransport({
     host:"smtp.gmail.com", port:465, secure:true,
+    connectionTimeout:10000,
+    greetingTimeout:10000,
+    socketTimeout:15000,
     auth: auth.mode === 'oauth2'
       ? { type:'OAuth2', user:auth.user, accessToken:auth.accessToken }
       : { user:auth.user, pass:auth.pass },
@@ -630,10 +633,16 @@ function isCompanyCuit(value){
   return /^\d{11}$/.test(normalizeId(value));
 }
 
+function isMailTransportNetworkError(err){
+  const code = String(err?.code || '').toUpperCase();
+  const message = String(err?.message || '').toLowerCase();
+  return ['ETIMEDOUT','ESOCKET','ECONNREFUSED','ENETUNREACH','EHOSTUNREACH'].includes(code) || message.includes('timeout') || message.includes('network is unreachable');
+}
+
 async function sendPasswordRecoveryEmail({ to, code, challengeId, role }){
   const transport = await getSmtpTransport();
   const roleLabel = role === "COMPANY" ? "empresa" : "candidato";
-  const link = `${WEB_BASE_URL}/forgot.html?challenge=${encodeURIComponent(challengeId)}`;
+  const link = `${WEB_BASE_URL}/forgot.html?challenge=${encodeURIComponent(challengeId)}&role=${encodeURIComponent(role)}`;
   await transport.sendMail({
     from: `"${MAIL_FROM_NAME}" <${GMAIL_USER}>`,
     to,
@@ -2037,6 +2046,10 @@ app.post("/auth/password-recovery/start", async (req, res) => {
     console.error("POST /auth/password-recovery/start", err?.code || err?.message || err);
     if(err?.code === "MAIL_NOT_CONFIGURED" || err?.message === "MAIL_NOT_CONFIGURED") return res.status(503).json({ error:"El correo seguro todavía no está configurado en el servidor." });
     if(err?.code === "RATE_LIMIT") return res.status(429).json({ error:err.message });
+    if(isMailTransportNetworkError(err)) {
+      console.error("MAIL_TRANSPORT_UNAVAILABLE: no se pudo abrir conexión SMTP con Gmail", err?.code || err?.message || err);
+      return res.status(503).json({ error:"No se pudo conectar con el servicio de correo. Intentá nuevamente más tarde o comunicate con soporte." });
+    }
     return res.status(500).json({ error:"No se pudo enviar el código de seguridad." });
   }
 });
@@ -2932,7 +2945,7 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
     const especialidad_by_area = Object.fromEntries(
       Object.entries(rawStats.especialidad_by_area || {}).map(([area, values]) => [area, Object.keys(values || {})])
     );
-    // v7.8.13: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
+    // v7.8.14: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
     // ni conteos por faceta. Los totales de padrón quedan reservados al Panel General.
     return res.json({ ok: true, facets, especialidad_by_area });
   } catch (err) {
@@ -3160,7 +3173,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.8.13 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.8.14 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');

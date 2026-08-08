@@ -1,4 +1,4 @@
-# Talento PyME v7.8.13 · Correo institucional único
+# Talento PyME v7.8.14 · Correo institucional único
 
 ## Criterio definitivo
 
@@ -39,4 +39,4 @@ Las credenciales se guardan exclusivamente en las variables secretas del servici
 
 ## Despliegue
 
-No hay que cambiar `FACTORY_SUPPORT_EMAIL` si ya contiene `talentopyme00@gmail.com`. Desplegar la v7.8.13 normalmente. Si todavía no existe autorización Gmail, el resto de la aplicación funcionará pero las funciones automáticas de envío/lectura informarán que falta autorizar Gmail.
+No hay que cambiar `FACTORY_SUPPORT_EMAIL` si ya contiene `talentopyme00@gmail.com`. Desplegar la v7.8.14 normalmente. Si todavía no existe autorización Gmail, el resto de la aplicación funcionará pero las funciones automáticas de envío/lectura informarán que falta autorizar Gmail.

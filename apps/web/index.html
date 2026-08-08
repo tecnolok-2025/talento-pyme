@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Talento PyME</title>
   <meta name="theme-color" content="#0B1220" />
-  <link rel="manifest" href="/manifest.webmanifest?v=7.8.13" />
+  <link rel="manifest" href="/manifest.webmanifest?v=7.8.14" />
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.8.13" />
+  <link rel="stylesheet" href="/styles.css?v=7.8.14" />
 </head>
 <body class="authBody">
   <div class="authTop">
@@ -65,7 +65,7 @@
               </div>
 
               <div class="authFoot">
-                <a class="authLink" href="/forgot.html">Olvidé mi contraseña</a>
+                <a class="authLink" id="forgotLink" href="/forgot.html?role=CANDIDATE">Olvidé mi contraseña</a>
                 <span class="muted small">Se valida con tus datos de registro.</span>
               </div>
             </div>
@@ -182,8 +182,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=7.8.13"></script>
-  <script src="/auth.js?v=7.8.13"></script>
+  <script src="/config.js?v=7.8.14"></script>
+  <script src="/auth.js?v=7.8.14"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));
@@ -209,6 +209,8 @@
       if(lab) lab.textContent = (r === "COMPANY") ? "Empresa (nombre)" : "Nombre y apellido";
       const inp = $("loginName");
       if(inp) inp.placeholder = (r === "COMPANY") ? "Ej: MiPyme S.A." : "Ej: Fulano Pérez";
+      const forgotLink = $("forgotLink");
+      if(forgotLink) forgotLink.href = `/forgot.html?role=${r}`;
 
       msg("");
     }

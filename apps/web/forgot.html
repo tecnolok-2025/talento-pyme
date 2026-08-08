@@ -6,7 +6,7 @@
   <title>Recuperar contraseña · Talento PyME</title>
   <meta name="theme-color" content="#0B1220" />
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.8.13" />
+  <link rel="stylesheet" href="/styles.css?v=7.8.14" />
 </head>
 <body class="authBody">
   <div class="authTop">
@@ -18,13 +18,13 @@
       <h2 class="bigTitle">Olvidé mi contraseña</h2>
       <div class="bigLead">Completá la información solicitada. Si coincide con una cuenta registrada, enviaremos un <b>código de seguridad</b> al correo electrónico asociado a tu perfil.</div>
       <div class="rolePicker" style="margin-top:14px">
-        <button type="button" class="roleBtn active" id="roleCand"><div class="roleIcon">C</div><div class="roleMeta"><div class="roleName">Candidato</div><div class="roleDesc">Ingresá solamente tu DNI.</div></div></button>
-        <button type="button" class="roleBtn" id="roleComp"><div class="roleIcon">E</div><div class="roleMeta"><div class="roleName">Empresa</div><div class="roleDesc">Ingresá el CUIT de la empresa.</div></div></button>
+        <button type="button" class="roleBtn active" id="roleCand" aria-pressed="true"><div class="roleIcon">C</div><div class="roleMeta"><div class="roleName">Candidato</div><div class="roleDesc">Ingresá solamente tu DNI.</div></div></button>
+        <button type="button" class="roleBtn" id="roleComp" aria-pressed="false"><div class="roleIcon">E</div><div class="roleMeta"><div class="roleName">Empresa</div><div class="roleDesc">Ingresá el CUIT de la empresa.</div></div></button>
       </div>
       <div class="authForm">
         <div id="stepStart">
           <div id="candFields"><label>DNI</label><input class="input" id="dni" placeholder="Ej.: 30123456" inputmode="numeric" autocomplete="off" /><div class="muted small" style="margin-top:7px">Si tu cuenta fue creada con una versión anterior y tenía un número de registro de 11 dígitos, el sistema podrá actualizarlo a tu DNI después de verificar tu correo.</div></div>
-          <div id="compFields" style="display:none"><label>CUIT</label><input class="input" id="cuit" placeholder="Ej.: 30-12345678-9" inputmode="numeric" autocomplete="off" /></div>
+          <div id="compFields" style="display:none"><label>CUIT (solo 11 números)</label><input class="input" id="cuit" placeholder="Ej.: 30694582113" inputmode="numeric" pattern="[0-9]*" maxlength="11" autocomplete="off" /><div class="muted small" style="margin-top:7px">Ingresá únicamente los 11 números del CUIT, sin guiones ni espacios.</div></div>
           <div id="legacyBox" style="display:none;margin-top:14px;padding:14px;border:1px solid #bfdbfe;border-radius:16px;background:#eff6ff"><b>Cuenta creada con una versión anterior</b><div class="muted small" style="margin-top:5px">Para vincular tu DNI por única vez, ingresá el correo que declaraste al registrarte. El cambio se hará recién después de validar el código enviado a ese mismo correo.</div><label style="margin-top:10px">Correo registrado</label><input class="input" id="legacyEmail" type="email" placeholder="tu@email.com" autocomplete="email" /></div>
           <div class="authActions"><button class="btn btn-cta" id="btnSendCode" type="button">Enviar código de seguridad</button><a class="btn btn-ghost" href="/" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">Volver</a></div>
         </div>
@@ -48,13 +48,14 @@
       <div class="authHint" style="margin-top:12px"><h3>Importante</h3><p>Si el correo fue registrado incorrectamente y no podés recibir el código, deberás comunicarte con soporte o realizar un nuevo registro según corresponda.</p></div>
     </div>
   </div></div></div>
-  <script src="/config.js?v=7.8.13"></script><script src="/auth.js?v=7.8.13"></script>
+  <script src="/config.js?v=7.8.14"></script><script src="/auth.js?v=7.8.14"></script>
   <script>
     const $=(id)=>document.getElementById(id); const msg=(t)=>{$('msg').textContent=t||''};
     let selectedRole='CANDIDATE', challengeId='', resetToken='', legacyMode=false;
     function digits(v){return String(v||'').replace(/\D/g,'');}
-    function setRole(r){selectedRole=r; legacyMode=false; $('legacyBox').style.display='none'; $('roleCand').classList.toggle('active',r==='CANDIDATE'); $('roleComp').classList.toggle('active',r==='COMPANY'); $('candFields').style.display=r==='CANDIDATE'?'block':'none'; $('compFields').style.display=r==='COMPANY'?'block':'none'; msg('');}
+    function setRole(r){selectedRole=r==='COMPANY'?'COMPANY':'CANDIDATE'; legacyMode=false; $('legacyBox').style.display='none'; $('roleCand').classList.toggle('active',selectedRole==='CANDIDATE'); $('roleComp').classList.toggle('active',selectedRole==='COMPANY'); $('roleCand').setAttribute('aria-pressed',selectedRole==='CANDIDATE'?'true':'false'); $('roleComp').setAttribute('aria-pressed',selectedRole==='COMPANY'?'true':'false'); $('candFields').style.display=selectedRole==='CANDIDATE'?'block':'none'; $('compFields').style.display=selectedRole==='COMPANY'?'block':'none'; msg('');}
     $('roleCand').onclick=()=>setRole('CANDIDATE'); $('roleComp').onclick=()=>setRole('COMPANY');
+    $('cuit').addEventListener('input',()=>{ $('cuit').value=digits($('cuit').value).slice(0,11); });
     async function post(path,body){const r=await fetch(`${window.TP_API_URL}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(data?.message||data?.error||'No se pudo completar la operación.');e.data=data;e.status=r.status;throw e;}return data;}
     function disable(el,on){if(el){el.disabled=!!on;el.style.opacity=on?.7:1;}}
     function showStep(id){['stepStart','stepCode','stepPassword'].forEach(x=>$(x).style.display=x===id?'block':'none');}
@@ -62,6 +63,6 @@
     $('btnVerifyCode').onclick=async()=>{msg('');disable($('btnVerifyCode'),true);try{const code=digits($('code').value);if(!/^\d{6}$/.test(code))throw new Error('Ingresá el código de 6 dígitos.');const data=await post('/auth/password-recovery/verify',{challengeId,code});resetToken=data.resetToken;showStep('stepPassword');}catch(e){msg(e.message);}finally{disable($('btnVerifyCode'),false);}};
     $('btnComplete').onclick=async()=>{msg('');disable($('btnComplete'),true);try{const p1=$('newPass').value,p2=$('newPass2').value;if(p1.length<10)throw new Error('La contraseña debe tener al menos 10 caracteres.');if(p1!==p2)throw new Error('Las contraseñas no coinciden.');const data=await post('/auth/password-recovery/complete',{resetToken,newPassword:p1});msg(data.dniUpdated?'Contraseña actualizada. También actualizamos tu antiguo número de registro con el DNI verificado. Ya podés ingresar.':'Contraseña actualizada correctamente. Ya podés ingresar.');setTimeout(()=>{location.href='/'},2200);}catch(e){msg(e.message);}finally{disable($('btnComplete'),false);}};
     $('btnRestart').onclick=()=>{challengeId='';resetToken='';legacyMode=false;$('legacyBox').style.display='none';$('code').value='';showStep('stepStart');msg('');};
-    const queryChallenge=new URLSearchParams(location.search).get('challenge');if(queryChallenge){challengeId=queryChallenge;showStep('stepCode');$('mailHint').textContent='Ingresá el código de seguridad que recibiste por correo.';}else showStep('stepStart'); setRole('CANDIDATE');
+    const queryParams=new URLSearchParams(location.search); const queryChallenge=queryParams.get('challenge'); const queryRole=String(queryParams.get('role')||'').toUpperCase(); const initialRole=queryRole==='COMPANY'?'COMPANY':'CANDIDATE'; if(queryChallenge){challengeId=queryChallenge;showStep('stepCode');$('mailHint').textContent='Ingresá el código de seguridad que recibiste por correo.';}else showStep('stepStart'); setRole(initialRole);
   </script>
 </body></html>

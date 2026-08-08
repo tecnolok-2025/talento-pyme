@@ -1,11 +1,11 @@
-# Talento PyME v7.8.13 · Auditoría final previa a instalación
+# Talento PyME v7.8.14 · Auditoría final previa a instalación
 
 Fecha de revisión: 08/08/2026
 
 ## Alcance
 Se revisó la consolidación de los cambios realizados desde v7.8.7 hasta v7.8.12: CV administrativo, privacidad de conteos, fichas de candidatos/empresas, recuperación segura de contraseña, migración de DNI legado, correo institucional único, Gmail en Administración, caché PWA y API.
 
-## Hallazgos corregidos en v7.8.13
+## Hallazgos corregidos en v7.8.14
 
 1. **Registro legado incompleto y contraseña**
    - Se detectó una compatibilidad antigua donde una cuenta existente sin perfil completo podía recibir un nuevo `passHash` al repetir el registro con el mismo email.
@@ -61,7 +61,7 @@ Se revisó la consolidación de los cambios realizados desde v7.8.7 hasta v7.8.1
 - Los antiguos endpoints alternativos de búsqueda quedaron cerrados para impedir bypass del circuito actual.
 
 ## Base de datos
-- v7.8.13 no introduce un nuevo cambio de esquema respecto de v7.8.12.
+- v7.8.14 no introduce un nuevo cambio de esquema respecto de v7.8.12.
 - No contiene comandos para borrar candidatos, empresas, perfiles, CV, postulaciones o facturación.
 - `prisma db push` conserva el mecanismo de despliegue existente.
 
@@ -69,13 +69,13 @@ Se revisó la consolidación de los cambios realizados desde v7.8.7 hasta v7.8.1
 - `node --check` sobre todos los JS de API, frontend, pagos y tests.
 - Extracción y validación sintáctica de 16 scripts inline de HTML: 0 errores.
 - Batería Node: **36/36 pruebas aprobadas**.
-- Verificación de versión runtime: frontend/API/cache = 7.8.13.
+- Verificación de versión runtime: frontend/API/cache = 7.8.14.
 - Búsqueda de hardcodes de `factory@gmail.com` y `TALENTO_PYME_EMAIL` en runtime: ninguno.
 - Búsqueda de credenciales reales hardcodeadas: ninguna.
 
 ## Prueba que debe realizarse después del deploy
-No es posible probar desde el ZIP la cuenta Gmail real ni la base Neon real porque esas credenciales sólo existen en Render. Después de instalar v7.8.13 se debe hacer un smoke test en producción:
-1. `/health` debe indicar v7.8.13.
+No es posible probar desde el ZIP la cuenta Gmail real ni la base Neon real porque esas credenciales sólo existen en Render. Después de instalar v7.8.14 se debe hacer un smoke test en producción:
+1. `/health` debe indicar v7.8.14.
 2. Candidato: solicitar recuperación con un DNI de prueba y comprobar recepción del código.
 3. Validar código y cambiar clave.
 4. Empresa: repetir con CUIT de prueba.
@@ -84,4 +84,4 @@ No es posible probar desde el ZIP la cuenta Gmail real ni la base Neon real porq
 7. Empresa: confirmar que no aparecen conteos globales de candidatos.
 
 ## Observación del deploy mostrado antes de instalar esta versión
-La captura de Render previa a esta auditoría muestra el servicio **Live**, pero los logs indican `talento-pyme-api@7.8.9` y `Talento PyME API ... (v7.8.9)`. Eso confirma que agregar `GMAIL_APP_PASSWORD` dejó preparada la variable, pero todavía no instaló el código de correo/recuperación nuevo. La actualización efectiva se produce al desplegar v7.8.13.
+La captura de Render previa a esta auditoría muestra el servicio **Live**, pero los logs indican `talento-pyme-api@7.8.9` y `Talento PyME API ... (v7.8.9)`. Eso confirma que agregar `GMAIL_APP_PASSWORD` dejó preparada la variable, pero todavía no instaló el código de correo/recuperación nuevo. La actualización efectiva se produce al desplegar v7.8.14.
