@@ -1,4 +1,4 @@
-# Talento PyME — v7.8.8
+# Talento PyME — v7.8.9
 
 Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**.
 
@@ -31,14 +31,17 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.8.8"`
-- API: `apps/api/package.json` → `7.8.8` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.8.9"`
+- API: `apps/api/package.json` → `7.8.9` y endpoint `/health`.
 
-## Administración de candidatos
+## Administración de candidatos y empresas
 - El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.
-- La pestaña **Perfiles candidatos** permite abrir y cerrar cada ficha individual.
-- La ficha muestra datos personales, perfil profesional, experiencia, formación, herramientas, resumen extraído del CV, observaciones y postulaciones.
-- Cada candidato tiene **Mantener indefinidamente** activado por defecto, con persistencia individual en la base.
+- La pestaña **Perfiles candidatos** permite buscar por nombre, DNI o mail y abrir/cerrar cada ficha individual.
+- La ficha del candidato muestra datos personales, perfil profesional, experiencia, formación, herramientas, resumen extraído del CV, observaciones, postulaciones y datos de acceso.
+- La nueva pestaña **Perfiles empresas** permite buscar por empresa, contacto, CUIT o mail y abrir una ficha institucional/operativa completa.
+- La ficha de empresa muestra identidad, contacto, resumen institucional, búsquedas, actividad comercial/Factory y soporte.
+- Desde ambas fichas, Administración puede **asignar una nueva contraseña** sin conocer ni visualizar la clave anterior.
+- Cada candidato mantiene **Mantener indefinidamente** activado por defecto, con persistencia individual en la base.
 - `npm start` aplica el ajuste de esquema requerido antes de iniciar la API, sin borrar los registros existentes.
 
 

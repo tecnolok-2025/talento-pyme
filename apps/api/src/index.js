@@ -2708,7 +2708,7 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
     const especialidad_by_area = Object.fromEntries(
       Object.entries(rawStats.especialidad_by_area || {}).map(([area, values]) => [area, Object.keys(values || {})])
     );
-    // v7.8.8: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
+    // v7.8.9: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
     // ni conteos por faceta. Los totales de padrón quedan reservados al Panel General.
     return res.json({ ok: true, facets, especialidad_by_area });
   } catch (err) {
@@ -4562,6 +4562,29 @@ const adminCandidateRetentionSchema = z.object({
   keepIndefinitely: z.boolean(),
 });
 
+const adminPasswordResetSchema = z.object({
+  newPassword: z.string().min(8).max(200),
+});
+
+app.post('/admin/users/:userId/reset-password', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const userId = String(req.params.userId || '').trim();
+    const parsed = adminPasswordResetSchema.safeParse(req.body);
+    if(!userId || !parsed.success) return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 8 caracteres.' });
+    const target = await prisma.user.findFirst({
+      where: { id: userId, role: { in: ['CANDIDATE','COMPANY'] } },
+      select: { id: true, role: true, email: true },
+    });
+    if(!target) return res.status(404).json({ error: 'Usuario no encontrado.' });
+    const passHash = await bcrypt.hash(parsed.data.newPassword, 10);
+    await prisma.user.update({ where: { id: target.id }, data: { passHash } });
+    return res.json({ ok: true, userId: target.id, role: target.role });
+  } catch (err) {
+    console.error('POST /admin/users/:userId/reset-password', err);
+    return res.status(500).json({ error: 'No se pudo restablecer la contraseña.' });
+  }
+});
+
 app.get('/admin/candidates/:userId/detail', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   try {
     const userId = String(req.params.userId || '').trim();
@@ -4712,6 +4735,74 @@ app.patch('/admin/candidates/:userId/retention', auth, requireAnyRole(['ADMIN','
   }
 });
 
+app.get('/admin/companies/:companyId/detail', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const companyId = String(req.params.companyId || '').trim();
+    if(!companyId) return res.status(400).json({ error: 'Falta identificar a la empresa.' });
+    const company = await prisma.companyProfile.findFirst({
+      where: { id: companyId },
+      select: {
+        id: true,
+        userId: true,
+        companyName: true,
+        cuit: true,
+        address: true,
+        contactEmail: true,
+        contactName: true,
+        city: true,
+        province: true,
+        phone: true,
+        website: true,
+        companySummary: true,
+        showCompanySummary: true,
+        candidateBookmarks: true,
+        createdAt: true,
+        updatedAt: true,
+        user: { select: { id: true, email: true, role: true, createdAt: true } },
+        jobs: {
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, title: true, location: true, modality: true, description: true, requirements: true, status: true, visibleToCandidates: true, createdAt: true, updatedAt: true },
+        },
+        billingOrders: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true, status: true, billingName: true, billingTaxId: true, billingTaxCondition: true,
+            billingProvince: true, billingCity: true, billingAddress: true, billingAddressNumber: true,
+            billingFloor: true, billingDept: true, billingPostalCode: true, billingEmail: true,
+            couponCode: true, couponDiscountPct: true, subtotal: true, discountAmount: true, vatAmount: true,
+            total: true, totalDays: true, totalOpenings: true, paymentProvider: true, paymentApprovedAt: true,
+            paymentReceiptUrl: true, cardBrand: true, cardLast4: true, paymentNote: true, createdAt: true, updatedAt: true,
+            items: { select: { id: true, planCode: true, planName: true, days: true, quantity: true, subtotal: true, openingsIncluded: true, publicationsIncluded: true, createdAt: true } },
+          },
+        },
+        candidateAccesses: {
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, candidateId: true, expiresAt: true, createdAt: true },
+        },
+        jobPublications: {
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, jobId: true, expiresAt: true, createdAt: true },
+        },
+        supportThreads: {
+          orderBy: { updatedAt: 'desc' },
+          select: { id: true, subject: true, status: true, needsHuman: true, lastUserMessage: true, lastAiMessage: true, createdAt: true, updatedAt: true },
+        },
+      },
+    });
+    if(!company) return res.status(404).json({ error: 'Empresa no encontrada.' });
+    return res.json({
+      ok: true,
+      item: {
+        ...company,
+        profileStatus: [company.companyName, company.cuit, company.contactName, company.contactEmail, company.phone, company.city].every((value) => String(value || '').trim()) ? 'Perfil empresa completo' : 'Perfil empresa parcial',
+      },
+    });
+  } catch (err) {
+    console.error('GET /admin/companies/:companyId/detail', err);
+    return res.status(500).json({ error: 'No se pudo abrir el perfil completo de la empresa.' });
+  }
+});
+
 app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   try {
     await ensureSupportKnowledgeSeed();
@@ -4766,6 +4857,8 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
     const candidateDays = String(req.query.candidateDays || 'ALL').toUpperCase();
     const companyDays = String(req.query.companyDays || 'ALL').toUpperCase();
     const billingDays = String(req.query.billingDays || 'ALL').toUpperCase();
+    const candidateSearch = String(req.query.candidateSearch || '').trim().slice(0, 120);
+    const companySearch = String(req.query.companySearch || '').trim().slice(0, 160);
     const candidatePage = Math.max(1, num(req.query.candidatePage, 1));
     const companyPage = Math.max(1, num(req.query.companyPage, 1));
     const billingPage = Math.max(1, num(req.query.billingPage, 1));
@@ -4781,8 +4874,31 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
     const candidateWhere = {
       role: 'CANDIDATE',
       ...(candidateSince ? { createdAt: { gte: candidateSince } } : {}),
+      ...(candidateSearch ? {
+        OR: [
+          { email: { contains: candidateSearch, mode: 'insensitive' } },
+          { candidateProfile: { is: { fullName: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateProfile: { is: { dni: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateBolsa: { is: { nombre: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateBolsa: { is: { apellido: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateBolsa: { is: { dni: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateBolsa: { is: { correo: { contains: candidateSearch, mode: 'insensitive' } } } },
+        ],
+      } : {}),
     };
-    const companyWhere = companySince ? { createdAt: { gte: companySince } } : {};
+    const companyWhere = {
+      ...(companySince ? { createdAt: { gte: companySince } } : {}),
+      ...(companySearch ? {
+        OR: [
+          { companyName: { contains: companySearch, mode: 'insensitive' } },
+          { contactName: { contains: companySearch, mode: 'insensitive' } },
+          { cuit: { contains: companySearch, mode: 'insensitive' } },
+          { contactEmail: { contains: companySearch, mode: 'insensitive' } },
+          { phone: { contains: companySearch, mode: 'insensitive' } },
+          { city: { contains: companySearch, mode: 'insensitive' } },
+        ],
+      } : {}),
+    };
     const billingWhere = {
       ...(billingSince ? { createdAt: { gte: billingSince } } : {}),
       ...(billingStatus !== 'ALL' ? { status: billingStatus } : {}),
@@ -4911,9 +5027,13 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
 
     const normalizedCompanies = (companyRows || []).map((it) => ({
       id: it.id,
+      companyId: it.id,
+      userId: it.userId,
       companyName: it.companyName || it.user?.email || 'Empresa',
       cuit: it.cuit || '',
+      contactName: it.contactName || '',
       contactEmail: it.contactEmail || it.user?.email || '',
+      phone: it.phone || '',
       city: it.city || '',
       province: it.province || '',
       createdAt: it.createdAt || it.user?.createdAt,
@@ -5149,6 +5269,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       billingOrders: normalizedBilling,
       candidatePaging: {
         days: candidateDays,
+        search: candidateSearch,
         page: candidatePage,
         perPage: candidatePerPage,
         total: filteredCandidateCount,
@@ -5156,6 +5277,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       },
       companyPaging: {
         days: companyDays,
+        search: companySearch,
         page: companyPage,
         perPage: companyPerPage,
         total: filteredCompanyCount,

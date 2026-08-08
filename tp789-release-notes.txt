@@ -1,0 +1,25 @@
+Talento PyME v7.8.9
+====================
+
+Objetivo
+--------
+Completar la administración de perfiles para que candidatos y empresas puedan revisarse en profundidad desde el Panel General, e incorporar una vía administrativa segura para restablecer contraseñas olvidadas.
+
+Cambios
+-------
+- Administración / Perfiles candidatos: se agrega búsqueda por nombre, DNI o mail para localizar rápidamente cualquier registro.
+- Administración / Perfiles candidatos: la ficha completa incorpora un bloque de acceso con el nombre de ingreso, email, DNI y botón “Asignar nueva clave”.
+- Administración / Perfiles empresas: nueva pestaña específica con ficha desplegable completa para cada empresa.
+- La ficha de empresa muestra datos institucionales, CUIT, contacto, dirección, localidad, provincia, teléfono, web, resumen institucional, visibilidad del resumen, búsquedas, actividad comercial/Factory, aperturas, publicaciones y conversaciones de soporte.
+- Administración / Perfiles empresas: búsqueda por empresa, contacto, CUIT, mail, teléfono o localidad.
+- Candidatos y empresas: Administración puede asignar una contraseña nueva sin visualizar ni recuperar la contraseña anterior.
+- El restablecimiento administrativo usa bcrypt y no modifica el perfil, CV, búsquedas, postulaciones ni datos existentes.
+- No se modifica el esquema de base de datos y no se eliminan registros.
+
+Uso recomendado
+---------------
+Para un usuario de prueba cuyo nombre exacto no se recuerda, ingresar a Panel General > Perfiles candidatos, buscar una parte del nombre y abrir la ficha. Allí se ve la identificación registrada y se puede asignar una nueva contraseña.
+
+Versión
+-------
+Web y API: 7.8.9
