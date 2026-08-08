@@ -177,6 +177,7 @@ model CompanyProfile {
   phone       String?
   website     String?
   companySummary String?
+  adminCategory String?
   showCompanySummary Boolean @default(true)
   candidateBookmarks String[] @default([])
   createdAt   DateTime @default(now())

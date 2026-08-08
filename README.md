@@ -1,4 +1,4 @@
-# Talento PyME — v7.8.14
+# Talento PyME — v7.8.15
 
 Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**.
 
@@ -40,8 +40,8 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.8.14"`
-- API: `apps/api/package.json` → `7.8.14` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.8.15"`
+- API: `apps/api/package.json` → `7.8.15` y endpoint `/health`.
 
 ## Administración de candidatos y empresas
 - El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.
@@ -53,6 +53,13 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 - Cada candidato mantiene **Mantener indefinidamente** activado por defecto, con persistencia individual en la base.
 - `npm start` aplica el ajuste de esquema requerido antes de iniciar la API, sin borrar los registros existentes.
 
+### Clasificación administrativa v7.8.15
+- **Empresas:** Administración las organiza en **Fabricación**, **Logística** y **Servicio**, mostrando la cantidad antes de abrir cada grupo. Las categorías sin registros no aparecen.
+- La clasificación de empresas se sugiere automáticamente a partir del resumen institucional, sitio informado y búsquedas publicadas. Si no hay evidencia suficiente, queda en **Pendiente de clasificar** para evitar una asignación falsa.
+- Desde la ficha administrativa de empresa puede corregirse la categoría y la decisión queda persistida en `CompanyProfile.adminCategory`.
+- **Candidatos:** Administración los agrupa por **Operativos / Oficios**, **Técnicos / Especialistas**, **Supervisión / Jefaturas**, **Profesionales / Ingeniería** y **Administrativos / Gestión**.
+- Dentro de cada grupo se muestran únicamente las expertise presentes (Mecánica, Eléctrica, Producción, Mantenimiento, Instrumentación, Ingeniería, Calidad/HSE, Logística, IT, etc.), también con contador.
+- La clasificación de candidatos toma los campos estructurados del perfil y, cuando hace falta, el resumen/experiencia extraídos del CV. Es una organización administrativa: no se muestra a candidatos ni empresas.
 
 ## Resguardo y capacidad operativa
 - Panel de superadministración con semáforo de capacidad DB.

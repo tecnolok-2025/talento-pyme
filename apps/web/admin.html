@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.8.14" />
+  <link rel="stylesheet" href="/styles.css?v=7.8.15" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -144,6 +144,27 @@
     @media(max-width:960px){.matrixRow{grid-template-columns:repeat(2,minmax(0,1fr))}.matrixRow .wide{grid-column:1/-1}.matrixRow .toggleCell{grid-column:1/-1}}
     @media(max-width:820px){.candidateAccordionTop{grid-template-columns:1fr}.candidateRetention{white-space:normal}.candidateSaveMsg{text-align:left}.candidateDetailGrid{grid-template-columns:1fr}.candidateDetailSection.wide{grid-column:auto}}
     @media(max-width:560px){.candidateDetailHero{grid-template-columns:1fr}.candidateField{grid-template-columns:1fr;gap:3px}.candidatePhoto,.candidatePhotoPlaceholder{width:92px;height:92px}}
+
+    .adminClassDirectory{display:grid;gap:14px;margin-top:16px}
+    .adminClassGroup{border:1px solid var(--tp-border);border-radius:18px;background:#fff;overflow:hidden;box-shadow:0 8px 22px rgba(15,23,42,.05)}
+    .adminClassGroup>summary{list-style:none;cursor:pointer;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;font-weight:900;color:#0f172a;background:linear-gradient(135deg,#f8fbff,#eef6ff)}
+    .adminClassGroup>summary::-webkit-details-marker{display:none}
+    .adminClassGroup[open]>summary{border-bottom:1px solid var(--tp-border)}
+    .adminClassTitle{display:flex;align-items:center;gap:10px;font-size:16px}
+    .adminClassCount{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:28px;padding:0 10px;border-radius:999px;background:#0b5ea8;color:#fff;font-size:13px;font-weight:900}
+    .adminClassBody{padding:14px;background:#fbfdff}
+    .adminExpertiseGrid{display:grid;gap:10px}
+    .adminExpertiseGroup{border:1px solid #dbe7f4;border-radius:14px;background:#fff;overflow:hidden}
+    .adminExpertiseGroup>summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;font-weight:800;color:#1e3a5f}
+    .adminExpertiseGroup>summary::-webkit-details-marker{display:none}
+    .adminExpertiseGroup[open]>summary{background:#f5f9ff;border-bottom:1px solid #e2e8f0}
+    .adminExpertiseItems{padding:10px}
+    .adminClassMeta{font-size:12px;color:#64748b;font-weight:700}
+    .companyCategoryBox{border:1px solid #bfdbfe;border-radius:14px;background:#eff6ff;padding:12px;margin-top:10px}
+    .companyCategoryActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+    .companyCategoryActions select{min-width:220px}
+    .adminCategorySource{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#e2e8f0;color:#334155;font-size:11px;font-weight:800;margin-left:6px}
+    @media (max-width:720px){.adminClassGroup>summary{padding:14px}.adminClassTitle{font-size:15px}.companyCategoryActions select{min-width:100%}}
   </style>
 </head>
 <body class="appShell">
@@ -178,18 +199,18 @@
   <section class="tabPane" id="tab-candidate-records">
     <div class="card">
       <div class="toolbarCard">
-        <div><h2 style="margin:0">Perfiles completos de candidatos</h2><div class="muted">Abrí cada candidato para ver el 100% de la información cargada en su currículum. Al volver a tocar su nombre, la ficha se cierra.</div></div>
+        <div><h2 style="margin:0">Perfiles completos de candidatos</h2><div class="muted">Clasificados por tipo de perfil y expertise. El número entre paréntesis indica cuántas personas hay en cada grupo; sólo se muestran categorías con registros.</div></div>
         <div class="adminSearchRow">
-          <input class="input" id="candidateDirectorySearch" placeholder="Buscar por nombre, DNI o mail" style="min-width:240px" />
+          <input class="input" id="candidateDirectorySearch" placeholder="Buscar por nombre, DNI, mail, área o especialidad" style="min-width:240px" />
           <button class="btn btn-primary" id="btnCandidateDirectorySearch" type="button">Buscar</button>
           <button class="btn btn-ghost" id="btnCandidateDirectoryClear" type="button">Limpiar</button>
           <select class="input" id="candidateDirectoryDaysFilter" style="min-width:160px"><option value="30">Últimos 30 días</option><option value="60">Últimos 60 días</option><option value="100">Últimos 100 días</option><option value="365">Último año</option><option value="730">Últimos 2 años</option><option value="ALL" selected>Todos</option></select>
-          <select class="input" id="candidateDirectoryPerPage" style="min-width:110px"><option value="50">50 por página</option><option value="100">100 por página</option></select>
+          <select class="input" id="candidateDirectoryPerPage" style="display:none"><option value="50">50 por página</option><option value="100">100 por página</option></select>
         </div>
       </div>
       <div class="row" style="margin-top:12px;justify-content:space-between;gap:10px">
         <span class="muted" id="candidateDirectoryPagingInfo">Sin datos.</span>
-        <div class="row" style="gap:8px"><button class="btn btn-ghost" id="btnCandidateDirectoryPrev" type="button">Anterior</button><button class="btn btn-ghost" id="btnCandidateDirectoryNext" type="button">Siguiente</button></div>
+        <div class="row" style="gap:8px;display:none"><button class="btn btn-ghost" id="btnCandidateDirectoryPrev" type="button">Anterior</button><button class="btn btn-ghost" id="btnCandidateDirectoryNext" type="button">Siguiente</button></div>
       </div>
       <div class="muted traceHint">“Mantener indefinidamente” está activado por defecto para todos los candidatos, incluidos los registros existentes. Desmarcarlo no elimina información en forma inmediata.</div>
       <div id="candidateDirectoryList" class="candidateDirectory"></div>
@@ -202,20 +223,20 @@
   <section class="tabPane" id="tab-company-records">
     <div class="card">
       <div class="toolbarCard">
-        <div><h2 style="margin:0">Perfiles completos de empresas</h2><div class="muted">Buscá y abrí cada empresa para ver su información institucional, contacto, búsquedas, actividad comercial y datos de acceso administrables.</div></div>
+        <div><h2 style="margin:0">Perfiles completos de empresas</h2><div class="muted">Clasificados administrativamente en Fabricación, Logística y Servicio. El contador permite saber cuántas empresas hay antes de abrir cada categoría; las categorías vacías no se muestran.</div></div>
         <div class="adminSearchRow">
           <input class="input" id="companyDirectorySearch" placeholder="Buscar por empresa, contacto, CUIT o mail" style="min-width:270px" />
           <button class="btn btn-primary" id="btnCompanyDirectorySearch" type="button">Buscar</button>
           <button class="btn btn-ghost" id="btnCompanyDirectoryClear" type="button">Limpiar</button>
           <select class="input" id="companyDirectoryDaysFilter" style="min-width:160px"><option value="30">Últimos 30 días</option><option value="60">Últimos 60 días</option><option value="100">Últimos 100 días</option><option value="365">Último año</option><option value="730">Últimos 2 años</option><option value="ALL" selected>Todos</option></select>
-          <select class="input" id="companyDirectoryPerPage" style="min-width:110px"><option value="50">50 por página</option><option value="100">100 por página</option></select>
+          <select class="input" id="companyDirectoryPerPage" style="display:none"><option value="50">50 por página</option><option value="100">100 por página</option></select>
         </div>
       </div>
       <div class="row" style="margin-top:12px;justify-content:space-between;gap:10px">
         <span class="muted" id="companyDirectoryPagingInfo">Sin datos.</span>
-        <div class="row" style="gap:8px"><button class="btn btn-ghost" id="btnCompanyDirectoryPrev" type="button">Anterior</button><button class="btn btn-ghost" id="btnCompanyDirectoryNext" type="button">Siguiente</button></div>
+        <div class="row" style="gap:8px;display:none"><button class="btn btn-ghost" id="btnCompanyDirectoryPrev" type="button">Anterior</button><button class="btn btn-ghost" id="btnCompanyDirectoryNext" type="button">Siguiente</button></div>
       </div>
-      <div class="muted traceHint">La contraseña actual nunca se muestra. Desde la ficha administrativa podés asignar una nueva contraseña cuando un candidato o una empresa no recuerde la anterior.</div>
+      <div class="muted traceHint">La clasificación sugerida puede corregirse dentro de la ficha de cada empresa. “Pendiente de clasificar” sólo aparece cuando los datos disponibles no permiten asignar con suficiente seguridad Fabricación, Logística o Servicio.</div>
       <div id="companyDirectoryList" class="candidateDirectory"></div>
     </div>
   </section>
@@ -384,8 +405,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.8.14"></script>
-<script src="/auth.js?v=7.8.14"></script>
+<script src="/config.js?v=7.8.15"></script>
+<script src="/auth.js?v=7.8.15"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -487,7 +508,20 @@ function wireAdminPasswordReset(host){
 function candidateDirectoryRowHtml(it){
   const name = `${it.nombre || ''} ${it.apellido || ''}`.trim() || it.email || 'Candidato';
   const checked = it.keepIndefinitely === false ? '' : 'checked';
-  return `<article class="candidateAccordion" data-user-id="${esc(it.userId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(name)}</span><span class="muted" style="display:block;margin-top:4px">${esc(it.areaTrabajo || 'Perfil todavía incompleto')} ${it.localidad ? '· ' + esc(it.localidad) : ''} · DNI ${esc(it.dni || 'sin dato')}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.profileStatus || 'Registro')}</span></span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button><div><label class="candidateRetention"><input class="candidateRetentionInput" type="checkbox" ${checked}> Mantener indefinidamente</label><div class="candidateSaveMsg" aria-live="polite"></div></div></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
+  return `<article class="candidateAccordion" data-user-id="${esc(it.userId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(name)}</span><span class="muted" style="display:block;margin-top:4px">${esc(it.areaTrabajo || 'Perfil todavía incompleto')} ${it.localidad ? '· ' + esc(it.localidad) : ''} · DNI ${esc(it.dni || 'sin dato')}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.classLabel || it.profileStatus || 'Registro')}</span>${it.expertiseLabel ? `<span class="adminCategorySource">${esc(it.expertiseLabel)}</span>` : ''}</span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button><div><label class="candidateRetention"><input class="candidateRetentionInput" type="checkbox" ${checked}> Mantener indefinidamente</label><div class="candidateSaveMsg" aria-live="polite"></div></div></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
+}
+function renderCandidateDirectoryClassification(directory){
+  const groups = Array.isArray(directory?.groups) ? directory.groups : [];
+  if(!groups.length) return '<div class="muted">No hay candidatos para los filtros seleccionados.</div>';
+  return `<div class="adminClassDirectory">${groups.map((group) => {
+    const expertiseGroups = Array.isArray(group.expertise) ? group.expertise : [];
+    const groupItems = Array.isArray(group.items) ? group.items : [];
+    const expertiseHtml = expertiseGroups.map((expertise) => {
+      const items = groupItems.filter((item) => item.expertiseKey === expertise.key);
+      return `<details class="adminExpertiseGroup"><summary><span>${esc(expertise.label)}</span><span class="adminClassCount">${Number(expertise.count || items.length)}</span></summary><div class="adminExpertiseItems">${items.map(candidateDirectoryRowHtml).join('')}</div></details>`;
+    }).join('');
+    return `<details class="adminClassGroup"><summary><span class="adminClassTitle">${esc(group.label)} <span class="adminClassCount">${Number(group.count || groupItems.length)}</span></span><span class="adminClassMeta">Abrir categoría</span></summary><div class="adminClassBody"><div class="adminExpertiseGrid">${expertiseHtml || groupItems.map(candidateDirectoryRowHtml).join('')}</div></div></details>`;
+  }).join('')}</div>`;
 }
 function renderCandidateDetail(it){
   const profile = it?.candidateProfile || {};
@@ -505,7 +539,13 @@ function renderCandidateDetail(it){
     ? `<img class="candidatePhoto" src="${esc(photo)}" alt="Foto de ${esc(candidateName(it))}">`
     : '<div class="candidatePhotoPlaceholder">Sin foto cargada</div>';
   const header = `<div class="candidateDetailHero">${photoHtml}<div><span class="candidateProfileBadge">${esc(it.profileStatus || 'Registro')}</span><h2 style="margin:8px 0 4px">${esc(candidateName(it))}</h2><div class="muted">${esc(bolsa.areaTrabajo || profile.headline || 'Perfil laboral pendiente')} ${bolsa.especialidad ? '· ' + esc(bolsa.especialidad === 'Otros' ? (bolsa.especialidadOtro || 'Otros') : bolsa.especialidad) : ''}</div><div class="muted" style="margin-top:6px">Alta: ${esc(candidateDetailDate(it.createdAt))} · Última actualización: ${esc(candidateDetailDate(bolsa.updatedAt || profile.updatedAt || resume.updatedAt || it.createdAt))}</div></div></div>`;
+  const adminClass = it?.adminClassification || {};
   const sections = [
+    candidateSection('Clasificación administrativa', [
+      candidateField('Tipo de perfil', adminClass.classLabel),
+      candidateField('Expertise principal', adminClass.expertiseLabel),
+      candidateField('Criterio', adminClass.reason),
+    ], true),
     candidateSection('Datos personales y de contacto', [
       candidateField('Nombre y apellido', candidateName(it)),
       candidateField('DNI', bolsa.dni || profile.dni),
@@ -621,7 +661,45 @@ function companyRowHtml(it){
   return `<div class="adminRow"><b>${esc(it.companyName || 'Empresa')}</b><div class="muted">${esc(it.contactName || 'Contacto no informado')} ${it.city ? '· ' + esc(it.city) : ''} ${it.province ? '· ' + esc(it.province) : ''}</div><div class="muted">CUIT: ${esc(it.cuit || 'sin dato')} · ${esc(it.contactEmail || 'sin mail')} ${it.phone ? '· ' + esc(it.phone) : ''}</div><div class="muted">${fd(it.updatedAt)}</div></div>`;
 }
 function companyDirectoryRowHtml(it){
-  return `<article class="candidateAccordion" data-company-id="${esc(it.companyId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(it.companyName || 'Empresa')}</span><span class="muted" style="display:block;margin-top:4px">${esc(it.contactName || 'Contacto no informado')} ${it.city ? '· ' + esc(it.city) : ''} ${it.province ? '· ' + esc(it.province) : ''}</span><span class="candidateProfileBadge" style="margin-top:8px">CUIT ${esc(it.cuit || 'sin dato')}</span></span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
+  return `<article class="candidateAccordion" data-company-id="${esc(it.companyId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(it.companyName || 'Empresa')}</span><span class="muted" style="display:block;margin-top:4px">${esc(it.contactName || 'Contacto no informado')} ${it.city ? '· ' + esc(it.city) : ''} ${it.province ? '· ' + esc(it.province) : ''}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.categoryLabel || 'Sin categoría')}</span><span class="adminCategorySource">CUIT ${esc(it.cuit || 'sin dato')}</span></span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
+}
+function renderCompanyDirectoryClassification(directory){
+  const groups = Array.isArray(directory?.groups) ? directory.groups : [];
+  if(!groups.length) return '<div class="muted">No hay empresas para los filtros seleccionados.</div>';
+  return `<div class="adminClassDirectory">${groups.map((group) => {
+    const items = Array.isArray(group.items) ? group.items : [];
+    const note = group.key === 'PENDIENTE' ? 'Requiere revisión administrativa' : 'Abrir categoría';
+    return `<details class="adminClassGroup"><summary><span class="adminClassTitle">${esc(group.label)} <span class="adminClassCount">${Number(group.count || items.length)}</span></span><span class="adminClassMeta">${esc(note)}</span></summary><div class="adminClassBody">${items.map(companyDirectoryRowHtml).join('')}</div></details>`;
+  }).join('')}</div>`;
+}
+function companyCategorySection(it){
+  const c = it?.adminClassification || {};
+  const selected = String(it?.adminCategory || c.key || '').toUpperCase();
+  const options = `<option value="" ${['FABRICACION','LOGISTICA','SERVICIO'].includes(selected) ? '' : 'selected'} disabled>Elegir categoría</option>` + [
+    ['FABRICACION','Fabricación'],
+    ['LOGISTICA','Logística'],
+    ['SERVICIO','Servicio'],
+  ].map(([key,label]) => `<option value="${key}" ${selected === key ? 'selected' : ''}>${label}</option>`).join('');
+  return `<section class="candidateDetailSection wide"><h3>Clasificación administrativa</h3><div class="companyCategoryBox"><div><b>Categoría actual: ${esc(c.label || 'Pendiente de clasificar')}</b><span class="adminCategorySource">${c.source === 'MANUAL' ? 'manual' : 'sugerida automáticamente'}${c.confidence ? ' · confianza ' + String(c.confidence).toLowerCase() : ''}</span></div><div class="muted small" style="margin-top:6px">Esta clasificación sólo organiza el Panel General y no se muestra a candidatos ni empresas. Podés corregirla cuando la sugerencia automática no represente la actividad principal.</div><div class="companyCategoryActions"><select class="input companyCategorySelect">${options}</select><button class="btn btn-primary companyCategorySave" type="button" data-company-id="${esc(it.id || '')}">Guardar categoría</button><span class="muted companyCategoryMsg"></span></div></div></section>`;
+}
+function wireCompanyCategory(host){
+  if(!host) return;
+  const btn = host.querySelector('.companyCategorySave');
+  const select = host.querySelector('.companyCategorySelect');
+  const msg = host.querySelector('.companyCategoryMsg');
+  if(!btn || !select) return;
+  btn.onclick = async () => {
+    if(!select.value){ if(msg) msg.textContent = 'Elegí Fabricación, Logística o Servicio.'; return; }
+    btn.disabled = true;
+    if(msg) msg.textContent = 'Guardando…';
+    try {
+      const data = await apiFetch(`/admin/companies/${encodeURIComponent(btn.dataset.companyId)}/category`, { method:'PATCH', body:JSON.stringify({ category:select.value }) });
+      if(msg) msg.textContent = `Categoría guardada: ${data?.classification?.label || select.options[select.selectedIndex]?.text || select.value}.`;
+      await loadOverview();
+    } catch (err) {
+      if(msg) msg.textContent = err?.message || 'No se pudo guardar la categoría.';
+    } finally { btn.disabled = false; }
+  };
 }
 function renderCompanyDetail(it){
   const user = it?.user || {};
@@ -634,6 +712,7 @@ function renderCompanyDetail(it){
   const activeAccesses = Array.isArray(it?.candidateAccesses) ? it.candidateAccesses.filter((x) => new Date(x.expiresAt).getTime() > Date.now()).length : 0;
   const activePublications = Array.isArray(it?.jobPublications) ? it.jobPublications.filter((x) => new Date(x.expiresAt).getTime() > Date.now()).length : 0;
   const sections = [
+    companyCategorySection(it),
     candidateSection('Datos institucionales', [
       candidateField('Empresa', it.companyName),
       candidateField('CUIT', it.cuit),
@@ -704,6 +783,7 @@ function wireCompanyDirectory(){
         body.innerHTML = renderCompanyDetail(data.item || {});
         body.dataset.loaded = 'true';
         wireAdminPasswordReset(body);
+        wireCompanyCategory(body);
       } catch (err) {
         body.innerHTML = `<div class="muted">${esc(err?.message || 'No se pudo abrir el perfil completo de la empresa.')}</div>`;
       }
@@ -1022,10 +1102,10 @@ async function loadOverview(){
   document.getElementById('sumBilling').textContent = money(data.summary?.paidTotal || 0);
 
   document.getElementById('candidateList').innerHTML = (data.candidates || []).map(candidateRowHtml).join('') || '<div class="muted">Sin candidatos en el período seleccionado.</div>';
-  document.getElementById('candidateDirectoryList').innerHTML = (data.candidates || []).map(candidateDirectoryRowHtml).join('') || '<div class="muted">Sin candidatos en el período seleccionado.</div>';
+  document.getElementById('candidateDirectoryList').innerHTML = renderCandidateDirectoryClassification(data.candidateDirectory || {});
   wireCandidateDirectory();
   document.getElementById('companyList').innerHTML = (data.companies || []).map(companyRowHtml).join('') || '<div class="muted">Sin empresas en el período seleccionado.</div>';
-  document.getElementById('companyDirectoryList').innerHTML = (data.companies || []).map(companyDirectoryRowHtml).join('') || '<div class="muted">Sin empresas para el filtro seleccionado.</div>';
+  document.getElementById('companyDirectoryList').innerHTML = renderCompanyDirectoryClassification(data.companyDirectory || {});
   wireCompanyDirectory();
   document.getElementById('billingList').innerHTML = (data.billingOrders || []).map(billingRowHtml).join('') || '<div class="muted">Sin documentos en el período seleccionado.</div>';
   document.getElementById('candidatePreview').innerHTML = (data.candidates || []).slice(0, 5).map(candidateRowHtml).join('') || '<div class="muted">Todavía no hay candidatos visibles para este filtro.</div>';
@@ -1035,18 +1115,18 @@ async function loadOverview(){
   const sp = data.companyPaging || {};
   const bp = data.billingPaging || {};
   document.getElementById('candidatePagingInfo').textContent = `Mostrando página ${cp.page || 1} de ${cp.totalPages || 1} · ${cp.total || 0} candidato(s)`;
-  document.getElementById('candidateDirectoryPagingInfo').textContent = `Mostrando página ${cp.page || 1} de ${cp.totalPages || 1} · ${cp.total || 0} candidato(s)`;
+  document.getElementById('candidateDirectoryPagingInfo').textContent = `${data.candidateDirectory?.total || 0} candidato(s) clasificado(s)${cp.search ? ' · búsqueda: ' + cp.search : ''}`;
   document.getElementById('companyPagingInfo').textContent = `Mostrando página ${sp.page || 1} de ${sp.totalPages || 1} · ${sp.total || 0} empresa(s)`;
-  document.getElementById('companyDirectoryPagingInfo').textContent = `Mostrando página ${sp.page || 1} de ${sp.totalPages || 1} · ${sp.total || 0} empresa(s)${sp.search ? ' · búsqueda: ' + sp.search : ''}`;
+  document.getElementById('companyDirectoryPagingInfo').textContent = `${data.companyDirectory?.total || 0} empresa(s) clasificada(s)${sp.search ? ' · búsqueda: ' + sp.search : ''}`;
   document.getElementById('billingPagingInfo').textContent = `Mostrando página ${bp.page || 1} de ${bp.totalPages || 1} · ${bp.total || 0} documento(s)`;
   document.getElementById('btnCandidatePrev').disabled = (cp.page || 1) <= 1;
   document.getElementById('btnCandidateNext').disabled = (cp.page || 1) >= (cp.totalPages || 1);
-  document.getElementById('btnCandidateDirectoryPrev').disabled = (cp.page || 1) <= 1;
-  document.getElementById('btnCandidateDirectoryNext').disabled = (cp.page || 1) >= (cp.totalPages || 1);
+  document.getElementById('btnCandidateDirectoryPrev').disabled = true;
+  document.getElementById('btnCandidateDirectoryNext').disabled = true;
   document.getElementById('btnCompanyPrev').disabled = (sp.page || 1) <= 1;
   document.getElementById('btnCompanyNext').disabled = (sp.page || 1) >= (sp.totalPages || 1);
-  document.getElementById('btnCompanyDirectoryPrev').disabled = (sp.page || 1) <= 1;
-  document.getElementById('btnCompanyDirectoryNext').disabled = (sp.page || 1) >= (sp.totalPages || 1);
+  document.getElementById('btnCompanyDirectoryPrev').disabled = true;
+  document.getElementById('btnCompanyDirectoryNext').disabled = true;
   document.getElementById('btnBillingPrev').disabled = (bp.page || 1) <= 1;
   document.getElementById('btnBillingNext').disabled = (bp.page || 1) >= (bp.totalPages || 1);
   document.getElementById('candidateDaysFilter').value = f.candidateDays;

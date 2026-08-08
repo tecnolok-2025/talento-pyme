@@ -1,0 +1,293 @@
+Talento PyME v7.8.15 validation
+== JS files ==
+OK app.js
+OK auth.js
+OK bolsa-candidato.js
+OK buscar-extracted.js
+OK config.js
+OK sw.js
+OK index.js
+OK index.js
+OK mock-redirect.js
+OK provider.js
+OK stripe.js
+== Inline HTML scripts ==
+== Node tests ==
+TAP version 13
+# Subtest: empresas se clasifican en Fabricación Logística Servicio con contador administrativo
+ok 1 - empresas se clasifican en Fabricación Logística Servicio con contador administrativo
+  ---
+  duration_ms: 3.758639
+  type: 'test'
+  ...
+# Subtest: clasificación de empresa admite corrección manual persistente
+ok 2 - clasificación de empresa admite corrección manual persistente
+  ---
+  duration_ms: 1.07911
+  type: 'test'
+  ...
+# Subtest: candidatos se agrupan por seniority y expertise
+ok 3 - candidatos se agrupan por seniority y expertise
+  ---
+  duration_ms: 1.101725
+  type: 'test'
+  ...
+# Subtest: clasificación administrativa no se agrega a pantallas públicas
+ok 4 - clasificación administrativa no se agrega a pantallas públicas
+  ---
+  duration_ms: 2.813332
+  type: 'test'
+  ...
+# Subtest: administración dispone de perfil completo de empresas
+ok 5 - administración dispone de perfil completo de empresas
+  ---
+  duration_ms: 3.702979
+  type: 'test'
+  ...
+# Subtest: administración deriva la recuperación de clave al correo registrado
+ok 6 - administración deriva la recuperación de clave al correo registrado
+  ---
+  duration_ms: 0.994985
+  type: 'test'
+  ...
+# Subtest: administración puede buscar candidatos y empresas por identidad
+ok 7 - administración puede buscar candidatos y empresas por identidad
+  ---
+  duration_ms: 7.182569
+  type: 'test'
+  ...
+# Subtest: resume/parse persiste el contenido útil del CV
+ok 8 - resume/parse persiste el contenido útil del CV
+  ---
+  duration_ms: 27.08065
+  type: 'test'
+  ...
+# Subtest: detalle administrativo usa resumen legado como respaldo
+ok 9 - detalle administrativo usa resumen legado como respaldo
+  ---
+  duration_ms: 22.810876
+  type: 'test'
+  ...
+# Subtest: administración muestra bloque específico de CV
+ok 10 - administración muestra bloque específico de CV
+  ---
+  duration_ms: 9.473762
+  type: 'test'
+  ...
+# Subtest: registro y recuperación usan mínimo 10 caracteres
+ok 11 - registro y recuperación usan mínimo 10 caracteres
+  ---
+  duration_ms: 3.402147
+  type: 'test'
+  ...
+# Subtest: registro legado incompleto no puede reemplazar passHash
+ok 12 - registro legado incompleto no puede reemplazar passHash
+  ---
+  duration_ms: 0.531756
+  type: 'test'
+  ...
+# Subtest: DNI nuevo se comprueba también contra CandidateBolsa histórica
+ok 13 - DNI nuevo se comprueba también contra CandidateBolsa histórica
+  ---
+  duration_ms: 0.793085
+  type: 'test'
+  ...
+# Subtest: sólo el código de recuperación más reciente queda activo
+ok 14 - sólo el código de recuperación más reciente queda activo
+  ---
+  duration_ms: 0.559804
+  type: 'test'
+  ...
+# Subtest: correo institucional sigue unificado sin segunda dirección
+ok 15 - correo institucional sigue unificado sin segunda dirección
+  ---
+  duration_ms: 1.332438
+  type: 'test'
+  ...
+# Subtest: frontend y cache declaran 7.8.15
+ok 16 - frontend y cache declaran 7.8.15
+  ---
+  duration_ms: 0.435072
+  type: 'test'
+  ...
+# Subtest: buscadores legados no exponen perfiles ni permiten bypass de capacidad
+ok 17 - buscadores legados no exponen perfiles ni permiten bypass de capacidad
+  ---
+  duration_ms: 1.318196
+  type: 'test'
+  ...
+# Subtest: analizar web bloquea destinos privados y limita la descarga
+ok 18 - analizar web bloquea destinos privados y limita la descarga
+  ---
+  duration_ms: 1.060157
+  type: 'test'
+  ...
+# Subtest: CV rechaza formatos no soportados y UI sólo ofrece PDF DOCX TXT
+ok 19 - CV rechaza formatos no soportados y UI sólo ofrece PDF DOCX TXT
+  ---
+  duration_ms: 3.819602
+  type: 'test'
+  ...
+# Subtest: recuperación ya no permite cambiar clave sólo con DNI o CUIT
+ok 20 - recuperación ya no permite cambiar clave sólo con DNI o CUIT
+  ---
+  duration_ms: 2.587275
+  type: 'test'
+  ...
+# Subtest: código temporal queda persistido con vencimiento e intentos
+ok 21 - código temporal queda persistido con vencimiento e intentos
+  ---
+  duration_ms: 0.960882
+  type: 'test'
+  ...
+# Subtest: candidato nuevo usa DNI menor a 11 dígitos
+ok 22 - candidato nuevo usa DNI menor a 11 dígitos
+  ---
+  duration_ms: 0.467416
+  type: 'test'
+  ...
+# Subtest: cuentas candidatas legadas pueden autocorregir registro de 11 dígitos tras validar correo
+ok 23 - cuentas candidatas legadas pueden autocorregir registro de 11 dígitos tras validar correo
+  ---
+  duration_ms: 0.527244
+  type: 'test'
+  ...
+# Subtest: correo se muestra enmascarado y nunca completo en recuperación
+ok 24 - correo se muestra enmascarado y nunca completo en recuperación
+  ---
+  duration_ms: 0.759588
+  type: 'test'
+  ...
+# Subtest: panel administrativo dispone de Gmail en páginas de 20
+ok 25 - panel administrativo dispone de Gmail en páginas de 20
+  ---
+  duration_ms: 1.504247
+  type: 'test'
+  ...
+# Subtest: rechaza payment.cardNumber en checkout guard
+ok 26 - rechaza payment.cardNumber en checkout guard
+  ---
+  duration_ms: 4.62954
+  type: 'test'
+  ...
+# Subtest: rechaza payment.cvv en checkout guard
+ok 27 - rechaza payment.cvv en checkout guard
+  ---
+  duration_ms: 1.597203
+  type: 'test'
+  ...
+# Subtest: sanitizeCheckoutPayloadForLog no expone PAN ni CVV
+ok 28 - sanitizeCheckoutPayloadForLog no expone PAN ni CVV
+  ---
+  duration_ms: 1.298844
+  type: 'test'
+  ...
+# Subtest: stripe provider verifica webhook válido y parsea checkout.session.completed
+ok 29 - stripe provider verifica webhook válido y parsea checkout.session.completed
+  ---
+  duration_ms: 3.556484
+  type: 'test'
+  ...
+# Subtest: stripe provider rechaza webhook con firma inválida
+ok 30 - stripe provider rechaza webhook con firma inválida
+  ---
+  duration_ms: 1.491083
+  type: 'test'
+  ...
+# Subtest: mock redirect genera checkoutUrl sin tocar tarjeta
+ok 31 - mock redirect genera checkoutUrl sin tocar tarjeta
+  ---
+  duration_ms: 0.849922
+  type: 'test'
+  ...
+# Subtest: factory.html no contiene inputs operativos de tarjeta
+ok 32 - factory.html no contiene inputs operativos de tarjeta
+  ---
+  duration_ms: 34.621416
+  type: 'test'
+  ...
+# Subtest: service worker excluye endpoints sensibles de caché
+ok 33 - service worker excluye endpoints sensibles de caché
+  ---
+  duration_ms: 11.630647
+  type: 'test'
+  ...
+# Subtest: candidato no ve ni consulta el total global de candidatos
+ok 34 - candidato no ve ni consulta el total global de candidatos
+  ---
+  duration_ms: 8.137118
+  type: 'test'
+  ...
+# Subtest: empresa no ve conteos globales ni conteos por faceta
+ok 35 - empresa no ve conteos globales ni conteos por faceta
+  ---
+  duration_ms: 9.412024
+  type: 'test'
+  ...
+# Subtest: API reserva totales al administrador y no expone conteos en jobs stats
+ok 36 - API reserva totales al administrador y no expone conteos en jobs stats
+  ---
+  duration_ms: 10.356674
+  type: 'test'
+  ...
+# Subtest: portada transmite el rol a recuperación
+ok 37 - portada transmite el rol a recuperación
+  ---
+  duration_ms: 2.225179
+  type: 'test'
+  ...
+# Subtest: recuperación toma role=COMPANY desde la URL
+ok 38 - recuperación toma role=COMPANY desde la URL
+  ---
+  duration_ms: 0.315114
+  type: 'test'
+  ...
+# Subtest: CUIT de recuperación acepta sólo 11 números
+ok 39 - CUIT de recuperación acepta sólo 11 números
+  ---
+  duration_ms: 0.311791
+  type: 'test'
+  ...
+# Subtest: SMTP tiene timeouts explícitos y diagnóstico de red
+ok 40 - SMTP tiene timeouts explícitos y diagnóstico de red
+  ---
+  duration_ms: 1.135313
+  type: 'test'
+  ...
+# Subtest: una sola variable institucional gobierna soporte, recuperación y buzón
+ok 41 - una sola variable institucional gobierna soporte, recuperación y buzón
+  ---
+  duration_ms: 2.687482
+  type: 'test'
+  ...
+# Subtest: Factory ya no hardcodea factory@gmail.com
+ok 42 - Factory ya no hardcodea factory@gmail.com
+  ---
+  duration_ms: 0.505917
+  type: 'test'
+  ...
+# Subtest: Ayuda IA expone el mismo correo institucional
+ok 43 - Ayuda IA expone el mismo correo institucional
+  ---
+  duration_ms: 0.401682
+  type: 'test'
+  ...
+# Subtest: Administración instruye configurar la variable unificada
+ok 44 - Administración instruye configurar la variable unificada
+  ---
+  duration_ms: 6.042577
+  type: 'test'
+  ...
+1..44
+# tests 44
+# suites 0
+# pass 44
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1049.58381
+== Version markers ==
+12:TP_GLOBAL.TP_APP_VERSION = "7.8.15";
+3:  "version": "7.8.15",
+10:const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "7.8.15";

@@ -1,0 +1,23 @@
+Talento PyME v7.8.15 — Clasificación administrativa de perfiles
+
+1. Perfiles empresas
+- Clasificación administrativa en Fabricación, Logística y Servicio.
+- Contador visible junto a cada categoría.
+- Las categorías con cero registros no se muestran.
+- Sugerencia automática según información institucional y búsquedas publicadas.
+- Grupo excepcional Pendiente de clasificar cuando no existe evidencia suficiente.
+- Corrección manual persistente desde la ficha de empresa.
+
+2. Perfiles candidatos
+- Clasificación principal: Operativos / Oficios, Técnicos / Especialistas, Supervisión / Jefaturas, Profesionales / Ingeniería y Administrativos / Gestión.
+- Subclasificación por expertise con contadores: Mecánica, Eléctrica, Producción, Mantenimiento, Soldadura/Montaje, Instrumentación, Ingeniería, Construcción, Planificación, Calidad/HSE, Logística, Administración, Ambiente e IT.
+- El motor usa datos del perfil y también contenido extraído del CV cuando los campos estructurados están incompletos.
+- Sólo aparecen grupos y subgrupos con al menos un registro.
+
+3. Privacidad y compatibilidad
+- Las clasificaciones son exclusivamente administrativas.
+- No se exponen a candidatos ni empresas.
+- Se conserva la seguridad de recuperación por correo, Gmail institucional único y todas las correcciones de v7.8.14.
+- La única ampliación de esquema es CompanyProfile.adminCategory (opcional); prisma db push la agrega sin borrar registros existentes.
+
+Validación: 44/44 pruebas automáticas aprobadas antes del empaquetado.
