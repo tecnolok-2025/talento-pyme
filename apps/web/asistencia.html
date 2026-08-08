@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Ayuda IA</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.8.9" />
+  <link rel="stylesheet" href="/styles.css?v=7.8.13" />
   <style>
     .chatShell{display:grid;grid-template-columns:1.25fr .75fr;gap:18px}
     @media(max-width:980px){.chatShell{grid-template-columns:1fr}}
@@ -70,11 +70,12 @@
         <h2 style="margin-top:0">Consultas sugeridas</h2>
         <div class="listStack" id="chatSuggestions"></div>
         <div class="timelineNote" style="margin-top:16px">El asistente responde con conocimiento operativo del sistema, guarda fecha y hora en cada respuesta y te permite limpiar el historial o borrar mensajes individuales cuando lo necesites.</div>
+        <div class="timelineNote" style="margin-top:12px"><b>Correo de consultas:</b> <a id="supportEmailUnified" href="#">cargando…</a></div>
       </div>
     </div>
   </div>
-  <script src="/config.js?v=7.8.9"></script>
-  <script src="/auth.js?v=7.8.9"></script>
+  <script src="/config.js?v=7.8.13"></script>
+  <script src="/auth.js?v=7.8.13"></script>
   <script>
     requireAuth(); applyRoleVisibility(); document.getElementById('btnLogout').onclick=(e)=>{e.preventDefault();logout();};
     const currentRole = normalizeRole(tpRole());
@@ -106,6 +107,9 @@
       const sug=document.getElementById('chatSuggestions');
       sug.innerHTML=(data.suggested||[]).map((q)=>`<button type="button" class="btn btn-ghost chatSuggestion">${esc(q)}</button>`).join('')||'<div class="muted">Todavía no hay sugerencias cargadas.</div>';
       sug.querySelectorAll('.chatSuggestion').forEach((btn)=>btn.onclick=()=>{document.getElementById('chatInput').value=btn.textContent.trim(); document.getElementById('chatInput').focus();});
+      const supportEmail=String(data.supportEmail||'').trim();
+      const supportEl=document.getElementById('supportEmailUnified');
+      if(supportEl){ supportEl.textContent=supportEmail||'pendiente de configurar'; supportEl.href=supportEmail?`mailto:${supportEmail}`:'#'; }
     }
     document.getElementById('btnSendChat').onclick=async()=>{
       const content=document.getElementById('chatInput').value.trim();

@@ -1,0 +1,36 @@
+Talento PyME v7.8.10 — Seguridad de recuperación + migración DNI + Correo / Consultas
+
+1. Recuperación de contraseña
+- Candidato inicia sólo con DNI.
+- Empresa inicia sólo con CUIT.
+- DNI/CUIT ya no permiten cambiar la contraseña directamente.
+- Se envía un código temporal de 6 dígitos al correo registrado.
+- El correo se muestra enmascarado.
+- Código con vencimiento, límite de intentos y límite de solicitudes.
+- La nueva contraseña se define sólo después de validar el código.
+- Mínimo de 10 caracteres para la nueva clave de recuperación.
+
+2. Compatibilidad con candidatos anteriores
+- Si el candidato fue creado con un número de registro de 11 dígitos, puede ingresar su DNI actual.
+- Si el DNI no existe todavía, se solicita por única vez el correo registrado para identificar la cuenta legada.
+- El código se envía a ese correo.
+- Sólo después de validarlo y completar el cambio de contraseña, el sistema reemplaza automáticamente el identificador legado por el DNI en Profile y CandidateBolsa.
+- No se requiere contactar manualmente a los candidatos anteriores.
+
+3. Administración
+- Se elimina la capacidad operativa de asignar contraseñas directamente.
+- Se reemplaza por Enviar recuperación por correo.
+- Nuevo panel Correo / Consultas.
+- Muestra los últimos 20 emails, paginados de 20 en 20.
+- Muestra total, no leídos, remitente, asunto, fecha y, cuando Gmail informa la marca correspondiente, estado Respondido.
+- Permite abrir y leer el mensaje dentro de Administración; al abrirlo queda marcado como leído en Gmail.
+
+4. Gmail / Render
+- Requiere GMAIL_USER y credenciales OAuth 2.0 en Render (recomendado) o, cuando la cuenta lo permita, GMAIL_APP_PASSWORD como alternativa.
+- La contraseña de aplicación nunca se guarda en frontend ni en la base de datos.
+- SMTP Gmail se usa para envío y IMAP Gmail para lectura administrativa.
+
+5. Base de datos
+- Se agrega únicamente la tabla PasswordResetChallenge.
+- prisma db push crea la tabla sin borrar los registros existentes.
+- No se modifican ni eliminan candidatos o empresas actuales.

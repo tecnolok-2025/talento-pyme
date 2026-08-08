@@ -1,0 +1,20 @@
+Talento PyME v7.8.12
+=======================
+
+Correo institucional definitivo
+- FACTORY_SUPPORT_EMAIL pasa a ser la única variable de identidad de correo.
+- Instalación actual: talentopyme00@gmail.com.
+- Eliminada TALENTO_PYME_EMAIL para evitar duplicidad de configuración.
+- Factory, Ayuda IA, recuperación de contraseñas y Correo / Consultas usan FACTORY_SUPPORT_EMAIL.
+- No se hardcodean credenciales ni se reutilizan claves administrativas.
+
+Seguridad
+- Se mantiene recuperación por código temporal al correo registrado.
+- Candidato: DNI. Empresa: CUIT.
+- La contraseña anterior nunca se muestra ni se envía.
+- Administración no puede conocer contraseñas.
+
+Compatibilidad
+- No se modifica ni borra la base existente.
+- No requiere una segunda dirección de correo en Render.
+- Google sigue requiriendo autorización de la cuenta (OAuth 2.0 o contraseña de aplicación) para envío/lectura automática.

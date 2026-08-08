@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Talento PyME</title>
   <meta name="theme-color" content="#0B1220" />
-  <link rel="manifest" href="/manifest.webmanifest?v=7.8.9" />
+  <link rel="manifest" href="/manifest.webmanifest?v=7.8.13" />
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.8.9" />
+  <link rel="stylesheet" href="/styles.css?v=7.8.13" />
 </head>
 <body class="authBody">
   <div class="authTop">
@@ -79,9 +79,9 @@
                 <label>Email</label>
                 <input class="input" id="regEmail" placeholder="tu@email.com" />
 
-                <label>DNI (Número de registro 11 dígitos)</label>
-                <input class="input" id="regDni" placeholder="Solo números" inputmode="numeric" />
-                <div class="muted small" id="regDniHint" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid #bfdbfe;border-radius:14px;background:#eff6ff;color:#1e3a8a">El número de registro se solicita únicamente para reforzar la confiabilidad y seguridad del sistema. Te servirá para blanquear o reconfigurar tu clave si alguna vez lo necesitás. También podés ingresar 11 dígitos que no tengan relación con tu número de registro real, pero en ese caso tendrás que recordarlos exactamente porque serán tu referencia para recuperar la clave.</div>
+                <label>DNI</label>
+                <input class="input" id="regDni" placeholder="Ej.: 30123456" inputmode="numeric" autocomplete="off" />
+                <div class="muted small" id="regDniHint" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid #bfdbfe;border-radius:14px;background:#eff6ff;color:#1e3a8a">Ingresá tu número de DNI. La recuperación de contraseña se valida de forma segura mediante el correo electrónico registrado en tu cuenta.</div>
 
                 <label>Dirección</label>
                 <input class="input" id="regAddress" placeholder="Ej: Av. Siempre Viva 742" />
@@ -93,7 +93,7 @@
                 <input class="input" id="regPhone" placeholder="Ej: +54 9 ..." />
 
                 <label>Contraseña</label>
-                <div class="pw"><input class="input" id="regPassword" type="password" placeholder="mínimo 8 caracteres" /><button type="button" class="pwToggle" data-target="regPassword" aria-label="Ver contraseña">👁</button></div>
+                <div class="pw"><input class="input" id="regPassword" type="password" placeholder="mínimo 10 caracteres" /><button type="button" class="pwToggle" data-target="regPassword" aria-label="Ver contraseña">👁</button></div>
               </div>
 
               <div id="compFields" style="display:none">
@@ -120,7 +120,7 @@
                 <input class="input" id="regCompanyPhone" placeholder="Ej: +54 9 ..." />
 
                 <label>Contraseña</label>
-                <div class="pw"><input class="input" id="regCompanyPassword" type="password" placeholder="mínimo 8 caracteres" /><button type="button" class="pwToggle" data-target="regCompanyPassword" aria-label="Ver contraseña">👁</button></div>
+                <div class="pw"><input class="input" id="regCompanyPassword" type="password" placeholder="mínimo 10 caracteres" /><button type="button" class="pwToggle" data-target="regCompanyPassword" aria-label="Ver contraseña">👁</button></div>
               </div>
 
               <div class="authActions">
@@ -182,8 +182,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=7.8.9"></script>
-  <script src="/auth.js?v=7.8.9"></script>
+  <script src="/config.js?v=7.8.13"></script>
+  <script src="/auth.js?v=7.8.13"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));
@@ -294,10 +294,12 @@ $("btnRegister").onclick = async () => {
           if(!fullName) throw new Error("Falta Nombre y apellido");
           if(!email) throw new Error("Falta Email");
           if(!dni) throw new Error("Falta DNI");
+          const dniDigits = dni.replace(/\D/g, "");
+          if(!/^\d{6,10}$/.test(dniDigits)) throw new Error("Ingresá un DNI válido, sin puntos. Debe tener menos de 11 dígitos.");
           if(!address) throw new Error("Falta Dirección");
           if(!city) throw new Error("Falta Localidad");
           if(!phone) throw new Error("Falta Teléfono");
-          if((password||"").length < 8) throw new Error("La contraseña debe tener mínimo 8 caracteres");
+          if((password||"").length < 10) throw new Error("La contraseña debe tener mínimo 10 caracteres");
           await post("/auth/register", { role: "CANDIDATE", fullName, email, dni, address, city, phone, password });
         } else {
           const fullName = $("regContactName").value.trim();
@@ -315,7 +317,7 @@ $("btnRegister").onclick = async () => {
           if(!address) throw new Error("Falta Dirección");
           if(!city) throw new Error("Falta Localidad");
           if(!phone) throw new Error("Falta Teléfono");
-          if((password||"").length < 8) throw new Error("La contraseña debe tener mínimo 8 caracteres");
+          if((password||"").length < 10) throw new Error("La contraseña debe tener mínimo 10 caracteres");
           await post("/auth/register", { role: "COMPANY", fullName, companyName, cuit, email, address, city, phone, password });
         }
         msg("Registro OK. Ahora podés ingresar.");

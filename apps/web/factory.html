@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Factory</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.8.9" />
+  <link rel="stylesheet" href="/styles.css?v=7.8.13" />
   <style>
     .factoryMiniGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:14px}
     .factoryMiniCard{border:1px solid var(--tp-border);border-radius:18px;padding:16px;background:#fff}
@@ -124,7 +124,7 @@
             <div class="factorySupport">
               <strong>Consultas de cuenta</strong>
               <div class="muted">Para soporte comercial o validaciones, escribinos a:</div>
-              <div style="margin-top:10px"><a href="mailto:factory@gmail.com" id="supportEmailLink">factory@gmail.com</a></div>
+              <div style="margin-top:10px"><a href="#" id="supportEmailLink">Correo institucional de Talento PyME</a></div>
               <div class="timelineNote">Colocá tu código de acceso y presioná Activar para que el sistema lo valide.</div>
               <div class="couponRow" style="margin-top:16px">
                 <input class="input" id="specialAccessCode" placeholder="Código de acceso especial" />
@@ -276,8 +276,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=7.8.9"></script>
-  <script src="/auth.js?v=7.8.9"></script>
+  <script src="/config.js?v=7.8.13"></script>
+  <script src="/auth.js?v=7.8.13"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -499,8 +499,10 @@
       document.getElementById('summaryCompanyName').textContent = company.companyName || 'Empresa registrada';
       document.getElementById('summaryCompanyMeta').textContent = `${company.contactEmail || 'sin mail'}${company.cuit ? ' • CUIT ' + company.cuit : ''}`;
       document.getElementById('summaryCompanyCode').textContent = `Cuenta TP · ${company.companyCode || '—'}`;
-      const support = boot.supportEmail || 'factory@gmail.com';
-      const supportEl = document.getElementById('supportEmailLink'); supportEl.textContent = support; supportEl.href = `mailto:${support}`;
+      const support = String(boot.supportEmail || '').trim();
+      const supportEl = document.getElementById('supportEmailLink');
+      supportEl.textContent = support || 'Correo institucional pendiente de configurar';
+      supportEl.href = support ? `mailto:${support}` : '#';
       const currentPlan = op.currentPlan || null;
       const queue = Array.isArray(op.activeQueue) ? op.activeQueue : [];
       const primary = queue[0] || currentPlan || null;

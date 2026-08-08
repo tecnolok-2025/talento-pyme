@@ -19,7 +19,7 @@ Configurar en Render > API > Environment:
 
 - `FACTORY_ADMIN_ALIAS=TalentoPyme`
 - `FACTORY_ADMIN_PASSWORD=tu_clave`
-- `FACTORY_SUPPORT_EMAIL=factory@gmail.com`
+- `FACTORY_SUPPORT_EMAIL=talentopyme00@gmail.com`
 - `FACTORY_ADMIN_ALLOWED_COMPANIES=Mengabo SA,Mengabo Sociedad Anonima`
 
 ## Despliegue

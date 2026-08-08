@@ -478,7 +478,7 @@ async function initBolsaCandidato(){
             <div class="tp-hero-actions">
               <button class="btn secondary" id="btnReloadBolsa" type="button">Recargar</button>
               <label class="btn secondary tp-upload-btn" for="cvUploadInput">Cargar currículum</label>
-              <input id="cvUploadInput" type="file" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg" hidden />
+              <input id="cvUploadInput" type="file" accept=".pdf,.docx,.txt" hidden />
               ${isEditing ? `
                 <button class="btn secondary" id="btnCancelEdit" type="button">Cancelar</button>
                 <button class="btn" id="btnSaveBolsa" type="button" ${(busy||parsingCv)?"disabled":""}>${busy?"Guardando...":"Guardar cambios"}</button>

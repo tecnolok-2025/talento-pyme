@@ -1,0 +1,51 @@
+Talento PyME v7.8.13 · Auditoría final de seguridad y estabilidad
+===============================================================
+
+Objetivo
+- Consolidar en una única instalación todos los cambios 7.8.7 → 7.8.12.
+- No agrega funciones comerciales nuevas: corrige y endurece los flujos existentes.
+
+Seguridad de acceso
+- Recuperación: Candidato por DNI; Empresa por CUIT; código de 6 dígitos al correo registrado; clave recién después de validar el código.
+- FACTORY_SUPPORT_EMAIL sigue siendo la única casilla institucional.
+- GMAIL_APP_PASSWORD autoriza envío SMTP y lectura IMAP de esa misma cuenta.
+- Administración no puede ver ni asignar contraseñas.
+- El endpoint legado /auth/reset-by-id permanece deshabilitado (410).
+- Los códigos anteriores se invalidan al emitir uno nuevo.
+- Desafíos de recuperación antiguos se limpian de forma best-effort.
+- Registro y recuperación exigen al menos 10 caracteres de contraseña.
+
+Corrección crítica detectada en auditoría
+- Una compatibilidad antigua permitía que una cuenta incompleta de versiones previas reemplazara su passHash al repetir el registro con el mismo email.
+- Desde 7.8.13 el registro nunca reemplaza la contraseña de una cuenta existente. Para completar un registro legado se debe demostrar la clave actual; de lo contrario se deriva a “Olvidé mi contraseña”.
+
+Integridad y superficie de ataque
+- Analizar web valida que el destino sea un sitio público, bloquea localhost/redes privadas, limita redirecciones, tiempo y tamaño de respuesta para evitar SSRF/lecturas internas.
+- La carga de CV acepta de forma coherente sólo PDF, DOCX o TXT; formatos no soportados responden 415 en lugar de intentar leer bytes arbitrarios como texto.
+
+Integridad de candidatos
+- La unicidad de DNI se comprueba tanto en Profile como en CandidateBolsa, incluyendo registros históricos.
+- Al guardar el perfil laboral se sincroniza también fullNameNorm para que el ingreso por nombre siga funcionando si el candidato corrige su nombre.
+- Las cuentas antiguas con número de registro de 11 dígitos conservan el flujo de migración segura a DNI después de validar el correo.
+
+Privacidad y administración
+- Se retiraron dos endpoints de búsqueda legados (/search y /bolsa/search) que ya no usa la interfaz actual y podían eludir los controles modernos de privacidad/capacidad. Ahora responden 410 sin entregar datos.
+- Totales de candidatos/empresas siguen ocultos a usuarios públicos y permanecen visibles sólo en Administración.
+- Fichas completas de candidatos y empresas continúan disponibles en Administración.
+- CV/resumen extraído continúa visible en ficha administrativa.
+- Correo / Consultas mantiene últimos 20 mensajes y paginación de 20 en 20.
+
+Configuración definitiva de correo
+- FACTORY_SUPPORT_EMAIL=talentopyme00@gmail.com (valor real se mantiene en Render).
+- GMAIL_APP_PASSWORD se lee sólo desde Environment del servicio API. Nunca se hardcodea ni se incluye en el ZIP.
+- No se usa TALENTO_PYME_EMAIL ni una segunda casilla institucional.
+
+Base de datos
+- No borra ni reinicia candidatos, empresas, perfiles, CV, postulaciones ni documentos.
+- Prisma db push sólo asegura la estructura requerida por el código.
+
+Validación
+- Sintaxis de JS de API y frontend.
+- Scripts inline HTML.
+- Pruebas existentes de CV, privacidad, pagos, perfiles administrativos, correo y recuperación.
+- Nuevas pruebas de endurecimiento de registro, unicidad DNI, códigos de recuperación y consistencia de versión.

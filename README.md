@@ -1,4 +1,4 @@
-# Talento PyME — v7.8.9
+# Talento PyME — v7.8.13
 
 Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**.
 
@@ -24,15 +24,24 @@ El portal conserva **3 maneras de ingreso**:
 - **Ingreso:**
   - Empresa: ingresa con **nombre de la empresa** + contraseña
   - Candidato: ingresa con **nombre y apellido** + contraseña
-- **Recupero de contraseña:** valida contra los datos de registro (DNI/CUIT, según corresponda).
+- **Recupero de contraseña:** DNI (candidato) o CUIT (empresa) sólo identifican la cuenta; el cambio de clave exige validar un código temporal enviado al correo registrado.
+
+
+## Correo institucional único
+- Talento PyME utiliza **una sola casilla institucional** para soporte, consultas, envío de códigos de recuperación y lectura del buzón desde Administración.
+- La dirección institucional se toma exclusivamente de la variable existente `FACTORY_SUPPORT_EMAIL`.
+- En la instalación actual esa variable corresponde a `talentopyme00@gmail.com`.
+- Factory, Ayuda IA, recuperación de contraseñas y `Correo / Consultas` usan siempre esa misma dirección.
+- No debe crearse ninguna segunda variable de identidad de correo.
+- Para que Render pueda enviar y leer Gmail, Google exige además autorización de la cuenta mediante OAuth 2.0 o contraseña de aplicación; esas credenciales se guardan sólo en Render y no cambian la dirección institucional.
 
 ## PWA / caché
 La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y un botón en Acceso **“Actualizar versión”** para forzar refresh.
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.8.9"`
-- API: `apps/api/package.json` → `7.8.9` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.8.13"`
+- API: `apps/api/package.json` → `7.8.13` y endpoint `/health`.
 
 ## Administración de candidatos y empresas
 - El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.
@@ -40,7 +49,7 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 - La ficha del candidato muestra datos personales, perfil profesional, experiencia, formación, herramientas, resumen extraído del CV, observaciones, postulaciones y datos de acceso.
 - La nueva pestaña **Perfiles empresas** permite buscar por empresa, contacto, CUIT o mail y abrir una ficha institucional/operativa completa.
 - La ficha de empresa muestra identidad, contacto, resumen institucional, búsquedas, actividad comercial/Factory y soporte.
-- Desde ambas fichas, Administración puede **asignar una nueva contraseña** sin conocer ni visualizar la clave anterior.
+- Desde ambas fichas, Administración puede **enviar una recuperación segura por correo**; Administración no puede ver ni asignar contraseñas directamente.
 - Cada candidato mantiene **Mantener indefinidamente** activado por defecto, con persistencia individual en la base.
 - `npm start` aplica el ajuste de esquema requerido antes de iniciar la API, sin borrar los registros existentes.
 

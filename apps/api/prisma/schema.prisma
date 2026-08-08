@@ -61,6 +61,7 @@ model User {
   jobs      Job[]
   applications Application[]
   supportThreads SupportThread[]
+  passwordResetChallenges PasswordResetChallenge[]
 }
 
 model Profile {
@@ -520,4 +521,25 @@ model AdminBackupLog {
 
   @@index([status, startedAt])
   @@index([completedAt])
+}
+
+
+model PasswordResetChallenge {
+  id                  String   @id
+  userId              String
+  role                UserRole
+  requestedIdentifier String?
+  pendingDni          String?
+  codeHash            String
+  attempts            Int      @default(0)
+  maxAttempts         Int      @default(5)
+  expiresAt           DateTime
+  verifiedAt          DateTime?
+  consumedAt          DateTime?
+  createdAt           DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }

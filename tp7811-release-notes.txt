@@ -1,0 +1,24 @@
+Talento PyME v7.8.11 — Correo institucional único
+
+1. Unificación
+- Una única casilla institucional para Talento PyME.
+- Nueva variable principal: TALENTO_PYME_EMAIL.
+- La misma dirección se usa en Factory, Ayuda IA, recuperación de contraseñas y Correo / Consultas.
+- Se elimina el hardcode visual de factory@gmail.com.
+
+2. Seguridad
+- El correo institucional es sólo el remitente/buzón operativo.
+- Los códigos de recuperación siguen llegando exclusivamente al correo que cada candidato o empresa declaró en su cuenta.
+- Administración no puede ver ni asignar contraseñas; sólo iniciar una recuperación segura por correo.
+
+3. Compatibilidad
+- GMAIL_USER y FACTORY_SUPPORT_EMAIL quedan como fallback de compatibilidad para no romper despliegues anteriores.
+- Si TALENTO_PYME_EMAIL está definida, prevalece y todos los módulos usan esa única dirección.
+
+4. Administración
+- Correo / Consultas lee la misma cuenta configurada en TALENTO_PYME_EMAIL.
+- Mantiene últimos 20 mensajes, paginación, no leídos y lectura dentro del panel.
+
+5. Base de datos
+- Sin nuevas tablas ni migraciones respecto de v7.8.10.
+- No se borran ni modifican registros existentes por esta actualización.

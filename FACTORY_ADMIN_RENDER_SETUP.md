@@ -10,7 +10,7 @@ Configurá estas variables en el servicio **API** de Render:
 
 - `FACTORY_ADMIN_ALIAS=TalentoPyme`
 - `FACTORY_ADMIN_PASSWORD=tu_clave_superadmin`
-- `FACTORY_SUPPORT_EMAIL=factory@gmail.com`
+- `FACTORY_SUPPORT_EMAIL=talentopyme00@gmail.com`
 
 ## Pasos
 

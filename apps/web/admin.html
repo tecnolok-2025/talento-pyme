@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.8.9" />
+  <link rel="stylesheet" href="/styles.css?v=7.8.13" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -25,6 +25,14 @@
     .threadItem.active{border-color:#2563eb;box-shadow:0 10px 22px rgba(37,99,235,.12)}
     .threadSectionTitle{font-size:12px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:#1d4ed8;margin:4px 0 8px 0}
     .threadRoleBadge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(37,99,235,.08);font-size:11px;font-weight:900;color:#1d4ed8}
+
+    .mailShell{display:grid;grid-template-columns:.92fr 1.08fr;gap:16px}
+    @media(max-width:980px){.mailShell{grid-template-columns:1fr}}
+    .mailKpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+    @media(max-width:720px){.mailKpis{grid-template-columns:1fr}}
+    .mailKpi{border:1px solid var(--tp-border);border-radius:16px;padding:12px;background:#fff}.mailKpi b{display:block;font-size:22px;margin-top:4px}
+    .mailItem{padding:12px 14px;border-radius:16px;border:1px solid var(--tp-border);background:#fff;cursor:pointer}.mailItem.unread{border-color:#93c5fd;background:#eff6ff}.mailItem.active{box-shadow:0 10px 22px rgba(37,99,235,.12);border-color:#2563eb}
+    .mailBody{white-space:pre-wrap;word-break:break-word;line-height:1.55;max-height:520px;overflow:auto;padding:14px;border:1px solid var(--tp-border);border-radius:16px;background:#fff}
     .msgBubble{padding:12px 14px;border-radius:16px;border:1px solid var(--tp-border);background:#fff;margin-bottom:10px}
     .msgBubble.USER{background:rgba(37,99,235,.08)} .msgBubble.ASSISTANT{background:rgba(16,185,129,.08)} .msgBubble.OPERATOR{background:rgba(249,115,22,.08)}
     .matrixRow{display:grid;grid-template-columns:minmax(160px,1.2fr) repeat(4,minmax(90px,1fr)) minmax(170px,.95fr);gap:10px;padding:12px;border:1px solid var(--tp-border);border-radius:18px;background:#fff;margin-bottom:10px}.matrixRow.is-off{background:linear-gradient(180deg,rgba(226,232,240,.72),rgba(241,245,249,.94));opacity:.82}.matrixRow .toggleCell{align-content:end}.matrixRow .toggleLabel{display:flex;gap:8px;align-items:center;font-size:12px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:#334155}.matrixRow .toggleLabel input{width:18px;height:18px;accent-color:#2563eb}.traceKpiRow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:16px}.traceMini{border:1px solid var(--tp-border);border-radius:16px;padding:12px;background:#fff}.traceMini b{display:block;font-size:22px;margin-top:4px}.traceEvent{padding:12px 14px;border-radius:16px;border:1px solid var(--tp-border);background:#fff}.traceEventTitle{font-weight:900}.traceEventTop{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.traceBadge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;font-size:11px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;margin-left:8px}.traceEventMeta{margin-top:6px}.traceHint{margin-top:10px}
@@ -158,6 +166,7 @@
     <button class="btn btn-ghost" data-tab="traceability" type="button">Trazabilidad</button>
     <button class="btn btn-ghost" data-tab="operations" type="button">Capacidad operativa</button>
     <button class="btn btn-ghost" data-tab="factory" type="button">Factory Admin</button>
+    <button class="btn btn-ghost" data-tab="mail" type="button">Correo / Consultas</button>
     <button class="btn btn-ghost" data-tab="chat" type="button">Chat operador</button>
   </div>
   <section class="tabPane active" id="tab-overview">
@@ -350,6 +359,24 @@
       <div class="card"><h2 style="margin-top:0">Acceso total free</h2><div class="grid2"><div><label>Código</label><input class="input" id="freeCodeAdmin" placeholder="Ej: FREE-MENGABO" /></div><div><label>Vigencia hasta</label><select class="input" id="freeMonthAdmin"></select></div><div class="wide"><label>Empresa</label><select class="input" id="freeCompanyAdmin"></select></div></div><div class="row" style="margin-top:12px"><button class="btn btn-primary" id="btnCreateFreeAdmin" type="button">Generar acceso</button><span class="muted" id="freeAdminMsg"></span></div><div id="grantListAdmin" class="adminList" style="margin-top:16px"></div></div>
     </div>
   </section>
+  <section class="tabPane" id="tab-mail">
+    <div class="mailShell">
+      <div class="card">
+        <div class="toolbarCard"><div><h2 style="margin:0">Correo / Consultas</h2><div class="muted">Últimos mensajes del Gmail configurado para Talento PyME. Se muestran 20 por página, siempre desde los más recientes.</div></div><button class="btn btn-ghost" id="btnRefreshMail" type="button">Actualizar</button></div>
+        <div class="mailKpis"><div class="mailKpi"><span class="muted small">Cuenta</span><b id="mailAccount">—</b></div><div class="mailKpi"><span class="muted small">Mensajes</span><b id="mailTotal">—</b></div><div class="mailKpi"><span class="muted small">No leídos</span><b id="mailUnread">—</b></div></div>
+        <div id="mailConfigNotice" class="muted" style="margin-top:14px"></div>
+        <div id="mailList" class="adminList" style="margin-top:16px"></div>
+        <div class="row" style="justify-content:space-between;margin-top:14px"><button class="btn btn-ghost" id="btnMailPrev" type="button">Anterior</button><span class="muted" id="mailPaging">Página 1</span><button class="btn btn-ghost" id="btnMailNext" type="button">Siguiente</button></div>
+      </div>
+      <div class="card">
+        <div class="toolbarCard"><div><h2 style="margin:0">Lectura del mensaje</h2><div class="muted" id="mailDetailMeta">Seleccioná un correo para leerlo.</div></div></div>
+        <h3 id="mailDetailSubject" style="margin:18px 0 8px">Sin mensaje seleccionado</h3>
+        <div class="muted" id="mailDetailFrom"></div>
+        <div class="mailBody" id="mailDetailBody" style="margin-top:14px">El contenido aparecerá acá.</div>
+        <div class="muted small" id="mailAttachments" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </section>
   <section class="tabPane" id="tab-chat">
     <div class="adminChatShell">
       <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Conversaciones</h2><div class="muted">Separadas por Ayuda IA del lado empresa y del lado candidato para responder con contexto claro.</div></div><button class="btn btn-ghost" id="btnRefreshThreads" type="button">Actualizar</button></div><div class="row" id="chatRoleTabs" style="margin-top:14px"><button class="btn btn-ghost active" data-role-filter="ALL" type="button">Todas</button><button class="btn btn-ghost" data-role-filter="COMPANY" type="button">Ayuda IA · lado empresa</button><button class="btn btn-ghost" data-role-filter="CANDIDATE" type="button">Ayuda IA · lado candidato</button><button class="btn btn-ghost" data-role-filter="SUPERADMIN" type="button">Ayuda IA · administración</button></div><div id="threadList" class="adminList" style="margin-top:16px"></div></div>
@@ -357,8 +384,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.8.9"></script>
-<script src="/auth.js?v=7.8.9"></script>
+<script src="/config.js?v=7.8.13"></script>
+<script src="/auth.js?v=7.8.13"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -379,6 +406,7 @@ const state = {
   factory: null,
   threads: [],
   selectedThreadId: null,
+  mail: { page:1, totalPages:1, total:0, unread:0, items:[], selectedUid:null, loaded:false },
   filters: {
     candidateDays: 'ALL', candidateSearch: '', candidatePage: 1, candidatePerPage: 50,
     companyDays: 'ALL', companySearch: '', companyPage: 1, companyPerPage: 50,
@@ -399,6 +427,7 @@ function traceEventHtml(ev, fallbackActor){
 function setTab(tab){
   document.querySelectorAll('#adminTabs [data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tabPane').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + tab));
+  if(tab === 'mail' && !state.mail.loaded) loadMailInbox(1);
 }
 document.querySelectorAll('#adminTabs [data-tab]').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
 document.querySelectorAll('#chatRoleTabs [data-role-filter]').forEach((btn) => btn.onclick = () => {
@@ -435,31 +464,23 @@ function candidateSection(title, fields, wide=false){
   return `<section class="candidateDetailSection ${wide ? 'wide' : ''}"><h3>${esc(title)}</h3>${fields.join('')}</section>`;
 }
 function adminAccessSection({ userId, role, loginName, email, recoveryIdLabel, recoveryId }){
-  return `<section class="candidateDetailSection wide"><h3>Acceso y contraseña</h3>${candidateField('Nombre / identificación de ingreso', loginName)}${candidateField('Email de la cuenta', email)}${candidateField(recoveryIdLabel || 'Identificación de recuperación', recoveryId)}<div class="adminAccessBox"><div><b>Restablecer contraseña</b><div class="muted small" style="margin-top:4px">La contraseña actual no puede visualizarse. Administración puede reemplazarla por una nueva sin modificar el perfil.</div></div><button class="btn btn-primary adminPasswordResetBtn" type="button" data-user-id="${esc(userId || '')}" data-role="${esc(role || '')}">Asignar nueva clave</button><span class="adminAccessMsg" aria-live="polite"></span></div></section>`;
+  return `<section class="candidateDetailSection wide"><h3>Acceso y contraseña</h3>${candidateField('Nombre / identificación de ingreso', loginName)}${candidateField('Email de la cuenta', email)}${candidateField(recoveryIdLabel || 'Identificación de recuperación', recoveryId)}<div class="adminAccessBox"><div><b>Recuperación segura por correo</b><div class="muted small" style="margin-top:4px">Administración ya no puede ver ni asignar contraseñas. El usuario recibe un código temporal en su correo registrado y sólo después de validarlo puede crear una nueva clave.</div></div><button class="btn btn-primary adminPasswordRecoveryBtn" type="button" data-user-id="${esc(userId || '')}" data-role="${esc(role || '')}">Enviar recuperación por correo</button><span class="adminAccessMsg" aria-live="polite"></span></div></section>`;
 }
 function wireAdminPasswordReset(host){
   if(!host) return;
-  host.querySelectorAll('.adminPasswordResetBtn').forEach((btn) => {
+  host.querySelectorAll('.adminPasswordRecoveryBtn').forEach((btn) => {
     btn.onclick = async () => {
       const userId = String(btn.dataset.userId || '').trim();
       const msg = btn.closest('.adminAccessBox')?.querySelector('.adminAccessMsg');
       if(!userId) return;
-      const first = window.prompt('Ingresá una nueva contraseña de al menos 8 caracteres.');
-      if(first === null) return;
-      if(String(first).length < 8){ if(msg) msg.textContent = 'La nueva clave debe tener al menos 8 caracteres.'; return; }
-      const second = window.prompt('Repetí la nueva contraseña para confirmar.');
-      if(second === null) return;
-      if(first !== second){ if(msg) msg.textContent = 'Las contraseñas no coinciden.'; return; }
       btn.disabled = true;
-      if(msg) msg.textContent = 'Actualizando contraseña…';
+      if(msg) msg.textContent = 'Enviando recuperación segura…';
       try {
-        await apiFetch(`/admin/users/${encodeURIComponent(userId)}/reset-password`, { method:'POST', body:JSON.stringify({ newPassword:first }) });
-        if(msg) msg.textContent = 'Contraseña restablecida correctamente.';
+        const data = await apiFetch(`/admin/users/${encodeURIComponent(userId)}/send-password-recovery`, { method:'POST' });
+        if(msg) msg.textContent = `Código enviado a ${data.maskedEmail || 'el correo registrado'}.`;
       } catch (err) {
-        if(msg) msg.textContent = err?.message || 'No se pudo restablecer la contraseña.';
-      } finally {
-        btn.disabled = false;
-      }
+        if(msg) msg.textContent = err?.message || 'No se pudo enviar la recuperación.';
+      } finally { btn.disabled = false; }
     };
   });
 }
@@ -1084,6 +1105,56 @@ function renderFactoryAdmin(){
 }
 async function loadFactoryAdmin(){ state.factory = await apiFetch('/factory/admin/bootstrap'); renderFactoryAdmin(); }
 
+function renderMailInbox(){
+  const m = state.mail || {};
+  const list = document.getElementById('mailList');
+  document.getElementById('mailAccount').textContent = m.configured === false ? 'No configurado' : (m.account || '—');
+  document.getElementById('mailTotal').textContent = m.configured === false ? '—' : String(m.total || 0);
+  document.getElementById('mailUnread').textContent = m.configured === false ? '—' : String(m.unread || 0);
+  document.getElementById('mailPaging').textContent = m.configured === false ? 'Sin buzón configurado' : `Página ${m.page || 1} de ${m.totalPages || 1} · 20 correos por página`;
+  document.getElementById('btnMailPrev').disabled = m.configured === false || (m.page || 1) <= 1;
+  document.getElementById('btnMailNext').disabled = m.configured === false || (m.page || 1) >= (m.totalPages || 1);
+  document.getElementById('mailConfigNotice').textContent = m.configured === false ? 'Para activar esta pantalla usá FACTORY_SUPPORT_EMAIL como correo institucional y GMAIL_APP_PASSWORD como autorización de esa misma cuenta en el servicio API de Render.' : 'Al abrir un mensaje desde este panel quedará marcado como leído en Gmail.';
+  if(m.configured === false){ list.innerHTML = '<div class="adminRow"><b>Correo pendiente de configuración</b><div class="muted" style="margin-top:6px">El módulo ya está preparado. Falta asociar la cuenta Gmail de Talento PyME en Render.</div></div>'; return; }
+  list.innerHTML = (m.items || []).map((it) => `<div class="mailItem ${it.unread ? 'unread' : ''} ${String(m.selectedUid || '') === String(it.uid) ? 'active' : ''}" data-uid="${esc(it.uid)}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b>${esc(it.subject || '(sin asunto)')}</b><span>${it.answered ? '<span class="traceBadge">Respondido</span>' : ''}${it.unread ? '<span class="traceBadge">Nuevo</span>' : ''}</span></div><div class="muted">${esc(it.fromName || it.fromAddress || 'Remitente')} ${it.fromAddress ? '· ' + esc(it.fromAddress) : ''}</div><div class="muted small">${esc(fd(it.date))}</div></div>`).join('') || '<div class="muted">No hay mensajes para mostrar.</div>';
+  list.querySelectorAll('.mailItem').forEach((el) => el.onclick = () => loadMailMessage(el.dataset.uid));
+}
+async function loadMailInbox(page=1){
+  const list = document.getElementById('mailList');
+  if(list) list.innerHTML = '<div class="muted">Leyendo correo…</div>';
+  try {
+    const data = await apiFetch(`/admin/mail/inbox?page=${Math.max(1,Number(page||1))}`);
+    state.mail = { ...state.mail, ...data, loaded:true, selectedUid:state.mail.selectedUid || null };
+    renderMailInbox();
+  } catch (err) {
+    state.mail.loaded = true;
+    if(list) list.innerHTML = `<div class="muted">${esc(err?.message || 'No se pudo leer el correo.')}</div>`;
+    document.getElementById('mailConfigNotice').textContent = err?.message || 'No se pudo conectar con Gmail.';
+  }
+}
+async function loadMailMessage(uid){
+  if(!uid) return;
+  state.mail.selectedUid = uid;
+  renderMailInbox();
+  document.getElementById('mailDetailSubject').textContent = 'Abriendo mensaje…';
+  document.getElementById('mailDetailBody').textContent = '';
+  try {
+    const data = await apiFetch(`/admin/mail/message/${encodeURIComponent(uid)}`);
+    const it = data.item || {};
+    document.getElementById('mailDetailSubject').textContent = it.subject || '(sin asunto)';
+    document.getElementById('mailDetailFrom').textContent = `${it.from || 'Remitente no informado'}${it.to ? ' · Para: ' + it.to : ''}`;
+    document.getElementById('mailDetailMeta').textContent = fd(it.date);
+    document.getElementById('mailDetailBody').textContent = it.text || '(sin contenido legible)';
+    document.getElementById('mailAttachments').textContent = (it.attachments || []).length ? `Adjuntos: ${(it.attachments || []).map(a => a.filename || 'archivo').join(', ')}` : 'Sin adjuntos.';
+    const found = (state.mail.items || []).find(x => String(x.uid) === String(uid)); if(found) found.unread = false;
+    state.mail.unread = Math.max(0, Number(state.mail.unread || 0) - (found ? 1 : 0));
+    renderMailInbox();
+  } catch (err) {
+    document.getElementById('mailDetailSubject').textContent = 'No se pudo abrir el mensaje';
+    document.getElementById('mailDetailBody').textContent = err?.message || 'Error de lectura.';
+  }
+}
+
 async function loadThreads(){
   const data = await apiFetch('/admin/chat/threads');
   state.threads = data.items || [];
@@ -1162,6 +1233,9 @@ document.getElementById('btnTraceMonthlyNext').onclick = () => { const monthlySe
 document.getElementById('btnTraceYearPrev').onclick = () => { const years = (state.overview?.traceabilityCharts?.availableYears || []).map((y) => Number(y)); const idx = years.indexOf(Number(state.traceabilityView.annualYear)); if(idx > 0){ state.traceabilityView.annualYear = years[idx - 1]; renderTraceability(); } };
 document.getElementById('btnTraceYearNext').onclick = () => { const years = (state.overview?.traceabilityCharts?.availableYears || []).map((y) => Number(y)); const idx = years.indexOf(Number(state.traceabilityView.annualYear)); if(idx >= 0 && idx < years.length - 1){ state.traceabilityView.annualYear = years[idx + 1]; renderTraceability(); } };
 
+document.getElementById('btnRefreshMail').onclick = () => loadMailInbox(state.mail.page || 1);
+document.getElementById('btnMailPrev').onclick = () => { if((state.mail.page || 1) > 1) loadMailInbox((state.mail.page || 1) - 1); };
+document.getElementById('btnMailNext').onclick = () => { if((state.mail.page || 1) < (state.mail.totalPages || 1)) loadMailInbox((state.mail.page || 1) + 1); };
 document.getElementById('btnRefreshThreads').onclick = () => loadThreads();
 document.getElementById('btnRunBackup').onclick = () => triggerManualBackup();
 document.getElementById('btnDownloadBackup').onclick = () => downloadLatestBackup();

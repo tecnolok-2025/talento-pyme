@@ -15,11 +15,11 @@ test('administración dispone de perfil completo de empresas', () => {
   assert.match(adminHtml, /renderCompanyDetail/);
 });
 
-test('administración puede restablecer clave de candidatos y empresas sin verla', () => {
-  assert.match(apiSource, /app\.post\('\/admin\/users\/:userId\/reset-password'/);
-  assert.match(apiSource, /bcrypt\.hash\(parsed\.data\.newPassword, 10\)/);
-  assert.match(adminHtml, /Asignar nueva clave/);
-  assert.match(adminHtml, /La contraseña actual no puede visualizarse/);
+test('administración deriva la recuperación de clave al correo registrado', () => {
+  assert.match(apiSource, /app\.post\('\/admin\/users\/:userId\/send-password-recovery'/);
+  assert.match(apiSource, /Por seguridad, la contraseña sólo puede restablecerse mediante verificación por correo/);
+  assert.match(adminHtml, /Enviar recuperación por correo/);
+  assert.match(adminHtml, /Administración ya no puede ver ni asignar contraseñas/);
 });
 
 test('administración puede buscar candidatos y empresas por identidad', () => {

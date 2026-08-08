@@ -7,9 +7,14 @@ import { z } from "zod";
 import { PrismaClient } from "@prisma/client";
 import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
+import nodemailer from "nodemailer";
+import { ImapFlow } from "imapflow";
+import { simpleParser } from "mailparser";
 import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
+import dns from "dns/promises";
+import net from "net";
 import { fileURLToPath } from "url";
 import { createPaymentProvider, getPaymentConfigFromEnv } from "./services/payments/index.js";
 import { assertNoCardData, listForbiddenPaymentFields, sanitizeCheckoutPayloadForLog, sha256Hex, PaymentProviderError, PaymentSecurityError } from "./services/payments/provider.js";
@@ -53,7 +58,20 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
 const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
-const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || 'factory@gmail.com').trim();
+// v7.8.13: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
+// Se reutiliza la configuración ya existente en Render para soporte, consultas, recuperaciones y buzón administrativo.
+const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || '').trim().toLowerCase();
+const GMAIL_USER = FACTORY_SUPPORT_EMAIL;
+const GMAIL_APP_PASSWORD = String(process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '').trim();
+const GMAIL_CLIENT_ID = String(process.env.GMAIL_CLIENT_ID || '').trim();
+const GMAIL_CLIENT_SECRET = String(process.env.GMAIL_CLIENT_SECRET || '').trim();
+const GMAIL_REFRESH_TOKEN = String(process.env.GMAIL_REFRESH_TOKEN || '').trim();
+const MAIL_FROM_NAME = String(process.env.MAIL_FROM_NAME || 'Talento PyME').trim();
+const WEB_BASE_URL = String(process.env.WEB_BASE_URL || 'https://talento-pyme.onrender.com').replace(/\/$/, '').trim();
+const PASSWORD_RESET_CODE_TTL_MINUTES = Math.max(5, Math.min(30, Number(process.env.PASSWORD_RESET_CODE_TTL_MINUTES || 10)));
+const PASSWORD_RESET_MAX_ATTEMPTS = Math.max(3, Math.min(10, Number(process.env.PASSWORD_RESET_MAX_ATTEMPTS || 5)));
+const PASSWORD_RESET_MAX_REQUESTS_15M = Math.max(1, Math.min(10, Number(process.env.PASSWORD_RESET_MAX_REQUESTS_15M || 3)));
+const MAILBOX_FOLDER = String(process.env.MAILBOX_FOLDER || 'INBOX').trim() || 'INBOX';
 const VIRTUAL_ADMIN_USER_ID = '__factory_admin__';
 const VIRTUAL_ADMIN_ROLE = 'SUPERADMIN';
 const FACTORY_ADMIN_ALLOWED_COMPANIES = String(
@@ -247,7 +265,7 @@ async function pruneOldBackupArtifacts(){
 
 async function collectLogicalBackupPayload(){
   const [
-    users, profiles, skills, candidateBolsa, resumes, companyProfiles, jobCategories, jobs, applications, billingOrders, billingOrderItems, companyJobPublications, companyCandidateAccesses, billingCouponRedemptions, factoryPlanConfigs, factoryCoupons, companyFactoryGrants, paymentWebhookEvents, securityEvents, supportThreads, supportMessages, supportKnowledge, adminMonthlySnapshots
+    users, profiles, skills, candidateBolsa, resumes, companyProfiles, jobCategories, jobs, applications, billingOrders, billingOrderItems, companyJobPublications, companyCandidateAccesses, billingCouponRedemptions, factoryPlanConfigs, factoryCoupons, companyFactoryGrants, paymentWebhookEvents, securityEvents, supportThreads, supportMessages, supportKnowledge, adminMonthlySnapshots, passwordResetChallenges
   ] = await Promise.all([
     prisma.user.findMany().catch(() => []),
     prisma.profile.findMany().catch(() => []),
@@ -272,10 +290,11 @@ async function collectLogicalBackupPayload(){
     prisma.supportMessage.findMany().catch(() => []),
     prisma.supportKnowledge.findMany().catch(() => []),
     prisma.adminMonthlySnapshot.findMany().catch(() => []),
+    prisma.passwordResetChallenge.findMany().catch(() => []),
   ]);
 
   const datasets = {
-    users, profiles, skills, candidateBolsa, resumes, companyProfiles, jobCategories, jobs, applications, billingOrders, billingOrderItems, companyJobPublications, companyCandidateAccesses, billingCouponRedemptions, factoryPlanConfigs, factoryCoupons, companyFactoryGrants, paymentWebhookEvents, securityEvents, supportThreads, supportMessages, supportKnowledge, adminMonthlySnapshots,
+    users, profiles, skills, candidateBolsa, resumes, companyProfiles, jobCategories, jobs, applications, billingOrders, billingOrderItems, companyJobPublications, companyCandidateAccesses, billingCouponRedemptions, factoryPlanConfigs, factoryCoupons, companyFactoryGrants, paymentWebhookEvents, securityEvents, supportThreads, supportMessages, supportKnowledge, adminMonthlySnapshots, passwordResetChallenges,
   };
   const recordCount = Object.values(datasets).reduce((acc, rows) => acc + (Array.isArray(rows) ? rows.length : 0), 0);
   return {
@@ -533,6 +552,159 @@ function normalizeId(str = ""){
 
 function normalizeEmail(email = ""){
   return String(email||"").trim().toLowerCase();
+}
+
+function maskEmail(email = ""){
+  const value = normalizeEmail(email);
+  const parts = value.split("@");
+  if(parts.length !== 2) return "correo registrado";
+  const [local, domain] = parts;
+  const domainParts = domain.split(".");
+  const domainMain = domainParts.shift() || "";
+  const suffix = domainParts.length ? "." + domainParts.join(".") : "";
+  const localHead = local.slice(0, Math.min(2, local.length));
+  const domainHead = domainMain.slice(0, 1);
+  return `${localHead}${"x".repeat(Math.max(4, local.length - localHead.length))}@${domainHead}${"x".repeat(Math.max(4, domainMain.length - domainHead.length))}${suffix}`;
+}
+
+function gmailOauthConfigured(){
+  return Boolean(GMAIL_USER && GMAIL_CLIENT_ID && GMAIL_CLIENT_SECRET && GMAIL_REFRESH_TOKEN);
+}
+function gmailAppPasswordConfigured(){
+  return Boolean(GMAIL_USER && GMAIL_APP_PASSWORD);
+}
+function gmailConfigured(){
+  return gmailOauthConfigured() || gmailAppPasswordConfigured();
+}
+
+async function getGmailAuth(){
+  if(gmailOauthConfigured()){
+    const body = new URLSearchParams({
+      client_id:GMAIL_CLIENT_ID,
+      client_secret:GMAIL_CLIENT_SECRET,
+      refresh_token:GMAIL_REFRESH_TOKEN,
+      grant_type:'refresh_token',
+    });
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body,
+    });
+    const data = await response.json().catch(() => ({}));
+    if(!response.ok || !data?.access_token) throw new Error('GMAIL_OAUTH_TOKEN_ERROR');
+    return { mode:'oauth2', user:GMAIL_USER, accessToken:data.access_token };
+  }
+  if(gmailAppPasswordConfigured()) return { mode:'app_password', user:GMAIL_USER, pass:GMAIL_APP_PASSWORD };
+  throw new Error('MAIL_NOT_CONFIGURED');
+}
+
+async function getSmtpTransport(){
+  const auth = await getGmailAuth();
+  return nodemailer.createTransport({
+    host:"smtp.gmail.com", port:465, secure:true,
+    auth: auth.mode === 'oauth2'
+      ? { type:'OAuth2', user:auth.user, accessToken:auth.accessToken }
+      : { user:auth.user, pass:auth.pass },
+  });
+}
+
+function passwordCodeHash(challengeId, code){
+  return crypto.createHmac("sha256", JWT_SECRET).update(`${challengeId}:${String(code || "")}`).digest("hex");
+}
+
+function safeEqualHex(a, b){
+  try {
+    const aa = Buffer.from(String(a || ""), "hex");
+    const bb = Buffer.from(String(b || ""), "hex");
+    return aa.length > 0 && aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
+  } catch { return false; }
+}
+
+function isLegacyCandidateIdentifier(value){
+  return /^\d{11}$/.test(normalizeId(value));
+}
+
+function isCandidateDni(value){
+  return /^\d{6,10}$/.test(normalizeId(value));
+}
+
+function isCompanyCuit(value){
+  return /^\d{11}$/.test(normalizeId(value));
+}
+
+async function sendPasswordRecoveryEmail({ to, code, challengeId, role }){
+  const transport = await getSmtpTransport();
+  const roleLabel = role === "COMPANY" ? "empresa" : "candidato";
+  const link = `${WEB_BASE_URL}/forgot.html?challenge=${encodeURIComponent(challengeId)}`;
+  await transport.sendMail({
+    from: `"${MAIL_FROM_NAME}" <${GMAIL_USER}>`,
+    to,
+    subject: "Talento PyME · Código para recuperar tu contraseña",
+    text: `Recibimos una solicitud para recuperar el acceso de tu cuenta de ${roleLabel} en Talento PyME.\n\nCódigo de seguridad: ${code}\n\nEl código vence en ${PASSWORD_RESET_CODE_TTL_MINUTES} minutos.\nPodés continuar desde: ${link}\n\nSi no solicitaste este cambio, ignorá este correo.`,
+    html: `<div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.5"><h2 style="color:#1d4ed8">Talento PyME</h2><p>Recibimos una solicitud para recuperar el acceso de tu cuenta de <b>${roleLabel}</b>.</p><p>Tu código de seguridad es:</p><div style="font-size:32px;font-weight:800;letter-spacing:8px;padding:14px 18px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;display:inline-block">${code}</div><p>El código vence en <b>${PASSWORD_RESET_CODE_TTL_MINUTES} minutos</b>.</p><p><a href="${link}">Continuar recuperación</a></p><p style="color:#64748b;font-size:13px">Si no solicitaste este cambio, ignorá este correo. Tu contraseña actual seguirá funcionando.</p></div>`,
+  });
+}
+
+async function createPasswordRecoveryChallenge({ user, role, requestedIdentifier, pendingDni = null }){
+  if(!gmailConfigured()) {
+    const err = new Error("El servicio de correo todavía no está configurado.");
+    err.code = "MAIL_NOT_CONFIGURED";
+    throw err;
+  }
+  const recentSince = new Date(Date.now() - 15 * 60 * 1000);
+  const recentCount = await prisma.passwordResetChallenge.count({ where: { userId: user.id, createdAt: { gte: recentSince } } }).catch(() => 0);
+  if(recentCount >= PASSWORD_RESET_MAX_REQUESTS_15M){
+    const err = new Error("Se solicitaron varios códigos recientemente. Esperá unos minutos antes de intentar nuevamente.");
+    err.code = "RATE_LIMIT";
+    throw err;
+  }
+  const challengeId = crypto.randomUUID();
+  const code = String(crypto.randomInt(100000, 1000000));
+  const expiresAt = new Date(Date.now() + PASSWORD_RESET_CODE_TTL_MINUTES * 60 * 1000);
+  await prisma.passwordResetChallenge.create({ data: {
+    id: challengeId,
+    userId: user.id,
+    role,
+    requestedIdentifier: requestedIdentifier || null,
+    pendingDni: pendingDni || null,
+    codeHash: passwordCodeHash(challengeId, code),
+    maxAttempts: PASSWORD_RESET_MAX_ATTEMPTS,
+    expiresAt,
+  }});
+  try {
+    await sendPasswordRecoveryEmail({ to: user.email, code, challengeId, role });
+    // Sólo el código más reciente queda activo. Esto evita que códigos anteriores
+    // sigan siendo válidos después de solicitar uno nuevo.
+    await prisma.passwordResetChallenge.updateMany({
+      where: { userId: user.id, id: { not: challengeId }, consumedAt: null },
+      data: { consumedAt: new Date() },
+    }).catch(() => null);
+    // Limpieza best-effort de desafíos antiguos para evitar crecimiento indefinido.
+    await prisma.passwordResetChallenge.deleteMany({
+      where: { createdAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+    }).catch(() => null);
+  } catch (err) {
+    await prisma.passwordResetChallenge.delete({ where: { id: challengeId } }).catch(() => null);
+    throw err;
+  }
+  return { challengeId, maskedEmail: maskEmail(user.email), expiresAt };
+}
+
+async function withGmailInbox(fn){
+  if(!gmailConfigured()) {
+    const err = new Error("MAIL_NOT_CONFIGURED");
+    err.code = "MAIL_NOT_CONFIGURED";
+    throw err;
+  }
+  const auth = await getGmailAuth();
+  const client = new ImapFlow({ host:"imap.gmail.com", port:993, secure:true, auth: auth.mode === "oauth2" ? { user:auth.user, accessToken:auth.accessToken } : { user:auth.user, pass:auth.pass }, logger:false });
+  await client.connect();
+  let lock;
+  try {
+    lock = await client.getMailboxLock(MAILBOX_FOLDER);
+    return await fn(client);
+  } finally {
+    try { lock?.release(); } catch {}
+    try { await client.logout(); } catch {}
+  }
 }
 
 function normalizeName(str = ""){
@@ -1417,7 +1589,7 @@ const registerSchema = z.object({
   role: z.enum(["CANDIDATE", "COMPANY"]),
   fullName: z.string().min(3).max(120),
   email: z.string().email().max(180),
-  password: z.string().min(8).max(200),
+  password: z.string().min(10).max(200),
   dni: z.string().max(20).optional(),
   companyName: z.string().max(160).optional(),
   cuit: z.string().max(40).optional(),
@@ -1435,11 +1607,19 @@ const loginSchema = z.object({
   roleHint: z.enum(["CANDIDATE", "COMPANY"]).optional()
 });
 
-const resetByIdSchema = z.object({
+const passwordRecoveryStartSchema = z.object({
   role: z.enum(["CANDIDATE", "COMPANY"]),
   dni: z.string().max(20).optional(),
   cuit: z.string().max(40).optional(),
-  newPassword: z.string().min(8).max(200)
+  legacyEmail: z.string().email().max(180).optional(),
+});
+const passwordRecoveryVerifySchema = z.object({
+  challengeId: z.string().uuid(),
+  code: z.string().regex(/^\d{6}$/),
+});
+const passwordRecoveryCompleteSchema = z.object({
+  resetToken: z.string().min(20),
+  newPassword: z.string().min(10).max(200),
 });
 
 app.post("/auth/register", async (req, res) => {
@@ -1469,14 +1649,19 @@ app.post("/auth/register", async (req, res) => {
   if (role === "CANDIDATE") {
     const dniNorm = normalizeId(dni || "");
     if (!dniNorm) return res.status(400).json({ error: "DNI requerido" });
+    if (!isCandidateDni(dniNorm)) return res.status(400).json({ error: "Ingresá un DNI válido, sin puntos. Debe tener menos de 11 dígitos." });
 
-    const existingByDni = await prisma.profile.findUnique({ where: { dni: dniNorm } });
-    if (existingByDni) return res.status(409).json({ error: "Ya existe un candidato con ese DNI" });
+    const [existingByDni, existingBolsaByDni] = await Promise.all([
+      prisma.profile.findUnique({ where: { dni: dniNorm } }),
+      prisma.candidateBolsa.findFirst({ where: { dni: dniNorm }, select: { id: true } }).catch(() => null),
+    ]);
+    if (existingByDni || existingBolsaByDni) return res.status(409).json({ error: "Ya existe un candidato con ese DNI" });
   }
 
   if (role === "COMPANY") {
     const cuitNorm = normalizeId(cuit || "");
     if (!cuitNorm) return res.status(400).json({ error: "CUIT requerido" });
+    if (!isCompanyCuit(cuitNorm)) return res.status(400).json({ error: "Ingresá un CUIT válido de 11 dígitos." });
 
     const existingByCuit = await prisma.companyProfile.findUnique({ where: { cuit: cuitNorm } });
     if (existingByCuit) return res.status(409).json({ error: "Ya existe una empresa con ese CUIT" });
@@ -1495,13 +1680,16 @@ app.post("/auth/register", async (req, res) => {
     }
 
     if (role === "CANDIDATE" && !existingUser.candidateProfile) {
+      // Compatibilidad segura: una cuenta antigua incompleta sólo puede completarse
+      // demostrando conocimiento de su clave actual. El registro nunca reemplaza la clave.
+      const ownsAccount = await bcrypt.compare(password, existingUser.passHash);
+      if(!ownsAccount) return res.status(409).json({ error: "La cuenta ya existe. Ingresá con tu clave actual o usá Olvidé mi contraseña." });
       const dniNorm = normalizeId(dni || "");
       const fullNameNorm = normalizeName(fullName || "");
 
       await prisma.user.update({
         where: { id: existingUser.id },
         data: {
-          passHash,
           candidateProfile: {
             create: {
               fullName,
@@ -1521,6 +1709,9 @@ app.post("/auth/register", async (req, res) => {
     }
 
     if (role === "COMPANY" && !existingUser.company) {
+      // Mismo criterio que candidatos: completar un registro legado no puede resetear la clave.
+      const ownsAccount = await bcrypt.compare(password, existingUser.passHash);
+      if(!ownsAccount) return res.status(409).json({ error: "La cuenta ya existe. Ingresá con tu clave actual o usá Olvidé mi contraseña." });
       const cuitNorm = normalizeId(cuit || "");
       const companyNameNorm = normalizeName(companyName || "");
       const contactNameNorm = normalizeName(contactName || fullName || "");
@@ -1528,7 +1719,6 @@ app.post("/auth/register", async (req, res) => {
       await prisma.user.update({
         where: { id: existingUser.id },
         data: {
-          passHash,
           company: {
             create: {
               companyName,
@@ -1783,36 +1973,129 @@ app.post("/auth/login", async (req, res) => {
   return res.json({ token: signToken(best.user), role: best.user.role });
 });
 
-app.post("/auth/reset-by-id", async (req, res) => {
-  const parsed = resetByIdSchema.safeParse(req.body);
-  if(!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+app.post("/auth/password-recovery/start", async (req, res) => {
+  const parsed = passwordRecoveryStartSchema.safeParse(req.body);
+  if(!parsed.success) return res.status(400).json({ error: "Datos inválidos para iniciar la recuperación." });
+  try {
+    const { role } = parsed.data;
+    let user = null;
+    let requestedIdentifier = null;
+    let pendingDni = null;
+    let legacyMigration = false;
 
-  const { role, newPassword } = parsed.data;
-  const passHash = await bcrypt.hash(newPassword, 10);
+    if(role === "CANDIDATE"){
+      const dni = normalizeId(parsed.data.dni || "");
+      requestedIdentifier = dni;
+      if(!isCandidateDni(dni)) return res.status(400).json({ error: "Ingresá tu DNI sin puntos. Debe tener menos de 11 dígitos." });
 
-  if(role === "CANDIDATE"){
-    const dniRaw = (parsed.data.dni || "").trim();
-    const dni = normalizeId(dniRaw);
-  
-    if(!dni) return res.status(400).json({ error: "Falta DNI" });
+      const directProfile = await prisma.profile.findFirst({ where:{ dni }, include:{ user:true } });
+      if(directProfile?.user?.role === "CANDIDATE") user = directProfile.user;
+      if(!user){
+        const directBolsa = await prisma.candidateBolsa.findFirst({ where:{ dni }, include:{ user:true } }).catch(() => null);
+        if(directBolsa?.user?.role === "CANDIDATE") user = directBolsa.user;
+      }
 
-    const p = await prisma.profile.findFirst({ where: { OR: [ { dni }, { dni: dniRaw } ] }, include: { user: true } });
-    if(!p?.user) return res.status(404).json({ error: "No encontramos un usuario con ese DNI" });
+      if(!user && parsed.data.legacyEmail){
+        const email = normalizeEmail(parsed.data.legacyEmail);
+        const legacyUser = await prisma.user.findFirst({
+          where:{ email:{ equals:email, mode:"insensitive" }, role:"CANDIDATE" },
+          include:{ candidateProfile:true, candidateBolsa:true },
+        });
+        const oldIds = [legacyUser?.candidateProfile?.dni, legacyUser?.candidateBolsa?.dni].filter(Boolean);
+        const hasLegacyRegistration = oldIds.some(isLegacyCandidateIdentifier);
+        if(legacyUser && hasLegacyRegistration){
+          const [otherProfile, otherBolsa] = await Promise.all([
+            prisma.profile.findFirst({ where:{ dni, userId:{ not:legacyUser.id } }, select:{ id:true } }),
+            prisma.candidateBolsa.findFirst({ where:{ dni, userId:{ not:legacyUser.id } }, select:{ id:true } }).catch(() => null),
+          ]);
+          if(otherProfile || otherBolsa) return res.status(409).json({ error:"Ese DNI ya está asociado a otra cuenta. Comunicate con soporte." });
+          user = legacyUser;
+          pendingDni = dni;
+          legacyMigration = true;
+        }
+      }
 
-    await prisma.user.update({ where: { id: p.user.id }, data: { passHash } });
-    return res.json({ ok:true });
+      if(!user){
+        return res.status(409).json({
+          error:"LEGACY_EMAIL_REQUIRED",
+          message:"Si tu cuenta fue creada con la versión anterior, ingresá por única vez el correo que declaraste al registrarte para vincular tu DNI.",
+          legacyEmailRequired:true,
+        });
+      }
+    } else {
+      const cuit = normalizeId(parsed.data.cuit || "");
+      requestedIdentifier = cuit;
+      if(!isCompanyCuit(cuit)) return res.status(400).json({ error:"Ingresá un CUIT válido de 11 dígitos." });
+      const company = await prisma.companyProfile.findFirst({ where:{ cuit }, include:{ user:true } });
+      if(company?.user?.role === "COMPANY") user = company.user;
+      if(!user) return res.status(404).json({ error:"No pudimos iniciar la recuperación con los datos ingresados." });
+    }
+
+    const created = await createPasswordRecoveryChallenge({ user, role, requestedIdentifier, pendingDni });
+    return res.json({ ok:true, challengeId:created.challengeId, maskedEmail:created.maskedEmail, expiresInMinutes:PASSWORD_RESET_CODE_TTL_MINUTES, legacyMigration });
+  } catch (err) {
+    console.error("POST /auth/password-recovery/start", err?.code || err?.message || err);
+    if(err?.code === "MAIL_NOT_CONFIGURED" || err?.message === "MAIL_NOT_CONFIGURED") return res.status(503).json({ error:"El correo seguro todavía no está configurado en el servidor." });
+    if(err?.code === "RATE_LIMIT") return res.status(429).json({ error:err.message });
+    return res.status(500).json({ error:"No se pudo enviar el código de seguridad." });
   }
-
-  const cuitRaw = (parsed.data.cuit || "").trim();
-  const cuit = normalizeId(cuitRaw);
-  if(!cuit) return res.status(400).json({ error: "Falta CUIT" });
-
-  const c = await prisma.companyProfile.findFirst({ where: { OR: [ { cuit }, { cuit: cuitRaw } ] }, include: { user: true } });
-  if(!c?.user) return res.status(404).json({ error: "No encontramos una empresa con ese CUIT" });
-
-  await prisma.user.update({ where: { id: c.user.id }, data: { passHash } });
-  return res.json({ ok:true });
 });
+
+app.post("/auth/password-recovery/verify", async (req, res) => {
+  const parsed = passwordRecoveryVerifySchema.safeParse(req.body);
+  if(!parsed.success) return res.status(400).json({ error:"Código inválido." });
+  const challenge = await prisma.passwordResetChallenge.findUnique({ where:{ id:parsed.data.challengeId } });
+  if(!challenge || challenge.consumedAt) return res.status(400).json({ error:"La solicitud ya no es válida. Iniciá nuevamente la recuperación." });
+  if(new Date(challenge.expiresAt).getTime() < Date.now()) return res.status(410).json({ error:"El código venció. Solicitá uno nuevo." });
+  if(challenge.attempts >= challenge.maxAttempts) return res.status(429).json({ error:"Se alcanzó el máximo de intentos. Solicitá un código nuevo." });
+  const expected = passwordCodeHash(challenge.id, parsed.data.code);
+  if(!safeEqualHex(challenge.codeHash, expected)){
+    await prisma.passwordResetChallenge.update({ where:{ id:challenge.id }, data:{ attempts:{ increment:1 } } }).catch(() => null);
+    return res.status(400).json({ error:"El código no es correcto." });
+  }
+  const verifiedAt = new Date();
+  await prisma.passwordResetChallenge.update({ where:{ id:challenge.id }, data:{ verifiedAt } });
+  const resetToken = jwt.sign({ sub:challenge.userId, purpose:"PASSWORD_RESET", challengeId:challenge.id }, JWT_SECRET, { expiresIn:"15m" });
+  return res.json({ ok:true, resetToken });
+});
+
+app.post("/auth/password-recovery/complete", async (req, res) => {
+  const parsed = passwordRecoveryCompleteSchema.safeParse(req.body);
+  if(!parsed.success) return res.status(400).json({ error:"La nueva contraseña debe tener al menos 10 caracteres." });
+  try {
+    const decoded = jwt.verify(parsed.data.resetToken, JWT_SECRET);
+    if(decoded?.purpose !== "PASSWORD_RESET" || !decoded?.challengeId || !decoded?.sub) return res.status(400).json({ error:"Autorización de recuperación inválida." });
+    const challenge = await prisma.passwordResetChallenge.findUnique({ where:{ id:String(decoded.challengeId) } });
+    if(!challenge || challenge.userId !== String(decoded.sub) || !challenge.verifiedAt || challenge.consumedAt) return res.status(400).json({ error:"La recuperación ya no es válida." });
+    if(new Date(challenge.expiresAt).getTime() < Date.now()) return res.status(410).json({ error:"La recuperación venció. Solicitá un nuevo código." });
+    const passHash = await bcrypt.hash(parsed.data.newPassword, 10);
+    let dniUpdated = false;
+    await prisma.$transaction(async (tx) => {
+      if(challenge.pendingDni){
+        const dni = normalizeId(challenge.pendingDni);
+        if(!isCandidateDni(dni)) throw new Error("PENDING_DNI_INVALID");
+        const otherProfile = await tx.profile.findFirst({ where:{ dni, userId:{ not:challenge.userId } }, select:{ id:true } });
+        const otherBolsa = await tx.candidateBolsa.findFirst({ where:{ dni, userId:{ not:challenge.userId } }, select:{ id:true } }).catch(() => null);
+        if(otherProfile || otherBolsa) throw new Error("DNI_ALREADY_USED");
+        await tx.profile.updateMany({ where:{ userId:challenge.userId }, data:{ dni } });
+        await tx.candidateBolsa.updateMany({ where:{ userId:challenge.userId }, data:{ dni } });
+        dniUpdated = true;
+      }
+      await tx.user.update({ where:{ id:challenge.userId }, data:{ passHash } });
+      await tx.passwordResetChallenge.update({ where:{ id:challenge.id }, data:{ consumedAt:new Date() } });
+      await tx.passwordResetChallenge.updateMany({ where:{ userId:challenge.userId, id:{ not:challenge.id }, consumedAt:null }, data:{ consumedAt:new Date() } });
+    });
+    return res.json({ ok:true, dniUpdated });
+  } catch (err) {
+    if(err?.name === "JsonWebTokenError" || err?.name === "TokenExpiredError") return res.status(400).json({ error:"La autorización venció. Iniciá nuevamente la recuperación." });
+    if(err?.message === "DNI_ALREADY_USED") return res.status(409).json({ error:"Ese DNI ya está asociado a otra cuenta. Comunicate con soporte." });
+    console.error("POST /auth/password-recovery/complete", err);
+    return res.status(500).json({ error:"No se pudo actualizar la contraseña." });
+  }
+});
+
+// Compatibilidad defensiva: las versiones viejas ya no pueden cambiar contraseñas sólo con DNI/CUIT.
+app.post("/auth/reset-by-id", (_req, res) => res.status(410).json({ error:"Este método fue reemplazado por recuperación segura mediante correo electrónico. Actualizá la aplicación." }));
 
 // -----------------------------
 // Profile (candidato)
@@ -2331,7 +2614,9 @@ async function extractTextFromUpload(file){
     const res = await mammoth.extractRawText({ buffer: buf });
     raw = res?.value || "";
   }else{
-    try{ raw = buf.toString("utf-8"); } catch { raw = ""; }
+    const err = new Error("UNSUPPORTED_RESUME_FORMAT");
+    err.code = "UNSUPPORTED_RESUME_FORMAT";
+    throw err;
   }
   return cleanTextForAnalysis(collapseSpacedLetters(raw));
 }
@@ -2364,6 +2649,9 @@ app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
 
     return res.json({ ok:true, sections, analysis, summaryText, resume: savedResume });
   }catch(err){
+    if(err?.code === "UNSUPPORTED_RESUME_FORMAT" || err?.message === "UNSUPPORTED_RESUME_FORMAT"){
+      return res.status(415).json({ error: "Formato no admitido. Usá PDF, DOCX o TXT." });
+    }
     console.error("resume/parse error:", err);
     return res.status(500).json({ error: "Error al procesar el archivo." });
   }
@@ -2438,6 +2726,7 @@ app.post("/bolsa/me", authRequired, async (req, res) => {
       create: {
         userId: req.user.id,
         fullName: `${data.nombre} ${data.apellido}`.trim(),
+        fullNameNorm: normalizeName(`${data.nombre} ${data.apellido}`.trim()),
         dni: data.dni,
         city: data.localidad,
         address: data.direccion || "",
@@ -2445,6 +2734,7 @@ app.post("/bolsa/me", authRequired, async (req, res) => {
       },
       update: {
         fullName: `${data.nombre} ${data.apellido}`.trim(),
+        fullNameNorm: normalizeName(`${data.nombre} ${data.apellido}`.trim()),
         dni: data.dni,
         city: data.localidad,
         address: data.direccion || "",
@@ -2558,77 +2848,11 @@ app.get("/bolsa/stats", authRequired, requireAnyRole(["ADMIN","SUPERADMIN"]), as
   }
 });
 
-app.get("/bolsa/search", authRequired, async (req, res) => {
-  try{
-    const q = String(req.query.q || "").trim();
-    const area = String(req.query.area || "").trim();
-    const nivel = String(req.query.nivel || "").trim();
-    const especialidad = String(req.query.especialidad || "").trim();
-    const localidad = String(req.query.localidad || "").trim();
-
-    const herr = String(req.query.herr || "").trim();
-    const instr = String(req.query.instr || "").trim();
-
-    const where = {};
-    if(area) where.areaTrabajo = area;
-    if(nivel) where.nivel = nivel;
-    if(especialidad) where.especialidad = especialidad;
-    if(localidad) where.localidad = localidad;
-
-    if(herr){
-      const items = herr.split(",").map(s=>s.trim()).filter(Boolean);
-      if(items.length) where.herramientasMecanica = { hasSome: items };
-    }
-    if(instr){
-      const items = instr.split(",").map(s=>s.trim()).filter(Boolean);
-      if(items.length) where.instrumentosElectrica = { hasSome: items };
-    }
-
-    if(q){
-      where.OR = [
-        { nombre: { contains: q, mode: "insensitive" } },
-        { apellido: { contains: q, mode: "insensitive" } },
-        { especialidad: { contains: q, mode: "insensitive" } },
-        { observaciones: { contains: q, mode: "insensitive" } },
-        { ultimoTrabajo: { contains: q, mode: "insensitive" } },
-      ];
-    }
-
-    const items = await prisma.candidateBolsa.findMany({
-      where,
-      orderBy: { updatedAt: "desc" },
-      take: 100,
-      select: {
-        id:true,
-        nombre:true,
-        apellido:true,
-        localidad:true,
-        telefono:true,
-        correo:true,
-        areaTrabajo:true,
-        nivel:true,
-        especialidad:true,
-        especialidadOtro:true,
-        rangoExperiencia:true,
-        nivelEducativo:true,
-        tieneCapacitacion:true,
-        trabajaActualmente:true,
-        sueldoPretendido:true,
-        ultimoTrabajo:true,
-        observaciones:true,
-        herramientasMecanica:true,
-        instrumentosElectrica:true,
-        updatedAt:true,
-      }
-    });
-
-    return res.json({ ok:true, items });
-  }catch(err){
-    console.error("GET /bolsa/search", err);
-    return res.status(500).json({ ok:false, error:"SERVER_ERROR" });
-  }
-});
-
+app.get("/bolsa/search", authRequired, (_req, res) => res.status(410).json({
+  ok:false,
+  error:"LEGACY_SEARCH_DISABLED",
+  message:"Este buscador legado fue retirado por privacidad. Las empresas deben usar Buscar Talento.",
+}));
 
 function _registeredSinceDate(code) {
   const now = Date.now();
@@ -2708,7 +2932,7 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
     const especialidad_by_area = Object.fromEntries(
       Object.entries(rawStats.especialidad_by_area || {}).map(([area, values]) => [area, Object.keys(values || {})])
     );
-    // v7.8.9: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
+    // v7.8.13: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
     // ni conteos por faceta. Los totales de padrón quedan reservados al Panel General.
     return res.json({ ok: true, facets, especialidad_by_area });
   } catch (err) {
@@ -2872,6 +3096,86 @@ app.get('/jobs/candidate/:id/detail', auth, requireRole('COMPANY'), async (req, 
 
 
 
+function isPrivateNetworkAddress(address = "") {
+  const a = String(address || "").toLowerCase();
+  if(!a) return true;
+  if(net.isIP(a) === 4){
+    const parts = a.split('.').map(Number);
+    const [x,y] = parts;
+    return x === 0 || x === 10 || x === 127 ||
+      (x === 100 && y >= 64 && y <= 127) ||
+      (x === 169 && y === 254) ||
+      (x === 172 && y >= 16 && y <= 31) ||
+      (x === 192 && y === 168) ||
+      (x === 198 && (y === 18 || y === 19)) ||
+      x >= 224;
+  }
+  if(net.isIP(a) === 6){
+    if(a === '::1' || a === '::') return true;
+    if(a.startsWith('fc') || a.startsWith('fd') || a.startsWith('fe8') || a.startsWith('fe9') || a.startsWith('fea') || a.startsWith('feb')) return true;
+    if(a.startsWith('::ffff:')) return isPrivateNetworkAddress(a.slice(7));
+  }
+  return false;
+}
+
+async function assertPublicWebsiteUrl(rawUrl){
+  let parsed;
+  try { parsed = new URL(rawUrl); } catch { throw new Error('WEBSITE_URL_INVALID'); }
+  if(!['http:','https:'].includes(parsed.protocol)) throw new Error('WEBSITE_URL_INVALID');
+  const hostname = parsed.hostname.toLowerCase();
+  if(!hostname || hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) throw new Error('WEBSITE_URL_BLOCKED');
+  if(net.isIP(hostname)){
+    if(isPrivateNetworkAddress(hostname)) throw new Error('WEBSITE_URL_BLOCKED');
+  }else{
+    const resolved = await dns.lookup(hostname, { all:true, verbatim:true }).catch(() => []);
+    if(!resolved.length) throw new Error('WEBSITE_DNS_FAILED');
+    if(resolved.some((row) => isPrivateNetworkAddress(row.address))) throw new Error('WEBSITE_URL_BLOCKED');
+  }
+  return parsed;
+}
+
+async function readTextLimited(response, limitBytes = 2 * 1024 * 1024){
+  const declared = Number(response.headers.get('content-length') || 0);
+  if(declared > limitBytes) throw new Error('WEBSITE_TOO_LARGE');
+  if(!response.body) return '';
+  const reader = response.body.getReader();
+  const chunks = [];
+  let size = 0;
+  while(true){
+    const { done, value } = await reader.read();
+    if(done) break;
+    size += value?.byteLength || 0;
+    if(size > limitBytes){ try { await reader.cancel(); } catch {} throw new Error('WEBSITE_TOO_LARGE'); }
+    chunks.push(value);
+  }
+  const merged = new Uint8Array(size);
+  let offset = 0;
+  for(const chunk of chunks){ merged.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder('utf-8', { fatal:false }).decode(merged);
+}
+
+async function fetchPublicWebsite(rawUrl){
+  let current = (await assertPublicWebsiteUrl(rawUrl)).toString();
+  for(let redirects = 0; redirects <= 3; redirects += 1){
+    const response = await fetch(current, {
+      redirect:'manual',
+      signal: AbortSignal.timeout(10000),
+      headers:{ 'User-Agent':'TalentoPyME/7.8.13 (+Render)' },
+    });
+    if(response.status >= 300 && response.status < 400){
+      const location = response.headers.get('location');
+      if(!location) throw new Error('WEBSITE_REDIRECT_INVALID');
+      current = (await assertPublicWebsiteUrl(new URL(location, current).toString())).toString();
+      continue;
+    }
+    if(!response.ok) throw new Error(`WEBSITE_HTTP_${response.status}`);
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    if(contentType && !contentType.includes('text/html') && !contentType.includes('text/plain')) throw new Error('WEBSITE_CONTENT_TYPE');
+    return { response, finalUrl:current };
+  }
+  throw new Error('WEBSITE_TOO_MANY_REDIRECTS');
+}
+
 function stripHtml(raw) {
   return String(raw || '').replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -2947,8 +3251,9 @@ app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res)
     if (!website) return res.status(400).json({ error: 'Falta sitio web' });
     let url = website;
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'TalentoPyME/5.7.1 (+Render)' } });
-    const html = await response.text();
+    const { response, finalUrl } = await fetchPublicWebsite(url);
+    url = finalUrl;
+    const html = await readTextLimited(response);
     const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [,''])[1].replace(/\s+/g,' ').trim();
     const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i) || [,''])[1].trim();
     const ogDesc = (html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([\s\S]*?)["']/i) || [,''])[1].trim();
@@ -2956,6 +3261,10 @@ app.post('/company/analyze-site', auth, requireRole('COMPANY'), async (req, res)
     const data = summarizeCompanySite({ title, description: metaDesc || ogDesc, bodyText, url });
     res.json({ ok: true, ...data });
   } catch (err) {
+    const code = String(err?.message || '');
+    if(['WEBSITE_URL_INVALID','WEBSITE_URL_BLOCKED','WEBSITE_DNS_FAILED','WEBSITE_TOO_LARGE','WEBSITE_CONTENT_TYPE','WEBSITE_REDIRECT_INVALID','WEBSITE_TOO_MANY_REDIRECTS'].includes(code)){
+      return res.status(400).json({ error: 'No pudimos analizar esa dirección web. Ingresá un sitio público válido de la empresa.' });
+    }
     console.error('POST /company/analyze-site', err);
     res.status(500).json({ error: 'No se pudo analizar el sitio web' });
   }
@@ -3897,40 +4206,11 @@ app.delete("/jobs/applications/:id", auth, requireRole("CANDIDATE"), async (req,
 // -----------------------------
 // Search talent (para empresas, gratis)
 // -----------------------------
-app.get("/search", async (req, res) => {
-  const q = String(req.query.q || "").trim();
-  if (!q) return res.json({ results: [] });
-
-  const results = await prisma.profile.findMany({
-    where: {
-      OR: [
-        { fullName: { contains: q, mode: "insensitive" } },
-        { headline: { contains: q, mode: "insensitive" } },
-        { city: { contains: q, mode: "insensitive" } },
-        { province: { contains: q, mode: "insensitive" } },
-        { skills: { some: { name: { contains: q, mode: "insensitive" } } } },
-        {
-          user: {
-            resume: {
-              is: {
-                OR: [
-                  { summary: { contains: q, mode: "insensitive" } },
-                  { experience: { contains: q, mode: "insensitive" } },
-                  { observations: { contains: q, mode: "insensitive" } }
-                ]
-              }
-            }
-          }
-        }
-      ]
-    },
-    include: { skills: true, user: { select: { email: true, role: true } } },
-    take: 25
-  });
-
-  res.json({ results });
-});
-
+// Endpoint legado retirado: evitaba los controles actuales de privacidad y capacidad.
+app.get("/search", (_req, res) => res.status(410).json({
+  error:"LEGACY_SEARCH_DISABLED",
+  message:"Este buscador fue retirado. Usá los módulos actuales de Talento PyME.",
+}));
 
 
 
@@ -4382,7 +4662,7 @@ app.get('/support/bootstrap', auth, async (req, res) => {
     const thread = await getOrCreateSupportThreadForUser(req);
     const refreshed = await refreshSupportThreadState(thread.id);
     const suggested = await getSupportSuggestionsByRole(refreshed.thread?.role || thread.role);
-    return res.json({ ok: true, thread: refreshed.thread || thread, messages: refreshed.messages || [], suggested });
+    return res.json({ ok: true, thread: refreshed.thread || thread, messages: refreshed.messages || [], suggested, supportEmail: FACTORY_SUPPORT_EMAIL });
   } catch (err) {
     console.error('GET /support/bootstrap', err);
     return res.status(500).json({ error: 'No se pudo abrir el chat de ayuda.' });
@@ -4562,26 +4842,88 @@ const adminCandidateRetentionSchema = z.object({
   keepIndefinitely: z.boolean(),
 });
 
-const adminPasswordResetSchema = z.object({
-  newPassword: z.string().min(8).max(200),
-});
-
-app.post('/admin/users/:userId/reset-password', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+app.post('/admin/users/:userId/send-password-recovery', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   try {
     const userId = String(req.params.userId || '').trim();
-    const parsed = adminPasswordResetSchema.safeParse(req.body);
-    if(!userId || !parsed.success) return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 8 caracteres.' });
-    const target = await prisma.user.findFirst({
-      where: { id: userId, role: { in: ['CANDIDATE','COMPANY'] } },
-      select: { id: true, role: true, email: true },
-    });
-    if(!target) return res.status(404).json({ error: 'Usuario no encontrado.' });
-    const passHash = await bcrypt.hash(parsed.data.newPassword, 10);
-    await prisma.user.update({ where: { id: target.id }, data: { passHash } });
-    return res.json({ ok: true, userId: target.id, role: target.role });
+    if(!userId) return res.status(400).json({ error:'Falta identificar al usuario.' });
+    const target = await prisma.user.findFirst({ where:{ id:userId, role:{ in:['CANDIDATE','COMPANY'] } }, select:{ id:true, role:true, email:true } });
+    if(!target) return res.status(404).json({ error:'Usuario no encontrado.' });
+    const created = await createPasswordRecoveryChallenge({ user:target, role:target.role, requestedIdentifier:'ADMIN_TRIGGER' });
+    return res.json({ ok:true, maskedEmail:created.maskedEmail, expiresInMinutes:PASSWORD_RESET_CODE_TTL_MINUTES });
   } catch (err) {
-    console.error('POST /admin/users/:userId/reset-password', err);
-    return res.status(500).json({ error: 'No se pudo restablecer la contraseña.' });
+    console.error('POST /admin/users/:userId/send-password-recovery', err?.code || err?.message || err);
+    if(err?.code === 'MAIL_NOT_CONFIGURED' || err?.message === 'MAIL_NOT_CONFIGURED') return res.status(503).json({ error:'El correo seguro todavía no está configurado en el servidor.' });
+    if(err?.code === 'RATE_LIMIT') return res.status(429).json({ error:err.message });
+    return res.status(500).json({ error:'No se pudo enviar el correo de recuperación.' });
+  }
+});
+
+// Endpoint antiguo deshabilitado por seguridad: Administración ya no puede fijar contraseñas.
+app.post('/admin/users/:userId/reset-password', auth, requireAnyRole(['ADMIN','SUPERADMIN']), (_req, res) => res.status(410).json({ error:'Por seguridad, la contraseña sólo puede restablecerse mediante verificación por correo.' }));
+
+app.get('/admin/mail/inbox', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  if(!gmailConfigured()) return res.json({ ok:true, configured:false, items:[], total:0, unread:0, page:1, totalPages:1, pageSize:20 });
+  const page = Math.max(1, Number(req.query?.page || 1));
+  const pageSize = 20;
+  try {
+    const data = await withGmailInbox(async (client) => {
+      const total = Number(client.mailbox?.exists || 0);
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      const safePage = Math.min(page, totalPages);
+      const end = Math.max(0, total - ((safePage - 1) * pageSize));
+      const start = Math.max(1, end - pageSize + 1);
+      const items = [];
+      if(total > 0 && end >= start){
+        for await (const msg of client.fetch(`${start}:${end}`, { uid:true, envelope:true, flags:true, internalDate:true })){
+          const from = Array.isArray(msg.envelope?.from) && msg.envelope.from.length ? msg.envelope.from[0] : null;
+          items.push({
+            uid: msg.uid,
+            subject: msg.envelope?.subject || '(sin asunto)',
+            fromName: from?.name || '',
+            fromAddress: from?.address || '',
+            date: msg.envelope?.date || msg.internalDate || null,
+            unread: !(msg.flags && msg.flags.has('\\Seen')),
+            answered: Boolean(msg.flags && msg.flags.has('\\Answered')),
+          });
+        }
+      }
+      let unread = 0;
+      try { unread = (await client.search({ seen:false }, { uid:true })).length; } catch {}
+      items.sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
+      return { total, unread, page:safePage, totalPages, pageSize, items };
+    });
+    return res.json({ ok:true, configured:true, account:maskEmail(FACTORY_SUPPORT_EMAIL), ...data });
+  } catch (err) {
+    console.error('GET /admin/mail/inbox', err?.message || err);
+    return res.status(503).json({ error:'No se pudo leer el buzón de Gmail. Verificá la configuración de correo en Render.' });
+  }
+});
+
+app.get('/admin/mail/message/:uid', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  if(!gmailConfigured()) return res.status(503).json({ error:'El correo todavía no está configurado.' });
+  const uid = Number(req.params.uid || 0);
+  if(!Number.isInteger(uid) || uid <= 0) return res.status(400).json({ error:'Mensaje inválido.' });
+  try {
+    const item = await withGmailInbox(async (client) => {
+      const msg = await client.fetchOne(uid, { uid:true, envelope:true, flags:true, source:true }, { uid:true });
+      if(!msg) return null;
+      const parsed = await simpleParser(msg.source);
+      await client.messageFlagsAdd(uid, ['\\Seen'], { uid:true }).catch(() => null);
+      return {
+        uid,
+        subject: parsed.subject || msg.envelope?.subject || '(sin asunto)',
+        from: parsed.from?.text || '',
+        to: parsed.to?.text || '',
+        date: parsed.date || msg.envelope?.date || null,
+        text: String(parsed.text || '').trim().slice(0, 60000) || '(El mensaje no contiene texto legible.)',
+        attachments: (parsed.attachments || []).map((a) => ({ filename:a.filename || 'archivo', contentType:a.contentType || '', size:a.size || 0 })),
+      };
+    });
+    if(!item) return res.status(404).json({ error:'Mensaje no encontrado.' });
+    return res.json({ ok:true, item });
+  } catch (err) {
+    console.error('GET /admin/mail/message/:uid', err?.message || err);
+    return res.status(503).json({ error:'No se pudo abrir el mensaje.' });
   }
 });
 

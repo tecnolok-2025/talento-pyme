@@ -3,7 +3,7 @@ Panel General + Factory Admin v5.6.0
 1. En Render, dentro del servicio API, definir estas variables:
    FACTORY_ADMIN_ALIAS=Talento PyME
    FACTORY_ADMIN_PASSWORD=tu_clave_segura
-   FACTORY_SUPPORT_EMAIL=factory@gmail.com
+   FACTORY_SUPPORT_EMAIL=talentopyme00@gmail.com
    FACTORY_ADMIN_ALLOWED_COMPANIES=Mengabo SA,Mengabo Sociedad Anonima
 
 2. Guardar y hacer Redeploy.
