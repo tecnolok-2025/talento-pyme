@@ -39,7 +39,7 @@
     };
 
     const els = {
-      jobsQ: document.getElementById('jobsQ'), jobsArea: document.getElementById('jobsArea'), jobsLoc: document.getElementById('jobsLoc'), jobsNivel: document.getElementById('jobsNivel'), jobsEsp: document.getElementById('jobsEsp'), jobsExp: document.getElementById('jobsExp'), jobsEdu: document.getElementById('jobsEdu'), jobsCap: document.getElementById('jobsCap'), jobsTrab: document.getElementById('jobsTrab'), jobsSoldCat: document.getElementById('jobsSoldCat'), jobsHerr: document.getElementById('jobsHerr'), jobsInstr: document.getElementById('jobsInstr'), jobsFechaReg: document.getElementById('jobsFechaReg'), jobsOrden: document.getElementById('jobsOrden'), jobsErr: document.getElementById('jobsErr'), resultsList: document.getElementById('resultsList'), detailBody: document.getElementById('detailBody'), resultCount: document.getElementById('resultCount'), areaPills: document.getElementById('areaPills'), statsTotal: document.getElementById('statsTotal'), statsTopArea: document.getElementById('statsTopArea'), statsTopEsp: document.getElementById('statsTopEsp'), openingBadge: document.getElementById('openingBadge')
+      jobsQ: document.getElementById('jobsQ'), jobsArea: document.getElementById('jobsArea'), jobsLoc: document.getElementById('jobsLoc'), jobsNivel: document.getElementById('jobsNivel'), jobsEsp: document.getElementById('jobsEsp'), jobsExp: document.getElementById('jobsExp'), jobsEdu: document.getElementById('jobsEdu'), jobsCap: document.getElementById('jobsCap'), jobsTrab: document.getElementById('jobsTrab'), jobsSoldCat: document.getElementById('jobsSoldCat'), jobsHerr: document.getElementById('jobsHerr'), jobsInstr: document.getElementById('jobsInstr'), jobsFechaReg: document.getElementById('jobsFechaReg'), jobsOrden: document.getElementById('jobsOrden'), jobsErr: document.getElementById('jobsErr'), resultsList: document.getElementById('resultsList'), detailBody: document.getElementById('detailBody'), resultCount: document.getElementById('resultCount'), areaPills: document.getElementById('areaPills'), statsTopArea: document.getElementById('statsTopArea'), statsTopEsp: document.getElementById('statsTopEsp'), openingBadge: document.getElementById('openingBadge')
     };
     let jobsStats = null;
     let jobsItems = [];
@@ -57,27 +57,28 @@
     function fillSelect(el, items, placeholder='(todos)') {
       el.innerHTML = `<option value="">${placeholder}</option>` + items.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
     }
-    function sortedFacetEntries(obj){ return Object.entries(obj||{}).sort((a,b)=> b[1]-a[1]); }
+    function availableValues(value){
+      if(Array.isArray(value)) return value.filter(Boolean);
+      return Object.keys(value || {});
+    }
     function refreshSpecialties(){
       const area = els.jobsArea.value;
       const options = area ? (ESPECIALIDADES[area] || []) : [];
       fillSelect(els.jobsEsp, options, area ? '(todas las especialidades del área)' : '(seleccioná un área)');
     }
     function renderAreaPills(){
-      const areaFacet = sortedFacetEntries(jobsStats?.facets?.area || {}).slice(0,8);
-      els.areaPills.innerHTML = areaFacet.map(([name,count])=> `<button type="button" data-area="${esc(name)}" class="${els.jobsArea.value===name?'active':''}">${esc(name)} · ${count}</button>`).join('');
+      const areaFacet = availableValues(jobsStats?.facets?.area).slice(0,8);
+      els.areaPills.innerHTML = areaFacet.map((name)=> `<button type="button" data-area="${esc(name)}" class="${els.jobsArea.value===name?'active':''}">${esc(name)}</button>`).join('');
       els.areaPills.querySelectorAll('button').forEach(btn=>{
-        btn.onclick = ()=>{ els.jobsArea.value = btn.dataset.area || ''; refreshSpecialties(); renderAreaPills(); };
+        btn.onclick = ()=>{ els.jobsArea.value = btn.dataset.area || ''; refreshSpecialties(); renderAreaPills(); renderStats(); };
       });
     }
     function renderStats(){
-      els.statsTotal.textContent = jobsStats?.total ?? '0';
-      const topArea = sortedFacetEntries(jobsStats?.facets?.area || {})[0];
-      els.statsTopArea.textContent = topArea ? `${topArea[0]} (${topArea[1]})` : '—';
+      const areas = availableValues(jobsStats?.facets?.area);
+      els.statsTopArea.textContent = areas.length ? areas.slice(0,3).join(' · ') : 'Perfiles disponibles';
       const area = els.jobsArea.value;
-      const areaMap = area ? (jobsStats?.especialidad_by_area?.[area] || {}) : {};
-      const topEsp = sortedFacetEntries(areaMap)[0];
-      els.statsTopEsp.textContent = topEsp ? `${topEsp[0]} (${topEsp[1]})` : 'Seleccioná un área';
+      const specialties = area ? availableValues(jobsStats?.especialidad_by_area?.[area]) : [];
+      els.statsTopEsp.textContent = area ? (specialties.length ? specialties.slice(0,3).join(' · ') : 'Especialidades disponibles') : 'Seleccioná un área';
       renderAreaPills();
     }
     function renderOpeningBadge(){
@@ -127,7 +128,7 @@
       `;
     }
     function renderResults(){
-      els.resultCount.textContent = jobsItems.length ? `${jobsItems.length} resultado(s)` : 'Sin resultados';
+      els.resultCount.textContent = jobsItems.length ? 'Perfiles disponibles' : 'Sin resultados';
       if(!jobsItems.length){
         els.resultsList.innerHTML = '<div class="muted">No hay perfiles para esos filtros. Probá limpiar o ampliar la búsqueda.</div>';
         jobsSelected = null;

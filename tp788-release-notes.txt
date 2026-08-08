@@ -1,0 +1,21 @@
+Talento PyME v7.8.8
+====================
+
+Objetivo
+--------
+Ocultar a candidatos y empresas los volúmenes globales de registros mientras la plataforma se encuentra en etapa inicial, manteniendo esa información exclusivamente en el Panel General de Administración.
+
+Cambios
+-------
+- Candidato: se elimina la consulta y cualquier presentación de la cantidad global de candidatos cargados.
+- Empresa / Buscar Talento: se elimina el KPI “CV registrados”.
+- Empresa / Buscar Talento: las áreas y especialidades se muestran sin cantidades asociadas.
+- Empresa / Resultados: se reemplaza el contador numérico por el estado genérico “Perfiles disponibles”.
+- API /bolsa/stats: el total global queda restringido a los roles de administración (ADMIN/SUPERADMIN).
+- API /jobs/stats: deja de exponer total de candidatos y conteos por faceta; entrega únicamente los valores disponibles para filtros.
+- Administración: se conservan sin cambios los totales de candidatos, empresas y demás indicadores del Panel General.
+- No se modifica el esquema de base de datos ni se eliminan registros.
+
+Versión
+-------
+Web y API: 7.8.8

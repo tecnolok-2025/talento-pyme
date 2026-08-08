@@ -399,7 +399,6 @@ async function initBolsaCandidato(){
   let searchBusy = false;
   let searchErr = "";
   let searchItems = [];
-  let statsTotal = null;
   let parsingCv = false;
   let parseProgress = 0;
   let parseMsg = "";
@@ -736,9 +735,8 @@ async function initBolsaCandidato(){
           <div class="rowBetween" style="margin-bottom:10px;">
             <div>
               <h3 style="margin:0 0 4px 0;">Buscar CV</h3>
-              <div class="muted">${statsTotal!==null ? `${statsTotal} candidatos cargados` : ""}</div>
+              <div class="muted">Explorá perfiles por experiencia, especialidad y criterios técnicos.</div>
             </div>
-            <button class="btn secondary" id="btnStats" type="button">Actualizar estadísticas</button>
           </div>
 
           <div class="formGrid">
@@ -974,7 +972,6 @@ async function initBolsaCandidato(){
     });
 
     el("btnSearch").addEventListener("click", doSearch);
-    el("btnStats").addEventListener("click", loadStats);
   }
 
   async function uploadProfilePhoto(file){
@@ -1289,15 +1286,6 @@ async function initBolsaCandidato(){
     }
   }
 
-  async function loadStats(){
-    try{
-      const r = await apiFetch("/bolsa/stats");
-      if(r.ok) statsTotal = r.total;
-      else statsTotal = null;
-      render();
-    }catch(e){ statsTotal=null; render(); }
-  }
-
   async function doSearch(){
     searchErr="";
     searchBusy=true;
@@ -1405,8 +1393,6 @@ async function initBolsaCandidato(){
   // first load
   await loadMe();
   await loadBolsa();
-  // also load stats lazily
-  loadStats();
   render();
 }
 

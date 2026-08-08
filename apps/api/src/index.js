@@ -2548,7 +2548,7 @@ app.delete("/bolsa/photo", authRequired, async (req, res) => {
   }
 });
 
-app.get("/bolsa/stats", authRequired, async (req, res) => {
+app.get("/bolsa/stats", authRequired, requireAnyRole(["ADMIN","SUPERADMIN"]), async (req, res) => {
   try{
     const total = await prisma.candidateBolsa.count();
     return res.json({ ok:true, total });
@@ -2701,8 +2701,16 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
       orderBy: { updatedAt: 'desc' },
       take: 2000,
     });
-    const total = await prisma.candidateBolsa.count();
-    return res.json({ ok: true, total, ...facetStats(items) });
+    const rawStats = facetStats(items);
+    const facets = Object.fromEntries(
+      Object.entries(rawStats.facets || {}).map(([key, values]) => [key, Object.keys(values || {})])
+    );
+    const especialidad_by_area = Object.fromEntries(
+      Object.entries(rawStats.especialidad_by_area || {}).map(([area, values]) => [area, Object.keys(values || {})])
+    );
+    // v7.8.8: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
+    // ni conteos por faceta. Los totales de padrón quedan reservados al Panel General.
+    return res.json({ ok: true, facets, especialidad_by_area });
   } catch (err) {
     console.error('GET /jobs/stats', err);
     return res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
