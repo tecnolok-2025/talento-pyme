@@ -1,4 +1,4 @@
-# Auditoría de clasificación administrativa — Talento PyME v7.9.0
+# Auditoría de clasificación administrativa — Talento PyME v7.9.1
 
 ## Alcance
 Revisión funcional y de regresión de la evolución solicitada para **Perfiles candidatos**, **Perfiles empresas** y **Trazabilidad**, tomando como base la v7.8.15 y preservando todos los cambios de seguridad, recuperación por correo y privacidad ya incorporados.
@@ -83,7 +83,7 @@ La clasificación avanzada, el índice 0–100 y los contadores de composición 
 
 ## 6. Base de datos y compatibilidad
 
-- v7.9.0 no agrega campos nuevos respecto de v7.8.15.
+- v7.9.1 no agrega campos nuevos respecto de v7.8.15.
 - Se reutiliza `CompanyProfile.adminCategory`, ya incorporado en la versión anterior.
 - No hay migraciones destructivas.
 - No se borran candidatos, empresas, perfiles, CV, postulaciones, búsquedas ni documentos comerciales.
@@ -98,4 +98,4 @@ La clasificación avanzada, el índice 0–100 y los contadores de composición 
 - “Pendiente de clasificar” en código ejecutable: ninguno.
 - Exposición de campos administrativos en pantallas públicas: ninguna detectada.
 - Secretos Gmail hardcodeados: ninguno detectado.
-- Versión UI / API / PWA: **7.9.0**.
+- Versión UI / API / PWA: **7.9.1**.

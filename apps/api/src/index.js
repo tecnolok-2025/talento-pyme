@@ -18,6 +18,7 @@ import net from "net";
 import { fileURLToPath } from "url";
 import { createPaymentProvider, getPaymentConfigFromEnv } from "./services/payments/index.js";
 import { assertNoCardData, listForbiddenPaymentFields, sanitizeCheckoutPayloadForLog, sha256Hex, PaymentProviderError, PaymentSecurityError } from "./services/payments/provider.js";
+import { buildTraceabilityPdfBuffer, buildTraceabilityReportFilename, buildTraceabilityEmailSubject, buildTraceabilityNarrative } from "./services/traceability-report.js";
 
 const prisma = new PrismaClient();
 const app = express();
@@ -58,7 +59,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
 const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
-// v7.9.0: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
+// v7.9.1: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
 // Se reutiliza la configuración ya existente en Render para soporte, consultas, recuperaciones y buzón administrativo.
 const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || '').trim().toLowerCase();
 const GMAIL_USER = FACTORY_SUPPORT_EMAIL;
@@ -72,6 +73,7 @@ const PASSWORD_RESET_CODE_TTL_MINUTES = Math.max(5, Math.min(30, Number(process.
 const PASSWORD_RESET_MAX_ATTEMPTS = Math.max(3, Math.min(10, Number(process.env.PASSWORD_RESET_MAX_ATTEMPTS || 5)));
 const PASSWORD_RESET_MAX_REQUESTS_15M = Math.max(1, Math.min(10, Number(process.env.PASSWORD_RESET_MAX_REQUESTS_15M || 3)));
 const MAILBOX_FOLDER = String(process.env.MAILBOX_FOLDER || 'INBOX').trim() || 'INBOX';
+const TRACEABILITY_REPORT_RECIPIENT = String(process.env.TRACEABILITY_REPORT_RECIPIENT || 'nestor.manucci@tecnolok.com.ar').trim().toLowerCase();
 const VIRTUAL_ADMIN_USER_ID = '__factory_admin__';
 const VIRTUAL_ADMIN_ROLE = 'SUPERADMIN';
 const FACTORY_ADMIN_ALLOWED_COMPANIES = String(
@@ -2945,7 +2947,7 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
     const especialidad_by_area = Object.fromEntries(
       Object.entries(rawStats.especialidad_by_area || {}).map(([area, values]) => [area, Object.keys(values || {})])
     );
-    // v7.9.0: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
+    // v7.9.1: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
     // ni conteos por faceta. Los totales de padrón quedan reservados al Panel General.
     return res.json({ ok: true, facets, especialidad_by_area });
   } catch (err) {
@@ -3173,7 +3175,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.9.0 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.9.1 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
@@ -5228,6 +5230,149 @@ function buildAdminComposition(candidateItems = [], companyItems = []){
   };
 }
 
+
+function traceabilityCountBy(items = [], keyField, labelField){
+  const map = new Map();
+  for(const item of items || []){
+    const key = String(item?.[keyField] || 'GENERAL');
+    const label = String(item?.[labelField] || 'General');
+    const row = map.get(key) || { key, label, count:0 };
+    row.count += 1;
+    map.set(key, row);
+  }
+  return [...map.values()].sort((a,b) => b.count - a.count || a.label.localeCompare(b.label, 'es'));
+}
+
+function traceabilityMonthKey(value){
+  const d = value ? new Date(value) : null;
+  if(!d || Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function buildTraceabilityMonthlySeries({ startDate, candidateRows=[], companyRows=[], jobRows=[], applicationRows=[] } = {}){
+  const maps = [candidateRows, companyRows, jobRows, applicationRows].map((rows) => {
+    const m = new Map();
+    for(const row of rows || []){
+      const key = traceabilityMonthKey(row?.createdAt);
+      if(key) m.set(key, Number(m.get(key) || 0) + 1);
+    }
+    return m;
+  });
+  const out=[];
+  const now=new Date();
+  const cursor=new Date((startDate || now).getFullYear(), (startDate || now).getMonth(), 1);
+  const end=new Date(now.getFullYear(), now.getMonth(), 1);
+  for(let d=new Date(cursor); d<=end; d=new Date(d.getFullYear(),d.getMonth()+1,1)){
+    const key=traceabilityMonthKey(d);
+    out.push({
+      key,
+      label:d.toLocaleDateString('es-AR',{month:'long',year:'numeric'}),
+      candidates:Number(maps[0].get(key)||0),
+      companies:Number(maps[1].get(key)||0),
+      jobs:Number(maps[2].get(key)||0),
+      applications:Number(maps[3].get(key)||0),
+    });
+  }
+  return out;
+}
+
+async function buildTraceabilityReportSnapshot(){
+  const now = new Date();
+  const since30 = new Date(now.getTime() - 30*24*60*60*1000);
+  const since60 = new Date(now.getTime() - 60*24*60*60*1000);
+  const since6Months = new Date(now.getFullYear(), now.getMonth()-5, 1);
+
+  const [
+    candidateCount, companyCount, jobsCount, publishedJobsCount, applicationCount,
+    candidatesLast30, candidatesPrevious30, companiesLast30, companiesPrevious30,
+    jobsLast30, jobsPrevious30, applicationsLast30, applicationsPrevious30,
+    openingsLast30, openingsPrevious30, candidateChatsLast30, candidateChatsPrevious30,
+    companyChatsLast30, companyChatsPrevious30, candidatesUpdatedLast30, companiesUpdatedLast30,
+    candidateRows, companyRows, candidateTimeline, companyTimeline, jobTimeline, applicationTimeline,
+  ] = await Promise.all([
+    prisma.user.count({ where:{ role:'CANDIDATE' } }).catch(()=>0),
+    prisma.companyProfile.count().catch(()=>0),
+    prisma.job.count().catch(()=>0),
+    prisma.job.count({ where:{ status:'PUBLISHED' } }).catch(()=>0),
+    prisma.application.count().catch(()=>0),
+    prisma.user.count({ where:{ role:'CANDIDATE', createdAt:{ gte:since30 } } }).catch(()=>0),
+    prisma.user.count({ where:{ role:'CANDIDATE', createdAt:{ gte:since60, lt:since30 } } }).catch(()=>0),
+    prisma.companyProfile.count({ where:{ createdAt:{ gte:since30 } } }).catch(()=>0),
+    prisma.companyProfile.count({ where:{ createdAt:{ gte:since60, lt:since30 } } }).catch(()=>0),
+    prisma.job.count({ where:{ createdAt:{ gte:since30 } } }).catch(()=>0),
+    prisma.job.count({ where:{ createdAt:{ gte:since60, lt:since30 } } }).catch(()=>0),
+    prisma.application.count({ where:{ createdAt:{ gte:since30 } } }).catch(()=>0),
+    prisma.application.count({ where:{ createdAt:{ gte:since60, lt:since30 } } }).catch(()=>0),
+    prisma.companyCandidateAccess.count({ where:{ createdAt:{ gte:since30 } } }).catch(()=>0),
+    prisma.companyCandidateAccess.count({ where:{ createdAt:{ gte:since60, lt:since30 } } }).catch(()=>0),
+    prisma.supportThread.count({ where:{ role:'CANDIDATE', updatedAt:{ gte:since30 } } }).catch(()=>0),
+    prisma.supportThread.count({ where:{ role:'CANDIDATE', updatedAt:{ gte:since60, lt:since30 } } }).catch(()=>0),
+    prisma.supportThread.count({ where:{ role:'COMPANY', updatedAt:{ gte:since30 } } }).catch(()=>0),
+    prisma.supportThread.count({ where:{ role:'COMPANY', updatedAt:{ gte:since60, lt:since30 } } }).catch(()=>0),
+    prisma.user.count({ where:{ role:'CANDIDATE', OR:[{ candidateProfile:{ is:{ updatedAt:{ gte:since30 } } } },{ candidateBolsa:{ is:{ updatedAt:{ gte:since30 } } } },{ resume:{ is:{ updatedAt:{ gte:since30 } } } }] } }).catch(()=>0),
+    prisma.companyProfile.count({ where:{ updatedAt:{ gte:since30 } } }).catch(()=>0),
+    prisma.user.findMany({
+      where:{ role:'CANDIDATE' },
+      select:{
+        id:true, createdAt:true,
+        candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, headline:true, sector:true, subSector:true, updatedAt:true } },
+        candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, updatedAt:true } },
+        resume:{ select:{ summary:true, experience:true, education:true, certifications:true, observations:true, updatedAt:true } },
+      },
+    }).catch(()=>[]),
+    prisma.companyProfile.findMany({
+      select:{
+        id:true, companyName:true, companySummary:true, website:true, adminCategory:true, createdAt:true, updatedAt:true,
+        jobs:{ select:{ title:true, description:true, requirements:true }, orderBy:{ createdAt:'desc' }, take:20 },
+      },
+    }).catch(()=>[]),
+    prisma.user.findMany({ where:{ role:'CANDIDATE', createdAt:{ gte:since6Months } }, select:{ createdAt:true } }).catch(()=>[]),
+    prisma.companyProfile.findMany({ where:{ createdAt:{ gte:since6Months } }, select:{ createdAt:true } }).catch(()=>[]),
+    prisma.job.findMany({ where:{ createdAt:{ gte:since6Months } }, select:{ createdAt:true } }).catch(()=>[]),
+    prisma.application.findMany({ where:{ createdAt:{ gte:since6Months } }, select:{ createdAt:true } }).catch(()=>[]),
+  ]);
+
+  const candidateItems=(candidateRows || []).map((it)=>({ ...buildCandidateAdminClassification(it) }));
+  const companyItems=(companyRows || []).map((it)=>{
+    const c=inferAdminCompanyCategory(it);
+    return { categoryKey:c.key, categoryLabel:c.label, activityKey:c.activityKey || 'ACTIVIDAD_GENERAL', activityLabel:c.activityLabel || 'Actividad general' };
+  });
+  const candidatesWithCv=(candidateRows || []).filter((it)=>{
+    const r=it.resume || {}, b=it.candidateBolsa || {};
+    return [r.summary,r.experience,r.education,r.certifications,r.observations,b.observaciones].some((v)=>String(v||'').trim());
+  }).length;
+  const candidatesWithProfessionalProfile=(candidateRows || []).filter((it)=>{
+    const r=it.resume || {}, b=it.candidateBolsa || {}, p=it.candidateProfile || {};
+    return [b.areaTrabajo,b.especialidad,b.especialidadOtro,b.ultimoTrabajo,p.headline,r.summary,r.experience].some((v)=>String(v||'').trim());
+  }).length;
+  const composition={
+    candidatesByClass:traceabilityCountBy(candidateItems,'classKey','classLabel'),
+    candidatesByExpertise:traceabilityCountBy(candidateItems,'expertiseKey','expertiseLabel'),
+    companiesByFamily:traceabilityCountBy(companyItems,'categoryKey','categoryLabel'),
+    companiesByActivity:traceabilityCountBy(companyItems,'activityKey','activityLabel'),
+  };
+  const snapshot={
+    generatedAt:now.toISOString(),
+    summary:{ candidateCount, companyCount, jobsCount, publishedJobsCount, applicationCount },
+    activity:{
+      candidatesLast30,candidatesPrevious30,companiesLast30,companiesPrevious30,
+      jobsLast30,jobsPrevious30,applicationsLast30,applicationsPrevious30,
+      openingsLast30,openingsPrevious30,candidateChatsLast30,candidateChatsPrevious30,
+      companyChatsLast30,companyChatsPrevious30,candidatesUpdatedLast30,companiesUpdatedLast30,
+    },
+    quality:{
+      candidatesWithCv,
+      candidatesWithProfessionalProfile,
+      cvCoveragePct:candidateCount ? Math.round((candidatesWithCv/candidateCount)*100) : 0,
+      profileCoveragePct:candidateCount ? Math.round((candidatesWithProfessionalProfile/candidateCount)*100) : 0,
+    },
+    composition,
+    monthlySeries:buildTraceabilityMonthlySeries({ startDate:since6Months, candidateRows:candidateTimeline, companyRows:companyTimeline, jobRows:jobTimeline, applicationRows:applicationTimeline }),
+  };
+  snapshot.narrative=buildTraceabilityNarrative(snapshot);
+  return snapshot;
+}
+
 const adminCompanyCategorySchema = z.object({
   category: z.enum(['FABRICACION','LOGISTICA','SERVICIO']).nullable().optional(),
 });
@@ -5318,6 +5463,60 @@ app.get('/admin/mail/message/:uid', auth, requireAnyRole(['ADMIN','SUPERADMIN'])
   } catch (err) {
     console.error('GET /admin/mail/message/:uid', err?.message || err);
     return res.status(503).json({ error:'No se pudo abrir el mensaje.' });
+  }
+});
+
+
+const traceabilityReportEmailSchema = z.object({
+  to: z.string().trim().email().optional(),
+});
+
+app.get('/admin/reports/traceability/pdf', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req, res) => {
+  try {
+    const snapshot = await buildTraceabilityReportSnapshot();
+    const generatedAt = new Date(snapshot.generatedAt || Date.now());
+    const pdf = await buildTraceabilityPdfBuffer(snapshot);
+    const filename = buildTraceabilityReportFilename(generatedAt);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', String(pdf.length));
+    res.setHeader('Cache-Control', 'no-store');
+    return res.end(pdf);
+  } catch (err) {
+    console.error('GET /admin/reports/traceability/pdf', err?.message || err);
+    return res.status(500).json({ error:'No se pudo generar el informe de trazabilidad.' });
+  }
+});
+
+app.post('/admin/reports/traceability/email', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  if(!gmailConfigured()) return res.status(503).json({ error:'El correo institucional no está configurado para enviar reportes.' });
+  const parsed = traceabilityReportEmailSchema.safeParse(req.body || {});
+  if(!parsed.success) return res.status(400).json({ error:'El correo de destino no es válido.' });
+  const to = normalizeEmail(parsed.data.to || TRACEABILITY_REPORT_RECIPIENT);
+  if(!to) return res.status(400).json({ error:'Falta indicar el correo de destino.' });
+  try {
+    const snapshot = await buildTraceabilityReportSnapshot();
+    const generatedAt = new Date(snapshot.generatedAt || Date.now());
+    const pdf = await buildTraceabilityPdfBuffer(snapshot);
+    const filename = buildTraceabilityReportFilename(generatedAt);
+    const transport = await getSmtpTransport();
+    await transport.sendMail({
+      from:`"${MAIL_FROM_NAME}" <${GMAIL_USER}>`,
+      to,
+      subject:buildTraceabilityEmailSubject(generatedAt),
+      text:`Adjuntamos el Informe Ejecutivo de Trazabilidad de Talento PyME generado el ${generatedAt.toLocaleString('es-AR')}.
+
+El documento contiene únicamente información agregada y anonimizada: situación general del portal, composición de candidatos y empresas, evolución reciente, conclusiones y sugerencias de mejora.
+
+Talento PyME · Conectando experiencia con producción.`,
+      attachments:[{ filename, content:pdf, contentType:'application/pdf' }],
+    });
+    return res.json({ ok:true, to, filename, generatedAt:snapshot.generatedAt });
+  } catch (err) {
+    console.error('POST /admin/reports/traceability/email', err?.code || err?.message || err);
+    if(err?.code === 'MAIL_NOT_CONFIGURED' || err?.message === 'MAIL_NOT_CONFIGURED') return res.status(503).json({ error:'El correo institucional no está configurado.' });
+    if(isMailTransportNetworkError(err)) return res.status(503).json({ error:'No se pudo conectar con Gmail para enviar el reporte.' });
+    return res.status(500).json({ error:'El reporte se generó, pero no pudo enviarse por correo.' });
   }
 });
 
@@ -5760,7 +5959,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.billingOrder.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
     ]);
 
-    // v7.9.0 · Directorios clasificados de Administración.
+    // v7.9.1 · Directorios clasificados de Administración.
     // Se consultan campos livianos de todos los registros que cumplen los filtros actuales para que
     // los contadores representen el padrón filtrado completo, no solamente la página visible.
     const [candidateClassificationRows, companyClassificationRows] = await Promise.all([
@@ -6051,6 +6250,13 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
 
     return res.json({
       ok: true,
+      reporting: {
+        title: 'Informe Ejecutivo de Trazabilidad, Evolución y Composición del Portal',
+        defaultRecipient: TRACEABILITY_REPORT_RECIPIENT,
+        sender: FACTORY_SUPPORT_EMAIL,
+        mailConfigured: gmailConfigured(),
+        privacy: 'El PDF utiliza exclusivamente información agregada y no incluye datos personales ni identificadores individuales.',
+      },
       summary: {
         candidateCount,
         companyCount,

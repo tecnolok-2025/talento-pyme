@@ -1,0 +1,14 @@
+Talento PyME v7.9.1 - Reportes ejecutivos de trazabilidad
+
+1. Nueva pestaña Administración > Reportes.
+2. PDF dinámico: Informe Ejecutivo de Trazabilidad, Evolución y Composición del Portal.
+3. Descarga directa del PDF desde Administración.
+4. Envío del mismo PDF como adjunto desde el correo institucional ya configurado.
+5. Reporte sin nombres ni identificadores individuales.
+6. Comparación últimos 30 días vs. 30 anteriores.
+7. Serie de evolución de los últimos seis meses.
+8. Tablas de candidatos por tipo de perfil y expertise.
+9. Tablas de empresas por familia y actividad principal.
+10. Indicadores de cobertura de CV/perfil, conclusiones ejecutivas y sugerencias automáticas.
+11. Se mantienen todas las funciones y reglas de clasificación de v7.9.0.
+12. No requiere nueva migración Prisma.

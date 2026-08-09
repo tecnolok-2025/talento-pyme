@@ -1,4 +1,4 @@
-Talento PyME v7.9.0 — Resultado de auditoría automatizada
+Talento PyME v7.9.1 — Resultado de auditoría automatizada
 Fecha de validación: 2026-08-09
 
 ok 58 - Administración instruye configurar la variable unificada

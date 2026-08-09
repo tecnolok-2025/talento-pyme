@@ -1,4 +1,4 @@
-Talento PyME v7.9.0 — Clasificación administrativa avanzada y trazabilidad de perfiles
+Talento PyME v7.9.1 — Clasificación administrativa avanzada y trazabilidad de perfiles
 
 1. Candidatos: clasificación total, sin “Pendiente de clasificar”
 - Todo candidato queda integrado en una categoría administrativa útil.

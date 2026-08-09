@@ -1,6 +1,6 @@
 {
   "name": "talento-pyme-api",
-  "version": "7.9.0",
+  "version": "7.9.1",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -24,7 +24,8 @@
     "zod": "^3.23.8",
     "nodemailer": "^9.0.3",
     "imapflow": "^1.6.1",
-    "mailparser": "^3.9.14"
+    "mailparser": "^3.9.14",
+    "pdfkit": "^0.15.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.4",
