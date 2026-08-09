@@ -1,0 +1,10 @@
+Talento PyME v7.9.3
+
+- Trazabilidad: país de residencia + ciudad, con cantidad y participación.
+- Empresas: “Actividad general” pasa a “Actividad principal no especificada”.
+- Candidato: nueva etapa 2 de presentación por voz o texto, editable y guardable para continuar después.
+- Administración: visualiza presentación aprobada y transcripción.
+- Candidato: descarga de CV profesional PDF con foto o silueta si falta foto.
+- CV regenerado con los datos vigentes.
+- Nuevos campos Prisma nullable; no se eliminan registros.
+- 76/76 pruebas aprobadas.

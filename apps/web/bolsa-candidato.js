@@ -1,4 +1,4 @@
-/* Talento PyME - v5.7.1 (candidato) - Mi Perfil institucional + foto + resumen curricular */
+/* Talento PyME - v7.9.3 (candidato) - perfil por etapas + voz/texto + CV PDF */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -232,6 +232,12 @@ function buildCandidateCompleteness(candidate){
       complete: ['dni','telefono','correo','localidad'].every((k)=> hasMeaningfulValue(candidate[k]))
     },
     {
+      key: 'presentacion',
+      label: 'Presentación personal',
+      hint: 'Contanos con tu voz o escribí qué sabés hacer y qué buscás',
+      complete: hasMeaningfulValue(candidate.voiceNarrativeSummary)
+    },
+    {
       key: 'perfil',
       label: 'Perfil laboral',
       hint: 'Área, especialidad, experiencia y educación',
@@ -265,10 +271,10 @@ function buildCandidateCompleteness(candidate){
 function renderCompletenessPanel(candidate){
   const status = buildCandidateCompleteness(candidate);
   const intro = status.pending.length
-    ? 'Completá y revisá tu formulario antes de salir. El registro inicial no alcanza: para que las empresas te encuentren, necesitás dejar completo el perfil laboral, la pretensión económica, el resumen curricular y los datos de contacto.'
+    ? 'Podés guardar el registro con tus datos básicos y tu presentación personal, y completar el resto más adelante. Cuanto más información agregues, mejor podrán entender tu experiencia y objetivos.'
     : 'Tu formulario está completo y listo para destacarse en las búsquedas. Aun así, revisalo cada tanto para mantener actualizados el perfil, la pretensión económica y el resumen curricular.';
   const secondary = status.pending.length
-    ? 'También podés adjuntar tu CV para generar el resumen curricular y ampliar la información que verán las empresas. En Observaciones se concentra el alcance curricular más importante.'
+    ? 'Si hoy no tenés un CV completo, usá el micrófono o escribí tu presentación. Después podés volver, cargar el CV, agregar experiencia, foto y formación sin perder lo que ya guardaste.'
     : 'Podés seguir actualizando tu CV, observaciones y foto cuando quieras para mejorar tu presentación profesional.';
   const waveClass = status.pending.length ? 'is-active' : 'is-calm';
   return `
@@ -370,6 +376,7 @@ async function initBolsaCandidato(){
     telefono:"",
     correo:"",
     localidad:"",
+    paisResidencia:"",
     direccion:"",
     areaTrabajo:"",
     nivel:"",
@@ -382,6 +389,8 @@ async function initBolsaCandidato(){
     sueldoPretendido:"",
     ultimoTrabajo:"",
     observaciones:"",
+    voiceNarrativeRaw:"",
+    voiceNarrativeSummary:"",
     photoDataUrl:"",
     herramientasMecanica:[],
     instrumentosElectrica:[]
@@ -409,7 +418,12 @@ async function initBolsaCandidato(){
   let cameraShotDataUrl = "";
   let cameraStream = null;
   let cameraStatus = "";
-  let detailsState = { d1:false, d2:false, d3:false, d4:false, d5:false };
+  let detailsState = { d1:false, d2:false, d3:false, d4:false, d5:false, d6:false };
+  let voiceRecognition = null;
+  let voiceListening = false;
+  let voiceInterim = "";
+  let voiceMessage = "";
+  let voiceRefining = false;
 
   let jobs = {
     q:"",
@@ -477,6 +491,7 @@ async function initBolsaCandidato(){
             </div>
             <div class="tp-hero-actions">
               <button class="btn secondary" id="btnReloadBolsa" type="button">Recargar</button>
+              <button class="btn btn-tech" id="btnDownloadCandidateCv" type="button">Descargar mi CV PDF</button>
               <label class="btn secondary tp-upload-btn" for="cvUploadInput">Cargar currículum</label>
               <input id="cvUploadInput" type="file" accept=".pdf,.docx,.txt" hidden />
               ${isEditing ? `
@@ -597,11 +612,13 @@ async function initBolsaCandidato(){
               <label>Email
                 <input id="c_correo" value="${esc(cand.correo)}" placeholder="Ej: correo@..." ${ro()} />
               </label>
-              <label>Localidad
-                <select id="c_localidad" ${dis()}>
-                  <option value="">(seleccionar)</option>
-                  ${renderSelectOptions(LOCALIDADES, cand.localidad)}
-                </select>
+              <label>Ciudad / localidad de residencia
+                <input id="c_localidad" value="${esc(cand.localidad)}" list="tpCityList" placeholder="Ej: Campana" ${ro()} />
+                <datalist id="tpCityList">${LOCALIDADES.filter(x=>x!=="Otra").map(x=>`<option value="${esc(x)}"></option>`).join("")}</datalist>
+              </label>
+              <label>País de residencia
+                <input id="c_paisResidencia" value="${esc(cand.paisResidencia)}" list="tpCountryList" placeholder="Ej: Argentina" ${ro()} />
+                <datalist id="tpCountryList"><option value="Argentina"></option><option value="Uruguay"></option><option value="Paraguay"></option><option value="Brasil"></option><option value="Chile"></option><option value="Bolivia"></option><option value="Perú"></option><option value="Venezuela"></option><option value="Colombia"></option><option value="Ecuador"></option></datalist>
               </label>
               <label>Dirección (opcional)
                 <input id="c_direccion" value="${esc(cand.direccion)}" placeholder="Calle y número" ${ro()} />
@@ -609,8 +626,31 @@ async function initBolsaCandidato(){
             </div>
           </details>
 
-          <details class="tp-details" ${detailOpen("d2")}>
-            <summary data-detail="d2"><b>2) Perfil laboral</b></summary>
+          <details class="tp-details tp-voice-details" ${detailOpen("d2")}>
+            <summary data-detail="d2"><b>2) Contanos con tus palabras · voz o texto</b></summary>
+            <div class="tp-voice-card">
+              <div class="tp-voice-intro"><b>No hace falta saber redactar un currículum.</b> Contanos qué experiencia tenés, en qué trabajás hoy, qué sabés hacer, qué te gustaría aprender o en qué puesto te gustaría empezar. Si nunca trabajaste, también sirve: podés decirnos qué te interesa y qué querés aprender.</div>
+              <div class="muted small" style="margin-top:7px">Talento PyME convierte tu relato en texto y te ayuda a ordenarlo. <b>Talento PyME no conserva el audio original.</b> Sólo conservamos la transcripción y la presentación que vos revisás y aprobás. En iPhone o en navegadores que no habiliten el dictado web, podés tocar el campo de texto y usar el micrófono del teclado.</div>
+              <div class="tp-voice-actions">
+                <button class="btn btn-tech" id="btnVoiceStart" type="button" ${(!isEditing||voiceListening)?"disabled":""}>🎙 ${voiceListening ? "Escuchando..." : "Empezar a hablar"}</button>
+                <button class="btn secondary" id="btnVoiceStop" type="button" ${voiceListening?"":"disabled"}>Detener</button>
+                <button class="btn secondary" id="btnVoiceRefine" type="button" ${(!isEditing||voiceRefining)?"disabled":""}>${voiceRefining?"Ordenando...":"Ordenar mi presentación"}</button>
+                <button class="btn btn-ghost" id="btnQuickSaveVoice" type="button" ${(!isEditing||busy)?"disabled":""}>Guardar y seguir después</button>
+              </div>
+              ${voiceMessage ? `<div class="muted small" style="margin-top:8px">${esc(voiceMessage)}</div>` : ``}
+              ${voiceInterim ? `<div class="tp-voice-live"><b>Escuchando:</b> ${esc(voiceInterim)}</div>` : ``}
+              <label style="display:block;margin-top:10px">Lo que dijiste / texto libre
+                <textarea id="c_voice_raw" rows="6" placeholder="También podés escribir acá o usar el micrófono del teclado del celular." ${ro()}>${esc(cand.voiceNarrativeRaw)}</textarea>
+              </label>
+              <label style="display:block;margin-top:10px">Presentación profesional sugerida
+                <textarea id="c_voice_summary" rows="7" placeholder="Acá aparecerá una versión ordenada. Leela y corregila libremente antes de guardar." ${ro()}>${esc(cand.voiceNarrativeSummary)}</textarea>
+              </label>
+              <div class="tp-voice-next">Podés continuar completando tu perfil ahora o volver cuando quieras. Lo que guardes queda esperando para que agregues CV, experiencia, formación y foto más adelante.</div>
+            </div>
+          </details>
+
+          <details class="tp-details" ${detailOpen("d3")}>
+            <summary data-detail="d3"><b>3) Perfil laboral</b></summary>
             <div class="formGrid">
               <label>Área de trabajo
                 <select id="c_areaTrabajo" ${dis()}>
@@ -667,8 +707,8 @@ async function initBolsaCandidato(){
             ` : ""}
           </details>
 
-          <details class="tp-details" ${detailOpen("d3")}>
-            <summary data-detail="d3"><b>3) Experiencia y formación</b></summary>
+          <details class="tp-details" ${detailOpen("d4")}>
+            <summary data-detail="d4"><b>4) Experiencia y formación</b></summary>
             <div class="formGrid">
               <label>Rango de experiencia
                 <select id="c_rangoExp" ${dis()}>
@@ -691,8 +731,8 @@ async function initBolsaCandidato(){
             </div>
           </details>
 
-          <details class="tp-details" ${detailOpen("d4")}>
-            <summary data-detail="d4"><b>4) Situación y preferencias</b></summary>
+          <details class="tp-details" ${detailOpen("d5")}>
+            <summary data-detail="d5"><b>5) Situación y preferencias</b></summary>
             <div class="formGrid">
               <label>¿Trabajás actualmente?
                 <select id="c_trabaja" ${dis()}>
@@ -709,8 +749,8 @@ async function initBolsaCandidato(){
             </div>
           </details>
 
-          <details class="tp-details" ${detailOpen("d5")}>
-            <summary data-detail="d5"><b>5) Resumen curricular</b></summary>
+          <details class="tp-details" ${detailOpen("d6")}>
+            <summary data-detail="d6"><b>6) Resumen curricular</b></summary>
             ${parsedMeta ? `
               <div class="tp-cv-meta-grid" style="margin-top:8px;">
                 <div class="miniStat"><span class="miniLabel">Profesión detectada</span><strong>${esc(parsedMeta.profession || "Perfil técnico / industrial")}</strong></div>
@@ -866,6 +906,7 @@ async function initBolsaCandidato(){
     cand.telefono = el("c_telefono").value.trim();
     cand.correo = el("c_correo").value.trim();
     cand.localidad = el("c_localidad").value;
+    cand.paisResidencia = el("c_paisResidencia").value.trim();
     cand.direccion = el("c_direccion").value.trim();
 
     cand.areaTrabajo = el("c_areaTrabajo").value;
@@ -881,7 +922,11 @@ async function initBolsaCandidato(){
     cand.sueldoPretendido = el("c_sueldo").value.trim();
     cand.ultimoTrabajo = el("c_ultimo").value.trim();
     cand.observaciones = el("c_obs").value.trim();
+    cand.voiceNarrativeRaw = el("c_voice_raw")?.value?.trim() || cand.voiceNarrativeRaw || "";
+    cand.voiceNarrativeSummary = el("c_voice_summary")?.value?.trim() || cand.voiceNarrativeSummary || "";
     if(cand.observaciones.length > 12000) cand.observaciones = cand.observaciones.slice(0,12000);
+    if(cand.voiceNarrativeRaw.length > 8000) cand.voiceNarrativeRaw = cand.voiceNarrativeRaw.slice(0,8000);
+    if(cand.voiceNarrativeSummary.length > 8000) cand.voiceNarrativeSummary = cand.voiceNarrativeSummary.slice(0,8000);
 
     // checkboxes
     if(cand.areaTrabajo==="Mecánica (Industrial)") cand.herramientasMecanica = getGroupValues("herrMec");
@@ -889,6 +934,93 @@ async function initBolsaCandidato(){
 
     if(cand.areaTrabajo==="Eléctrica (Industrial)") cand.instrumentosElectrica = getGroupValues("instrElec");
     else cand.instrumentosElectrica = [];
+  }
+
+
+  function speechRecognitionCtor(){
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  }
+
+  function stopVoiceRecognition(){
+    try{ voiceRecognition?.stop?.(); }catch(_){ }
+  }
+
+  async function refineVoicePresentation(){
+    readAltaFromDom();
+    const transcript=String(cand.voiceNarrativeRaw || '').trim();
+    if(transcript.length < 5){ voiceMessage='Primero hablá o escribí unas palabras sobre tu experiencia y lo que te gustaría hacer.'; render(); return; }
+    voiceRefining=true; voiceMessage='Ordenando tu presentación sin cambiar el sentido de lo que dijiste...'; render();
+    try{
+      const r=await apiFetch('/candidate/presentation/refine',{method:'POST',body:JSON.stringify({transcript})});
+      cand.voiceNarrativeSummary=String(r.summary || transcript).trim().slice(0,8000);
+      voiceMessage='Listo. Leé la presentación sugerida y corregila libremente antes de guardar.';
+    }catch(err){
+      cand.voiceNarrativeSummary=cand.voiceNarrativeSummary || transcript;
+      voiceMessage='No pudimos ordenar el texto automáticamente. Podés editarlo manualmente y guardarlo igual.';
+    }finally{ voiceRefining=false; render(); }
+  }
+
+  function startVoiceRecognition(){
+    if(!isEditing) return;
+    const Ctor=speechRecognitionCtor();
+    if(!Ctor){
+      voiceMessage='Este navegador no ofrece dictado automático desde la web. Tocá el campo “Lo que dijiste / texto libre” y usá el micrófono del teclado del iPhone o Android.';
+      detailsState.d2=true; render(); return;
+    }
+    try{
+      voiceRecognition=new Ctor();
+      voiceRecognition.lang='es-AR';
+      voiceRecognition.continuous=true;
+      voiceRecognition.interimResults=true;
+      const base=String(cand.voiceNarrativeRaw || '').trim();
+      let finals='';
+      voiceRecognition.onstart=()=>{ voiceListening=true; voiceMessage='Te estamos escuchando. Hablá con naturalidad; después vas a poder corregir todo.'; render(); };
+      voiceRecognition.onresult=(event)=>{
+        let interim='';
+        for(let i=event.resultIndex;i<event.results.length;i++){
+          const text=event.results[i][0]?.transcript || '';
+          if(event.results[i].isFinal) finals += ` ${text}`;
+          else interim += ` ${text}`;
+        }
+        cand.voiceNarrativeRaw=[base,finals].filter(Boolean).join(' ').replace(/\s+/g,' ').trim().slice(0,8000);
+        voiceInterim=interim.trim();
+        const raw=el('c_voice_raw'); if(raw) raw.value=[cand.voiceNarrativeRaw,voiceInterim].filter(Boolean).join(' ').trim();
+      };
+      voiceRecognition.onerror=(event)=>{ voiceMessage=event?.error==='not-allowed' ? 'El navegador no tiene permiso para usar el micrófono. Habilitá el permiso o usá el micrófono del teclado.' : 'El dictado se interrumpió. Podés continuar escribiendo o volver a intentarlo.'; };
+      voiceRecognition.onend=async()=>{ voiceListening=false; voiceInterim=''; voiceRecognition=null; render(); if(String(cand.voiceNarrativeRaw||'').trim()) await refineVoicePresentation(); };
+      voiceRecognition.start();
+    }catch(_){
+      voiceListening=false; voiceMessage='No pudimos iniciar el micrófono. Usá el dictado del teclado del celular o escribí directamente.'; render();
+    }
+  }
+
+  async function quickSaveVoice(){
+    await saveAlta({ stayEditing:true, allowPartial:true });
+    if(!errMsg){ detailsState.d2=true; voiceMessage='Guardado. Podés seguir completando ahora o salir y volver más adelante: tu presentación queda conservada.'; render(); }
+  }
+
+  async function downloadCandidateCv(){
+    readAltaFromDom();
+    const btn=el('btnDownloadCandidateCv');
+    if(btn) btn.disabled=true;
+    okMsg='Preparando tu currículum PDF...'; errMsg=''; render();
+    try{
+      // Si hay cambios en edición, los guardamos primero para que el PDF refleje exactamente la versión visible.
+      if(isEditing){
+        await saveAlta({ stayEditing:true, allowPartial:true });
+        if(errMsg) throw new Error(errMsg);
+      }
+      const headers=new Headers(); const token=tpToken(); if(token) headers.set('Authorization','Bearer '+token);
+      const res=await fetch(`${window.TP_API_URL}/candidate/cv/pdf`,{headers});
+      if(!res.ok){ const d=await res.json().catch(()=>({})); throw new Error(d.error || 'No se pudo generar el currículum.'); }
+      const blob=await res.blob();
+      const disposition=res.headers.get('content-disposition') || '';
+      const match=disposition.match(/filename="?([^";]+)"?/i);
+      const filename=match?.[1] || 'CV-Talento-PyME.pdf';
+      const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1200);
+      okMsg='Currículum generado. Podés imprimirlo o guardarlo y volver a generarlo cuando actualices tu perfil.';
+    }catch(err){ errMsg=err?.message || 'No se pudo generar el currículum.'; okMsg=''; }
+    finally{ if(btn) btn.disabled=false; render(); }
   }
 
   function bindAlta(){
@@ -900,7 +1032,7 @@ async function initBolsaCandidato(){
     });
 
     // update state on inputs without rerender
-    ["c_nombre","c_apellido","c_dni","c_nacionalidad","c_estadoCivil","c_hijos","c_telefono","c_correo","c_localidad","c_direccion","c_nivel","c_especialidadOtro","c_rangoExp","c_nivelEdu","c_cap","c_trabaja","c_sueldo","c_ultimo","c_obs"].forEach(id=>{
+    ["c_nombre","c_apellido","c_dni","c_nacionalidad","c_estadoCivil","c_hijos","c_telefono","c_correo","c_localidad","c_paisResidencia","c_direccion","c_nivel","c_especialidadOtro","c_rangoExp","c_nivelEdu","c_cap","c_trabaja","c_sueldo","c_ultimo","c_obs","c_voice_raw","c_voice_summary"].forEach(id=>{
       const e=el(id);
       if(e) e.addEventListener("input", ()=>{ readAltaFromDom(); });
       if(e) e.addEventListener("change", ()=>{ readAltaFromDom(); });
@@ -919,6 +1051,17 @@ async function initBolsaCandidato(){
     if(btnEdit) btnEdit.addEventListener("click", ()=>{ if(parsingCv) return; okMsg=""; errMsg=""; isEditing = true; detailsState.d1 = true; render(); });
     const btnCancel = el("btnCancelEdit");
     if(btnCancel) btnCancel.addEventListener("click", async ()=>{ if(parsingCv) return; isEditing = false; okMsg=""; errMsg=""; await loadMe(); await loadBolsa(); });
+    const btnVoiceStart = el("btnVoiceStart");
+    if(btnVoiceStart) btnVoiceStart.addEventListener("click", startVoiceRecognition);
+    const btnVoiceStop = el("btnVoiceStop");
+    if(btnVoiceStop) btnVoiceStop.addEventListener("click", ()=>{ voiceMessage="Deteniendo el dictado y preparando tu presentación..."; stopVoiceRecognition(); });
+    const btnVoiceRefine = el("btnVoiceRefine");
+    if(btnVoiceRefine) btnVoiceRefine.addEventListener("click", refineVoicePresentation);
+    const btnQuickSaveVoice = el("btnQuickSaveVoice");
+    if(btnQuickSaveVoice) btnQuickSaveVoice.addEventListener("click", quickSaveVoice);
+    const btnDownloadCandidateCv = el("btnDownloadCandidateCv");
+    if(btnDownloadCandidateCv) btnDownloadCandidateCv.addEventListener("click", downloadCandidateCv);
+
     const up = el("cvUploadInput");
     if(up) up.addEventListener("change", async (ev)=>{ const file = ev.target.files && ev.target.files[0]; if(file) await parseCurriculum(file); up.value = ""; });
     const profilePhotoInput = el("profilePhotoInput");
@@ -1133,7 +1276,7 @@ async function initBolsaCandidato(){
     parseMsg = "Subiendo archivo y preparando lectura...";
     errMsg = "";
     okMsg = "";
-    detailsState.d5 = true;
+    detailsState.d6 = true;
     render();
     const timer = setInterval(()=>{ if(parseProgress < 88) { parseProgress += 9; render(); } }, 280);
     try{
@@ -1149,9 +1292,9 @@ async function initBolsaCandidato(){
       const summaryText = String(r.summaryText || "").trim();
       parsedMeta = r.analysis || null;
       cand.observaciones = (summaryText || buildSummaryFromSections(r.sections || {}, r.analysis || {})).slice(0, 12000);
-      okMsg = "Resumen curricular generado. Revisalo en el punto 5 antes de guardar.";
+      okMsg = "Resumen curricular generado. Revisalo en el punto 6 antes de guardar.";
       if(!isEditing) isEditing = true;
-      detailsState.d5 = true;
+      detailsState.d6 = true;
     }catch(err){
       errMsg = err?.message || "No se pudo analizar el currículum cargado.";
     }finally{
@@ -1210,7 +1353,7 @@ async function initBolsaCandidato(){
     }
   }
 
-  async function saveAlta(){
+  async function saveAlta({ stayEditing=false, allowPartial=false } = {}){
     readAltaFromDom();
     okMsg=""; errMsg="";
     // basic validation
@@ -1219,11 +1362,8 @@ async function initBolsaCandidato(){
       render();
       return;
     }
-    if(!cand.areaTrabajo || !cand.especialidad || !cand.rangoExperiencia || !cand.nivelEducativo){
-      errMsg = "Completá: Área de trabajo, Especialidad, Rango de experiencia y Nivel educativo.";
-      render();
-      return;
-    }
+    // El registro rápido permite guardar datos personales + presentación y completar el resto más adelante.
+    // La validación profesional sólo se aplica cuando el candidato efectivamente eligió “Otros”.
     if(cand.especialidad==="Otros" && !cand.especialidadOtro){
       errMsg = "Especificá la especialidad (Otros).";
       render();
@@ -1242,21 +1382,24 @@ async function initBolsaCandidato(){
         telefono: cand.telefono || "",
         correo: cand.correo || "",
         localidad: cand.localidad || "",
+        paisResidencia: cand.paisResidencia || null,
         direccion: cand.direccion || null,
 
-        areaTrabajo: cand.areaTrabajo,
+        areaTrabajo: cand.areaTrabajo || "",
         nivel: cand.nivel || null,
-        especialidad: cand.especialidad,
+        especialidad: cand.especialidad || "",
         especialidadOtro: cand.especialidad==="Otros" ? (cand.especialidadOtro || "") : null,
 
-        rangoExperiencia: cand.rangoExperiencia,
-        nivelEducativo: cand.nivelEducativo,
+        rangoExperiencia: cand.rangoExperiencia || "",
+        nivelEducativo: cand.nivelEducativo || "",
         tieneCapacitacion: !!cand.tieneCapacitacion,
 
         trabajaActualmente: !!cand.trabajaActualmente,
         sueldoPretendido: cand.sueldoPretendido || null,
         ultimoTrabajo: cand.ultimoTrabajo || null,
         observaciones: (cand.observaciones || "").slice(0,12000) || null,
+        voiceNarrativeRaw: (cand.voiceNarrativeRaw || "").slice(0,8000) || null,
+        voiceNarrativeSummary: (cand.voiceNarrativeSummary || "").slice(0,8000) || null,
 
         herramientasMecanica: cand.herramientasMecanica || [],
         instrumentosElectrica: cand.instrumentosElectrica || []
@@ -1269,9 +1412,12 @@ async function initBolsaCandidato(){
       });
 
       if(r.ok){
-        okMsg = "Datos actualizados correctamente.";
+        const professionalComplete = !!(cand.areaTrabajo && cand.especialidad && cand.rangoExperiencia && cand.nivelEducativo);
+        okMsg = professionalComplete
+          ? "Datos actualizados correctamente."
+          : "Datos guardados. Tu perfil queda esperando para que vuelvas cuando quieras y completes experiencia, formación, CV y foto.";
         errMsg = "";
-        isEditing = false;
+        isEditing = stayEditing ? true : false;
         if(r.bolsa) cand = { ...cand, ...r.bolsa };
       }else{
         errMsg = r.error === "DNI_MISMATCH_WITH_PROFILE"
@@ -1384,6 +1530,11 @@ async function initBolsaCandidato(){
       .tp-attention-item.pending .tp-attention-dot{ background:#f28c28; box-shadow:0 0 0 4px rgba(242,140,40,.16); }
       .tp-attention-item-title{ font-weight:900; color:#0f2d63; }
       .tp-attention-item-copy{ margin-top:4px; color:#475569; font-size:13px; line-height:1.4; }
+      .tp-voice-card{ border:1px solid rgba(23,105,224,.18); border-radius:20px; padding:16px; background:linear-gradient(135deg, rgba(235,247,255,.95), rgba(255,248,239,.92)); box-shadow:0 16px 34px rgba(14,37,74,.08); }
+      .tp-voice-actions{ display:flex; gap:10px; flex-wrap:wrap; margin:12px 0; }
+      .tp-voice-live{ padding:10px 12px; border-radius:14px; background:rgba(23,105,224,.08); color:#173a72; font-weight:750; line-height:1.4; }
+      .tp-voice-live.listening{ background:rgba(242,140,40,.12); color:#7a4300; }
+      .tp-voice-next{ margin-top:12px; padding:12px 14px; border-radius:14px; border:1px solid rgba(46,173,74,.18); background:rgba(46,173,74,.07); color:#245a32; line-height:1.45; }
       @keyframes tpPulse{ 0%,100%{ transform:translateY(0) scale(.92); opacity:.68; } 50%{ transform:translateY(-4px) scale(1.08); opacity:1; } }
 @media (max-width: 900px){ .tp-intro-grid{ grid-template-columns:1fr; } }
     `;

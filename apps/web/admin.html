@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.9.2" />
+  <link rel="stylesheet" href="/styles.css?v=7.9.3" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -166,7 +166,7 @@
     .adminCategorySource{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#e2e8f0;color:#334155;font-size:11px;font-weight:800;margin-left:6px}
     .candidateScoreBadge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#ecfdf5;color:#166534;border:1px solid #bbf7d0;font-size:12px;font-weight:900;margin-left:8px;white-space:nowrap}
     .candidateScoreBadge.low{background:#fff7ed;color:#9a3412;border-color:#fed7aa}.candidateScoreBadge.mid{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}.candidateScoreBadge.high{background:#ecfdf5;color:#166534;border-color:#bbf7d0}
-    .compositionGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}.compositionList{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.compositionPill{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;background:#f8fafc;border:1px solid var(--tp-border);font-size:12px;font-weight:800;color:#334155}.compositionPill b{color:#0b5ea8}
+    .compositionGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}.compositionList{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.compositionPill{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;background:#f8fafc;border:1px solid var(--tp-border);font-size:12px;font-weight:800;color:#334155}.compositionPill b{color:#0b5ea8}
     .reportGrid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:16px;margin-top:16px}
     .reportHero{border:1px solid #bfdbfe;background:linear-gradient(135deg,#eff6ff,#f8fbff);border-radius:18px;padding:18px}
     .reportHero h2{margin:0;color:#0f2742}.reportChecklist{display:grid;gap:9px;margin-top:14px}.reportCheck{display:flex;gap:9px;align-items:flex-start;color:#334155;font-size:13px}.reportCheck:before{content:'✓';display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:999px;background:#dcfce7;color:#166534;font-weight:900;flex:0 0 20px}.reportActions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.reportPrivacy{border:1px solid #dbe7f4;background:#fff;border-radius:14px;padding:13px;margin-top:12px}.reportMetricGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.reportMetric{border:1px solid var(--tp-border);border-radius:14px;padding:12px;background:#fff}.reportMetric b{display:block;font-size:22px;color:#0b5ea8;margin-top:4px}.reportMailBox{border:1px solid var(--tp-border);border-radius:16px;padding:16px;background:#fff}.reportMailBox label{display:block;margin-top:10px}.reportStatus{margin-top:10px;min-height:20px}.reportStatus.ok{color:#166534}.reportStatus.error{color:#b91c1c}
@@ -262,6 +262,7 @@
         <div class="traceChartHeader"><div><h2>Composición actual del padrón</h2><div class="muted">Lectura general por expertise de candidatos y por familia/actividad principal de empresas. El nivel individual (Aprendiz, Junior, Semi-senior o Senior) queda fuera de esta trazabilidad para que la foto general muestre qué perfiles y actividades estamos incorporando.</div></div></div>
         <div class="compositionGrid">
           <div class="traceSummaryBox"><span class="muted small">Candidatos por expertise</span><div id="traceCandidateComposition" class="compositionList"><span class="muted">Sin datos.</span></div></div>
+          <div class="traceSummaryBox"><span class="muted small">Candidatos por país de residencia y ciudad</span><div id="traceCandidateResidenceComposition" class="compositionList"><span class="muted">Sin datos.</span></div></div>
           <div class="traceSummaryBox"><span class="muted small">Empresas por familia</span><div id="traceCompanyFamilyComposition" class="compositionList"><span class="muted">Sin datos.</span></div></div>
           <div class="traceSummaryBox"><span class="muted small">Empresas por actividad principal</span><div id="traceCompanyComposition" class="compositionList"><span class="muted">Sin datos.</span></div></div>
         </div>
@@ -464,8 +465,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.9.2"></script>
-<script src="/auth.js?v=7.9.2"></script>
+<script src="/config.js?v=7.9.3"></script>
+<script src="/auth.js?v=7.9.3"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -622,10 +623,16 @@ function renderCandidateDetail(it){
       candidateField('Hijos', bolsa.hijos),
       candidateField('Teléfono', bolsa.telefono || profile.phone),
       candidateField('Correo', bolsa.correo || it.email),
+      candidateField('País de residencia', bolsa.paisResidencia),
       candidateField('Localidad', bolsa.localidad || profile.city),
       candidateField('Provincia', profile.province),
       candidateField('Dirección', bolsa.direccion || profile.address),
     ]),
+    candidateSection('Presentación personal · voz o texto', [
+      candidateField('Presentación profesional aprobada por el candidato', bolsa.voiceNarrativeSummary),
+      candidateField('Transcripción original', bolsa.voiceNarrativeRaw),
+      candidateField('Aclaración', bolsa.voiceNarrativeSummary ? 'El candidato puede dictar o escribir esta presentación, revisar la redacción propuesta y corregirla manualmente antes de guardarla. Talento PyME no conserva el audio original.' : 'El candidato todavía no completó una presentación personal por voz o texto.'),
+    ], true),
     candidateSection('Perfil profesional', [
       candidateField('Titular profesional', profile.headline),
       candidateField('Sector', profile.sector),
@@ -729,7 +736,7 @@ function companyRowHtml(it){
   return `<div class="adminRow"><b>${esc(it.companyName || 'Empresa')}</b><div class="muted">${esc(it.contactName || 'Contacto no informado')} ${it.city ? '· ' + esc(it.city) : ''} ${it.province ? '· ' + esc(it.province) : ''}</div><div class="muted">CUIT: ${esc(it.cuit || 'sin dato')} · ${esc(it.contactEmail || 'sin mail')} ${it.phone ? '· ' + esc(it.phone) : ''}</div><div class="muted">${fd(it.updatedAt)}</div></div>`;
 }
 function companyDirectoryRowHtml(it){
-  return `<article class="candidateAccordion" data-company-id="${esc(it.companyId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(it.companyName || 'Empresa')}</span><span class="muted" style="display:block;margin-top:4px">${esc(it.contactName || 'Contacto no informado')} ${it.city ? '· ' + esc(it.city) : ''} ${it.province ? '· ' + esc(it.province) : ''}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.categoryLabel || 'Sin categoría')}</span><span class="adminCategorySource">${esc(it.activityLabel || 'Actividad general')}</span><span class="adminCategorySource">CUIT ${esc(it.cuit || 'sin dato')}</span></span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
+  return `<article class="candidateAccordion" data-company-id="${esc(it.companyId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(it.companyName || 'Empresa')}</span><span class="muted" style="display:block;margin-top:4px">${esc(it.contactName || 'Contacto no informado')} ${it.city ? '· ' + esc(it.city) : ''} ${it.province ? '· ' + esc(it.province) : ''}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.categoryLabel || 'Sin categoría')}</span><span class="adminCategorySource">${esc(it.activityLabel || 'Actividad principal no especificada')}</span><span class="adminCategorySource">CUIT ${esc(it.cuit || 'sin dato')}</span></span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
 }
 function renderCompanyDirectoryClassification(directory){
   const groups = Array.isArray(directory?.groups) ? directory.groups : [];
@@ -752,7 +759,7 @@ function companyCategorySection(it){
     ['LOGISTICA','Logística'],
     ['SERVICIO','Servicio'],
   ].map(([key,label]) => `<option value="${key}" ${selected === key ? 'selected' : ''}>${label}</option>`).join('');
-  return `<section class="candidateDetailSection wide"><h3>Clasificación administrativa</h3><div class="companyCategoryBox"><div><b>Categoría actual: ${esc(c.label || 'Servicio')}</b><span class="adminCategorySource">${c.source === 'MANUAL' ? 'manual' : 'sugerida automáticamente'}${c.confidence ? ' · confianza ' + String(c.confidence).toLowerCase() : ''}</span></div><div class="muted small" style="margin-top:6px"><b>Actividad principal:</b> ${esc(c.activityLabel || 'Actividad general')}</div><div class="muted small" style="margin-top:6px">Esta clasificación sólo organiza el Panel General y no se muestra a candidatos ni empresas. Podés corregirla cuando la sugerencia automática no represente la actividad principal.</div><div class="companyCategoryActions"><select class="input companyCategorySelect">${options}</select><button class="btn btn-primary companyCategorySave" type="button" data-company-id="${esc(it.id || '')}">Guardar categoría</button><span class="muted companyCategoryMsg"></span></div></div></section>`;
+  return `<section class="candidateDetailSection wide"><h3>Clasificación administrativa</h3><div class="companyCategoryBox"><div><b>Categoría actual: ${esc(c.label || 'Servicio')}</b><span class="adminCategorySource">${c.source === 'MANUAL' ? 'manual' : 'sugerida automáticamente'}${c.confidence ? ' · confianza ' + String(c.confidence).toLowerCase() : ''}</span></div><div class="muted small" style="margin-top:6px"><b>Actividad principal:</b> ${esc(c.activityLabel || 'Actividad principal no especificada')}</div><div class="muted small" style="margin-top:6px">Esta clasificación sólo organiza el Panel General y no se muestra a candidatos ni empresas. Podés corregirla cuando la sugerencia automática no represente la actividad principal.</div><div class="companyCategoryActions"><select class="input companyCategorySelect">${options}</select><button class="btn btn-primary companyCategorySave" type="button" data-company-id="${esc(it.id || '')}">Guardar categoría</button><span class="muted companyCategoryMsg"></span></div></div></section>`;
 }
 function wireCompanyCategory(host){
   if(!host) return;
@@ -908,6 +915,7 @@ function renderClassificationComposition(){
     host.innerHTML = items.length ? items.map((it) => `<span class="compositionPill">${esc(it.label || 'General')} <b>${Number(it.count || 0)}</b></span>`).join('') : '<span class="muted">Sin datos.</span>';
   };
   render('traceCandidateComposition', comp.candidatesByExpertise);
+  render('traceCandidateResidenceComposition', comp.candidatesByResidence);
   render('traceCompanyFamilyComposition', comp.companiesByFamily);
   render('traceCompanyComposition', comp.companiesByActivity);
 }

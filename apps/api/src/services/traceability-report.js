@@ -75,10 +75,15 @@ function buildConclusions(data){
   conclusions.push(`En los últimos 30 días se incorporaron ${fmtNum(a.candidatesLast30)} candidato(s) y ${fmtNum(a.companiesLast30)} empresa(s). Frente a los 30 días anteriores, la tendencia de altas es ${candidateTrend.label} en candidatos y ${companyTrend.label} en empresas.`);
   conclusions.push(`La actividad laboral reciente registra ${fmtNum(a.jobsLast30)} búsqueda(s) y ${fmtNum(a.applicationsLast30)} postulación(es) en 30 días; las búsquedas muestran ${jobsTrend.label} y las postulaciones ${applicationsTrend.label} respecto del período anterior.`);
   conclusions.push(`${fmtPct(q.cvCoveragePct)} de los candidatos cuentan con CV/resumen curricular disponible y ${fmtPct(q.profileCoveragePct)} presentan información profesional suficiente para una lectura administrativa más completa.`);
+  if(Number.isFinite(Number(q.presentationCoveragePct))) conclusions.push(`${fmtPct(q.presentationCoveragePct)} de los candidatos ya cuentan con una presentación personal redactada desde voz o texto, útil para complementar el CV y expresar objetivos o fortalezas que no siempre aparecen en el currículum.`);
 
   const topExpertise=(comp.candidatesByExpertise || [])[0];
   if(topExpertise && s.candidateCount){
     conclusions.push(`La expertise con mayor presencia es “${safeText(topExpertise.label)}”, con ${fmtNum(topExpertise.count)} perfil(es), equivalente a ${fmtPct(pct(topExpertise.count,s.candidateCount))} del padrón candidato.`);
+  }
+  const topResidence=(comp.candidatesByResidence || []).find((row)=>String(row?.country || '').toLowerCase() !== 'país no informado') || (comp.candidatesByResidence || [])[0];
+  if(topResidence && s.candidateCount){
+    conclusions.push(`La mayor concentración geográfica informada corresponde a ${safeText(topResidence.city || 'Ciudad no informada')}, ${safeText(topResidence.country || 'País no informado')}, con ${fmtNum(topResidence.count)} candidato(s).`);
   }
   const topFamily=(comp.companiesByFamily || [])[0];
   if(topFamily && s.companyCount){
@@ -86,10 +91,14 @@ function buildConclusions(data){
   }
 
   if(q.cvCoveragePct < 70) recommendations.push('Impulsar una campaña de actualización de CV y perfil para elevar la calidad de lectura del padrón sin excluir a quienes todavía tienen información parcial.');
+  if(Number(q.presentationCoveragePct || 0) < 45) recommendations.push('Promover el uso de la presentación por voz o texto para enriquecer perfiles incompletos, especialmente en primer empleo, aprendices y candidatos que no cuentan con un CV desarrollado.');
+  if(Number(q.residenceCoveragePct || 0) < 80) recommendations.push('Completar país y ciudad de residencia para mejorar la lectura territorial de la convocatoria y orientar acciones locales de difusión y empleo.');
   if(a.jobsLast30 < Math.max(1, s.companyCount * 0.35)) recommendations.push('Trabajar la activación de empresas registradas para transformar cuentas en búsquedas concretas y aumentar la demanda visible de talento.');
   if(a.applicationsLast30 < Math.max(1, a.jobsLast30 * 1.5)) recommendations.push('Reforzar la difusión de oportunidades y la comunicación hacia candidatos para aumentar la interacción con las búsquedas existentes.');
   if(topExpertise && pct(topExpertise.count,s.candidateCount) >= 35) recommendations.push(`Diversificar la captación de perfiles: hoy existe una concentración relevante en “${safeText(topExpertise.label)}”.`);
   if(topFamily && pct(topFamily.count,s.companyCount) >= 60) recommendations.push(`Ampliar la captación empresarial fuera de “${safeText(topFamily.label)}” para equilibrar la representación sectorial del portal.`);
+  const unspecified=(comp.companiesByActivity || []).find((row)=>String(row?.label||'').toLowerCase().includes('no especificada'));
+  if(unspecified && Number(unspecified.count||0) > 0) recommendations.push(`Completar la actividad principal de ${fmtNum(unspecified.count)} empresa(s) para mejorar la lectura sectorial y reducir registros con actividad no especificada.`);
   if(candidateTrend.direction === 'down') recommendations.push('Revisar la estrategia de convocatoria de candidatos, dado que las altas de los últimos 30 días son inferiores al período anterior.');
   if(companyTrend.direction === 'down') recommendations.push('Reforzar la incorporación y reactivación de empresas para sostener el crecimiento de la oferta de oportunidades.');
   if(!recommendations.length) recommendations.push('Mantener el seguimiento mensual de composición y actividad, priorizando el crecimiento equilibrado entre candidatos, empresas y búsquedas publicadas.');
@@ -312,6 +321,9 @@ export async function buildTraceabilityPdfBuffer(data){
   table(doc,['Tipo de perfil','Cantidad','Participación'],(comp.candidatesByClass || []).map(x=>[x.label,fmtNum(x.count),fmtPct(pct(x.count,s.candidateCount))]),{widths:[285,100,110]});
   table(doc,['Expertise principal','Cantidad','Participación'],(comp.candidatesByExpertise || []).map(x=>[x.label,fmtNum(x.count),fmtPct(pct(x.count,s.candidateCount))]),{widths:[285,100,110]});
 
+  sectionTitle(doc,'4.1 País de residencia y ciudad','Distribución geográfica agregada de candidatos. No se cruza con expertise para mantener una lectura simple y compacta.');
+  table(doc,['País de residencia','Ciudad','Cantidad','Participación'],(comp.candidatesByResidence || []).map(x=>[x.country || 'País no informado',x.city || 'Ciudad no informada',fmtNum(x.count),fmtPct(pct(x.count,s.candidateCount))]),{widths:[150,190,75,80]});
+
   sectionTitle(doc,'5. Composición de empresas','Clasificación por familia y actividad principal declarada o inferida administrativamente.');
   table(doc,['Familia','Cantidad','Participación'],(comp.companiesByFamily || []).map(x=>[x.label,fmtNum(x.count),fmtPct(pct(x.count,s.companyCount))]),{widths:[285,100,110]});
   table(doc,['Actividad principal','Cantidad','Participación'],(comp.companiesByActivity || []).map(x=>[x.label,fmtNum(x.count),fmtPct(pct(x.count,s.companyCount))]),{widths:[285,100,110]});
@@ -320,6 +332,8 @@ export async function buildTraceabilityPdfBuffer(data){
   table(doc,['Indicador','Cantidad','Porcentaje'],[
     ['Candidatos con CV o resumen curricular',fmtNum(q.candidatesWithCv),fmtPct(q.cvCoveragePct)],
     ['Candidatos con perfil profesional / laboral',fmtNum(q.candidatesWithProfessionalProfile),fmtPct(q.profileCoveragePct)],
+    ['Candidatos con presentación personal (voz/texto)',fmtNum(q.candidatesWithPresentation),fmtPct(q.presentationCoveragePct)],
+    ['Candidatos con país de residencia identificado',fmtNum(q.candidatesWithResidenceCountry),fmtPct(q.residenceCoveragePct)],
     ['Candidatos actualizados en los últimos 30 días',fmtNum(a.candidatesUpdatedLast30),fmtPct(pct(a.candidatesUpdatedLast30,s.candidateCount))],
     ['Empresas activas o actualizadas en los últimos 30 días',fmtNum(a.companiesUpdatedLast30),fmtPct(pct(a.companiesUpdatedLast30,s.companyCount))],
   ],{widths:[295,100,100]});

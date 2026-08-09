@@ -113,6 +113,7 @@ model CandidateBolsa {
   telefono          String
   correo            String
   localidad         String
+  paisResidencia    String?
   direccion         String?
 
   // Perfil laboral
@@ -131,6 +132,8 @@ model CandidateBolsa {
   sueldoPretendido   String?
   ultimoTrabajo      String?
   observaciones      String?
+  voiceNarrativeRaw  String?
+  voiceNarrativeSummary String?
   photoDataUrl       String?
 
   // Herramientas (según área)
