@@ -61,7 +61,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
 const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
-// v7.9.5: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
+// v7.9.6: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
 // Se reutiliza la configuración ya existente en Render para soporte, consultas, recuperaciones y buzón administrativo.
 const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || '').trim().toLowerCase();
 const GMAIL_USER = FACTORY_SUPPORT_EMAIL;
@@ -72,7 +72,7 @@ const GMAIL_REFRESH_TOKEN = String(process.env.GMAIL_REFRESH_TOKEN || '').trim()
 const OPENAI_API_KEY = String(process.env.OPENAI_API_KEY || '').trim();
 const OPENAI_MODEL = String(process.env.OPENAI_MODEL || 'gpt-5-mini').trim() || 'gpt-5-mini';
 const OPENAI_PRESENTATION_TIMEOUT_MS = Math.max(5000, Math.min(30000, Number(process.env.OPENAI_PRESENTATION_TIMEOUT_MS || 18000)));
-const PRESENTATION_ANALYSIS_VERSION = 'AI_V3_7.9.5';
+const PRESENTATION_ANALYSIS_VERSION = 'AI_V4_7.9.6';
 const MAIL_FROM_NAME = String(process.env.MAIL_FROM_NAME || 'Talento PyME').trim();
 const WEB_BASE_URL = String(process.env.WEB_BASE_URL || 'https://talento-pyme.onrender.com').replace(/\/$/, '').trim();
 const PASSWORD_RESET_CODE_TTL_MINUTES = Math.max(5, Math.min(30, Number(process.env.PASSWORD_RESET_CODE_TTL_MINUTES || 10)));
@@ -2822,26 +2822,36 @@ function refineCandidatePresentationLocal(transcript='', context={}){
   if(/calidad/.test(n)) strengths.push('calidad');
   const unique=[...new Set(strengths)];
   const hasEngineer=/ingenier|proyectista|tecnic|supervisor|jefe|gerente|administr/.test(n);
-  const chunks=[];
+  const paragraphs=[];
   if(title && title !== 'Perfil profesional'){
     let intro=title;
-    if(years!==null) intro += ` con ${years >= 30 ? 'una trayectoria de más de tres décadas' : `aproximadamente ${years} años de experiencia`}`;
-    if(expertise && !professionalNorm(title).includes(professionalNorm(expertise))) intro += `, con foco en ${expertise.toLowerCase()}`;
-    chunks.push(`${intro}.`);
+    if(years!==null) intro += ` con ${years >= 30 ? 'una trayectoria profesional de más de tres décadas' : `aproximadamente ${years} años de experiencia`}`;
+    if(expertise && !professionalNorm(title).includes(professionalNorm(expertise))) intro += `, con foco principal en ${expertise.toLowerCase()}`;
+    intro += '. La experiencia declarada permite identificar un recorrido profesional consolidado, en el que la especialidad técnica y el conocimiento acumulado constituyen el eje central de su perfil.';
+    paragraphs.push(intro);
   } else if(years!==null){
-    chunks.push(`Profesional con aproximadamente ${years} años de experiencia en el rubro declarado.`);
+    paragraphs.push(`Profesional con aproximadamente ${years} años de experiencia en el rubro declarado. La trayectoria informada refleja continuidad y conocimiento acumulado en su campo de actividad.`);
   }
   if(unique.length){
     const tail=unique.length===1 ? unique[0] : `${unique.slice(0,-1).join(', ')} y ${unique.at(-1)}`;
-    chunks.push(`Experiencia destacada en ${tail}.`);
+    let technical=`Su experiencia se concentra especialmente en ${tail}.`;
+    if(/electric/.test(n)) technical += ' En el área eléctrica, el relato evidencia una especialización sostenida dentro de su recorrido electromecánico.';
+    if(/aire acondicionado|hvac|termomecan/.test(n)) technical += ' También incorpora experiencia vinculada con aire acondicionado e instalaciones termomecánicas, ampliando el alcance de su perfil técnico.';
+    if(/calcul/.test(n)) technical += ' La mención de cálculos y dimensionamiento refuerza un perfil orientado al análisis y desarrollo técnico de soluciones de ingeniería.';
+    paragraphs.push(technical);
   }
-  if(/supervis/.test(n) && /proyect/.test(n)) chunks.push('Trayectoria desarrollada principalmente en funciones de supervisión y proyectos de ingeniería.');
-  else if(/supervis/.test(n)) chunks.push('Cuenta con experiencia en funciones de supervisión y coordinación.');
-  if(!chunks.length && cleaned) chunks.push(normalizePresentationSentence(cleaned));
-  if(cleaned && chunks.join(' ').length < 180 && !chunks.some((x)=>professionalNorm(x).includes(professionalNorm(cleaned).slice(0,30)))){
-    chunks.push(`Información declarada: ${normalizePresentationSentence(cleaned)}`);
+  if(/supervis/.test(n) && /proyect/.test(n)){
+    paragraphs.push('La trayectoria declarada se desarrolló principalmente en funciones de supervisión y proyectos de ingeniería. Esta combinación permite presentar un perfil que integra experiencia técnica con seguimiento y conducción de trabajos, manteniendo una mirada orientada al desarrollo y ejecución de proyectos dentro de las áreas expresamente mencionadas por el candidato.');
+  } else if(/supervis/.test(n)){
+    paragraphs.push('Cuenta con experiencia sostenida en funciones de supervisión y coordinación dentro de su especialidad, según lo expresado en su relato profesional.');
+  } else if(/proyect/.test(n)){
+    paragraphs.push('Su experiencia como proyectista permite caracterizarlo como un perfil orientado al desarrollo de proyectos de ingeniería, respaldado por los conocimientos técnicos y áreas de especialización declaradas.');
   }
-  const summary=clampText(chunks.join(' ').replace(/\s+/g,' ').trim(), 8000);
+  if(!paragraphs.length && cleaned) paragraphs.push(normalizePresentationSentence(cleaned));
+  if(cleaned && paragraphs.join(' ').length < 280 && !paragraphs.some((x)=>professionalNorm(x).includes(professionalNorm(cleaned).slice(0,30)))){
+    paragraphs.push(`Como información complementaria, el candidato declara: ${normalizePresentationSentence(cleaned)}`);
+  }
+  const summary=clampText(paragraphs.join('\n\n').trim(), 8000);
   return {
     summary:summary || clampText(cleaned,8000),
     yearsExperience:years,
@@ -2882,7 +2892,7 @@ async function refineCandidatePresentationWithAI(transcript='', context={}){
       model:OPENAI_MODEL,
       store:false,
       input:[
-        { role:'system', content:[{type:'input_text',text:'Sos el asistente profesional de Talento PyME. Convertí un relato oral imperfecto en una presentación laboral clara, convincente y fiel. No inventes empleos, empresas, títulos, años, certificaciones ni responsabilidades. Eliminá saludos, muletillas y repeticiones. Si el candidato menciona años de experiencia, supervisión, proyectos, profesión o especialidades, dales el peso correspondiente. El seniority describe trayectoria, no calidad humana ni aptitud de contratación. Respondé únicamente con el JSON solicitado.'}] },
+        { role:'system', content:[{type:'input_text',text:'Sos el asistente profesional de Talento PyME. Convertí un relato oral imperfecto en una presentación laboral clara, convincente, amplia y fiel. El campo summary será la PRESENTACIÓN PROFESIONAL AMPLIADA que aparecerá en la parte principal blanca del CV: no debe ser un resumen corto ni una repetición literal. Cuando el material lo permita, desarrollala en 2 a 4 párrafos y aproximadamente 160 a 320 palabras. Explicá con lenguaje profesional el alcance de las áreas, funciones y especialidades que la persona efectivamente declaró, aprovechando al máximo la información disponible. Podés interpretar profesionalmente lo declarado, pero no inventes empleos, empresas, títulos, años, certificaciones, logros, responsabilidades ni tecnologías no mencionadas. Eliminá saludos, muletillas y repeticiones. Si el candidato menciona años de experiencia, supervisión, proyectos, profesión o especialidades, dales el peso correspondiente. El seniority describe trayectoria, no calidad humana ni aptitud de contratación. Respondé únicamente con el JSON solicitado.'}] },
         { role:'user', content:[{type:'input_text',text:`Analizá nuevamente TODO el material profesional cada vez, no sólo lo agregado al final.\n\nDatos profesionales (sin identidad ni contacto):\n${JSON.stringify(professionalContext)}`}]}],
       text:{format:{type:'json_schema',name:'candidate_professional_presentation',strict:true,schema:{
         type:'object',additionalProperties:false,
@@ -2949,7 +2959,7 @@ app.post('/candidate/presentation/refine', auth, requireRole('CANDIDATE'), async
     }
     if(!analysis) analysis=refineCandidatePresentationLocal(parsed.data.transcript, context);
 
-    // v7.9.5: la corrección profesional se ejecuta únicamente a pedido del candidato
+    // v7.9.6: la corrección profesional se ejecuta únicamente a pedido explícito del candidato
     // y pasa a ser inmediatamente la presentación principal por defecto.
     const analyzedAt=new Date();
     const yearsExperience=Number.isFinite(Number(analysis.yearsExperience)) ? Number(analysis.yearsExperience) : null;
@@ -3297,7 +3307,7 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
     const especialidad_by_area = Object.fromEntries(
       Object.entries(rawStats.especialidad_by_area || {}).map(([area, values]) => [area, Object.keys(values || {})])
     );
-    // v7.9.5: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
+    // v7.9.6: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
     // ni conteos por faceta. Los totales de padrón quedan reservados al Panel General.
     return res.json({ ok: true, facets, especialidad_by_area });
   } catch (err) {
@@ -3527,7 +3537,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.9.5 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.9.6 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
@@ -6399,7 +6409,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.billingOrder.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
     ]);
 
-    // v7.9.5 · Directorios clasificados de Administración.
+    // v7.9.6 · Directorios clasificados de Administración.
     // Se consultan campos livianos de todos los registros que cumplen los filtros actuales para que
     // los contadores representen el padrón filtrado completo, no solamente la página visible.
     const [candidateClassificationRows, companyClassificationRows] = await Promise.all([

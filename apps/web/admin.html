@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.9.5" />
+  <link rel="stylesheet" href="/styles.css?v=7.9.6" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -465,8 +465,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.9.5"></script>
-<script src="/auth.js?v=7.9.5"></script>
+<script src="/config.js?v=7.9.6"></script>
+<script src="/auth.js?v=7.9.6"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -628,8 +628,8 @@ function renderCandidateDetail(it){
       candidateField('Provincia / jurisdicción', bolsa.provinciaResidencia || profile.province),
       candidateField('Dirección', bolsa.direccion || profile.address),
     ]),
-    candidateSection('Resumen profesional elaborado por Talento PyME', [
-      candidateField('Resumen profesional', bolsa.voiceNarrativeSummary),
+    candidateSection('Presentación profesional ampliada por Talento PyME', [
+      candidateField('Texto profesional principal', bolsa.voiceNarrativeSummary),
       candidateField('Título profesional detectado', bolsa.voiceNarrativeProfessionalTitle),
       candidateField('Años de experiencia detectados', Number.isFinite(Number(bolsa.voiceNarrativeYears)) ? `${Number(bolsa.voiceNarrativeYears)} años` : 'No determinados'),
       candidateField('Procesamiento', bolsa.voiceNarrativeAnalysisSource === 'OPENAI' ? 'IA generativa' : (bolsa.voiceNarrativeAnalysisVersion ? 'Analizador profesional de respaldo' : 'Pendiente de procesar nuevamente')),

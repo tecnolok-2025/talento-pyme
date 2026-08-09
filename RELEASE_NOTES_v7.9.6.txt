@@ -1,0 +1,8 @@
+Talento PyME v7.9.6
+
+- CV: separa “Sobre mí” (resumen ejecutivo breve en franja azul) de “Perfil profesional” (presentación desarrollada y más extensa en área blanca).
+- Corrección IA profesional: pide una redacción ampliada, en 2 a 4 párrafos cuando la información lo permite, sin inventar antecedentes.
+- El candidato puede borrar, corregir, acortar o ampliar manualmente la propuesta IA antes de guardar.
+- Guardar ya no dispara ningún análisis IA implícito: sólo el botón “Corrección IA profesional” ejecuta la corrección.
+- Nombre automático del CV: YYMMDD-HHmm CV-Nombre-Apellido.pdf.
+- Se conserva residencia inferida, seniority, clasificación, trazabilidad, reportes y seguridad de versiones anteriores.

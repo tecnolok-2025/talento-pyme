@@ -1,4 +1,4 @@
-/* Talento PyME - v7.9.5 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF */
+/* Talento PyME - v7.9.6 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -699,9 +699,10 @@ async function initBolsaCandidato(){
               <label style="display:block;margin-top:10px">Lo que dijiste / texto libre
                 <textarea id="c_voice_raw" rows="6" placeholder="También podés escribir acá o usar el micrófono del teclado del celular." ${ro()}>${esc(cand.voiceNarrativeRaw)}</textarea>
               </label>
-              <label style="display:block;margin-top:10px">Resumen profesional elaborado por Talento PyME
-                <textarea id="c_voice_summary" rows="7" placeholder="Cuando pulses “Corrección IA profesional” aparecerá acá la versión profesional. Será la presentación principal por defecto y podés corregirla manualmente antes de guardar." ${ro()}>${esc(cand.voiceNarrativeSummary)}</textarea>
+              <label style="display:block;margin-top:10px">Presentación profesional desarrollada por IA · editable
+                <textarea id="c_voice_summary" rows="11" placeholder="Cuando pulses “Corrección IA profesional” aparecerá acá una versión más amplia y profesional de todo lo que contaste. Esta será la presentación principal por defecto para tu CV y tu perfil." ${ro()}>${esc(cand.voiceNarrativeSummary)}</textarea>
               </label>
+              <div class="muted small" style="margin-top:6px">Esta redacción es una propuesta de Talento PyME basada únicamente en lo que vos contaste. <b>Podés borrar, corregir, acortar o ampliar cualquier parte</b> antes de guardarla. En el CV, la franja azul mostrará un resumen breve de tu perfil y la parte blanca utilizará esta presentación ampliada para explicar con mayor profundidad tu experiencia, funciones, especialidades y fortalezas.</div>
               <div class="tp-voice-next">Podés continuar completando tu perfil ahora o volver cuando quieras. Lo que guardes queda esperando para que agregues CV, experiencia, formación y foto más adelante.</div>
             </div>
           </details>
@@ -1007,12 +1008,12 @@ async function initBolsaCandidato(){
     readAltaFromDom();
     const transcript=String(cand.voiceNarrativeRaw || '').trim();
     if(transcript.length < 5){ voiceMessage='Primero hablá o escribí unas palabras sobre tu experiencia y lo que te gustaría hacer.'; render(); return; }
-    voiceRefining=true; voiceMessage='Corrección IA profesional en curso: estamos leyendo todo tu relato desde el principio, eliminando repeticiones y preparando tu presentación principal...'; render();
+    voiceRefining=true; voiceMessage='Corrección IA profesional en curso: estamos leyendo todo tu relato desde el principio y preparando una presentación profesional amplia, clara y fiel a lo que contaste...'; render();
     try{
       const r=await apiFetch('/candidate/presentation/refine',{method:'POST',body:JSON.stringify({transcript})});
       cand.voiceNarrativeSummary=String(r.summary || transcript).trim().slice(0,8000);
       const analysis=r.analysis || {};
-      cand.voiceNarrativeAnalysisVersion=String(analysis.analysisVersion || 'AI_V3_7.9.5');
+      cand.voiceNarrativeAnalysisVersion=String(analysis.analysisVersion || 'AI_V4_7.9.6');
       cand.voiceNarrativeAnalysisSource=String(analysis.source || 'LOCAL_V2');
       cand.voiceNarrativeYears=Number.isFinite(Number(analysis.yearsExperience)) ? Number(analysis.yearsExperience) : null;
       cand.voiceNarrativeProfessionalTitle=String(analysis.professionalTitle || '').trim().slice(0,180);
@@ -1020,8 +1021,8 @@ async function initBolsaCandidato(){
       if(analysis.suggestedExperienceRange && (!cand.rangoExperiencia || cand.rangoExperiencia==='Pendiente')) cand.rangoExperiencia=analysis.suggestedExperienceRange;
       voiceRawLastRefined=transcript;
       voiceMessage=analysis.source==='OPENAI'
-        ? 'Listo. La IA leyó el relato completo. Esta corrección queda tomada como tu presentación profesional principal por defecto; podés editarla manualmente si querés.'
-        : 'Listo. El analizador profesional leyó el relato completo. Esta versión queda tomada como tu presentación principal por defecto; podés editarla manualmente si querés.';
+        ? 'Listo. La IA leyó el relato completo y desarrolló una presentación profesional más amplia. Queda tomada como texto principal por defecto; podés borrar, corregir, acortar o ampliar cualquier parte antes de guardar.'
+        : 'Listo. El analizador profesional leyó el relato completo y desarrolló una presentación más amplia. Queda tomada como texto principal por defecto; podés borrar, corregir, acortar o ampliar cualquier parte antes de guardar.';
       if(analysis.diagnostic) voiceMessage += ` ${analysis.diagnostic}`;
     }catch(err){
       cand.voiceNarrativeAnalysisVersion='';
@@ -1477,12 +1478,8 @@ async function initBolsaCandidato(){
       return;
     }
 
-    // Si hay un relato nuevo todavía no procesado, intentamos analizarlo antes de guardar.
-    // Si el servicio no responde, conservamos igualmente la transcripción y el bloque queda pendiente.
-    if(String(cand.voiceNarrativeRaw || '').trim().length >= 5 && !cand.voiceNarrativeAnalysisVersion && !voiceRefining){
-      await refineVoicePresentation();
-      readAltaFromDom();
-    }
+    // v7.9.6: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
+    // cuando el candidato pulsa expresamente “Corrección IA profesional”.
 
     busy = true; render();
     try{

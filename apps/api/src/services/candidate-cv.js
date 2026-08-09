@@ -14,6 +14,8 @@ const TALENTO_LOGO=fileURLToPath(new URL('../assets/logo-talento-pyme.png', impo
 
 function clean(v=''){ return String(v || '').replace(/[\u0000-\u001F]/g,' ').replace(/\s+/g,' ').trim(); }
 function clamp(v='', n=1200){ const s=clean(v); return s.length>n ? `${s.slice(0,n-1).trim()}…` : s; }
+function cleanParagraphs(v=''){ return String(v || '').replace(/\r/g,'').split(/\n{2,}/).map((p)=>clean(p)).filter(Boolean).join('\n\n'); }
+function clampParagraphs(v='', n=2400){ const s=cleanParagraphs(v); return s.length>n ? `${s.slice(0,n-1).trim()}…` : s; }
 function lines(v=''){ return String(v || '').split(/\r?\n|•/).map(clean).filter(Boolean); }
 function uniq(arr=[]){ return [...new Set(arr.map(clean).filter(Boolean))]; }
 function safeFilePart(v=''){ return clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,50) || 'Candidato'; }
@@ -74,11 +76,34 @@ function titleFromData(data){
   return clean(p.headline || b.voiceNarrativeProfessionalTitle || b.especialidadOtro || b.especialidad || c.expertiseLabel || b.areaTrabajo || recent || 'Perfil profesional');
 }
 
+function buildSidebarAbout(data={}, presentation=''){
+  const b=data.bolsa||{}, c=data.classification||{};
+  const title=titleFromData(data);
+  const years=Number.isFinite(Number(b.voiceNarrativeYears)) ? Number(b.voiceNarrativeYears) : null;
+  const expertise=clean(c.expertiseLabel || b.especialidadOtro || b.especialidad || b.areaTrabajo);
+  const bits=[];
+  let first=title;
+  if(years!==null){
+    first += years>=30 ? ' con más de 30 años de trayectoria' : years>=1 ? ` con ${years} años de experiencia` : '';
+  } else if(clean(c.seniorityLabel)){
+    first += ` · ${clean(c.seniorityLabel)}`;
+  }
+  if(first) bits.push(`${first}.`);
+  if(expertise && !clean(first).toLowerCase().includes(expertise.toLowerCase())) bits.push(`Especialización principal: ${expertise}.`);
+  const recent=clean(b.ultimoTrabajo);
+  if(recent && !bits.join(' ').toLowerCase().includes(recent.toLowerCase())) bits.push(`Actividad reciente: ${recent}.`);
+  if(bits.join(' ').length < 150 && presentation){
+    const firstSentence=cleanParagraphs(presentation).split(/(?<=[.!?])\s+/)[0];
+    if(firstSentence && !bits.join(' ').toLowerCase().includes(firstSentence.toLowerCase())) bits.push(firstSentence);
+  }
+  return clamp(bits.join(' '),280);
+}
+
 export function buildCandidateCvFilename(data={},generatedAt=new Date()){
   const b=data.bolsa||{}, p=data.profile||{};
   const full=clean(`${b.nombre||''} ${b.apellido||''}`) || clean(p.fullName) || 'Candidato';
   const t=argParts(generatedAt); const yy=String(t.year).slice(-2);
-  return `${yy}${t.month}${t.day}-${t.hour}${t.minute} CV-${safeFilePart(full)}-Talento-PyME.pdf`;
+  return `${yy}${t.month}${t.day}-${t.hour}${t.minute} CV-${safeFilePart(full)}.pdf`;
 }
 
 export async function buildCandidateCvPdfBuffer(data={}){
@@ -90,7 +115,7 @@ export async function buildCandidateCvPdfBuffer(data={}){
   const province=clean(residence.province);
   const city=clean(residence.city || b.localidad || p.city);
   const location=[city,province,country].filter(Boolean).join(', ');
-  const presentation=clamp(b.voiceNarrativeSummary || b.voiceNarrativeRaw || r.summary || b.observaciones || '',1050);
+  const presentation=clampParagraphs(b.voiceNarrativeSummary || b.voiceNarrativeRaw || r.summary || b.observaciones || '',2400);
   const experienceLines=uniq([
     b.ultimoTrabajo ? `Actividad reciente: ${b.ultimoTrabajo}` : '',
     ...lines(r.experience).slice(0,7),
@@ -117,7 +142,7 @@ export async function buildCandidateCvPdfBuffer(data={}){
 
   let sy=153;
   sy=sidebarHeading(doc,'Sobre mí',sy);
-  const sideAbout=clamp(presentation || (c.seniorityLabel ? `${c.seniorityLabel}. ${c.expertiseLabel||''}` : title),520);
+  const sideAbout=buildSidebarAbout(data,presentation) || clamp(c.seniorityLabel ? `${c.seniorityLabel}. ${c.expertiseLabel||''}` : title,360);
   doc.fillColor('#E6EDF5').font('Helvetica').fontSize(8.2).text(sideAbout,28,sy,{width:125,lineGap:2}); sy=doc.y+20;
   sy=sidebarHeading(doc,'Contacto',sy);
   const contact=[
@@ -140,7 +165,13 @@ export async function buildCandidateCvPdfBuffer(data={}){
   doc.fillColor(TEXT).font('Helvetica').fontSize(12).text(title.toUpperCase(),mainX,y,{width:mainW}); y=doc.y+10;
   doc.fillColor(NAVY).rect(mainX,y,28,5).fill(); y+=18;
 
-  if(presentation){ y=mainHeading(doc,'Perfil profesional',y,mainX,mainW); y=textBlock(doc,presentation,mainX,y,mainW,{size:8.8,lineGap:2,maxHeight:98})+12; }
+  if(presentation){
+    y=mainHeading(doc,'Perfil profesional',y,mainX,mainW);
+    const hasMoreSections=experienceLines.length || educationLines.length || certLines.length;
+    const profileHeight=hasMoreSections ? 190 : 440;
+    doc.fillColor(TEXT).font('Helvetica').fontSize(8.8).text(presentation,mainX,y,{width:mainW,lineGap:3,height:profileHeight});
+    y=doc.y+14;
+  }
   if(experienceLines.length){ y=mainHeading(doc,'Experiencia y trayectoria',y,mainX,mainW); y=bulletList(doc,experienceLines,mainX,y,mainW,7)+10; }
   if(educationLines.length && y<650){ y=mainHeading(doc,'Formación',y,mainX,mainW); y=bulletList(doc,educationLines,mainX,y,mainW,5)+9; }
   if(certLines.length && y<700){ y=mainHeading(doc,'Certificaciones y capacitación',y,mainX,mainW); y=bulletList(doc,certLines,mainX,y,mainW,5)+8; }

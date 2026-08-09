@@ -1,0 +1,3 @@
+Talento PyME v7.9.6 - auditoría automatizada
+90 pruebas / 90 aprobadas / 0 fallidas
+JS + scripts HTML: sintaxis validada.
