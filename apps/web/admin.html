@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.9.6" />
+  <link rel="stylesheet" href="/styles.css?v=7.9.7" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -465,8 +465,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.9.6"></script>
-<script src="/auth.js?v=7.9.6"></script>
+<script src="/config.js?v=7.9.7"></script>
+<script src="/auth.js?v=7.9.7"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -630,10 +630,13 @@ function renderCandidateDetail(it){
     ]),
     candidateSection('Presentación profesional ampliada por Talento PyME', [
       candidateField('Texto profesional principal', bolsa.voiceNarrativeSummary),
+      candidateField('10 aptitudes / fortalezas profesionales', bolsa.voiceNarrativeStrengths),
+      candidateField('Motivación y objetivo profesional', bolsa.voiceNarrativeMotivation),
+      candidateField('Cierre y proyección profesional', bolsa.voiceNarrativeClosing),
       candidateField('Título profesional detectado', bolsa.voiceNarrativeProfessionalTitle),
       candidateField('Años de experiencia detectados', Number.isFinite(Number(bolsa.voiceNarrativeYears)) ? `${Number(bolsa.voiceNarrativeYears)} años` : 'No determinados'),
       candidateField('Procesamiento', bolsa.voiceNarrativeAnalysisSource === 'OPENAI' ? 'IA generativa' : (bolsa.voiceNarrativeAnalysisVersion ? 'Analizador profesional de respaldo' : 'Pendiente de procesar nuevamente')),
-      candidateField('Aclaración', bolsa.voiceNarrativeSummary ? 'Administración muestra la versión profesional preparada por Talento PyME y revisable por el candidato. El audio original no se conserva.' : 'El candidato todavía no completó o reprocesó esta presentación profesional.'),
+      candidateField('Aclaración', bolsa.voiceNarrativeSummary ? 'Administración muestra la versión profesional redactada en primera persona y revisable por el candidato. Las aptitudes, motivación y cierre forman parte de la propuesta que el candidato puede editar antes de utilizar su CV. El audio original no se conserva.' : 'El candidato todavía no completó o reprocesó esta presentación profesional.'),
     ], true),
     candidateSection('Perfil profesional', [
       candidateField('Titular profesional', profile.headline),

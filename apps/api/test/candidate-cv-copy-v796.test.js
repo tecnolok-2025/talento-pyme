@@ -16,21 +16,22 @@ function functionBlock(source,name,nextName){
   return source.slice(a,b>0?b:source.length);
 }
 
-test('v7.9.6 separa resumen breve izquierdo de presentación ampliada derecha',()=>{
+test('v7.9.7 separa resumen breve izquierdo de presentación ampliada derecha',()=>{
   assert.match(cv,/function buildSidebarAbout/);
   assert.match(cv,/const sideAbout=buildSidebarAbout\(data,presentation\)/);
   assert.match(cv,/clampParagraphs\(b\.voiceNarrativeSummary/);
-  assert.match(cv,/profileHeight=hasMoreSections \? 190 : 440/);
+  assert.match(cv,/addContinuationPage/);
+  assert.match(cv,/Aptitudes y fortalezas profesionales/);
   assert.match(candidate,/Presentación profesional desarrollada por IA · editable/);
-  assert.match(candidate,/franja azul mostrará un resumen breve/);
-  assert.match(candidate,/parte blanca utilizará esta presentación ampliada/);
+  assert.match(candidate,/Presentación profesional desarrollada por IA · editable/);
+  assert.match(candidate,/Todo queda escrito <b>en primera persona/);
 });
 
 test('corrección IA pide desarrollo amplio sin inventar antecedentes',()=>{
   assert.match(api,/PRESENTACIÓN PROFESIONAL AMPLIADA/);
   assert.match(api,/2 a 4 párrafos/);
-  assert.match(api,/160 a 320 palabras/);
-  assert.match(api,/no inventes empleos, empresas, títulos, años, certificaciones, logros, responsabilidades/);
+  assert.match(api,/180 a 340 palabras/);
+  assert.match(api,/No inventes empleos, empresas, títulos, años, certificaciones, resultados/);
 });
 
 test('guardar no dispara corrección IA implícita',()=>{
@@ -41,11 +42,11 @@ test('guardar no dispara corrección IA implícita',()=>{
 });
 
 test('el usuario puede editar o borrar la propuesta IA antes de guardar',()=>{
-  assert.match(candidate,/Podés borrar, corregir, acortar o ampliar cualquier parte/);
+  assert.match(candidate,/Podés borrar, corregir, acortar, ampliar o reemplazar cualquier parte/);
   assert.match(candidate,/c_voice_summary/);
 });
 
 test('nombre de archivo CV usa YYMMDD-HHmm + CV + nombre, sin sufijo redundante',()=>{
-  assert.match(cv,/return `\$\{yy\}\$\{t\.month\}\$\{t\.day\}-\$\{t\.hour\}\$\{t\.minute\} CV-\$\{safeFilePart\(full\)\}\.pdf`/);
-  assert.doesNotMatch(cv,/CV-\$\{safeFilePart\(full\)\}-Talento-PyME\.pdf/);
+  assert.match(cv,/return `\$\{yy\}\$\{t\.month\}\$\{t\.day\}-\$\{t\.hour\}\$\{t\.minute\} CV \$\{safeFilePart\(full\)\.replace\(\/-\/g,' '\)\}\.pdf`/);
+  assert.doesNotMatch(cv,/Talento-PyME\.pdf/);
 });

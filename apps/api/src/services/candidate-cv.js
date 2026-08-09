@@ -76,34 +76,54 @@ function titleFromData(data){
   return clean(p.headline || b.voiceNarrativeProfessionalTitle || b.especialidadOtro || b.especialidad || c.expertiseLabel || b.areaTrabajo || recent || 'Perfil profesional');
 }
 
+function firstPersonTitle(title=''){
+  const n=clean(title).toLowerCase();
+  if(/ingenier[ií]a electromec[aá]nica/.test(n) && /proyectista/.test(n)) return 'Soy ingeniero electromecánico y proyectista';
+  if(/ingenier[ií]a electromec[aá]nica/.test(n)) return 'Soy ingeniero electromecánico';
+  if(/ingenier[ií]a el[eé]ctrica/.test(n) && /proyectista/.test(n)) return 'Soy ingeniero eléctrico y proyectista';
+  if(/ingenier[ií]a el[eé]ctrica/.test(n)) return 'Soy ingeniero eléctrico';
+  if(/ingenier[ií]a mec[aá]nica/.test(n)) return 'Soy ingeniero mecánico';
+  if(/proyectista/.test(n)) return 'Me desempeño como proyectista';
+  if(/supervisi[oó]n/.test(n)) return 'Me desempeño en supervisión técnica';
+  if(/jefatura/.test(n)) return 'Me desempeño en funciones de jefatura';
+  if(/administraci[oó]n/.test(n)) return 'Me desempeño en el área administrativa';
+  return n ? `Mi perfil profesional se orienta a ${clean(title)}` : 'Presento mi experiencia y capacidades profesionales';
+}
+
 function buildSidebarAbout(data={}, presentation=''){
   const b=data.bolsa||{}, c=data.classification||{};
   const title=titleFromData(data);
   const years=Number.isFinite(Number(b.voiceNarrativeYears)) ? Number(b.voiceNarrativeYears) : null;
   const expertise=clean(c.expertiseLabel || b.especialidadOtro || b.especialidad || b.areaTrabajo);
-  const bits=[];
-  let first=title;
-  if(years!==null){
-    first += years>=30 ? ' con más de 30 años de trayectoria' : years>=1 ? ` con ${years} años de experiencia` : '';
-  } else if(clean(c.seniorityLabel)){
-    first += ` · ${clean(c.seniorityLabel)}`;
-  }
-  if(first) bits.push(`${first}.`);
-  if(expertise && !clean(first).toLowerCase().includes(expertise.toLowerCase())) bits.push(`Especialización principal: ${expertise}.`);
+  let text=firstPersonTitle(title);
+  if(years!==null) text += years>=30 ? ', con más de 30 años de trayectoria' : years>=1 ? `, con ${years} años de experiencia` : '';
+  if(expertise && !text.toLowerCase().includes(expertise.toLowerCase())) text += `, con especialización en ${expertise.toLowerCase()}`;
+  text += '.';
   const recent=clean(b.ultimoTrabajo);
-  if(recent && !bits.join(' ').toLowerCase().includes(recent.toLowerCase())) bits.push(`Actividad reciente: ${recent}.`);
-  if(bits.join(' ').length < 150 && presentation){
-    const firstSentence=cleanParagraphs(presentation).split(/(?<=[.!?])\s+/)[0];
-    if(firstSentence && !bits.join(' ').toLowerCase().includes(firstSentence.toLowerCase())) bits.push(firstSentence);
-  }
-  return clamp(bits.join(' '),280);
+  if(recent && !text.toLowerCase().includes(recent.toLowerCase())) text += ` Mi actividad más reciente se vincula con ${recent}.`;
+  return clamp(text,300);
+}
+
+function cleanStrengths(value=[]){
+  const rows=Array.isArray(value) ? value : lines(value);
+  return uniq(rows.map((row)=>clean(row).replace(/[.;]+$/,''))).slice(0,10);
+}
+
+function addContinuationPage(doc,fullName,title){
+  doc.addPage({size:'A4',margins:{top:0,bottom:0,left:0,right:0}});
+  const W=doc.page.width;
+  doc.fillColor(NAVY).rect(0,0,W,11).fill();
+  doc.fillColor(TEXT).font('Helvetica').fontSize(16).text(fullName,42,28,{width:W-84,lineBreak:false});
+  doc.fillColor(MUTED).font('Helvetica').fontSize(8).text(clean(title).toUpperCase(),42,51,{width:W-84,lineBreak:false});
+  doc.fillColor(NAVY).rect(42,66,26,4).fill();
+  return 82;
 }
 
 export function buildCandidateCvFilename(data={},generatedAt=new Date()){
   const b=data.bolsa||{}, p=data.profile||{};
   const full=clean(`${b.nombre||''} ${b.apellido||''}`) || clean(p.fullName) || 'Candidato';
   const t=argParts(generatedAt); const yy=String(t.year).slice(-2);
-  return `${yy}${t.month}${t.day}-${t.hour}${t.minute} CV-${safeFilePart(full)}.pdf`;
+  return `${yy}${t.month}${t.day}-${t.hour}${t.minute} CV ${safeFilePart(full).replace(/-/g,' ')}.pdf`;
 }
 
 export async function buildCandidateCvPdfBuffer(data={}){
@@ -115,7 +135,10 @@ export async function buildCandidateCvPdfBuffer(data={}){
   const province=clean(residence.province);
   const city=clean(residence.city || b.localidad || p.city);
   const location=[city,province,country].filter(Boolean).join(', ');
-  const presentation=clampParagraphs(b.voiceNarrativeSummary || b.voiceNarrativeRaw || r.summary || b.observaciones || '',2400);
+  const presentation=clampParagraphs(b.voiceNarrativeSummary || b.voiceNarrativeRaw || r.summary || b.observaciones || '',4200);
+  const strengths=cleanStrengths(b.voiceNarrativeStrengths || []);
+  const motivation=clampParagraphs(b.voiceNarrativeMotivation || '',1600);
+  const closing=clampParagraphs(b.voiceNarrativeClosing || '',2400);
   const experienceLines=uniq([
     b.ultimoTrabajo ? `Actividad reciente: ${b.ultimoTrabajo}` : '',
     ...lines(r.experience).slice(0,7),
@@ -136,7 +159,8 @@ export async function buildCandidateCvPdfBuffer(data={}){
   const doc=new PDFDocument({size:'A4',margins:{top:0,bottom:0,left:0,right:0},bufferPages:true,info:{Title:`CV - ${fullName}`,Author:'Talento PyME'}});
   const chunks=[]; doc.on('data',(cbuf)=>chunks.push(cbuf));
   const done=new Promise((resolve,reject)=>{doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);});
-  const W=doc.page.width,H=doc.page.height,sideW=172,mainX=196,mainW=W-mainX-34;
+  const W=doc.page.width,H=doc.page.height,sideW=172;
+  let mainX=196, mainW=W-mainX-34;
   doc.fillColor(NAVY).rect(0,0,sideW,H).fill();
   drawPhoto(doc,b.photoDataUrl,86,82,53);
 
@@ -165,23 +189,68 @@ export async function buildCandidateCvPdfBuffer(data={}){
   doc.fillColor(TEXT).font('Helvetica').fontSize(12).text(title.toUpperCase(),mainX,y,{width:mainW}); y=doc.y+10;
   doc.fillColor(NAVY).rect(mainX,y,28,5).fill(); y+=18;
 
+  const ensureSpace=(need=90)=>{
+    if(y+need <= H-48) return;
+    y=addContinuationPage(doc,fullName,title);
+    mainX=42; mainW=W-84;
+  };
+
   if(presentation){
     y=mainHeading(doc,'Perfil profesional',y,mainX,mainW);
-    const hasMoreSections=experienceLines.length || educationLines.length || certLines.length;
-    const profileHeight=hasMoreSections ? 190 : 440;
-    doc.fillColor(TEXT).font('Helvetica').fontSize(8.8).text(presentation,mainX,y,{width:mainW,lineGap:3,height:profileHeight});
+    doc.fillColor(TEXT).font('Helvetica').fontSize(8.8).text(presentation,mainX,y,{width:mainW,lineGap:3});
     y=doc.y+14;
   }
-  if(experienceLines.length){ y=mainHeading(doc,'Experiencia y trayectoria',y,mainX,mainW); y=bulletList(doc,experienceLines,mainX,y,mainW,7)+10; }
-  if(educationLines.length && y<650){ y=mainHeading(doc,'Formación',y,mainX,mainW); y=bulletList(doc,educationLines,mainX,y,mainW,5)+9; }
-  if(certLines.length && y<700){ y=mainHeading(doc,'Certificaciones y capacitación',y,mainX,mainW); y=bulletList(doc,certLines,mainX,y,mainW,5)+8; }
-  if(!presentation && !experienceLines.length){
-    y=mainHeading(doc,'Objetivo laboral',y,mainX,mainW);
-    textBlock(doc,'Perfil en construcción. Talento PyME permite completar experiencia, objetivos, habilidades y formación para actualizar automáticamente este currículum.',mainX,y,mainW,{size:9,lineGap:2});
+
+  if(strengths.length){
+    ensureSpace(190);
+    y=mainHeading(doc,'Aptitudes y fortalezas profesionales',y,mainX,mainW);
+    y=bulletList(doc,strengths,mainX,y,mainW,10)+10;
   }
 
-  doc.strokeColor('#DCE4ED').lineWidth(0.6).moveTo(mainX,H-34).lineTo(W-34,H-34).stroke();
-  doc.fillColor(MUTED).font('Helvetica').fontSize(6.8).text('Información declarada por el candidato y organizada por Talento PyME. Revisar y actualizar antes de presentar.',mainX,H-26,{width:mainW,align:'center',lineBreak:false});
+  if(experienceLines.length){
+    ensureSpace(120);
+    y=mainHeading(doc,'Experiencia y trayectoria',y,mainX,mainW);
+    y=bulletList(doc,experienceLines,mainX,y,mainW,7)+10;
+  }
+  if(educationLines.length){
+    ensureSpace(105);
+    y=mainHeading(doc,'Formación',y,mainX,mainW);
+    y=bulletList(doc,educationLines,mainX,y,mainW,5)+9;
+  }
+  if(certLines.length){
+    ensureSpace(105);
+    y=mainHeading(doc,'Certificaciones y capacitación',y,mainX,mainW);
+    y=bulletList(doc,certLines,mainX,y,mainW,5)+8;
+  }
+
+  if(motivation || closing){
+    ensureSpace(145);
+    y=mainHeading(doc,'Motivación y proyección profesional',y,mainX,mainW);
+    if(motivation){
+      doc.fillColor(TEXT).font('Helvetica').fontSize(8.8).text(motivation,mainX,y,{width:mainW,lineGap:3});
+      y=doc.y+9;
+    }
+    if(closing){
+      doc.fillColor(TEXT).font('Helvetica').fontSize(8.8).text(closing,mainX,y,{width:mainW,lineGap:3});
+      y=doc.y+8;
+    }
+  }
+
+  if(!presentation && !experienceLines.length){
+    y=mainHeading(doc,'Objetivo laboral',y,mainX,mainW);
+    textBlock(doc,'Estoy construyendo mi perfil profesional. Puedo completar experiencia, objetivos, habilidades y formación en Talento PyME y volver a generar este currículum cada vez que lo actualice.',mainX,y,mainW,{size:9,lineGap:2});
+  }
+
+  // Pie consistente en todas las páginas, sin voz de evaluador externo.
+  const range=doc.bufferedPageRange();
+  for(let i=0;i<range.count;i++){
+    doc.switchToPage(range.start+i);
+    const first=i===0;
+    const fx=first?196:42;
+    const fw=first?(W-fx-34):(W-84);
+    doc.strokeColor('#DCE4ED').lineWidth(0.6).moveTo(fx,H-34).lineTo(first?W-34:W-42,H-34).stroke();
+    doc.fillColor(MUTED).font('Helvetica').fontSize(6.6).text(`CV preparado por el candidato con asistencia de Talento PyME · Página ${i+1} de ${range.count}`,fx,H-26,{width:fw,align:'center',lineBreak:false});
+  }
   doc.end();
   return done;
 }

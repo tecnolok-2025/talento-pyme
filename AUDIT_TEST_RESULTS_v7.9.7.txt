@@ -1,0 +1,6 @@
+Talento PyME v7.9.7 - auditoría automatizada
+101 pruebas / 101 aprobadas / 0 fallidas
+30 archivos JavaScript: sintaxis correcta
+16 scripts inline HTML: sintaxis correcta
+Prisma: cambio aditivo en CandidateBolsa (3 campos de presentación profesional)
+PDF runtime local: no ejecutado porque pdfkit no está instalado en este entorno; dependencia declarada para Render.

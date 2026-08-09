@@ -139,6 +139,9 @@ model CandidateBolsa {
   voiceNarrativeAnalysisSource String?
   voiceNarrativeYears Int?
   voiceNarrativeProfessionalTitle String?
+  voiceNarrativeStrengths String[] @default([])
+  voiceNarrativeMotivation String?
+  voiceNarrativeClosing String?
   voiceNarrativeAnalyzedAt DateTime?
   photoDataUrl       String?
 

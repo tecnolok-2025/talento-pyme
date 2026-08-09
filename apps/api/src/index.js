@@ -29,7 +29,7 @@ const __dirname = path.dirname(__filename);
 const UPLOADS_DIR = path.resolve(__dirname, "../uploads");
 const PUBLIC_UPLOADS = "/uploads";
 
-app.use(cors());
+app.use(cors({ exposedHeaders:['Content-Disposition'] }));
 app.use((req, res, next) => {
   if (req.path.startsWith("/payments/webhook/")) return next();
   return express.json({ limit: "3mb" })(req, res, next);
@@ -61,7 +61,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
 const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
-// v7.9.6: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
+// v7.9.7: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
 // Se reutiliza la configuración ya existente en Render para soporte, consultas, recuperaciones y buzón administrativo.
 const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || '').trim().toLowerCase();
 const GMAIL_USER = FACTORY_SUPPORT_EMAIL;
@@ -72,7 +72,7 @@ const GMAIL_REFRESH_TOKEN = String(process.env.GMAIL_REFRESH_TOKEN || '').trim()
 const OPENAI_API_KEY = String(process.env.OPENAI_API_KEY || '').trim();
 const OPENAI_MODEL = String(process.env.OPENAI_MODEL || 'gpt-5-mini').trim() || 'gpt-5-mini';
 const OPENAI_PRESENTATION_TIMEOUT_MS = Math.max(5000, Math.min(30000, Number(process.env.OPENAI_PRESENTATION_TIMEOUT_MS || 18000)));
-const PRESENTATION_ANALYSIS_VERSION = 'AI_V4_7.9.6';
+const PRESENTATION_ANALYSIS_VERSION = 'AI_V6_7.9.7_STRENGTHS_MOTIVATION';
 const MAIL_FROM_NAME = String(process.env.MAIL_FROM_NAME || 'Talento PyME').trim();
 const WEB_BASE_URL = String(process.env.WEB_BASE_URL || 'https://talento-pyme.onrender.com').replace(/\/$/, '').trim();
 const PASSWORD_RESET_CODE_TTL_MINUTES = Math.max(5, Math.min(30, Number(process.env.PASSWORD_RESET_CODE_TTL_MINUTES || 10)));
@@ -2166,6 +2166,9 @@ const bolsaSchema = z.object({
   voiceNarrativeAnalysisSource: z.string().max(80).optional().nullable(),
   voiceNarrativeYears: z.number().int().min(0).max(65).optional().nullable(),
   voiceNarrativeProfessionalTitle: z.string().max(180).optional().nullable(),
+  voiceNarrativeStrengths: z.array(z.string().max(240)).max(10).optional().nullable(),
+  voiceNarrativeMotivation: z.string().max(1600).optional().nullable(),
+  voiceNarrativeClosing: z.string().max(2400).optional().nullable(),
   voiceNarrativeAnalyzedAt: z.string().datetime().optional().nullable().transform((v)=>v ? new Date(v) : null),
 
   herramientasMecanica: z.array(z.string().max(120)).optional().nullable(),
@@ -2799,6 +2802,117 @@ function inferLocalExpertise(text='', context={}){
   return String(context?.expertise || '').trim();
 }
 
+function candidateRoleKnowledgeHints(text='', context={}){
+  const n=professionalNorm(`${text} ${context?.recentRole || ''} ${context?.expertise || ''}`);
+  const hints=[];
+  if(/proyectista|proyecto|ingenieria|oficina tecnica/.test(n) && /electric|electromecan/.test(n)){
+    hints.push('Proyectos eléctricos: ingeniería conceptual, básica y de detalle; esquemas unifilares y trifilares; planos de canalizaciones, tendidos y distribución; ubicación de tableros y equipos; cálculos de carga y demanda; dimensionamiento de conductores y protecciones; caída de tensión; criterios de puesta a tierra; especificaciones y documentación técnica; coordinación con otras disciplinas. Usar sólo los elementos compatibles con lo que la persona declaró y, cuando se amplíe por conocimiento del rol, redactar con prudencia (por ejemplo: “según el alcance de cada proyecto”).');
+  }
+  if(/supervis|jefe|coordin/.test(n)){
+    hints.push('Supervisión técnica: seguimiento de ejecución, coordinación de equipos y contratistas, verificación contra planos/especificaciones, control de calidad y seguridad, seguimiento de plazos y avances, resolución de desvíos técnicos, inspecciones y acompañamiento de pruebas o puesta en servicio cuando corresponda. No atribuir cantidad de personas, presupuesto, obras ni resultados no declarados.');
+  }
+  if(/aire acondicionado|hvac|termomecan/.test(n)){
+    hints.push('Instalaciones termomecánicas/HVAC: cálculos y dimensionamiento, definición técnica de instalaciones y equipos, coordinación electromecánica e interfaces con alimentación eléctrica y otras disciplinas. No atribuir software, marcas, capacidades o normas específicas no declaradas.');
+  }
+  if(/instrument|automat|plc|control/.test(n)){
+    hints.push('Instrumentación/automatización: interpretación de lazos y señales, documentación de instrumentos, coordinación de interfaces de control, pruebas funcionales, diagnóstico y seguimiento técnico, sólo cuando sea compatible con el relato.');
+  }
+  if(/mantenimiento/.test(n)){
+    hints.push('Mantenimiento: planificación y seguimiento de tareas preventivas/correctivas, análisis de fallas, coordinación de intervenciones, seguridad, documentación y mejora de confiabilidad, sólo cuando sea compatible con el relato.');
+  }
+  if(/produccion|operaciones|manufactura/.test(n)){
+    hints.push('Producción/operaciones: seguimiento de procesos, coordinación operativa, productividad, calidad, seguridad, resolución de desvíos y mejora continua, sólo si es coherente con la experiencia declarada.');
+  }
+  if(/calidad|hse|seguridad|higiene|ambiente/.test(n)){
+    hints.push('Calidad/HSE: seguimiento de procedimientos, inspecciones, identificación de desvíos, documentación, acciones correctivas/preventivas, seguridad y mejora continua, sin atribuir certificaciones o normas no mencionadas.');
+  }
+  if(/logistica|transporte|comex|deposito|almacen/.test(n)){
+    hints.push('Logística/Transporte/Comex: planificación y seguimiento de movimientos, coordinación de entregas y recursos, trazabilidad documental, control de inventarios o expediciones y articulación con áreas internas/externas según el alcance declarado.');
+  }
+  if(/administracion|administrativ|finanzas|rrhh|recursos humanos|comercial/.test(n)){
+    hints.push('Administración/Gestión: organización documental, seguimiento de procesos, coordinación interna, elaboración y control de información, atención de requerimientos y soporte a la toma de decisiones de acuerdo con el área declarada.');
+  }
+  if(/software|sistemas|it|programacion|datos|data/.test(n)){
+    hints.push('IT/Software/Datos: análisis de requerimientos, organización de información, desarrollo o soporte de soluciones, documentación, pruebas, resolución de incidentes y mejora continua, usando sólo tecnologías efectivamente mencionadas.');
+  }
+  if(/soldadura|caldereria|montaje/.test(n)){
+    hints.push('Soldadura/Montaje/Calderería: interpretación de planos, preparación y montaje de componentes, control dimensional y de terminación, coordinación segura de tareas y verificación de calidad, sólo cuando sea compatible con el oficio declarado.');
+  }
+  if(/construccion|obra|civil/.test(n)){
+    hints.push('Construcción/Obra industrial: lectura de documentación técnica, seguimiento de obra, coordinación de frentes, control de avances, calidad, seguridad y resolución de interferencias según la función declarada.');
+  }
+  if(/planificacion|costos|planner/.test(n)){
+    hints.push('Planificación/Costos: programación y seguimiento de actividades, control de avances, análisis de desvíos, coordinación de información, estimaciones y reportes de gestión, sin inventar herramientas o metodologías específicas.');
+  }
+  return hints;
+}
+
+function uniqProfessionalStrengths(items=[]){
+  const out=[]; const seen=new Set();
+  for(const item of items){
+    const clean=String(item||'').replace(/\s+/g,' ').trim().replace(/[.;]+$/,'');
+    if(!clean) continue;
+    const key=professionalNorm(clean);
+    if(!key || seen.has(key)) continue;
+    seen.add(key); out.push(clean);
+    if(out.length>=10) break;
+  }
+  return out;
+}
+
+function inferProfessionalStrengthsLocal(text='', context={}, seniority=''){
+  const n=professionalNorm(`${text} ${context?.recentRole || ''} ${context?.expertise || ''}`);
+  const items=[];
+  const add=(...rows)=>items.push(...rows);
+  if(/proyectista|proyecto|ingenieria|oficina tecnica/.test(n) && /electric|electromecan/.test(n)){
+    add('Diseño y desarrollo de ingeniería eléctrica','Elaboración e interpretación de esquemas unifilares y trifilares','Definición de canalizaciones, tendidos y distribución eléctrica','Cálculo de cargas, demanda y dimensionamiento eléctrico','Dimensionamiento de conductores y protecciones','Criterios de puesta a tierra y seguridad eléctrica','Preparación de planos, especificaciones y documentación técnica','Coordinación electromecánica e interfaces con otras disciplinas');
+  } else if(/proyectista|proyecto|ingenieria|oficina tecnica/.test(n)){
+    add('Desarrollo de ingeniería conceptual, básica y de detalle','Cálculos y dimensionamiento técnico','Elaboración e interpretación de planos','Preparación de especificaciones y documentación técnica','Coordinación interdisciplinaria de proyectos','Resolución técnica de interferencias y desvíos');
+  }
+  if(/aire acondicionado|hvac|termomecan/.test(n)) add('Diseño y dimensionamiento de instalaciones termomecánicas','Coordinación técnica de sistemas HVAC con instalaciones electromecánicas');
+  if(/supervis|jefe|coordin/.test(n)) add('Supervisión técnica de trabajos y obras','Coordinación de equipos, contratistas y frentes de trabajo','Control de avance, calidad y cumplimiento técnico','Interpretación de planos y verificación de ejecución','Resolución de desvíos técnicos en campo','Acompañamiento de inspecciones, pruebas y puesta en servicio');
+  if(/instrument|automat|plc|control/.test(n)) add('Interpretación de señales, lazos e instrumentación','Coordinación de interfaces de automatización y control','Pruebas funcionales y diagnóstico técnico');
+  if(/mantenimiento/.test(n)) add('Planificación de mantenimiento preventivo y correctivo','Análisis y resolución de fallas','Coordinación segura de intervenciones','Seguimiento de confiabilidad y documentación técnica');
+  if(/produccion|operaciones|manufactura/.test(n)) add('Seguimiento y coordinación de procesos productivos','Orientación a productividad, calidad y seguridad','Análisis de desvíos y mejora continua','Coordinación operativa de recursos y prioridades');
+  if(/calidad|hse|seguridad|higiene|ambiente/.test(n)) add('Gestión de calidad y seguimiento de procedimientos','Identificación y tratamiento de desvíos','Inspecciones y control documental','Prevención, seguridad y mejora continua');
+  if(/logistica|transporte|comex|deposito|almacen/.test(n)) add('Planificación y seguimiento logístico','Coordinación de entregas y recursos','Trazabilidad documental y control de movimientos','Organización de inventarios, expediciones o transporte');
+  if(/administracion|administrativ|finanzas|rrhh|recursos humanos|comercial/.test(n)) add('Organización y seguimiento administrativo','Gestión documental y control de información','Coordinación con áreas internas y externas','Preparación de reportes y soporte a la toma de decisiones');
+  if(/software|sistemas|it|programacion|datos|data/.test(n)) add('Análisis de requerimientos y resolución de problemas','Organización y análisis de información','Documentación y pruebas de soluciones','Mejora continua de procesos digitales');
+  if(/soldadura|caldereria|montaje/.test(n)) add('Interpretación de planos de fabricación y montaje','Preparación, armado y montaje de componentes','Control dimensional y de terminación','Trabajo seguro y orientación a la calidad');
+  if(/construccion|obra|civil/.test(n)) add('Lectura e interpretación de documentación de obra','Seguimiento de avances y coordinación de frentes','Control de calidad y seguridad en obra','Resolución de interferencias técnicas');
+  if(/planificacion|costos|planner/.test(n)) add('Programación y seguimiento de actividades','Análisis de avances y desvíos','Elaboración de reportes de gestión','Coordinación de información de planificación y costos');
+  if(String(seniority||'').toUpperCase()==='SENIOR') add('Criterio técnico basado en experiencia acumulada','Capacidad para priorizar y resolver situaciones complejas','Transferencia de conocimiento y acompañamiento de equipos');
+  else if(String(seniority||'').toUpperCase()==='SEMI_SENIOR') add('Autonomía creciente en la ejecución de tareas','Capacidad para coordinar prioridades y resolver desvíos','Orientación al aprendizaje y mejora continua');
+  else if(String(seniority||'').toUpperCase()==='JUNIOR') add('Base técnica para continuar desarrollando experiencia práctica','Predisposición al aprendizaje y adaptación','Trabajo colaborativo y seguimiento de procedimientos');
+  else add('Predisposición para aprender y desarrollarme','Responsabilidad y compromiso con las tareas','Trabajo en equipo y apertura a recibir capacitación');
+  const generic=['Comunicación técnica clara','Organización y seguimiento de tareas','Trabajo interdisciplinario','Orientación a la calidad','Compromiso con la seguridad','Resolución de problemas','Aprendizaje continuo','Responsabilidad profesional','Adaptación a nuevos desafíos','Enfoque en resultados'];
+  add(...generic);
+  return uniqProfessionalStrengths(items).slice(0,10);
+}
+
+function buildProfessionalMotivationLocal(seniority='', context={}){
+  const level=String(seniority||'').toUpperCase();
+  const expertise=String(context?.expertise || '').trim();
+  const area=expertise ? ` dentro de ${expertise}` : '';
+  const working=!!context?.currentlyWorking;
+  if(level==='SENIOR') return working
+    ? `Busco nuevos desafíos donde pueda aportar la experiencia acumulada${area}, participar en proyectos de mayor alcance y, al mismo tiempo, seguir incorporando conocimientos y evolucionando profesionalmente junto con la organización.`
+    : `Busco una oportunidad donde pueda poner al servicio de la empresa mi experiencia acumulada${area}, asumir desafíos de responsabilidad y continuar desarrollándome en proyectos que valoren el conocimiento técnico y la mejora continua.`;
+  if(level==='SEMI_SENIOR') return `Busco una oportunidad que me permita consolidar mi experiencia${area}, asumir mayores responsabilidades, profundizar mis conocimientos y seguir creciendo dentro de un equipo y una organización con desafíos concretos.`;
+  if(level==='JUNIOR') return `Busco una oportunidad para transformar mi formación y experiencia inicial${area} en mayor práctica profesional, aprender de equipos con experiencia, asumir responsabilidades progresivas y seguir creciendo dentro de la empresa.`;
+  return `Busco una primera oportunidad para aprender, adquirir experiencia práctica${area}, demostrar compromiso con el trabajo y desarrollarme progresivamente dentro de una empresa que me permita capacitarme y crecer.`;
+}
+
+function buildProfessionalClosingLocal(seniority='', context={}){
+  const level=String(seniority||'').toUpperCase();
+  const expertise=String(context?.expertise || '').trim();
+  const area=expertise ? ` en ${expertise}` : '';
+  if(level==='SENIOR') return `Mi objetivo es combinar la experiencia adquirida con una actitud abierta a nuevas tecnologías, metodologías y formas de trabajo. Quiero seguir aportando criterio técnico${area}, acompañar el desarrollo de los equipos y contribuir a que los proyectos se ejecuten con calidad, seguridad y una mirada práctica orientada a resultados.`;
+  if(level==='SEMI_SENIOR') return `Mi objetivo es seguir fortaleciendo mi autonomía profesional${area}, ampliar responsabilidades y aportar una mirada cada vez más integral. Me interesa continuar aprendiendo, trabajar de manera colaborativa y contribuir al cumplimiento de los objetivos del equipo.`;
+  if(level==='JUNIOR') return `Mi objetivo es continuar construyendo una trayectoria sólida${area}, aprender de la experiencia cotidiana y convertir cada nuevo desafío en una oportunidad de crecimiento. Me interesa integrarme a un equipo donde pueda aportar, capacitarme y asumir responsabilidades en forma progresiva.`;
+  return `Mi objetivo es comenzar a desarrollar una trayectoria laboral${area}, aprender haciendo y adquirir hábitos de trabajo sólidos. Quiero integrarme a un equipo donde pueda capacitarme, aportar compromiso y crecer paso a paso con nuevas responsabilidades.`;
+}
+
 function refineCandidatePresentationLocal(transcript='', context={}){
   const source=String(transcript || '').replace(/\s+/g,' ').trim();
   const cleaned=source
@@ -2810,57 +2924,58 @@ function refineCandidatePresentationLocal(transcript='', context={}){
   const title=inferLocalProfessionalTitle(source, context);
   const expertise=inferLocalExpertise(source, context);
   const n=professionalNorm(source);
-  const strengths=[];
-  if(/electric/.test(n)) strengths.push('área eléctrica');
-  if(/aire acondicionado|hvac/.test(n)) strengths.push('aire acondicionado');
-  if(/termomecan/.test(n)) strengths.push('instalaciones termomecánicas');
-  if(/calcul/.test(n)) strengths.push('cálculos y dimensionamiento');
-  if(/proyect/.test(n)) strengths.push('proyectos de ingeniería');
-  if(/supervis/.test(n)) strengths.push('supervisión');
-  if(/mantenimiento/.test(n)) strengths.push('mantenimiento');
-  if(/produccion|operaciones/.test(n)) strengths.push('producción y operaciones');
-  if(/calidad/.test(n)) strengths.push('calidad');
-  const unique=[...new Set(strengths)];
-  const hasEngineer=/ingenier|proyectista|tecnic|supervisor|jefe|gerente|administr/.test(n);
   const paragraphs=[];
-  if(title && title !== 'Perfil profesional'){
-    let intro=title;
-    if(years!==null) intro += ` con ${years >= 30 ? 'una trayectoria profesional de más de tres décadas' : `aproximadamente ${years} años de experiencia`}`;
-    if(expertise && !professionalNorm(title).includes(professionalNorm(expertise))) intro += `, con foco principal en ${expertise.toLowerCase()}`;
-    intro += '. La experiencia declarada permite identificar un recorrido profesional consolidado, en el que la especialidad técnica y el conocimiento acumulado constituyen el eje central de su perfil.';
-    paragraphs.push(intro);
-  } else if(years!==null){
-    paragraphs.push(`Profesional con aproximadamente ${years} años de experiencia en el rubro declarado. La trayectoria informada refleja continuidad y conocimiento acumulado en su campo de actividad.`);
+
+  const isElectromech=/electromecan/.test(n);
+  const isElectrical=/electric/.test(n);
+  const isProject=/proyectista|proyecto|oficina tecnica/.test(n);
+  const isSupervisor=/supervis|jefe|coordin/.test(n);
+  const isHvac=/aire acondicionado|hvac|termomecan/.test(n);
+  const isCalc=/calcul|dimension/.test(n);
+
+  let intro='';
+  if(isElectromech && isProject) intro='Soy ingeniero electromecánico y proyectista';
+  else if(/ingenier/.test(n) && isElectrical && isProject) intro='Soy ingeniero del área eléctrica y proyectista';
+  else if(isProject) intro='Me desempeño como proyectista';
+  else if(isSupervisor) intro='Me desempeño en funciones de supervisión técnica';
+  else if(title && title !== 'Perfil profesional') intro=`Mi perfil profesional se desarrolla en ${title}`;
+  else intro='Cuento con experiencia profesional en el área declarada';
+  if(years!==null) intro += years>=30 ? ', con más de tres décadas de experiencia' : `, con aproximadamente ${years} años de experiencia`;
+  if(expertise && !professionalNorm(intro).includes(professionalNorm(expertise))) intro += `, con especialización en ${expertise.toLowerCase()}`;
+  paragraphs.push(`${intro}.`);
+
+  if(isProject && (isElectrical || isElectromech)){
+    paragraphs.push('En mi actividad como proyectista desarrollo y documento soluciones de ingeniería eléctrica, desde la definición técnica hasta el detalle necesario para su ejecución. Según el alcance de cada proyecto, trabajo con esquemas unifilares y trifilares, planos de canalizaciones, tendidos y distribución, ubicación de tableros y equipos, criterios de alimentación, cálculos de carga y demanda, dimensionamiento de conductores y protecciones, verificación de caída de tensión, puesta a tierra, especificaciones y documentación técnica. También coordino las interfaces eléctricas con otras disciplinas para asegurar coherencia entre el diseño y la ejecución.');
+  } else if(isProject){
+    paragraphs.push('Como proyectista, desarrollo documentación e ingeniería de detalle, realizo cálculos y dimensionamientos, preparo planos y especificaciones y coordino técnicamente las interfaces necesarias para llevar una solución desde la definición inicial hasta su ejecución.');
   }
-  if(unique.length){
-    const tail=unique.length===1 ? unique[0] : `${unique.slice(0,-1).join(', ')} y ${unique.at(-1)}`;
-    let technical=`Su experiencia se concentra especialmente en ${tail}.`;
-    if(/electric/.test(n)) technical += ' En el área eléctrica, el relato evidencia una especialización sostenida dentro de su recorrido electromecánico.';
-    if(/aire acondicionado|hvac|termomecan/.test(n)) technical += ' También incorpora experiencia vinculada con aire acondicionado e instalaciones termomecánicas, ampliando el alcance de su perfil técnico.';
-    if(/calcul/.test(n)) technical += ' La mención de cálculos y dimensionamiento refuerza un perfil orientado al análisis y desarrollo técnico de soluciones de ingeniería.';
-    paragraphs.push(technical);
+
+  if(isHvac){
+    paragraphs.push('También cuento con experiencia en aire acondicionado e instalaciones termomecánicas, participando en cálculos y dimensionamiento, definición técnica de instalaciones y coordinación electromecánica con los restantes sistemas del proyecto.');
+  } else if(isCalc){
+    paragraphs.push('Los cálculos y el dimensionamiento forman parte de mi trabajo técnico y los utilizo para fundamentar decisiones de diseño y verificar que las soluciones proyectadas sean consistentes con las necesidades de cada instalación.');
   }
-  if(/supervis/.test(n) && /proyect/.test(n)){
-    paragraphs.push('La trayectoria declarada se desarrolló principalmente en funciones de supervisión y proyectos de ingeniería. Esta combinación permite presentar un perfil que integra experiencia técnica con seguimiento y conducción de trabajos, manteniendo una mirada orientada al desarrollo y ejecución de proyectos dentro de las áreas expresamente mencionadas por el candidato.');
-  } else if(/supervis/.test(n)){
-    paragraphs.push('Cuenta con experiencia sostenida en funciones de supervisión y coordinación dentro de su especialidad, según lo expresado en su relato profesional.');
-  } else if(/proyect/.test(n)){
-    paragraphs.push('Su experiencia como proyectista permite caracterizarlo como un perfil orientado al desarrollo de proyectos de ingeniería, respaldado por los conocimientos técnicos y áreas de especialización declaradas.');
+
+  if(isSupervisor){
+    paragraphs.push('En funciones de supervisión realizo el seguimiento técnico de los trabajos, coordino equipos y contratistas, verifico la ejecución respecto de planos y especificaciones, controlo avances, calidad y condiciones de seguridad, intervengo ante desvíos técnicos y acompaño inspecciones, pruebas y puesta en servicio cuando el alcance del proyecto lo requiere.');
   }
-  if(!paragraphs.length && cleaned) paragraphs.push(normalizePresentationSentence(cleaned));
-  if(cleaned && paragraphs.join(' ').length < 280 && !paragraphs.some((x)=>professionalNorm(x).includes(professionalNorm(cleaned).slice(0,30)))){
-    paragraphs.push(`Como información complementaria, el candidato declara: ${normalizePresentationSentence(cleaned)}`);
-  }
+
+  if(!paragraphs.length && cleaned) paragraphs.push(`Mi experiencia puede resumirse de la siguiente manera: ${normalizePresentationSentence(cleaned)}`);
   const summary=clampText(paragraphs.join('\n\n').trim(), 8000);
+  const seniority=years!==null ? (years>=11?'SENIOR':years>=6?'SEMI_SENIOR':years>=2?'JUNIOR':'APRENDIZ') : '';
+  const strengths=inferProfessionalStrengthsLocal(source,{...context,expertise},seniority);
   return {
     summary:summary || clampText(cleaned,8000),
     yearsExperience:years,
     suggestedExperienceRange:experienceRangeFromYears(years),
     professionalTitle:title,
     expertise,
-    seniority: years!==null ? (years>=11?'SENIOR':years>=6?'SEMI_SENIOR':years>=2?'JUNIOR':'APRENDIZ') : '',
+    seniority,
+    strengths,
+    motivation:buildProfessionalMotivationLocal(seniority,{...context,expertise}),
+    closing:buildProfessionalClosingLocal(seniority,{...context,expertise}),
     evidence: years!==null ? `${years} años de experiencia mencionados explícitamente por el candidato` : 'Síntesis basada en el relato profesional disponible',
-    source:'LOCAL_V2',
+    source:'LOCAL_V4_FIRST_PERSON_STRENGTHS',
   };
 }
 
@@ -2887,12 +3002,14 @@ async function refineCandidatePresentationWithAI(transcript='', context={}){
       cv_summary:clampText(context?.resumeSummary || '',1600),
       cv_experience:clampText(context?.resumeExperience || '',2200),
       declared_experience_range:clampText(context?.declaredRange || '',80),
+      currently_working:!!context?.currentlyWorking,
+      role_reference_hints:candidateRoleKnowledgeHints(transcript,context),
     };
     const payload={
       model:OPENAI_MODEL,
       store:false,
       input:[
-        { role:'system', content:[{type:'input_text',text:'Sos el asistente profesional de Talento PyME. Convertí un relato oral imperfecto en una presentación laboral clara, convincente, amplia y fiel. El campo summary será la PRESENTACIÓN PROFESIONAL AMPLIADA que aparecerá en la parte principal blanca del CV: no debe ser un resumen corto ni una repetición literal. Cuando el material lo permita, desarrollala en 2 a 4 párrafos y aproximadamente 160 a 320 palabras. Explicá con lenguaje profesional el alcance de las áreas, funciones y especialidades que la persona efectivamente declaró, aprovechando al máximo la información disponible. Podés interpretar profesionalmente lo declarado, pero no inventes empleos, empresas, títulos, años, certificaciones, logros, responsabilidades ni tecnologías no mencionadas. Eliminá saludos, muletillas y repeticiones. Si el candidato menciona años de experiencia, supervisión, proyectos, profesión o especialidades, dales el peso correspondiente. El seniority describe trayectoria, no calidad humana ni aptitud de contratación. Respondé únicamente con el JSON solicitado.'}] },
+        { role:'system', content:[{type:'input_text',text:'Sos el asistente de redacción profesional de Talento PyME. Estás ayudando AL CANDIDATO A ESCRIBIR SU PROPIO CURRÍCULUM. Todo el contenido que irá al CV debe sonar como escrito por la propia persona, nunca como una opinión de Talento PyME. El campo summary debe quedar EN PRIMERA PERSONA: “Soy…”, “Cuento con…”, “Me especializo…”, “Desarrollo…”, “Superviso…”. Está prohibido redactar como evaluador externo: no usar “el candidato”, “su perfil”, “la experiencia declarada permite identificar”, “el relato evidencia”, “se observa”, “demuestra” ni fórmulas equivalentes. Convertí el relato oral imperfecto en una PRESENTACIÓN PROFESIONAL AMPLIADA, clara, convincente y fiel para la parte blanca principal del CV. No debe ser un resumen corto ni repetir la columna lateral. Cuando el material lo permita, desarrollala en 2 a 4 párrafos y aproximadamente 180 a 340 palabras. Traducí profesiones y funciones declaradas a vocabulario técnico propio del oficio para ayudar a la persona a nombrar tareas que realiza pero quizá no sabe expresar. Podés usar role_reference_hints como conocimiento profesional de apoyo sólo cuando sea compatible con el relato; si una tarea es típica del rol pero no fue mencionada expresamente, presentala como alcance habitual o capacidad asociada al rol, nunca como un logro o proyecto específico comprobado. Generá strengths con EXACTAMENTE 10 aptitudes/competencias positivas y concretas, preferentemente técnicas y de gestión, coherentes con la profesión, expertise, seniority y experiencia disponible. Deben ser frases breves utilizables directamente como viñetas de un CV y no opiniones de un tercero. Generá motivation en primera persona explicando qué busca profesionalmente la persona y por qué desea crecer o seguir desarrollándose: para APRENDIZ/primer empleo enfatizar aprender y adquirir experiencia; para JUNIOR consolidar práctica y responsabilidades; para SEMI_SENIOR ampliar autonomía y alcance; para SENIOR aportar experiencia acumulada, asumir desafíos de mayor alcance, transferir conocimiento y seguir evolucionando. Si currently_working es true, no escribir como si estuviera desempleado: hablar de nuevos desafíos y evolución. Generá closing en primera persona como cierre profesional de 2 a 4 frases, integrando expertise, aporte y proyección. No inventes empleos, empresas, títulos, años, certificaciones, resultados, cantidades, marcas, software, normas, tensión, potencia, presupuestos ni tecnologías no mencionadas. Eliminá saludos, muletillas, repeticiones y “etcétera”. Si menciona años de experiencia, supervisión, proyectos, profesión o especialidades, dales el peso correspondiente. El seniority describe trayectoria, no calidad humana ni aptitud de contratación. Respondé únicamente con el JSON solicitado.'}] },
         { role:'user', content:[{type:'input_text',text:`Analizá nuevamente TODO el material profesional cada vez, no sólo lo agregado al final.\n\nDatos profesionales (sin identidad ni contacto):\n${JSON.stringify(professionalContext)}`}]}],
       text:{format:{type:'json_schema',name:'candidate_professional_presentation',strict:true,schema:{
         type:'object',additionalProperties:false,
@@ -2902,9 +3019,12 @@ async function refineCandidatePresentationWithAI(transcript='', context={}){
           seniority:{type:'string',enum:['APRENDIZ','JUNIOR','SEMI_SENIOR','SENIOR']},
           professional_title:{type:'string'},
           expertise:{type:'string'},
+          strengths:{type:'array',items:{type:'string'},minItems:10,maxItems:10},
+          motivation:{type:'string'},
+          closing:{type:'string'},
           evidence:{type:'string'},
         },
-        required:['summary','years_experience','seniority','professional_title','expertise','evidence']
+        required:['summary','years_experience','seniority','professional_title','expertise','strengths','motivation','closing','evidence']
       }}}
     };
     const response=await fetch('https://api.openai.com/v1/responses',{
@@ -2928,6 +3048,9 @@ async function refineCandidatePresentationWithAI(transcript='', context={}){
       professionalTitle:clampText(parsed.professional_title || '',180),
       expertise:clampText(parsed.expertise || '',160),
       seniority:String(parsed.seniority || '').trim(),
+      strengths:uniqProfessionalStrengths(Array.isArray(parsed.strengths) ? parsed.strengths : []).slice(0,10),
+      motivation:clampText(parsed.motivation || '',1600),
+      closing:clampText(parsed.closing || '',2400),
       evidence:clampText(parsed.evidence || '',500),
       source:'OPENAI',
     };
@@ -2950,6 +3073,7 @@ app.post('/candidate/presentation/refine', auth, requireRole('CANDIDATE'), async
       resumeSummary:candidate?.resume?.summary || '',
       resumeExperience:candidate?.resume?.experience || '',
       declaredRange:candidate?.candidateBolsa?.rangoExperiencia || '',
+      currentlyWorking:!!candidate?.candidateBolsa?.trabajaActualmente,
     };
     let analysis=null;
     let aiError='';
@@ -2959,7 +3083,7 @@ app.post('/candidate/presentation/refine', auth, requireRole('CANDIDATE'), async
     }
     if(!analysis) analysis=refineCandidatePresentationLocal(parsed.data.transcript, context);
 
-    // v7.9.6: la corrección profesional se ejecuta únicamente a pedido explícito del candidato
+    // v7.9.7: la corrección profesional se ejecuta únicamente a pedido explícito del candidato
     // y pasa a ser inmediatamente la presentación principal por defecto.
     const analyzedAt=new Date();
     const yearsExperience=Number.isFinite(Number(analysis.yearsExperience)) ? Number(analysis.yearsExperience) : null;
@@ -2972,9 +3096,12 @@ app.post('/candidate/presentation/refine', auth, requireRole('CANDIDATE'), async
           voiceNarrativeRaw:parsed.data.transcript,
           voiceNarrativeSummary:analysis.summary,
           voiceNarrativeAnalysisVersion:PRESENTATION_ANALYSIS_VERSION,
-          voiceNarrativeAnalysisSource:analysis.source || 'LOCAL_V2',
+          voiceNarrativeAnalysisSource:analysis.source || 'LOCAL_V4_FIRST_PERSON_STRENGTHS',
           voiceNarrativeYears:yearsExperience,
           voiceNarrativeProfessionalTitle:clampText(analysis.professionalTitle || '',180) || null,
+          voiceNarrativeStrengths:uniqProfessionalStrengths(analysis.strengths || []).slice(0,10),
+          voiceNarrativeMotivation:clampText(analysis.motivation || '',1600) || null,
+          voiceNarrativeClosing:clampText(analysis.closing || '',2400) || null,
           voiceNarrativeAnalyzedAt:analyzedAt,
           ...((suggestedRange && (!currentRange || currentRange==='Pendiente')) ? { rangoExperiencia:suggestedRange } : {}),
         }
@@ -2993,6 +3120,9 @@ app.post('/candidate/presentation/refine', auth, requireRole('CANDIDATE'), async
         seniority:analysis.seniority || '',
         professionalTitle:analysis.professionalTitle || '',
         expertise:analysis.expertise || '',
+        strengths:uniqProfessionalStrengths(analysis.strengths || []).slice(0,10),
+        motivation:analysis.motivation || '',
+        closing:analysis.closing || '',
         evidence:analysis.evidence || '',
         aiConfigured:!!OPENAI_API_KEY,
         fallbackUsed:analysis.source !== 'OPENAI',
@@ -3307,7 +3437,7 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
     const especialidad_by_area = Object.fromEntries(
       Object.entries(rawStats.especialidad_by_area || {}).map(([area, values]) => [area, Object.keys(values || {})])
     );
-    // v7.9.6: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
+    // v7.9.7: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
     // ni conteos por faceta. Los totales de padrón quedan reservados al Panel General.
     return res.json({ ok: true, facets, especialidad_by_area });
   } catch (err) {
@@ -3537,7 +3667,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.9.6 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.9.7 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
@@ -4684,7 +4814,7 @@ function buildSupportCandidateCompleteness(candidate){
   if(!candidate) return { done: 0, total: 6, percent: 0, pending: ['datos personales','presentación profesional','perfil laboral','trayectoria y pretensión','resumen curricular','foto'] };
   const blocks = [
     { label: 'datos personales', complete: [candidate.dni, candidate.telefono, candidate.correo, candidate.localidad].every((v)=> String(v || '').trim()) },
-    { label: 'presentación profesional', complete: String(candidate.voiceNarrativeSummary || '').trim() && String(candidate.voiceNarrativeAnalysisVersion || '').trim() },
+    { label: 'presentación profesional', complete: String(candidate.voiceNarrativeSummary || '').trim() && String(candidate.voiceNarrativeAnalysisVersion || '').trim() === PRESENTATION_ANALYSIS_VERSION && String(candidate.voiceNarrativeMotivation || '').trim() },
     { label: 'perfil laboral', complete: String(candidate.areaTrabajo || '').trim() && String(candidate.rangoExperiencia || '').trim() && String(candidate.nivelEducativo || '').trim() && (String(candidate.especialidad || '').trim() || String(candidate.especialidadOtro || '').trim()) },
     { label: 'pretensión económica y trayectoria', complete: String(candidate.sueldoPretendido || '').trim() && String(candidate.ultimoTrabajo || '').trim() },
     { label: 'resumen curricular', complete: String(candidate.observaciones || '').trim() },
@@ -5747,7 +5877,7 @@ async function buildTraceabilityReportSnapshot(){
       select:{
         id:true, createdAt:true,
         candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, headline:true, sector:true, subSector:true, updatedAt:true } },
-        candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, provinciaResidencia:true, paisResidencia:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, voiceNarrativeAnalysisVersion:true, voiceNarrativeAnalysisSource:true, voiceNarrativeYears:true, voiceNarrativeProfessionalTitle:true, voiceNarrativeAnalyzedAt:true, updatedAt:true } },
+        candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, provinciaResidencia:true, paisResidencia:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, voiceNarrativeAnalysisVersion:true, voiceNarrativeAnalysisSource:true, voiceNarrativeYears:true, voiceNarrativeProfessionalTitle:true, voiceNarrativeStrengths:true, voiceNarrativeMotivation:true, voiceNarrativeClosing:true, voiceNarrativeAnalyzedAt:true, updatedAt:true } },
         resume:{ select:{ summary:true, experience:true, education:true, certifications:true, observations:true, updatedAt:true } },
       },
     }).catch(()=>[]),
@@ -6409,7 +6539,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.billingOrder.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
     ]);
 
-    // v7.9.6 · Directorios clasificados de Administración.
+    // v7.9.7 · Directorios clasificados de Administración.
     // Se consultan campos livianos de todos los registros que cumplen los filtros actuales para que
     // los contadores representen el padrón filtrado completo, no solamente la página visible.
     const [candidateClassificationRows, companyClassificationRows] = await Promise.all([
@@ -6419,7 +6549,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         select: {
           id:true, email:true, candidateKeepIndefinitely:true, createdAt:true,
           candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, headline:true, sector:true, subSector:true, updatedAt:true } },
-          candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, provinciaResidencia:true, paisResidencia:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, voiceNarrativeAnalysisVersion:true, voiceNarrativeAnalysisSource:true, voiceNarrativeYears:true, voiceNarrativeProfessionalTitle:true, voiceNarrativeAnalyzedAt:true, sueldoPretendido:true, updatedAt:true } },
+          candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, provinciaResidencia:true, paisResidencia:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, voiceNarrativeAnalysisVersion:true, voiceNarrativeAnalysisSource:true, voiceNarrativeYears:true, voiceNarrativeProfessionalTitle:true, voiceNarrativeStrengths:true, voiceNarrativeMotivation:true, voiceNarrativeClosing:true, voiceNarrativeAnalyzedAt:true, sueldoPretendido:true, updatedAt:true } },
           resume:{ select:{ summary:true, experience:true, education:true, certifications:true, observations:true, updatedAt:true } },
         },
       }).catch(() => []),

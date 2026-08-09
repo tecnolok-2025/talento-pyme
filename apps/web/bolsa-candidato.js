@@ -1,4 +1,4 @@
-/* Talento PyME - v7.9.6 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF */
+/* Talento PyME - v7.9.7 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -443,6 +443,9 @@ async function initBolsaCandidato(){
     voiceNarrativeAnalysisSource:"",
     voiceNarrativeYears:null,
     voiceNarrativeProfessionalTitle:"",
+    voiceNarrativeStrengths:[],
+    voiceNarrativeMotivation:"",
+    voiceNarrativeClosing:"",
     voiceNarrativeAnalyzedAt:null,
     photoDataUrl:"",
     herramientasMecanica:[],
@@ -702,7 +705,16 @@ async function initBolsaCandidato(){
               <label style="display:block;margin-top:10px">Presentación profesional desarrollada por IA · editable
                 <textarea id="c_voice_summary" rows="11" placeholder="Cuando pulses “Corrección IA profesional” aparecerá acá una versión más amplia y profesional de todo lo que contaste. Esta será la presentación principal por defecto para tu CV y tu perfil." ${ro()}>${esc(cand.voiceNarrativeSummary)}</textarea>
               </label>
-              <div class="muted small" style="margin-top:6px">Esta redacción es una propuesta de Talento PyME basada únicamente en lo que vos contaste. <b>Podés borrar, corregir, acortar o ampliar cualquier parte</b> antes de guardarla. En el CV, la franja azul mostrará un resumen breve de tu perfil y la parte blanca utilizará esta presentación ampliada para explicar con mayor profundidad tu experiencia, funciones, especialidades y fortalezas.</div>
+              <label style="display:block;margin-top:10px">10 aptitudes y fortalezas profesionales sugeridas · editables
+                <textarea id="c_voice_strengths" rows="10" placeholder="Una por línea. La IA propone hasta 10 capacidades coherentes con tu profesión, experiencia y expertise; podés borrar, reemplazar o corregir cualquiera." ${ro()}>${esc((cand.voiceNarrativeStrengths||[]).join("\n"))}</textarea>
+              </label>
+              <label style="display:block;margin-top:10px">Motivación y objetivo profesional · editable
+                <textarea id="c_voice_motivation" rows="4" placeholder="Por qué buscás una oportunidad, qué querés aportar y cómo querés seguir creciendo profesionalmente." ${ro()}>${esc(cand.voiceNarrativeMotivation)}</textarea>
+              </label>
+              <label style="display:block;margin-top:10px">Cierre profesional · editable
+                <textarea id="c_voice_closing" rows="5" placeholder="Una conclusión final en primera persona sobre tu aporte, tu expertise y tu proyección dentro de una empresa." ${ro()}>${esc(cand.voiceNarrativeClosing)}</textarea>
+              </label>
+              <div class="muted small" style="margin-top:6px">Todo queda escrito <b>en primera persona, como tu propio currículum</b>. Talento PyME toma lo que contaste y lo enriquece con vocabulario técnico propio de la profesión u oficio detectado para ayudarte a nombrar mejor tareas y alcances, sin inventar empresas, títulos, logros ni antecedentes. Las aptitudes se formulan como capacidades profesionales, no como una opinión externa. <b>Podés borrar, corregir, acortar, ampliar o reemplazar cualquier parte</b> antes de guardarla. El CV tomará por defecto la última versión que hayas dejado aprobada.</div>
               <div class="tp-voice-next">Podés continuar completando tu perfil ahora o volver cuando quieras. Lo que guardes queda esperando para que agregues CV, experiencia, formación y foto más adelante.</div>
             </div>
           </details>
@@ -983,9 +995,15 @@ async function initBolsaCandidato(){
     cand.observaciones = el("c_obs").value.trim();
     cand.voiceNarrativeRaw = el("c_voice_raw")?.value?.trim() || cand.voiceNarrativeRaw || "";
     cand.voiceNarrativeSummary = el("c_voice_summary")?.value?.trim() || cand.voiceNarrativeSummary || "";
+    cand.voiceNarrativeStrengths = String(el("c_voice_strengths")?.value || "").split(/\r?\n|•/).map(v=>v.trim()).filter(Boolean).slice(0,10);
+    cand.voiceNarrativeMotivation = el("c_voice_motivation")?.value?.trim() || "";
+    cand.voiceNarrativeClosing = el("c_voice_closing")?.value?.trim() || "";
     if(cand.observaciones.length > 12000) cand.observaciones = cand.observaciones.slice(0,12000);
     if(cand.voiceNarrativeRaw.length > 8000) cand.voiceNarrativeRaw = cand.voiceNarrativeRaw.slice(0,8000);
     if(cand.voiceNarrativeSummary.length > 8000) cand.voiceNarrativeSummary = cand.voiceNarrativeSummary.slice(0,8000);
+    cand.voiceNarrativeStrengths = (cand.voiceNarrativeStrengths||[]).map(v=>String(v).slice(0,240)).slice(0,10);
+    if(cand.voiceNarrativeMotivation.length > 1600) cand.voiceNarrativeMotivation = cand.voiceNarrativeMotivation.slice(0,1600);
+    if(cand.voiceNarrativeClosing.length > 2400) cand.voiceNarrativeClosing = cand.voiceNarrativeClosing.slice(0,2400);
 
     // checkboxes
     if(cand.areaTrabajo==="Mecánica (Industrial)") cand.herramientasMecanica = getGroupValues("herrMec");
@@ -1013,16 +1031,19 @@ async function initBolsaCandidato(){
       const r=await apiFetch('/candidate/presentation/refine',{method:'POST',body:JSON.stringify({transcript})});
       cand.voiceNarrativeSummary=String(r.summary || transcript).trim().slice(0,8000);
       const analysis=r.analysis || {};
-      cand.voiceNarrativeAnalysisVersion=String(analysis.analysisVersion || 'AI_V4_7.9.6');
+      cand.voiceNarrativeAnalysisVersion=String(analysis.analysisVersion || 'AI_V6_7.9.7_STRENGTHS_MOTIVATION');
       cand.voiceNarrativeAnalysisSource=String(analysis.source || 'LOCAL_V2');
       cand.voiceNarrativeYears=Number.isFinite(Number(analysis.yearsExperience)) ? Number(analysis.yearsExperience) : null;
       cand.voiceNarrativeProfessionalTitle=String(analysis.professionalTitle || '').trim().slice(0,180);
+      cand.voiceNarrativeStrengths=Array.isArray(analysis.strengths) ? analysis.strengths.map(v=>String(v||'').trim()).filter(Boolean).slice(0,10) : [];
+      cand.voiceNarrativeMotivation=String(analysis.motivation || '').trim().slice(0,1600);
+      cand.voiceNarrativeClosing=String(analysis.closing || '').trim().slice(0,2400);
       cand.voiceNarrativeAnalyzedAt=new Date().toISOString();
       if(analysis.suggestedExperienceRange && (!cand.rangoExperiencia || cand.rangoExperiencia==='Pendiente')) cand.rangoExperiencia=analysis.suggestedExperienceRange;
       voiceRawLastRefined=transcript;
       voiceMessage=analysis.source==='OPENAI'
-        ? 'Listo. La IA leyó el relato completo y desarrolló una presentación profesional más amplia. Queda tomada como texto principal por defecto; podés borrar, corregir, acortar o ampliar cualquier parte antes de guardar.'
-        : 'Listo. El analizador profesional leyó el relato completo y desarrolló una presentación más amplia. Queda tomada como texto principal por defecto; podés borrar, corregir, acortar o ampliar cualquier parte antes de guardar.';
+        ? 'Listo. La IA leyó el relato completo y preparó tu presentación en primera persona, 10 aptitudes profesionales, una motivación acorde a tu trayectoria y un cierre. Todo queda como propuesta por defecto y podés borrar, corregir, acortar, ampliar o reemplazar cualquier parte antes de guardar.'
+        : 'Listo. El analizador profesional leyó el relato completo y preparó tu presentación, aptitudes, motivación y cierre en primera persona. Todo queda como propuesta por defecto y podés editar cualquier parte antes de guardar.';
       if(analysis.diagnostic) voiceMessage += ` ${analysis.diagnostic}`;
     }catch(err){
       cand.voiceNarrativeAnalysisVersion='';
@@ -1069,6 +1090,19 @@ async function initBolsaCandidato(){
     if(!errMsg){ detailsState.d2=true; voiceMessage='Guardado. Podés seguir completando ahora o salir y volver más adelante: tu presentación queda conservada.'; render(); }
   }
 
+  function safeCvNamePart(v=''){
+    return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,' ').replace(/\s+/g,' ').trim() || 'Candidato';
+  }
+
+  function localCandidateCvFilename(){
+    const now=new Date();
+    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);
+    const t={}; parts.forEach(p=>{if(p.type!=='literal') t[p.type]=p.value;});
+    const yy=String(t.year||'').slice(-2);
+    const full=safeCvNamePart(`${cand.nombre||''} ${cand.apellido||''}`.trim() || me?.fullName || 'Candidato');
+    return `${yy}${t.month}${t.day}-${t.hour}${t.minute} CV ${full}.pdf`;
+  }
+
   async function downloadCandidateCv(){
     readAltaFromDom();
     const btn=el('btnDownloadCandidateCv');
@@ -1086,7 +1120,7 @@ async function initBolsaCandidato(){
       const blob=await res.blob();
       const disposition=res.headers.get('content-disposition') || '';
       const match=disposition.match(/filename="?([^";]+)"?/i);
-      const filename=match?.[1] || 'CV-Talento-PyME.pdf';
+      const filename=match?.[1] || localCandidateCvFilename();
       const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1200);
       okMsg='Currículum generado. Podés imprimirlo o guardarlo y volver a generarlo cuando actualices tu perfil.';
     }catch(err){ errMsg=err?.message || 'No se pudo generar el currículum.'; okMsg=''; }
@@ -1102,7 +1136,7 @@ async function initBolsaCandidato(){
     });
 
     // update state on inputs without rerender
-    ["c_nombre","c_apellido","c_dni","c_nacionalidad","c_estadoCivil","c_hijos","c_telefono","c_correo","c_localidad","c_provinciaResidencia","c_paisResidencia","c_direccion","c_nivel","c_especialidadOtro","c_rangoExp","c_nivelEdu","c_cap","c_trabaja","c_sueldo","c_ultimo","c_obs","c_voice_raw","c_voice_summary"].forEach(id=>{
+    ["c_nombre","c_apellido","c_dni","c_nacionalidad","c_estadoCivil","c_hijos","c_telefono","c_correo","c_localidad","c_provinciaResidencia","c_paisResidencia","c_direccion","c_nivel","c_especialidadOtro","c_rangoExp","c_nivelEdu","c_cap","c_trabaja","c_sueldo","c_ultimo","c_obs","c_voice_raw","c_voice_summary","c_voice_strengths","c_voice_motivation","c_voice_closing"].forEach(id=>{
       const e=el(id);
       if(e) e.addEventListener("input", ()=>{ readAltaFromDom(); });
       if(e) e.addEventListener("change", ()=>{ readAltaFromDom(); });
@@ -1478,7 +1512,7 @@ async function initBolsaCandidato(){
       return;
     }
 
-    // v7.9.6: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
+    // v7.9.7: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
     // cuando el candidato pulsa expresamente “Corrección IA profesional”.
 
     busy = true; render();
@@ -1516,6 +1550,9 @@ async function initBolsaCandidato(){
         voiceNarrativeAnalysisSource: cand.voiceNarrativeAnalysisSource || null,
         voiceNarrativeYears: Number.isFinite(Number(cand.voiceNarrativeYears)) ? Number(cand.voiceNarrativeYears) : null,
         voiceNarrativeProfessionalTitle: cand.voiceNarrativeProfessionalTitle || null,
+        voiceNarrativeStrengths: (cand.voiceNarrativeStrengths || []).slice(0,10),
+        voiceNarrativeMotivation: (cand.voiceNarrativeMotivation || "").slice(0,1600) || null,
+        voiceNarrativeClosing: (cand.voiceNarrativeClosing || "").slice(0,2400) || null,
         voiceNarrativeAnalyzedAt: cand.voiceNarrativeAnalyzedAt || null,
 
         herramientasMecanica: cand.herramientasMecanica || [],
