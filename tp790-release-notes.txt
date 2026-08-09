@@ -1,0 +1,37 @@
+Talento PyME v7.9.0 — Clasificación administrativa avanzada y trazabilidad de perfiles
+
+1. Candidatos: clasificación total, sin “Pendiente de clasificar”
+- Todo candidato queda integrado en una categoría administrativa útil.
+- Categorías principales: Aprendices / Pasantes / Primer empleo; Operativos / Oficios; Técnicos / Especialistas; Supervisión / Jefaturas; Profesionales / Ingeniería; Gerencia / Dirección; Administrativos / Gestión.
+- Dentro de cada grupo se crean subcategorías por expertise con contador.
+- Si aparece una especialidad nueva que no coincide con el catálogo existente, Administración genera automáticamente una subcategoría dinámica a partir del área, especialidad o titular profesional disponible.
+- La actividad/rol más reciente tiene mayor peso que la experiencia histórica al definir la expertise principal.
+
+2. Índice administrativo de trayectoria 0–100
+- Junto a cada candidato se muestra un porcentaje y un nivel orientativo: Aprendiz / Pasante, Junior, Semi-senior o Senior.
+- El indicador se recalcula automáticamente cada vez que Administración consulta el perfil, por lo que refleja actualizaciones posteriores del perfil o CV.
+- Usa solamente evidencia profesional: experiencia, responsabilidades, actividad actual, formación, capacitación, certificaciones y contenido curricular.
+- No utiliza edad, foto, nacionalidad, estado civil, hijos, domicilio, salario ni otros atributos personales sensibles.
+- Es un indicador de trayectoria, no una recomendación automática de contratación ni una decisión sobre idoneidad para un puesto.
+- La fila administrativa muestra además la actividad/rol más reciente utilizada como referencia.
+
+3. Empresas: familia + actividad principal
+- Se conservan las tres familias solicitadas: Fabricación, Logística y Servicio, cada una con contador y ocultando grupos vacíos.
+- Dentro de cada familia se abre una segunda capa por actividad principal, también con contador.
+- La actividad principal prioriza descripción institucional, nombre/sitio y luego búsquedas publicadas como respaldo.
+- Se contemplan actividades como Metalurgia/Mecanizado, Automotriz/Autopartes, Química/Petroquímica, Alimentos/Bebidas, Transporte/Distribución, Depósito/Almacenamiento, Comex/Forwarding, Mantenimiento industrial, Ingeniería/Proyectos, Construcción/Montaje, Tecnología/Software, RR.HH./Capacitación, Seguridad/Higiene/Ambiente, Consultoría y Facilities.
+- Si aparece una actividad no prevista, se crea una etiqueta administrativa dinámica en lugar de dejar la empresa pendiente.
+- La familia puede seguir corrigiéndose manualmente desde la ficha de empresa.
+
+4. Trazabilidad
+- Nueva fotografía de composición actual del padrón por expertise de candidatos.
+- Composición de empresas por familia y por actividad principal.
+- El seniority individual no se mezcla en esta trazabilidad general, para mantener una lectura de qué perfiles y actividades está captando Talento PyME.
+
+5. Privacidad y compatibilidad
+- Todo lo anterior es exclusivo de Administración.
+- Candidatos y empresas no ven porcentajes, categorías administrativas ni contadores internos.
+- Se conserva la recuperación segura por Gmail, el correo institucional único, la protección de conteos públicos y todas las correcciones de seguridad previas.
+- No se agregan campos nuevos de base de datos respecto de v7.8.15 y no se borra ni migra destructivamente ningún registro existente.
+
+Validación final: 58/58 pruebas automáticas aprobadas, 21 archivos JavaScript y 16 scripts inline HTML validados sintácticamente, sin secretos Gmail hardcodeados y sin exposición de clasificación avanzada en pantallas públicas.

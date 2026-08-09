@@ -58,7 +58,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
 const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
-// v7.8.15: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
+// v7.9.0: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
 // Se reutiliza la configuración ya existente en Render para soporte, consultas, recuperaciones y buzón administrativo.
 const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || '').trim().toLowerCase();
 const GMAIL_USER = FACTORY_SUPPORT_EMAIL;
@@ -2945,7 +2945,7 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
     const especialidad_by_area = Object.fromEntries(
       Object.entries(rawStats.especialidad_by_area || {}).map(([area, values]) => [area, Object.keys(values || {})])
     );
-    // v7.8.15: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
+    // v7.9.0: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
     // ni conteos por faceta. Los totales de padrón quedan reservados al Panel General.
     return res.json({ ok: true, facets, especialidad_by_area });
   } catch (err) {
@@ -3173,7 +3173,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.8.15 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.9.0 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
@@ -4856,16 +4856,16 @@ const ADMIN_COMPANY_CATEGORY_LABELS = {
   FABRICACION: 'Fabricación',
   LOGISTICA: 'Logística',
   SERVICIO: 'Servicio',
-  PENDIENTE: 'Pendiente de clasificar',
 };
 
 const ADMIN_CANDIDATE_CLASS_LABELS = {
+  APRENDIZ: 'Aprendices / Pasantes / Primer empleo',
   OPERATIVO: 'Operativos / Oficios',
   TECNICO: 'Técnicos / Especialistas',
   SUPERVISION: 'Supervisión / Jefaturas',
   PROFESIONAL: 'Profesionales / Ingeniería',
+  GERENCIAL: 'Gerencia / Dirección',
   ADMINISTRATIVO: 'Administrativos / Gestión',
-  PENDIENTE: 'Pendientes de clasificar',
 };
 
 const ADMIN_EXPERTISE_LABELS = {
@@ -4880,10 +4880,17 @@ const ADMIN_EXPERTISE_LABELS = {
   PLANIFICACION: 'Planificación / Costos',
   CALIDAD_HSE: 'Calidad / HSE',
   LOGISTICA: 'Logística / Transporte / Comex',
-  ADMIN_GESTION: 'Administración / RR.HH. / Finanzas / Comercial',
+  ADMINISTRACION: 'Administración',
+  RRHH: 'Recursos Humanos',
+  FINANZAS: 'Finanzas / Contabilidad',
+  COMERCIAL: 'Comercial / Ventas',
+  COMPRAS: 'Compras / Abastecimiento',
   AMBIENTE: 'Sustentabilidad / Medio ambiente',
   IT: 'IT / Software',
-  GENERAL: 'General / Multidisciplinario',
+  LABORATORIO: 'Laboratorio / Ensayos',
+  ENERGIA: 'Energía / Utilities',
+  PROYECTOS: 'Proyectos / Project Management',
+  GENERAL: 'Primer empleo / Perfil general',
 };
 
 function adminNormText(value = ''){
@@ -4896,75 +4903,193 @@ function adminNormText(value = ''){
     .trim();
 }
 
+function adminTitleCase(value = ''){
+  return String(value || '').trim().replace(/\s+/g, ' ').split(' ').map((part) => {
+    if(!part) return '';
+    const upper = ['IT','HSE','QA','QC','RRHH','RR.HH.','PLC','SCADA','DCS','CAD','BIM','COMEX'];
+    if(upper.includes(part.toUpperCase())) return part.toUpperCase().replace('RRHH','RR.HH.');
+    return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+  }).join(' ');
+}
+
+function adminDynamicKey(prefix, label){
+  const slug = adminNormText(label).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 56) || 'GENERAL';
+  return `${prefix}_${slug}`;
+}
+
 function countAdminKeywords(text, words = []){
   const normalized = ` ${adminNormText(text)} `;
   return words.reduce((score, word) => score + (normalized.includes(adminNormText(word)) ? 1 : 0), 0);
 }
 
+const ADMIN_COMPANY_ACTIVITY_RULES = [
+  { key:'METALURGIA', label:'Metalurgia / Mecanizado', family:'FABRICACION', words:['metalurgica','metalurgico','mecanizado','mecanica industrial','caldereria','fundicion','acero','siderurg'] },
+  { key:'AUTOMOTRIZ', label:'Automotriz / Autopartes', family:'FABRICACION', words:['automotriz','autopart','vehiculos','terminal automotriz'] },
+  { key:'QUIMICA', label:'Química / Petroquímica', family:'FABRICACION', words:['quimica','petroquim','quimico','refineria'] },
+  { key:'ALIMENTOS', label:'Alimentos / Bebidas', family:'FABRICACION', words:['alimenticia','alimentos','bebidas','food','frigorifico'] },
+  { key:'PLASTICOS_ENVASES', label:'Plásticos / Envases', family:'FABRICACION', words:['plastico','plasticos','envases','packaging'] },
+  { key:'EQUIPOS_MAQUINARIA', label:'Equipos / Maquinaria industrial', family:'FABRICACION', words:['maquinaria','equipos industriales','fabricacion de equipos','taller industrial'] },
+  { key:'TRANSPORTE', label:'Transporte / Distribución', family:'LOGISTICA', words:['transporte','distribucion','flete','ruteo','camiones','ultima milla'] },
+  { key:'DEPOSITO', label:'Depósito / Almacenamiento', family:'LOGISTICA', words:['deposito','almacen','warehouse','almacenamiento','centro de distribucion'] },
+  { key:'COMEX', label:'Comercio exterior / Forwarding', family:'LOGISTICA', words:['comercio exterior','comex','forwarder','forwarding','despachante','aduana','carga internacional'] },
+  { key:'PORTUARIO', label:'Portuario / Terminal', family:'LOGISTICA', words:['terminal portuaria','puerto','portuario','estiba'] },
+  { key:'MANTENIMIENTO', label:'Mantenimiento industrial', family:'SERVICIO', words:['mantenimiento industrial','mantenimiento de planta','servicios de mantenimiento','facility maintenance'] },
+  { key:'INGENIERIA_PROYECTOS', label:'Ingeniería / Proyectos', family:'SERVICIO', words:['ingenieria','ingeniería','proyectos industriales','project management','oficina tecnica','consultoria tecnica'] },
+  { key:'CONSTRUCCION_MONTAJE', label:'Construcción / Montaje', family:'SERVICIO', words:['construccion','montaje','contratista','obra civil','piping','andamios'] },
+  { key:'TECNOLOGIA', label:'Tecnología / Software', family:'SERVICIO', words:['software','tecnologia','sistemas','it ','desarrollo de software','informatica'] },
+  { key:'RRHH_CAPACITACION', label:'RR.HH. / Capacitación', family:'SERVICIO', words:['recursos humanos','rrhh','seleccion de personal','capacitacion','formacion laboral'] },
+  { key:'SEGURIDAD_AMBIENTE', label:'Seguridad / Higiene / Ambiente', family:'SERVICIO', words:['seguridad e higiene','higiene y seguridad','hse','medio ambiente','ambiental','sustentabilidad'] },
+  { key:'CONSULTORIA', label:'Consultoría / Asesoramiento', family:'SERVICIO', words:['consultoria','consultora','asesoria','asesoramiento'] },
+  { key:'FACILITIES', label:'Facilities / Limpieza / Servicios generales', family:'SERVICIO', words:['limpieza','facilities','servicios generales','facility'] },
+];
+
+function inferAdminCompanyPrimaryActivity(company = {}){
+  const jobs = Array.isArray(company.jobs) ? company.jobs : [];
+  const core = [company.companySummary, company.companyName, company.website].filter(Boolean).join(' ');
+  const jobText = jobs.map((job) => [job.title, job.description, job.requirements].filter(Boolean).join(' ')).join(' ');
+  const ranked = ADMIN_COMPANY_ACTIVITY_RULES.map((rule) => ({
+    ...rule,
+    score:(countAdminKeywords(core, rule.words) * 5) + countAdminKeywords(jobText, rule.words),
+  })).sort((a,b) => b.score - a.score);
+  if(ranked[0]?.score > 0){
+    return { key:ranked[0].key, label:ranked[0].label, family:ranked[0].family, confidence:ranked[0].score >= 8 ? 'ALTA' : 'MEDIA' };
+  }
+  const summary = String(company.companySummary || '').trim().split(/[\n.!?]/)[0].trim();
+  const compact = summary && summary.length <= 70 ? summary : '';
+  if(compact){
+    return { key:adminDynamicKey('ACT', compact), label:adminTitleCase(compact), family:null, confidence:'BAJA' };
+  }
+  return { key:'ACTIVIDAD_GENERAL', label:'Actividad general', family:null, confidence:'BAJA' };
+}
+
 function inferAdminCompanyCategory(company = {}){
   const manual = String(company.adminCategory || '').trim().toUpperCase();
+  const primaryActivity = inferAdminCompanyPrimaryActivity(company);
   if(['FABRICACION','LOGISTICA','SERVICIO'].includes(manual)){
-    return { key: manual, label: ADMIN_COMPANY_CATEGORY_LABELS[manual], source:'MANUAL', confidence:'ALTA' };
+    return { key:manual, label:ADMIN_COMPANY_CATEGORY_LABELS[manual], source:'MANUAL', confidence:'ALTA', activityKey:primaryActivity.key, activityLabel:primaryActivity.label };
+  }
+  if(primaryActivity.family){
+    return { key:primaryActivity.family, label:ADMIN_COMPANY_CATEGORY_LABELS[primaryActivity.family], source:'AUTO', confidence:primaryActivity.confidence, activityKey:primaryActivity.key, activityLabel:primaryActivity.label };
   }
   const jobs = Array.isArray(company.jobs) ? company.jobs : [];
   const core = [company.companyName, company.companySummary, company.website].filter(Boolean).join(' ');
   const jobText = jobs.map((job) => [job.title, job.description, job.requirements].filter(Boolean).join(' ')).join(' ');
-  const manufacturingWords = ['fabricacion','fabrica','manufactura','metalurgica','metalurgico','mecanizado','caldereria','produccion industrial','planta industrial','autopart','siderurg','quimica','petroquim','alimenticia','envases','maquinaria','equipos industriales','taller industrial'];
-  const logisticsWords = ['logistica','transporte','deposito','almacen','warehouse','distribucion','forwarder','comercio exterior','despachante','carga','flete','ruteo','terminal portuaria','puerto','supply chain'];
-  const serviceWords = ['servicios','servicio','consultoria','consultora','ingenieria','mantenimiento','software','tecnologia','rrhh','recursos humanos','seguridad e higiene','limpieza','capacitacion','asesoria','construccion','montaje','contratista'];
   const scores = {
-    FABRICACION: (countAdminKeywords(core, manufacturingWords) * 3) + countAdminKeywords(jobText, manufacturingWords),
-    LOGISTICA: (countAdminKeywords(core, logisticsWords) * 3) + countAdminKeywords(jobText, logisticsWords),
-    SERVICIO: (countAdminKeywords(core, serviceWords) * 3) + countAdminKeywords(jobText, serviceWords),
+    FABRICACION: (countAdminKeywords(core, ['fabricacion','fabrica','manufactura','produccion industrial','planta industrial']) * 3) + countAdminKeywords(jobText, ['operario','produccion','planta']),
+    LOGISTICA: (countAdminKeywords(core, ['logistica','transporte','deposito','distribucion','supply chain']) * 3) + countAdminKeywords(jobText, ['chofer','deposito','logistica']),
+    SERVICIO: (countAdminKeywords(core, ['servicios','servicio','consultoria','mantenimiento','ingenieria','tecnologia','contratista']) * 3) + countAdminKeywords(jobText, ['tecnico','servicio','mantenimiento']),
   };
   const ranked = Object.entries(scores).sort((a,b) => b[1] - a[1]);
-  const [bestKey, bestScore] = ranked[0];
-  const secondScore = ranked[1]?.[1] || 0;
-  if(bestScore <= 0 || (bestScore === secondScore && bestScore < 4)){
-    return { key:'PENDIENTE', label:ADMIN_COMPANY_CATEGORY_LABELS.PENDIENTE, source:'AUTO', confidence:'BAJA' };
-  }
+  const bestKey = ranked[0]?.[0] || 'SERVICIO';
+  const bestScore = ranked[0]?.[1] || 0;
   return {
-    key: bestKey,
-    label: ADMIN_COMPANY_CATEGORY_LABELS[bestKey],
+    key:bestKey,
+    label:ADMIN_COMPANY_CATEGORY_LABELS[bestKey],
     source:'AUTO',
-    confidence: bestScore >= 6 || bestScore >= secondScore + 3 ? 'ALTA' : 'MEDIA',
+    confidence:bestScore > 0 ? 'MEDIA' : 'BAJA',
+    activityKey:primaryActivity.key,
+    activityLabel:primaryActivity.label,
   };
+}
+
+function candidateCurrentProfessionalText(candidate = {}){
+  const bolsa = candidate.candidateBolsa || {};
+  const profile = candidate.candidateProfile || {};
+  return adminNormText([
+    bolsa.ultimoTrabajo,
+    profile.headline,
+    bolsa.especialidadOtro,
+    bolsa.especialidad,
+    bolsa.areaTrabajo,
+  ].filter(Boolean).join(' '));
+}
+
+function candidateRecentProfessionalText(candidate = {}){
+  const bolsa = candidate.candidateBolsa || {};
+  const profile = candidate.candidateProfile || {};
+  const resume = candidate.resume || {};
+  return adminNormText([
+    bolsa.ultimoTrabajo,
+    String(resume.experience || '').slice(0, 1400),
+    String(resume.summary || '').slice(0, 900),
+    bolsa.especialidadOtro,
+    bolsa.especialidad,
+    bolsa.areaTrabajo,
+    profile.headline,
+  ].filter(Boolean).join(' '));
+}
+
+function candidateAllProfessionalText(candidate = {}){
+  const bolsa = candidate.candidateBolsa || {};
+  const profile = candidate.candidateProfile || {};
+  const resume = candidate.resume || {};
+  return adminNormText([
+    bolsa.areaTrabajo, bolsa.nivel, bolsa.especialidad, bolsa.especialidadOtro, bolsa.ultimoTrabajo, bolsa.observaciones,
+    profile.headline, profile.sector, profile.subSector,
+    resume.summary, resume.experience, resume.education, resume.certifications, resume.observations,
+  ].filter(Boolean).join(' '));
+}
+
+function candidateRecentRoleLabel(candidate = {}){
+  const bolsa = candidate.candidateBolsa || {};
+  const profile = candidate.candidateProfile || {};
+  const resume = candidate.resume || {};
+  const direct = String(bolsa.ultimoTrabajo || profile.headline || '').trim().replace(/\s+/g, ' ');
+  if(direct) return direct.slice(0, 140);
+  const firstExperience = String(resume.experience || '').trim().split(/[\n.!?]/).map((x) => x.trim()).find(Boolean) || '';
+  if(firstExperience) return firstExperience.slice(0, 140);
+  const specialty = String(bolsa.especialidadOtro || (bolsa.especialidad === 'Otros' ? '' : bolsa.especialidad) || bolsa.areaTrabajo || '').trim().replace(/\s+/g, ' ');
+  return specialty.slice(0, 140);
 }
 
 function inferAdminCandidateExpertise(candidate = {}){
   const bolsa = candidate.candidateBolsa || {};
   const profile = candidate.candidateProfile || {};
-  const resume = candidate.resume || {};
-  const area = adminNormText(bolsa.areaTrabajo);
-  const specialty = adminNormText([bolsa.especialidad, bolsa.especialidadOtro].filter(Boolean).join(' '));
-  const text = adminNormText([
-    bolsa.areaTrabajo, bolsa.especialidad, bolsa.especialidadOtro, bolsa.ultimoTrabajo, bolsa.observaciones,
-    profile.headline, profile.sector, profile.subSector,
-    resume.summary, resume.experience, resume.education, resume.certifications, resume.observations,
-  ].filter(Boolean).join(' '));
+  const current = candidateCurrentProfessionalText(candidate);
+  const recent = candidateRecentProfessionalText(candidate);
+  const allText = candidateAllProfessionalText(candidate);
   const rules = [
-    ['LOGISTICA', ['logistica','transporte','comercio exterior','deposito','abastecimiento','chofer','clark','autoelevador','despachante','ruteador','forwarder']],
+    ['LOGISTICA', ['logistica','transporte','comercio exterior','comex','deposito','chofer','clark','autoelevador','despachante','ruteador','forwarder','supply chain']],
     ['INSTRUMENTACION', ['instrumentacion','instrumentista','automatizacion','automatista','plc','scada','dcs','calibracion']],
     ['ELECTRICA', ['electrica','electricista','tablerista','media tension','alta tension','bobinador','protecciones rele']],
     ['MECANICA', ['mecanica','mecanico','bombas','valvulas','compresores','turbomaquinas','hidraulica','neumatica','tornero','fresador','mecanizado']],
     ['SOLDADURA_MONTAJE', ['soldadura','soldador','caneria','canero','montaje','montajista','caldereria','calderero','piping']],
-    ['MANTENIMIENTO', ['mantenimiento','planner mantenimiento','lubricacion','inspector de mantenimiento']],
-    ['PRODUCCION', ['produccion','operador de planta','operador de proceso','sala de control','utilidades','caldera','oil gas']],
-    ['CALIDAD_HSE', ['calidad','qa qc','inspector','ensayo no destructivo','seguridad higiene','hse','brigadista']],
+    ['MANTENIMIENTO', ['mantenimiento','planner mantenimiento','lubricacion','inspector de mantenimiento','confiabilidad']],
+    ['PRODUCCION', ['produccion','operador de planta','operador de proceso','sala de control','utilidades','manufactura']],
+    ['CALIDAD_HSE', ['calidad','qa qc','inspector','ensayo no destructivo','seguridad higiene','hse','brigadista','iso 9001']],
     ['PLANIFICACION', ['planificacion','planificador','programacion','control de costos','primavera p6','ms project']],
+    ['PROYECTOS', ['project manager','gerente de proyecto','jefe de proyecto','coordinador de proyecto','proyectos industriales']],
     ['INGENIERIA', ['ingenieria','ingeniero','proyectista','oficina tecnica','cad','bim','calculista','calculo','dibujante tecnico']],
     ['CONSTRUCCION', ['construccion','obra civil','albanil','hormigon','encofrador','fierrero','andamiero','gruista','excavadora']],
     ['AMBIENTE', ['sustentabilidad','medio ambiente','gestion ambiental','huella de carbono','iso 14001','esg','residuos']],
-    ['IT', ['it software','software','helpdesk','sistemas','redes','ciberseguridad','frontend','backend','full stack','devops','data bi','testing']],
-    ['ADMIN_GESTION', ['administrativo','rr hh','recursos humanos','finanzas','contabilidad','tesoreria','facturacion','comercial','liquidacion de sueldos']],
+    ['IT', ['software','helpdesk','sistemas','redes','ciberseguridad','frontend','backend','full stack','devops','data bi','testing','programador']],
+    ['RRHH', ['rr hh','rrhh','recursos humanos','seleccion de personal','talento','liquidacion de sueldos']],
+    ['FINANZAS', ['finanzas','contabilidad','tesoreria','facturacion','impuestos','contador','contable']],
+    ['COMPRAS', ['compras','procurement','buyer','sourcing','compras tecnicas']],
+    ['COMERCIAL', ['comercial','ventas','vendedor','ejecutivo de cuentas','account manager','marketing']],
+    ['ADMINISTRACION', ['administrativo','administracion','secretaria','recepcion','back office']],
+    ['LABORATORIO', ['laboratorio','laboratorista','analisis quimico','microbiologia','ensayos']],
+    ['ENERGIA', ['energia','utilities','calderas','generacion','subestacion']],
   ];
-  for(const [key, words] of rules){
-    if(words.some((word) => area.includes(adminNormText(word)) || specialty.includes(adminNormText(word)))) return { key, label:ADMIN_EXPERTISE_LABELS[key] };
+  const ranked = rules.map(([key, words], order) => {
+    const currentHits = countAdminKeywords(current, words);
+    const recentHits = countAdminKeywords(recent, words);
+    const allHits = countAdminKeywords(allText, words);
+    return { key, words, order, currentHits, recentHits, allHits, score:(currentHits * 8) + (recentHits * 3) + allHits };
+  }).sort((a,b) => b.score - a.score || b.currentHits - a.currentHits || b.recentHits - a.recentHits || a.order - b.order);
+  const best = ranked[0];
+  if(best?.score > 0){
+    const source = best.currentHits > 0 ? 'RECENT' : (best.recentHits > 0 ? 'CV_RECIENTE' : 'GENERAL');
+    return { key:best.key, label:ADMIN_EXPERTISE_LABELS[best.key], source };
   }
-  for(const [key, words] of rules){
-    if(words.some((word) => text.includes(adminNormText(word)))) return { key, label:ADMIN_EXPERTISE_LABELS[key] };
+  const raw = [bolsa.especialidadOtro, bolsa.especialidad, bolsa.areaTrabajo, profile.headline]
+    .map((value) => String(value || '').trim())
+    .find((value) => value && !/^(otros?|pendiente|no informado|sin dato)$/i.test(value));
+  if(raw){
+    const label = adminTitleCase(raw.slice(0, 64));
+    return { key:adminDynamicKey('EXP', label), label, source:'DINAMICA' };
   }
-  return { key:'GENERAL', label:ADMIN_EXPERTISE_LABELS.GENERAL };
+  return { key:'GENERAL', label:ADMIN_EXPERTISE_LABELS.GENERAL, source:'FALLBACK' };
 }
 
 function inferAdminCandidateClass(candidate = {}){
@@ -4973,40 +5098,134 @@ function inferAdminCandidateClass(candidate = {}){
   const resume = candidate.resume || {};
   const level = adminNormText(bolsa.nivel);
   const area = adminNormText(bolsa.areaTrabajo);
-  const specialty = adminNormText([bolsa.especialidad, bolsa.especialidadOtro].filter(Boolean).join(' '));
   const education = adminNormText(bolsa.nivelEducativo);
-  const text = adminNormText([
-    bolsa.areaTrabajo, bolsa.nivel, bolsa.especialidad, bolsa.especialidadOtro, bolsa.ultimoTrabajo, bolsa.observaciones,
-    profile.headline, profile.sector, profile.subSector,
-    resume.summary, resume.experience, resume.education, resume.certifications, resume.observations,
-  ].filter(Boolean).join(' '));
+  const current = candidateCurrentProfessionalText(candidate);
+  const recent = candidateRecentProfessionalText(candidate);
+  const text = candidateAllProfessionalText(candidate);
+  const roleText = current || recent;
+  const apprenticeWords = ['pasante','pasantia','aprendiz','trainee','primer empleo','sin experiencia','estudiante','practica profesional'];
+  if(apprenticeWords.some((word) => roleText.includes(adminNormText(word))) && !/(supervisor|jefe|gerente|senior)/.test(roleText)){
+    return { key:'APRENDIZ', label:ADMIN_CANDIDATE_CLASS_LABELS.APRENDIZ, reason:'Perfil inicial, pasantía, aprendizaje o primer empleo detectado en la actividad más reciente' };
+  }
+  const executiveWords = ['gerente','gerencia','director','direccion','head of','country manager','plant manager','manager general'];
+  if(executiveWords.some((word) => roleText.includes(adminNormText(word)))){
+    return { key:'GERENCIAL', label:ADMIN_CANDIDATE_CLASS_LABELS.GERENCIAL, reason:'Responsabilidad gerencial o de dirección detectada en la actividad más reciente' };
+  }
   const supervisorWords = ['supervisor','supervision','jefe','jefatura','capataz','encargado','coordinador','responsable de turno','lider de equipo','lider de cuadrilla'];
-  if(level === 'supervisor' || area.includes('supervision') || supervisorWords.some((word) => specialty.includes(adminNormText(word)) || text.includes(adminNormText(word)))){
-    return { key:'SUPERVISION', label:ADMIN_CANDIDATE_CLASS_LABELS.SUPERVISION, reason:'Nivel o experiencia de conducción detectada' };
+  if(level === 'supervisor' || area.includes('supervision') || supervisorWords.some((word) => roleText.includes(adminNormText(word)))){
+    return { key:'SUPERVISION', label:ADMIN_CANDIDATE_CLASS_LABELS.SUPERVISION, reason:'Nivel o actividad reciente de conducción detectada' };
   }
-  const professionalArea = ['calculista','ingenieria de detalle','proyectista oficina tecnica cad bim'];
-  const professionalWords = ['ingeniero','ingeniera','licenciado','licenciada','ingenieria de detalle','project manager','gerente tecnico'];
-  if(professionalArea.some((word) => area.includes(adminNormText(word))) || professionalWords.some((word) => text.includes(adminNormText(word))) || (education === 'universitaria' && ['planificacion','calidad','seguridad','sustentabilidad','it software'].some((word) => area.includes(adminNormText(word))))){
-    return { key:'PROFESIONAL', label:ADMIN_CANDIDATE_CLASS_LABELS.PROFESIONAL, reason:'Formación o función profesional detectada' };
+  const professionalWords = ['ingeniero','ingeniera','licenciado','licenciada','arquitecto','arquitecta','project manager','analista senior'];
+  if(professionalWords.some((word) => roleText.includes(adminNormText(word)))){
+    return { key:'PROFESIONAL', label:ADMIN_CANDIDATE_CLASS_LABELS.PROFESIONAL, reason:'Función profesional detectada en la actividad reciente' };
   }
-  if(area.includes('administrativo rr hh finanzas comercial')){
-    return { key:'ADMINISTRATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.ADMINISTRATIVO, reason:'Área administrativa o de gestión' };
+  if(/administrativ|recursos humanos|rrhh|finanzas|contabilidad|tesoreria|facturacion|comercial|ventas|compras|abastecimiento/.test(roleText) || area.includes('administrativo')){
+    return { key:'ADMINISTRATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.ADMINISTRATIVO, reason:'Área administrativa, comercial o de gestión detectada en la actividad reciente' };
   }
   const technicalWords = ['tecnico','tecnica','instrumentista','automatista','proyectista','inspector qa qc','seguridad e higiene','planificador','programador','analista comex','administrador de sistemas','desarrollador','devops'];
-  if(level === 'tecnico' || education === 'terciaria' || technicalWords.some((word) => specialty.includes(adminNormText(word)) || text.includes(adminNormText(word)))){
-    return { key:'TECNICO', label:ADMIN_CANDIDATE_CLASS_LABELS.TECNICO, reason:'Nivel técnico o especialidad técnica detectada' };
+  if(level === 'tecnico' || education === 'terciaria' || technicalWords.some((word) => roleText.includes(adminNormText(word)))){
+    return { key:'TECNICO', label:ADMIN_CANDIDATE_CLASS_LABELS.TECNICO, reason:'Nivel técnico o especialidad técnica detectada en la actividad reciente' };
+  }
+  if(education === 'universitaria' && text.length > 0){
+    return { key:'PROFESIONAL', label:ADMIN_CANDIDATE_CLASS_LABELS.PROFESIONAL, reason:'Formación universitaria detectada sin otra función reciente más específica' };
   }
   const hasLaboralData = !!String(bolsa.areaTrabajo || bolsa.especialidad || bolsa.ultimoTrabajo || resume.summary || resume.experience || '').trim();
   if(hasLaboralData){
-    return { key:'OPERATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.OPERATIVO, reason:'Perfil operativo / oficio' };
+    return { key:'OPERATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.OPERATIVO, reason:'Perfil operativo u oficio detectado; la expertise específica se conserva como subcategoría' };
   }
-  return { key:'PENDIENTE', label:ADMIN_CANDIDATE_CLASS_LABELS.PENDIENTE, reason:'Falta información suficiente para clasificar' };
+  return { key:'APRENDIZ', label:ADMIN_CANDIDATE_CLASS_LABELS.APRENDIZ, reason:'Información profesional todavía escasa; se integra como perfil inicial en lugar de dejarlo sin clasificar' };
+}
+
+function scoreCandidateProfessionalProfile(candidate = {}){
+  // Indicador exclusivamente profesional: NO usa edad, foto, género, nacionalidad,
+  // estado civil, hijos, dirección, salario ni ningún otro atributo personal sensible.
+  const bolsa = candidate.candidateBolsa || {};
+  const resume = candidate.resume || {};
+  const recent = candidateRecentProfessionalText(candidate);
+  const allText = candidateAllProfessionalText(candidate);
+  const range = String(bolsa.rangoExperiencia || '').trim().replace(/\s/g,'');
+  const experienceBase = {
+    '0–1':20, '0-1':20,
+    '2–5':40, '2-5':40,
+    '6–10':60, '6-10':60,
+    '11–20':76, '11-20':76,
+    '21–30':88, '21-30':88,
+    '31+':94,
+  };
+  let score = experienceBase[range] ?? null;
+  const evidence = [];
+  if(score !== null) evidence.push(`Experiencia declarada ${String(bolsa.rangoExperiencia || '').trim()} años`);
+  const apprenticeHit = /(pasante|pasantia|aprendiz|trainee|primer empleo|sin experiencia|estudiante)/.test(recent);
+  const juniorHit = /\bjunior\b|\bjr\b/.test(recent);
+  const semiHit = /semi senior|semisenior|semi-senior|\bssr\b/.test(recent);
+  const seniorHit = /\bsenior\b|\bsr\b/.test(recent);
+  const leadershipHit = /(supervisor|jefe|jefatura|coordinador|lider de equipo|lider de cuadrilla|capataz|encargado)/.test(recent);
+  const executiveHit = /(gerente|gerencia|director|direccion|head of|plant manager)/.test(recent);
+  if(score === null){
+    if(seniorHit || executiveHit) score = 78;
+    else if(semiHit || leadershipHit) score = 60;
+    else if(juniorHit) score = 32;
+    else if(apprenticeHit) score = 15;
+    else score = allText.length > 450 ? 42 : (allText.length > 120 ? 30 : 18);
+  }
+  if(executiveHit){ score += 10; evidence.push('Responsabilidad gerencial/directiva reciente'); }
+  else if(leadershipHit){ score += 7; evidence.push('Responsabilidad de supervisión o coordinación'); }
+  if(seniorHit){ score = Math.max(score, 78); evidence.push('Señal explícita de seniority senior'); }
+  if(semiHit){ score = Math.max(score, 58); evidence.push('Señal explícita de seniority semi-senior'); }
+  if(juniorHit){ score = Math.min(score, 44); evidence.push('Señal explícita de seniority junior'); }
+  if(apprenticeHit && !leadershipHit && !executiveHit){ score = Math.min(score, 24); evidence.push('Pasantía, aprendizaje o primer empleo'); }
+  if(bolsa.trabajaActualmente){ score += 2; evidence.push('Actividad laboral actual informada'); }
+  if(['terciaria','universitaria'].includes(adminNormText(bolsa.nivelEducativo))){ score += 2; }
+  if(bolsa.tieneCapacitacion || String(resume.certifications || '').trim()){ score += 2; }
+  if(String(resume.experience || '').trim().length >= 300){ score += 2; }
+  if(String(resume.summary || '').trim().length >= 180){ score += 1; }
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  let seniorityKey = 'APRENDIZ';
+  let seniorityLabel = 'Aprendiz / Pasante';
+  if(score >= 75){ seniorityKey = 'SENIOR'; seniorityLabel = 'Senior'; }
+  else if(score >= 50){ seniorityKey = 'SEMI_SENIOR'; seniorityLabel = 'Semi-senior'; }
+  else if(score >= 25){ seniorityKey = 'JUNIOR'; seniorityLabel = 'Junior'; }
+  return {
+    profileScore:score,
+    seniorityKey,
+    seniorityLabel,
+    scoreBasis:evidence.slice(0, 4).join(' · ') || 'Estimación por evidencia profesional disponible',
+  };
 }
 
 function buildCandidateAdminClassification(candidate = {}){
   const primary = inferAdminCandidateClass(candidate);
   const expertise = inferAdminCandidateExpertise(candidate);
-  return { classKey:primary.key, classLabel:primary.label, expertiseKey:expertise.key, expertiseLabel:expertise.label, reason:primary.reason };
+  const scoring = scoreCandidateProfessionalProfile(candidate);
+  return {
+    classKey:primary.key,
+    classLabel:primary.label,
+    expertiseKey:expertise.key,
+    expertiseLabel:expertise.label,
+    expertiseSource:expertise.source,
+    reason:primary.reason,
+    recentRole:candidateRecentRoleLabel(candidate),
+    ...scoring,
+  };
+}
+
+function buildAdminComposition(candidateItems = [], companyItems = []){
+  const countBy = (items, keyField, labelField) => {
+    const map = new Map();
+    for(const item of items || []){
+      const key = String(item?.[keyField] || 'GENERAL');
+      const label = String(item?.[labelField] || 'General');
+      const current = map.get(key) || { key, label, count:0 };
+      current.count += 1;
+      map.set(key, current);
+    }
+    return [...map.values()].sort((a,b) => b.count - a.count || a.label.localeCompare(b.label, 'es'));
+  };
+  return {
+    candidatesByExpertise:countBy(candidateItems, 'expertiseKey', 'expertiseLabel'),
+    companiesByActivity:countBy(companyItems, 'activityKey', 'activityLabel'),
+    companiesByFamily:countBy(companyItems, 'categoryKey', 'categoryLabel'),
+  };
 }
 
 const adminCompanyCategorySchema = z.object({
@@ -5541,7 +5760,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.billingOrder.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
     ]);
 
-    // v7.8.15 · Directorios clasificados de Administración.
+    // v7.9.0 · Directorios clasificados de Administración.
     // Se consultan campos livianos de todos los registros que cumplen los filtros actuales para que
     // los contadores representen el padrón filtrado completo, no solamente la página visible.
     const [candidateClassificationRows, companyClassificationRows] = await Promise.all([
@@ -5551,7 +5770,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         select: {
           id:true, email:true, candidateKeepIndefinitely:true, createdAt:true,
           candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, headline:true, sector:true, subSector:true, updatedAt:true } },
-          candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, ultimoTrabajo:true, observaciones:true, sueldoPretendido:true, updatedAt:true } },
+          candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, sueldoPretendido:true, updatedAt:true } },
           resume:{ select:{ summary:true, experience:true, education:true, certifications:true, observations:true, updatedAt:true } },
         },
       }).catch(() => []),
@@ -5594,11 +5813,14 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
 
     const candidateDirectoryGroups = Object.entries(ADMIN_CANDIDATE_CLASS_LABELS).map(([classKey, classLabel]) => {
       const items = candidateDirectoryItems.filter((item) => item.classKey === classKey);
-      const expertise = Object.entries(ADMIN_EXPERTISE_LABELS).map(([expertiseKey, expertiseLabel]) => ({
-        key:expertiseKey,
-        label:expertiseLabel,
-        count:items.filter((item) => item.expertiseKey === expertiseKey).length,
-      })).filter((group) => group.count > 0);
+      const expertiseMap = new Map();
+      for(const item of items){
+        const key = String(item.expertiseKey || 'GENERAL');
+        const current = expertiseMap.get(key) || { key, label:item.expertiseLabel || ADMIN_EXPERTISE_LABELS.GENERAL, count:0 };
+        current.count += 1;
+        expertiseMap.set(key, current);
+      }
+      const expertise = [...expertiseMap.values()].sort((a,b) => b.count - a.count || a.label.localeCompare(b.label, 'es'));
       return { key:classKey, label:classLabel, count:items.length, expertise, items };
     }).filter((group) => group.count > 0);
 
@@ -5611,15 +5833,22 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         createdAt:it.createdAt || it.user?.createdAt, updatedAt:it.updatedAt || it.user?.createdAt,
         adminCategory:it.adminCategory || null,
         categoryKey:classification.key, categoryLabel:classification.label, categorySource:classification.source, categoryConfidence:classification.confidence,
+        activityKey:classification.activityKey || 'ACTIVIDAD_GENERAL', activityLabel:classification.activityLabel || 'Actividad general',
       };
     });
 
-    const companyDirectoryGroups = ['FABRICACION','LOGISTICA','SERVICIO','PENDIENTE'].map((categoryKey) => ({
-      key:categoryKey,
-      label:ADMIN_COMPANY_CATEGORY_LABELS[categoryKey],
-      count:companyDirectoryItems.filter((item) => item.categoryKey === categoryKey).length,
-      items:companyDirectoryItems.filter((item) => item.categoryKey === categoryKey),
-    })).filter((group) => group.count > 0);
+    const companyDirectoryGroups = Object.entries(ADMIN_COMPANY_CATEGORY_LABELS).map(([categoryKey, categoryLabel]) => {
+      const items = companyDirectoryItems.filter((item) => item.categoryKey === categoryKey);
+      const activityMap = new Map();
+      for(const item of items){
+        const key = String(item.activityKey || 'ACTIVIDAD_GENERAL');
+        const current = activityMap.get(key) || { key, label:item.activityLabel || 'Actividad general', count:0 };
+        current.count += 1;
+        activityMap.set(key, current);
+      }
+      const activities = [...activityMap.values()].sort((a,b) => b.count - a.count || a.label.localeCompare(b.label, 'es'));
+      return { key:categoryKey, label:categoryLabel, count:items.length, activities, items };
+    }).filter((group) => group.count > 0);
 
     const normalizedCandidates = (candidateRows || []).map((it) => {
       const bolsa = it.candidateBolsa || null;
@@ -5669,6 +5898,8 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         adminCategory: it.adminCategory || null,
         categoryKey: classification.key,
         categoryLabel: classification.label,
+        activityKey: classification.activityKey || 'ACTIVIDAD_GENERAL',
+        activityLabel: classification.activityLabel || 'Actividad general',
         createdAt: it.createdAt || it.user?.createdAt,
         updatedAt: it.updatedAt || it.user?.createdAt,
       };
@@ -5898,6 +6129,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         lastBlockedBackupReason: operationalStatus.lastBlockedBackupReason || null,
         lastBlockedBackupGuardIssues: operationalStatus.lastBlockedBackupGuardIssues || [],
       },
+      classificationComposition: buildAdminComposition(candidateDirectoryItems, companyDirectoryItems),
       candidateDirectory: {
         total:candidateDirectoryItems.length,
         groups:candidateDirectoryGroups,

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.8.15" />
+  <link rel="stylesheet" href="/styles.css?v=7.9.0" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -164,6 +164,10 @@
     .companyCategoryActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
     .companyCategoryActions select{min-width:220px}
     .adminCategorySource{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#e2e8f0;color:#334155;font-size:11px;font-weight:800;margin-left:6px}
+    .candidateScoreBadge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#ecfdf5;color:#166534;border:1px solid #bbf7d0;font-size:12px;font-weight:900;margin-left:8px;white-space:nowrap}
+    .candidateScoreBadge.low{background:#fff7ed;color:#9a3412;border-color:#fed7aa}.candidateScoreBadge.mid{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}.candidateScoreBadge.high{background:#ecfdf5;color:#166534;border-color:#bbf7d0}
+    .compositionGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}.compositionList{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.compositionPill{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;background:#f8fafc;border:1px solid var(--tp-border);font-size:12px;font-weight:800;color:#334155}.compositionPill b{color:#0b5ea8}
+    @media(max-width:820px){.compositionGrid{grid-template-columns:1fr}}
     @media (max-width:720px){.adminClassGroup>summary{padding:14px}.adminClassTitle{font-size:15px}.companyCategoryActions select{min-width:100%}}
   </style>
 </head>
@@ -199,7 +203,7 @@
   <section class="tabPane" id="tab-candidate-records">
     <div class="card">
       <div class="toolbarCard">
-        <div><h2 style="margin:0">Perfiles completos de candidatos</h2><div class="muted">Clasificados por tipo de perfil y expertise. El número entre paréntesis indica cuántas personas hay en cada grupo; sólo se muestran categorías con registros.</div></div>
+        <div><h2 style="margin:0">Perfiles completos de candidatos</h2><div class="muted">Clasificados por tipo de perfil, expertise y nivel estimado. El porcentaje junto a cada nombre es un indicador administrativo de trayectoria profesional (0–100) calculado sólo con experiencia, responsabilidades, formación y evidencia curricular; se recalcula cuando el perfil o CV cambia.</div></div>
         <div class="adminSearchRow">
           <input class="input" id="candidateDirectorySearch" placeholder="Buscar por nombre, DNI, mail, área o especialidad" style="min-width:240px" />
           <button class="btn btn-primary" id="btnCandidateDirectorySearch" type="button">Buscar</button>
@@ -223,7 +227,7 @@
   <section class="tabPane" id="tab-company-records">
     <div class="card">
       <div class="toolbarCard">
-        <div><h2 style="margin:0">Perfiles completos de empresas</h2><div class="muted">Clasificados administrativamente en Fabricación, Logística y Servicio. El contador permite saber cuántas empresas hay antes de abrir cada categoría; las categorías vacías no se muestran.</div></div>
+        <div><h2 style="margin:0">Perfiles completos de empresas</h2><div class="muted">Clasificados por familia y actividad principal. Cada empresa queda en una sola actividad predominante; Fabricación, Logística y Servicio se abren en subactividades con sus respectivos contadores.</div></div>
         <div class="adminSearchRow">
           <input class="input" id="companyDirectorySearch" placeholder="Buscar por empresa, contacto, CUIT o mail" style="min-width:270px" />
           <button class="btn btn-primary" id="btnCompanyDirectorySearch" type="button">Buscar</button>
@@ -236,7 +240,7 @@
         <span class="muted" id="companyDirectoryPagingInfo">Sin datos.</span>
         <div class="row" style="gap:8px;display:none"><button class="btn btn-ghost" id="btnCompanyDirectoryPrev" type="button">Anterior</button><button class="btn btn-ghost" id="btnCompanyDirectoryNext" type="button">Siguiente</button></div>
       </div>
-      <div class="muted traceHint">La clasificación sugerida puede corregirse dentro de la ficha de cada empresa. “Pendiente de clasificar” sólo aparece cuando los datos disponibles no permiten asignar con suficiente seguridad Fabricación, Logística o Servicio.</div>
+      <div class="muted traceHint">La clasificación sugerida puede corregirse dentro de la ficha de cada empresa. La actividad principal se estima priorizando la descripción institucional y, como respaldo, las búsquedas publicadas; no se deja ninguna empresa como “pendiente”.</div>
       <div id="companyDirectoryList" class="candidateDirectory"></div>
     </div>
   </section>
@@ -249,6 +253,14 @@
   </section>
   <section class="tabPane" id="tab-traceability">
     <div class="traceabilityStack">
+      <div class="traceChartCard">
+        <div class="traceChartHeader"><div><h2>Composición actual del padrón</h2><div class="muted">Lectura general por expertise de candidatos y por familia/actividad principal de empresas. El nivel individual (Aprendiz, Junior, Semi-senior o Senior) queda fuera de esta trazabilidad para que la foto general muestre qué perfiles y actividades estamos incorporando.</div></div></div>
+        <div class="compositionGrid">
+          <div class="traceSummaryBox"><span class="muted small">Candidatos por expertise</span><div id="traceCandidateComposition" class="compositionList"><span class="muted">Sin datos.</span></div></div>
+          <div class="traceSummaryBox"><span class="muted small">Empresas por familia</span><div id="traceCompanyFamilyComposition" class="compositionList"><span class="muted">Sin datos.</span></div></div>
+          <div class="traceSummaryBox"><span class="muted small">Empresas por actividad principal</span><div id="traceCompanyComposition" class="compositionList"><span class="muted">Sin datos.</span></div></div>
+        </div>
+      </div>
       <div class="traceChartCard">
         <div class="traceChartHeader">
           <div>
@@ -405,8 +417,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.8.15"></script>
-<script src="/auth.js?v=7.8.15"></script>
+<script src="/config.js?v=7.9.0"></script>
+<script src="/auth.js?v=7.9.0"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -508,7 +520,10 @@ function wireAdminPasswordReset(host){
 function candidateDirectoryRowHtml(it){
   const name = `${it.nombre || ''} ${it.apellido || ''}`.trim() || it.email || 'Candidato';
   const checked = it.keepIndefinitely === false ? '' : 'checked';
-  return `<article class="candidateAccordion" data-user-id="${esc(it.userId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(name)}</span><span class="muted" style="display:block;margin-top:4px">${esc(it.areaTrabajo || 'Perfil todavía incompleto')} ${it.localidad ? '· ' + esc(it.localidad) : ''} · DNI ${esc(it.dni || 'sin dato')}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.classLabel || it.profileStatus || 'Registro')}</span>${it.expertiseLabel ? `<span class="adminCategorySource">${esc(it.expertiseLabel)}</span>` : ''}</span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button><div><label class="candidateRetention"><input class="candidateRetentionInput" type="checkbox" ${checked}> Mantener indefinidamente</label><div class="candidateSaveMsg" aria-live="polite"></div></div></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
+  const score = Math.max(0, Math.min(100, Number(it.profileScore || 0)));
+  const scoreClass = score >= 75 ? 'high' : (score >= 50 ? 'mid' : 'low');
+  const seniority = it.seniorityLabel || 'Aprendiz / Pasante';
+  return `<article class="candidateAccordion" data-user-id="${esc(it.userId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(name)}</span><span class="candidateScoreBadge ${scoreClass}" title="Indicador orientativo de trayectoria profesional; no reemplaza la evaluación humana">${score}% · ${esc(seniority)}</span>${it.recentRole ? `<span class="muted" style="display:block;margin-top:6px"><b>Actividad/rol más reciente:</b> ${esc(it.recentRole)}</span>` : ''}<span class="muted" style="display:block;margin-top:4px">${esc(it.areaTrabajo || 'Perfil todavía incompleto')} ${it.localidad ? '· ' + esc(it.localidad) : ''} · DNI ${esc(it.dni || 'sin dato')}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.classLabel || it.profileStatus || 'Registro')}</span>${it.expertiseLabel ? `<span class="adminCategorySource">${esc(it.expertiseLabel)}</span>` : ''}</span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button><div><label class="candidateRetention"><input class="candidateRetentionInput" type="checkbox" ${checked}> Mantener indefinidamente</label><div class="candidateSaveMsg" aria-live="polite"></div></div></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
 }
 function renderCandidateDirectoryClassification(directory){
   const groups = Array.isArray(directory?.groups) ? directory.groups : [];
@@ -544,7 +559,12 @@ function renderCandidateDetail(it){
     candidateSection('Clasificación administrativa', [
       candidateField('Tipo de perfil', adminClass.classLabel),
       candidateField('Expertise principal', adminClass.expertiseLabel),
-      candidateField('Criterio', adminClass.reason),
+      candidateField('Actividad / rol más reciente utilizado', adminClass.recentRole),
+      candidateField('Nivel estimado', adminClass.seniorityLabel),
+      candidateField('Índice de trayectoria', Number.isFinite(Number(adminClass.profileScore)) ? `${Number(adminClass.profileScore)}%` : 'No disponible'),
+      candidateField('Base del indicador', adminClass.scoreBasis),
+      candidateField('Criterio de clasificación', adminClass.reason),
+      candidateField('Aclaración', 'Indicador administrativo orientativo basado únicamente en antecedentes profesionales informados. No constituye una recomendación automática de contratación.'),
     ], true),
     candidateSection('Datos personales y de contacto', [
       candidateField('Nombre y apellido', candidateName(it)),
@@ -661,15 +681,19 @@ function companyRowHtml(it){
   return `<div class="adminRow"><b>${esc(it.companyName || 'Empresa')}</b><div class="muted">${esc(it.contactName || 'Contacto no informado')} ${it.city ? '· ' + esc(it.city) : ''} ${it.province ? '· ' + esc(it.province) : ''}</div><div class="muted">CUIT: ${esc(it.cuit || 'sin dato')} · ${esc(it.contactEmail || 'sin mail')} ${it.phone ? '· ' + esc(it.phone) : ''}</div><div class="muted">${fd(it.updatedAt)}</div></div>`;
 }
 function companyDirectoryRowHtml(it){
-  return `<article class="candidateAccordion" data-company-id="${esc(it.companyId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(it.companyName || 'Empresa')}</span><span class="muted" style="display:block;margin-top:4px">${esc(it.contactName || 'Contacto no informado')} ${it.city ? '· ' + esc(it.city) : ''} ${it.province ? '· ' + esc(it.province) : ''}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.categoryLabel || 'Sin categoría')}</span><span class="adminCategorySource">CUIT ${esc(it.cuit || 'sin dato')}</span></span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
+  return `<article class="candidateAccordion" data-company-id="${esc(it.companyId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(it.companyName || 'Empresa')}</span><span class="muted" style="display:block;margin-top:4px">${esc(it.contactName || 'Contacto no informado')} ${it.city ? '· ' + esc(it.city) : ''} ${it.province ? '· ' + esc(it.province) : ''}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.categoryLabel || 'Sin categoría')}</span><span class="adminCategorySource">${esc(it.activityLabel || 'Actividad general')}</span><span class="adminCategorySource">CUIT ${esc(it.cuit || 'sin dato')}</span></span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
 }
 function renderCompanyDirectoryClassification(directory){
   const groups = Array.isArray(directory?.groups) ? directory.groups : [];
   if(!groups.length) return '<div class="muted">No hay empresas para los filtros seleccionados.</div>';
   return `<div class="adminClassDirectory">${groups.map((group) => {
     const items = Array.isArray(group.items) ? group.items : [];
-    const note = group.key === 'PENDIENTE' ? 'Requiere revisión administrativa' : 'Abrir categoría';
-    return `<details class="adminClassGroup"><summary><span class="adminClassTitle">${esc(group.label)} <span class="adminClassCount">${Number(group.count || items.length)}</span></span><span class="adminClassMeta">${esc(note)}</span></summary><div class="adminClassBody">${items.map(companyDirectoryRowHtml).join('')}</div></details>`;
+    const activities = Array.isArray(group.activities) ? group.activities : [];
+    const activityHtml = activities.map((activity) => {
+      const activityItems = items.filter((item) => String(item.activityKey || '') === String(activity.key || ''));
+      return `<details class="adminExpertiseGroup"><summary><span>${esc(activity.label)}</span><span class="adminClassCount">${Number(activity.count || activityItems.length)}</span></summary><div class="adminExpertiseItems">${activityItems.map(companyDirectoryRowHtml).join('')}</div></details>`;
+    }).join('');
+    return `<details class="adminClassGroup"><summary><span class="adminClassTitle">${esc(group.label)} <span class="adminClassCount">${Number(group.count || items.length)}</span></span><span class="adminClassMeta">Abrir actividades</span></summary><div class="adminClassBody"><div class="adminExpertiseGrid">${activityHtml || items.map(companyDirectoryRowHtml).join('')}</div></div></details>`;
   }).join('')}</div>`;
 }
 function companyCategorySection(it){
@@ -680,7 +704,7 @@ function companyCategorySection(it){
     ['LOGISTICA','Logística'],
     ['SERVICIO','Servicio'],
   ].map(([key,label]) => `<option value="${key}" ${selected === key ? 'selected' : ''}>${label}</option>`).join('');
-  return `<section class="candidateDetailSection wide"><h3>Clasificación administrativa</h3><div class="companyCategoryBox"><div><b>Categoría actual: ${esc(c.label || 'Pendiente de clasificar')}</b><span class="adminCategorySource">${c.source === 'MANUAL' ? 'manual' : 'sugerida automáticamente'}${c.confidence ? ' · confianza ' + String(c.confidence).toLowerCase() : ''}</span></div><div class="muted small" style="margin-top:6px">Esta clasificación sólo organiza el Panel General y no se muestra a candidatos ni empresas. Podés corregirla cuando la sugerencia automática no represente la actividad principal.</div><div class="companyCategoryActions"><select class="input companyCategorySelect">${options}</select><button class="btn btn-primary companyCategorySave" type="button" data-company-id="${esc(it.id || '')}">Guardar categoría</button><span class="muted companyCategoryMsg"></span></div></div></section>`;
+  return `<section class="candidateDetailSection wide"><h3>Clasificación administrativa</h3><div class="companyCategoryBox"><div><b>Categoría actual: ${esc(c.label || 'Servicio')}</b><span class="adminCategorySource">${c.source === 'MANUAL' ? 'manual' : 'sugerida automáticamente'}${c.confidence ? ' · confianza ' + String(c.confidence).toLowerCase() : ''}</span></div><div class="muted small" style="margin-top:6px"><b>Actividad principal:</b> ${esc(c.activityLabel || 'Actividad general')}</div><div class="muted small" style="margin-top:6px">Esta clasificación sólo organiza el Panel General y no se muestra a candidatos ni empresas. Podés corregirla cuando la sugerencia automática no represente la actividad principal.</div><div class="companyCategoryActions"><select class="input companyCategorySelect">${options}</select><button class="btn btn-primary companyCategorySave" type="button" data-company-id="${esc(it.id || '')}">Guardar categoría</button><span class="muted companyCategoryMsg"></span></div></div></section>`;
 }
 function wireCompanyCategory(host){
   if(!host) return;
@@ -827,7 +851,21 @@ function sumTraceSeries(rows){
   }, { candidates:0, companies:0, billing:0 });
 }
 
+function renderClassificationComposition(){
+  const comp = state.overview?.classificationComposition || {};
+  const render = (id, rows) => {
+    const host = document.getElementById(id);
+    if(!host) return;
+    const items = Array.isArray(rows) ? rows : [];
+    host.innerHTML = items.length ? items.map((it) => `<span class="compositionPill">${esc(it.label || 'General')} <b>${Number(it.count || 0)}</b></span>`).join('') : '<span class="muted">Sin datos.</span>';
+  };
+  render('traceCandidateComposition', comp.candidatesByExpertise);
+  render('traceCompanyFamilyComposition', comp.companiesByFamily);
+  render('traceCompanyComposition', comp.companiesByActivity);
+}
+
 function renderTraceability(){
+  renderClassificationComposition();
   const charts = state.overview?.traceabilityCharts || {};
   const monthlySeries = Array.isArray(charts.monthlySeries) ? charts.monthlySeries : [];
   const monthlyWindowSize = Number(charts.monthlyWindowSize || state.traceabilityView.monthlyWindowSize || 4);

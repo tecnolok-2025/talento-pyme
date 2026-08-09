@@ -1,6 +1,6 @@
-# Talento PyME — v7.8.15
+# Talento PyME — v7.9.0
 
-Proyecto gratuito (cero costos) pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**.
+Proyecto pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**. La infraestructura puede combinar servicios gratuitos y pagos según la capacidad y las funciones habilitadas.
 
 ## Estado actual
 - **Frontend (Static Site Render):** https://talento-pyme.onrender.com
@@ -40,8 +40,8 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.8.15"`
-- API: `apps/api/package.json` → `7.8.15` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.0"`
+- API: `apps/api/package.json` → `7.9.0` y endpoint `/health`.
 
 ## Administración de candidatos y empresas
 - El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.
@@ -53,13 +53,15 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 - Cada candidato mantiene **Mantener indefinidamente** activado por defecto, con persistencia individual en la base.
 - `npm start` aplica el ajuste de esquema requerido antes de iniciar la API, sin borrar los registros existentes.
 
-### Clasificación administrativa v7.8.15
-- **Empresas:** Administración las organiza en **Fabricación**, **Logística** y **Servicio**, mostrando la cantidad antes de abrir cada grupo. Las categorías sin registros no aparecen.
-- La clasificación de empresas se sugiere automáticamente a partir del resumen institucional, sitio informado y búsquedas publicadas. Si no hay evidencia suficiente, queda en **Pendiente de clasificar** para evitar una asignación falsa.
-- Desde la ficha administrativa de empresa puede corregirse la categoría y la decisión queda persistida en `CompanyProfile.adminCategory`.
-- **Candidatos:** Administración los agrupa por **Operativos / Oficios**, **Técnicos / Especialistas**, **Supervisión / Jefaturas**, **Profesionales / Ingeniería** y **Administrativos / Gestión**.
-- Dentro de cada grupo se muestran únicamente las expertise presentes (Mecánica, Eléctrica, Producción, Mantenimiento, Instrumentación, Ingeniería, Calidad/HSE, Logística, IT, etc.), también con contador.
-- La clasificación de candidatos toma los campos estructurados del perfil y, cuando hace falta, el resumen/experiencia extraídos del CV. Es una organización administrativa: no se muestra a candidatos ni empresas.
+### Clasificación administrativa v7.9.0
+- **Empresas:** Administración conserva las tres familias **Fabricación**, **Logística** y **Servicio**, siempre con contador y ocultando grupos vacíos. Dentro de cada familia se abre una segunda capa por **actividad principal** (por ejemplo Metalurgia/Mecanizado, Transporte/Distribución, Mantenimiento industrial, Ingeniería/Proyectos, etc.), también con su cantidad.
+- La actividad principal se infiere priorizando la descripción institucional y la identidad de la empresa; las búsquedas publicadas funcionan como respaldo. Si aparece una actividad no contemplada por el catálogo, el sistema genera una etiqueta administrativa dinámica en lugar de dejar la empresa sin clasificar. La familia puede corregirse manualmente desde la ficha y queda persistida en `CompanyProfile.adminCategory`.
+- **Candidatos:** ningún perfil queda como “pendiente”. Administración los integra en **Aprendices / Pasantes / Primer empleo**, **Operativos / Oficios**, **Técnicos / Especialistas**, **Supervisión / Jefaturas**, **Profesionales / Ingeniería**, **Gerencia / Dirección** o **Administrativos / Gestión**.
+- Dentro de cada grupo se muestran únicamente las expertise realmente presentes, con contador. Si la especialidad no coincide con el catálogo conocido, se crea automáticamente una **subcategoría dinámica** a partir del área, especialidad o titular profesional disponible.
+- Para determinar la expertise se pondera con mayor fuerza la **actividad/rol más reciente** (último trabajo, especialidad y área actual) y luego el resto de la trayectoria/CV. Así, una experiencia histórica distinta no desplaza automáticamente la ocupación más nueva.
+- Junto a cada candidato se muestra un **Índice de trayectoria 0–100** y un nivel orientativo: **Aprendiz/Pasante, Junior, Semi-senior o Senior**. Se recalcula en cada lectura administrativa cuando cambian el perfil o el CV. El cálculo utiliza únicamente evidencia profesional (experiencia, responsabilidad, formación, capacitación y contenido curricular) y excluye atributos personales sensibles. No es una recomendación automática de contratación.
+- **Trazabilidad:** incorpora una fotografía general de candidatos por expertise y empresas por familia y actividad principal. El seniority individual no se mezcla con esa trazabilidad general.
+- Toda esta clasificación es **exclusivamente administrativa**: no se muestra a candidatos ni empresas.
 
 ## Resguardo y capacidad operativa
 - Panel de superadministración con semáforo de capacidad DB.

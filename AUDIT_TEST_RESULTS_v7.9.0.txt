@@ -1,0 +1,24 @@
+Talento PyME v7.9.0 — Resultado de auditoría automatizada
+Fecha de validación: 2026-08-09
+
+ok 58 - Administración instruye configurar la variable unificada
+  ---
+  duration_ms: 0.149418
+  type: 'test'
+  ...
+1..58
+# tests 58
+# suites 0
+# pass 58
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 233.908588
+
+JS_FILES_OK=21
+INLINE_SCRIPTS_OK=16
+ADMIN_CLASSIFICATION_PRIVACY_OK
+NO_HARDCODED_GMAIL_SECRET
+VERSION_CONSISTENCY_OK
+DATABASE_SCHEMA_CHANGE_FROM_v7.8.15=NO
