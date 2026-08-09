@@ -1,4 +1,6 @@
 import PDFDocument from 'pdfkit';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const BLUE = '#0B5EA8';
 const NAVY = '#0B1220';
@@ -6,14 +8,49 @@ const LIGHT = '#EEF6FF';
 const BORDER = '#D6E2EF';
 const TEXT = '#172033';
 const MUTED = '#5E6B7C';
-const GREEN = '#166534';
-const ORANGE = '#9A3412';
+
+const LEFT = 50;
+const RIGHT = 50;
+const CONTENT_BOTTOM = 62;
+const ARG_TZ = 'America/Argentina/Buenos_Aires';
+
+const UIC_LOGO = fileURLToPath(new URL('../assets/logo-uic.jpg', import.meta.url));
+const TALENTO_LOGO = fileURLToPath(new URL('../assets/logo-talento-pyme.png', import.meta.url));
 
 function n(value){ return Number(value || 0); }
 function pct(part, total){ return total > 0 ? Math.round((n(part) / n(total)) * 100) : 0; }
 function fmtNum(value){ return n(value).toLocaleString('es-AR'); }
 function fmtPct(value){ return `${Math.round(n(value))}%`; }
 function safeText(value){ return String(value ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim(); }
+function contentWidth(doc){ return doc.page.width - LEFT - RIGHT; }
+
+function argentinaParts(value = new Date()){
+  const d = value instanceof Date ? value : new Date(value);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ARG_TZ,
+    year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', second:'2-digit',
+    hourCycle:'h23',
+  }).formatToParts(d);
+  const out = {};
+  for(const p of parts){ if(p.type !== 'literal') out[p.type] = p.value; }
+  return out;
+}
+
+function formatArgentinaDateTime(value = new Date()){
+  const p = argentinaParts(value);
+  return `${p.day}/${p.month}/${p.year}, ${p.hour}:${p.minute}:${p.second}`;
+}
+
+function argentinaStamp(value = new Date()){
+  const p = argentinaParts(value);
+  const yy = String(p.year).slice(-2);
+  return {
+    prefix:`${yy}${p.month}${p.day}-${p.hour}${p.minute}`,
+    long:`${p.year}${p.month}${p.day}-${p.hour}${p.minute}`,
+  };
+}
+
 function trend(current, previous){
   const c=n(current), p=n(previous);
   if(p === 0) return c === 0 ? { pct:0, label:'sin variación', direction:'flat' } : { pct:null, label:'inicio de actividad', direction:'up' };
@@ -61,41 +98,96 @@ function buildConclusions(data){
   return { conclusions, recommendations };
 }
 
-function addFooter(doc){
-  const pageNo = doc.bufferedPageRange().count;
-  doc.fontSize(8).fillColor(MUTED).text(`Talento PyME · Informe de trazabilidad · Página ${pageNo}`, 50, doc.page.height - 36, { width:doc.page.width-100, align:'center' });
+function resetFlow(doc){
+  doc.x = LEFT;
+}
+
+function drawLogoBox(doc, path, x, y, width, height){
+  doc.save();
+  doc.fillColor('#FFFFFF').roundedRect(x, y, width, height, 5).fill();
+  doc.restore();
+  try {
+    if(fs.existsSync(path)) doc.image(path, x+5, y+4, { fit:[width-10,height-8], align:'center', valign:'center' });
+  } catch {}
+}
+
+function drawTitleHeader(doc){
+  doc.save();
+  doc.fillColor(NAVY).rect(0,0,doc.page.width,126).fill();
+  drawLogoBox(doc, UIC_LOGO, LEFT, 18, 132, 34);
+  drawLogoBox(doc, TALENTO_LOGO, doc.page.width-RIGHT-160, 15, 160, 40);
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(14)
+    .text('Informe Ejecutivo de Trazabilidad, Evolución y Composición del Portal', LEFT, 78, { width:contentWidth(doc), align:'left', lineBreak:false });
+  doc.fillColor('#B9D9F4').font('Helvetica').fontSize(9.5)
+    .text('Talento PyME · Conectando experiencia con producción.', LEFT, 101, { width:contentWidth(doc), align:'left', lineBreak:false });
+  doc.restore();
+  doc.y = 144;
+  resetFlow(doc);
+}
+
+function drawSecondaryHeader(doc){
+  doc.save();
+  drawLogoBox(doc, UIC_LOGO, LEFT, 14, 98, 26);
+  drawLogoBox(doc, TALENTO_LOGO, doc.page.width-RIGHT-118, 11, 118, 30);
+  doc.strokeColor(BORDER).lineWidth(0.7).moveTo(LEFT,50).lineTo(doc.page.width-RIGHT,50).stroke();
+  doc.restore();
+  doc.y = 66;
+  resetFlow(doc);
+}
+
+function addContentPage(doc){
+  doc.addPage();
+  drawSecondaryHeader(doc);
+}
+
+function ensureSpace(doc, needed=70){
+  if(doc.y + needed > doc.page.height - CONTENT_BOTTOM){
+    addContentPage(doc);
+    return true;
+  }
+  return false;
 }
 
 function sectionTitle(doc, title, subtitle=''){
-  if(doc.y > doc.page.height - 125) doc.addPage();
-  doc.moveDown(0.4);
-  doc.fillColor(BLUE).font('Helvetica-Bold').fontSize(15).text(title);
-  if(subtitle) doc.fillColor(MUTED).font('Helvetica').fontSize(9.5).text(subtitle, { lineGap:2 });
-  doc.moveDown(0.45);
+  ensureSpace(doc, subtitle ? 58 : 42);
+  doc.y += 8;
+  resetFlow(doc);
+  const y=doc.y;
+  doc.fillColor(BLUE).font('Helvetica-Bold').fontSize(15).text(title,LEFT,y,{width:contentWidth(doc),lineGap:1});
+  doc.y += 2;
+  if(subtitle){
+    doc.fillColor(MUTED).font('Helvetica').fontSize(9.5).text(subtitle,LEFT,doc.y,{width:contentWidth(doc),lineGap:2});
+  }
+  doc.y += 8;
+  resetFlow(doc);
 }
 
 function paragraph(doc, text){
-  if(doc.y > doc.page.height - 100) doc.addPage();
-  doc.fillColor(TEXT).font('Helvetica').fontSize(10).text(safeText(text), { align:'justify', lineGap:3 });
-  doc.moveDown(0.55);
+  ensureSpace(doc, 70);
+  resetFlow(doc);
+  doc.fillColor(TEXT).font('Helvetica').fontSize(10).text(safeText(text),LEFT,doc.y,{width:contentWidth(doc),align:'justify',lineGap:3});
+  doc.y += 8;
+  resetFlow(doc);
 }
 
 function table(doc, columns, rows, { widths=null }={}){
-  const x=50;
-  const totalWidth=doc.page.width-100;
+  const x=LEFT;
+  const totalWidth=contentWidth(doc);
   const ws=widths || columns.map(()=> totalWidth/columns.length);
   const rowPad=6;
   const headerH=28;
   const drawHeader=()=>{
-    if(doc.y > doc.page.height - 90) doc.addPage();
+    ensureSpace(doc, headerH+30);
+    resetFlow(doc);
     const y=doc.y;
     doc.save().fillColor(NAVY).rect(x,y,totalWidth,headerH).fill().restore();
     let cx=x;
     columns.forEach((col,i)=>{
-      doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(8.5).text(col,cx+rowPad,y+8,{width:ws[i]-rowPad*2,ellipsis:true});
+      doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(8.5).text(col,cx+rowPad,y+8,{width:ws[i]-rowPad*2,ellipsis:true,lineBreak:false});
       cx+=ws[i];
     });
     doc.y=y+headerH;
+    resetFlow(doc);
   };
   drawHeader();
   const safeRows = Array.isArray(rows) && rows.length ? rows : [columns.map((_,i) => i === 0 ? 'Sin datos disponibles' : '—')];
@@ -104,7 +196,7 @@ function table(doc, columns, rows, { widths=null }={}){
     doc.font('Helvetica').fontSize(8.5);
     const heights=values.map((value,i)=>doc.heightOfString(value,{width:ws[i]-rowPad*2,lineGap:1}));
     const h=Math.max(26,...heights.map(v=>v+rowPad*2));
-    if(doc.y + h > doc.page.height - 55){ doc.addPage(); drawHeader(); }
+    if(doc.y + h > doc.page.height - CONTENT_BOTTOM){ addContentPage(doc); drawHeader(); }
     const y=doc.y;
     if(ri%2===0) doc.save().fillColor('#F8FBFF').rect(x,y,totalWidth,h).fill().restore();
     doc.save().strokeColor(BORDER).lineWidth(0.5).rect(x,y,totalWidth,h).stroke().restore();
@@ -114,38 +206,54 @@ function table(doc, columns, rows, { widths=null }={}){
       cx+=ws[i];
     });
     doc.y=y+h;
+    resetFlow(doc);
   });
-  doc.moveDown(0.8);
+  doc.y += 12;
+  resetFlow(doc);
 }
 
 function kpiGrid(doc, items){
-  const x=50, gap=8, cols=4;
-  const total=doc.page.width-100;
+  const x=LEFT, gap=8, cols=4;
+  const total=contentWidth(doc);
   const w=(total-gap*(cols-1))/cols;
   const h=58;
   let rowY=doc.y;
   items.forEach((it,i)=>{
     if(i && i%cols===0){ rowY += h+gap; }
-    if(rowY+h > doc.page.height-70){ doc.addPage(); rowY=doc.y; }
+    if(rowY+h > doc.page.height-CONTENT_BOTTOM){ addContentPage(doc); rowY=doc.y; }
     const col=i%cols;
     const bx=x+col*(w+gap);
     doc.save().fillColor(LIGHT).strokeColor('#BDD9F5').roundedRect(bx,rowY,w,h,8).fillAndStroke().restore();
     doc.fillColor(MUTED).font('Helvetica').fontSize(7.8).text(it.label,bx+8,rowY+9,{width:w-16});
-    doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(17).text(it.value,bx+8,rowY+27,{width:w-16});
+    doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(17).text(it.value,bx+8,rowY+27,{width:w-16,lineBreak:false});
   });
   const rows=Math.ceil(items.length/cols);
   doc.y=rowY+h+(rows>0?8:0);
+  resetFlow(doc);
+}
+
+function drawFooter(doc, pageNumber, totalPages){
+  const oldBottom = doc.page.margins.bottom;
+  doc.page.margins.bottom = 0;
+  const y = doc.page.height - 34;
+  doc.save();
+  doc.strokeColor(BORDER).lineWidth(0.6).moveTo(LEFT,y-7).lineTo(doc.page.width-RIGHT,y-7).stroke();
+  doc.fillColor(MUTED).font('Helvetica').fontSize(8)
+    .text(`Talento PyME · Informe Ejecutivo de Trazabilidad · Página ${pageNumber} de ${totalPages}`, LEFT, y, { width:contentWidth(doc), align:'center', lineBreak:false });
+  doc.restore();
+  doc.page.margins.bottom = oldBottom;
 }
 
 export function buildTraceabilityReportFilename(generatedAt=new Date()){
   const d=generatedAt instanceof Date?generatedAt:new Date(generatedAt);
-  const stamp=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
-  return `Talento-PyME-Informe-Trazabilidad-${stamp}.pdf`;
+  const stamp=argentinaStamp(d);
+  return `${stamp.prefix} Talento-PyME-Informe-Trazabilidad-${stamp.long}.pdf`;
 }
 
 export function buildTraceabilityEmailSubject(generatedAt=new Date()){
   const d=generatedAt instanceof Date?generatedAt:new Date(generatedAt);
-  return `Talento PyME · Informe Ejecutivo de Trazabilidad · ${d.toLocaleDateString('es-AR')}`;
+  const p=argentinaParts(d);
+  return `Talento PyME · Informe Ejecutivo de Trazabilidad · ${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
 }
 
 export function buildTraceabilityNarrative(data){ return buildConclusions(data); }
@@ -159,18 +267,15 @@ export async function buildTraceabilityPdfBuffer(data){
   const jobsTrend=trend(a.jobsLast30,a.jobsPrevious30);
   const applicationsTrend=trend(a.applicationsLast30,a.applicationsPrevious30);
 
-  const doc=new PDFDocument({ size:'A4', margins:{top:46,bottom:50,left:50,right:50}, bufferPages:true, info:{Title:'Talento PyME - Informe Ejecutivo de Trazabilidad y Evolución del Portal',Author:'Talento PyME'} });
+  const doc=new PDFDocument({ size:'A4', margins:{top:56,bottom:54,left:LEFT,right:RIGHT}, bufferPages:true, autoFirstPage:true, info:{Title:'Talento PyME - Informe Ejecutivo de Trazabilidad y Evolución del Portal',Author:'Talento PyME / Unión Industrial de Campana'} });
   const chunks=[];
   doc.on('data',c=>chunks.push(c));
   const done=new Promise((resolve,reject)=>{doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);});
 
-  doc.fillColor(NAVY).rect(0,0,doc.page.width,112).fill();
-  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(22).text('TALENTO PyME',50,38);
-  doc.fillColor('#B9D9F4').font('Helvetica').fontSize(10).text('Conectando experiencia con producción.',50,68);
-  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(13).text('Informe Ejecutivo de Trazabilidad, Evolución y Composición del Portal',50,88,{width:doc.page.width-100});
-  doc.y=132;
-  doc.fillColor(MUTED).font('Helvetica').fontSize(9).text(`Corte de información: ${generatedAt.toLocaleString('es-AR')} · Documento agregado y anonimizado.`,50,doc.y,{width:doc.page.width-100,align:'right'});
-  doc.moveDown(1.4);
+  drawTitleHeader(doc);
+  doc.fillColor(MUTED).font('Helvetica').fontSize(9).text(`Corte de información: ${formatArgentinaDateTime(generatedAt)} · Documento agregado y anonimizado.`,LEFT,doc.y,{width:contentWidth(doc),align:'right'});
+  doc.y += 12;
+  resetFlow(doc);
 
   sectionTitle(doc,'1. Objetivo y alcance');
   paragraph(doc,'Este informe presenta una fotografía ejecutiva del estado de Talento PyME en el momento de su generación. Su objetivo es facilitar el seguimiento de la evolución del portal, identificar tendencias de incorporación y uso, comprender la composición general de candidatos y empresas, y aportar elementos para orientar decisiones de mejora, difusión, capacitación y vinculación.');
@@ -199,7 +304,7 @@ export async function buildTraceabilityPdfBuffer(data){
     ['Consultas IA empresa',fmtNum(a.companyChatsLast30),fmtNum(a.companyChatsPrevious30),trend(a.companyChatsLast30,a.companyChatsPrevious30).label],
   ],{widths:[190,105,105,95]});
   if((data.monthlySeries || []).length){
-    sectionTitle(doc,'3.1 Evolución de los últimos seis meses','Serie mensual de altas y movimientos principales del portal.');
+    sectionTitle(doc,'3.1 Evolución de los últimos seis meses','Serie mensual de altas y movimientos principales del portal. Las altas de empresas se contabilizan por la fecha de alta de la cuenta empresa.');
     table(doc,['Mes','Candidatos','Empresas','Búsquedas','Postulaciones'],(data.monthlySeries || []).map(x=>[x.label,fmtNum(x.candidates),fmtNum(x.companies),fmtNum(x.jobs),fmtNum(x.applications)]),{widths:[175,80,80,80,80]});
   }
 
@@ -232,7 +337,7 @@ export async function buildTraceabilityPdfBuffer(data){
   const range=doc.bufferedPageRange();
   for(let i=0;i<range.count;i++){
     doc.switchToPage(range.start+i);
-    doc.fontSize(8).fillColor(MUTED).text(`Talento PyME · Informe de trazabilidad · Página ${i+1} de ${range.count}`,50,doc.page.height-34,{width:doc.page.width-100,align:'center'});
+    drawFooter(doc,i+1,range.count);
   }
   doc.end();
   return done;

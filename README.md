@@ -1,4 +1,4 @@
-# Talento PyME — v7.9.1
+# Talento PyME — v7.9.2
 
 Proyecto pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**. La infraestructura puede combinar servicios gratuitos y pagos según la capacidad y las funciones habilitadas.
 
@@ -40,8 +40,8 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.1"`
-- API: `apps/api/package.json` → `7.9.1` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.2"`
+- API: `apps/api/package.json` → `7.9.2` y endpoint `/health`.
 
 ## Administración de candidatos y empresas
 - El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.
@@ -53,7 +53,7 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 - Cada candidato mantiene **Mantener indefinidamente** activado por defecto, con persistencia individual en la base.
 - `npm start` aplica el ajuste de esquema requerido antes de iniciar la API, sin borrar los registros existentes.
 
-### Clasificación administrativa v7.9.1
+### Clasificación administrativa v7.9.2
 - **Empresas:** Administración conserva las tres familias **Fabricación**, **Logística** y **Servicio**, siempre con contador y ocultando grupos vacíos. Dentro de cada familia se abre una segunda capa por **actividad principal** (por ejemplo Metalurgia/Mecanizado, Transporte/Distribución, Mantenimiento industrial, Ingeniería/Proyectos, etc.), también con su cantidad.
 - La actividad principal se infiere priorizando la descripción institucional y la identidad de la empresa; las búsquedas publicadas funcionan como respaldo. Si aparece una actividad no contemplada por el catálogo, el sistema genera una etiqueta administrativa dinámica en lugar de dejar la empresa sin clasificar. La familia puede corregirse manualmente desde la ficha y queda persistida en `CompanyProfile.adminCategory`.
 - **Candidatos:** ningún perfil queda como “pendiente”. Administración los integra en **Aprendices / Pasantes / Primer empleo**, **Operativos / Oficios**, **Técnicos / Especialistas**, **Supervisión / Jefaturas**, **Profesionales / Ingeniería**, **Gerencia / Dirección** o **Administrativos / Gestión**.
@@ -74,7 +74,7 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 - Protección anti-regresión del backup: si el resguardo nuevo cae bruscamente en peso o cantidad de registros frente al último backup confiable, el sistema lo bloquea y conserva la referencia anterior.
 - Validación adicional para abrir **Ampliar capacidad DB** desde superadministración con clave personal de la sesión.
 
-## Reportes ejecutivos de trazabilidad v7.9.1
+## Reportes ejecutivos de trazabilidad v7.9.2
 - Nueva pestaña **Reportes** exclusiva de Administración.
 - Genera en tiempo real el PDF **“Informe Ejecutivo de Trazabilidad, Evolución y Composición del Portal”**.
 - El PDF se construye cada vez desde la base actual: no reutiliza reportes viejos.

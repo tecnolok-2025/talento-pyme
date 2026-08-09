@@ -59,7 +59,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
 const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
-// v7.9.1: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
+// v7.9.2: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
 // Se reutiliza la configuración ya existente en Render para soporte, consultas, recuperaciones y buzón administrativo.
 const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || '').trim().toLowerCase();
 const GMAIL_USER = FACTORY_SUPPORT_EMAIL;
@@ -2947,7 +2947,7 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
     const especialidad_by_area = Object.fromEntries(
       Object.entries(rawStats.especialidad_by_area || {}).map(([area, values]) => [area, Object.keys(values || {})])
     );
-    // v7.9.1: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
+    // v7.9.2: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
     // ni conteos por faceta. Los totales de padrón quedan reservados al Panel General.
     return res.json({ ok: true, facets, especialidad_by_area });
   } catch (err) {
@@ -3175,7 +3175,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.9.1 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.9.2 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
@@ -5246,10 +5246,13 @@ function traceabilityCountBy(items = [], keyField, labelField){
 function traceabilityMonthKey(value){
   const d = value ? new Date(value) : null;
   if(!d || Number.isNaN(d.getTime())) return null;
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone:'America/Argentina/Buenos_Aires', year:'numeric', month:'2-digit' }).formatToParts(d);
+  const year = parts.find((p)=>p.type === 'year')?.value;
+  const month = parts.find((p)=>p.type === 'month')?.value;
+  return year && month ? `${year}-${month}` : null;
 }
 
-function buildTraceabilityMonthlySeries({ startDate, candidateRows=[], companyRows=[], jobRows=[], applicationRows=[] } = {}){
+function buildTraceabilityMonthlySeries({ candidateRows=[], companyRows=[], jobRows=[], applicationRows=[] } = {}){
   const maps = [candidateRows, companyRows, jobRows, applicationRows].map((rows) => {
     const m = new Map();
     for(const row of rows || []){
@@ -5258,20 +5261,25 @@ function buildTraceabilityMonthlySeries({ startDate, candidateRows=[], companyRo
     }
     return m;
   });
+  const now = new Date();
+  const nowParts = new Intl.DateTimeFormat('en-CA', { timeZone:'America/Argentina/Buenos_Aires', year:'numeric', month:'2-digit' }).formatToParts(now);
+  let year = Number(nowParts.find((p)=>p.type === 'year')?.value || now.getUTCFullYear());
+  let month = Number(nowParts.find((p)=>p.type === 'month')?.value || (now.getUTCMonth()+1)) - 5;
+  while(month <= 0){ month += 12; year -= 1; }
   const out=[];
-  const now=new Date();
-  const cursor=new Date((startDate || now).getFullYear(), (startDate || now).getMonth(), 1);
-  const end=new Date(now.getFullYear(), now.getMonth(), 1);
-  for(let d=new Date(cursor); d<=end; d=new Date(d.getFullYear(),d.getMonth()+1,1)){
-    const key=traceabilityMonthKey(d);
+  for(let i=0;i<6;i++){
+    const key=`${year}-${String(month).padStart(2,'0')}`;
+    const labelDate = new Date(Date.UTC(year, month-1, 15, 12, 0, 0));
     out.push({
       key,
-      label:d.toLocaleDateString('es-AR',{month:'long',year:'numeric'}),
+      label:labelDate.toLocaleDateString('es-AR',{timeZone:'America/Argentina/Buenos_Aires',month:'long',year:'numeric'}),
       candidates:Number(maps[0].get(key)||0),
       companies:Number(maps[1].get(key)||0),
       jobs:Number(maps[2].get(key)||0),
       applications:Number(maps[3].get(key)||0),
     });
+    month += 1;
+    if(month > 12){ month = 1; year += 1; }
   }
   return out;
 }
@@ -5297,8 +5305,8 @@ async function buildTraceabilityReportSnapshot(){
     prisma.application.count().catch(()=>0),
     prisma.user.count({ where:{ role:'CANDIDATE', createdAt:{ gte:since30 } } }).catch(()=>0),
     prisma.user.count({ where:{ role:'CANDIDATE', createdAt:{ gte:since60, lt:since30 } } }).catch(()=>0),
-    prisma.companyProfile.count({ where:{ createdAt:{ gte:since30 } } }).catch(()=>0),
-    prisma.companyProfile.count({ where:{ createdAt:{ gte:since60, lt:since30 } } }).catch(()=>0),
+    prisma.user.count({ where:{ role:'COMPANY', createdAt:{ gte:since30 } } }).catch(()=>0),
+    prisma.user.count({ where:{ role:'COMPANY', createdAt:{ gte:since60, lt:since30 } } }).catch(()=>0),
     prisma.job.count({ where:{ createdAt:{ gte:since30 } } }).catch(()=>0),
     prisma.job.count({ where:{ createdAt:{ gte:since60, lt:since30 } } }).catch(()=>0),
     prisma.application.count({ where:{ createdAt:{ gte:since30 } } }).catch(()=>0),
@@ -5327,7 +5335,7 @@ async function buildTraceabilityReportSnapshot(){
       },
     }).catch(()=>[]),
     prisma.user.findMany({ where:{ role:'CANDIDATE', createdAt:{ gte:since6Months } }, select:{ createdAt:true } }).catch(()=>[]),
-    prisma.companyProfile.findMany({ where:{ createdAt:{ gte:since6Months } }, select:{ createdAt:true } }).catch(()=>[]),
+    prisma.user.findMany({ where:{ role:'COMPANY', createdAt:{ gte:since6Months } }, select:{ createdAt:true } }).catch(()=>[]),
     prisma.job.findMany({ where:{ createdAt:{ gte:since6Months } }, select:{ createdAt:true } }).catch(()=>[]),
     prisma.application.findMany({ where:{ createdAt:{ gte:since6Months } }, select:{ createdAt:true } }).catch(()=>[]),
   ]);
@@ -5367,7 +5375,7 @@ async function buildTraceabilityReportSnapshot(){
       profileCoveragePct:candidateCount ? Math.round((candidatesWithProfessionalProfile/candidateCount)*100) : 0,
     },
     composition,
-    monthlySeries:buildTraceabilityMonthlySeries({ startDate:since6Months, candidateRows:candidateTimeline, companyRows:companyTimeline, jobRows:jobTimeline, applicationRows:applicationTimeline }),
+    monthlySeries:buildTraceabilityMonthlySeries({ candidateRows:candidateTimeline, companyRows:companyTimeline, jobRows:jobTimeline, applicationRows:applicationTimeline }),
   };
   snapshot.narrative=buildTraceabilityNarrative(snapshot);
   return snapshot;
@@ -5959,7 +5967,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.billingOrder.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
     ]);
 
-    // v7.9.1 · Directorios clasificados de Administración.
+    // v7.9.2 · Directorios clasificados de Administración.
     // Se consultan campos livianos de todos los registros que cumplen los filtros actuales para que
     // los contadores representen el padrón filtrado completo, no solamente la página visible.
     const [candidateClassificationRows, companyClassificationRows] = await Promise.all([

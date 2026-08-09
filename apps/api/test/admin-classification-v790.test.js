@@ -16,7 +16,7 @@ function functionBlock(name, nextName){
   return api.slice(s, e > s ? e : s + 8000);
 }
 
-test('v7.9.1 elimina pendiente de candidatos y usa aprendiz como integración inicial', () => {
+test('v7.9.2 elimina pendiente de candidatos y usa aprendiz como integración inicial', () => {
   assert.match(api, /APRENDIZ:\s*'Aprendices \/ Pasantes \/ Primer empleo'/);
   assert.match(api, /GERENCIAL:\s*'Gerencia \/ Dirección'/);
   assert.doesNotMatch(api, /PENDIENTE:\s*'Pendientes de clasificar'/);
@@ -79,8 +79,8 @@ test('clasificación avanzada permanece sólo en administración', () => {
   }
 });
 
-test('frontend declara v7.9.1', () => {
-  assert.match(config, /TP_APP_VERSION = "7\.9\.1"/);
+test('frontend declara v7.9.2', () => {
+  assert.match(config, /TP_APP_VERSION = "7\.9\.2"/);
 });
 
 import vm from 'node:vm';

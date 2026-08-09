@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.9.1" />
+  <link rel="stylesheet" href="/styles.css?v=7.9.2" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -464,8 +464,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.9.1"></script>
-<script src="/auth.js?v=7.9.1"></script>
+<script src="/config.js?v=7.9.2"></script>
+<script src="/auth.js?v=7.9.2"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -1282,7 +1282,10 @@ async function downloadTraceabilityReport(){
     const blob = await res.blob();
     const cd = res.headers.get('content-disposition') || '';
     const match = cd.match(/filename="?([^";]+)"?/i);
-    const filename = match?.[1] || `Talento-PyME-Informe-Trazabilidad-${new Date().toISOString().slice(0,10)}.pdf`;
+    const now = new Date();
+    const pad2 = (v) => String(v).padStart(2,'0');
+    const fallbackPrefix = `${String(now.getFullYear()).slice(-2)}${pad2(now.getMonth()+1)}${pad2(now.getDate())}-${pad2(now.getHours())}${pad2(now.getMinutes())}`;
+    const filename = match?.[1] || `${fallbackPrefix} Talento-PyME-Informe-Trazabilidad.pdf`;
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
