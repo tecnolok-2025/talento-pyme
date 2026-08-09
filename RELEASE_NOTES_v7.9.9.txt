@@ -1,0 +1,12 @@
+Talento PyME v7.9.10
+
+- Nuevo módulo de comunicaciones dentro de Correo / Consultas.
+- Botones separados: Comunicación a candidatos y Comunicación a empresas.
+- Asunto y encabezado institucional precargados según audiencia.
+- Envío individual desde la cuenta institucional configurada en Render.
+- Baja automática mediante enlace único por destinatario.
+- Los usuarios dados de baja quedan excluidos de futuros envíos informativos.
+- La baja no bloquea mensajes operativos/seguridad.
+- Gestión manual de la preferencia desde un correo recibido.
+- Historial agregado de envíos (enviados, fallidos, excluidos), sin listar destinatarios.
+- Sin trackers y sin exposición de destinatarios entre sí.
