@@ -1,0 +1,9 @@
+Talento PyME v7.9.2
+- Corrige maquetación del Informe de Trazabilidad PDF.
+- Agrega logos UIC y Talento PyME al encabezado.
+- Corrige títulos/párrafos desplazados a la derecha por cursor PDFKit.
+- Corrige pie de página para evitar páginas extra.
+- Numera páginas con título institucional.
+- Corrige altas de empresas usando fecha de alta de la cuenta COMPANY.
+- Fija zona horaria America/Argentina/Buenos_Aires para corte y serie mensual.
+- Nombre ordenable: YYMMDD-HHmm Talento-PyME-Informe-Trazabilidad-YYYYMMDD-HHmm.pdf.
