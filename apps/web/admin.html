@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.9.7" />
+  <link rel="stylesheet" href="/styles.css?v=7.9.8" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -461,12 +461,12 @@
   <section class="tabPane" id="tab-chat">
     <div class="adminChatShell">
       <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Conversaciones</h2><div class="muted">Separadas por Ayuda IA del lado empresa y del lado candidato para responder con contexto claro.</div></div><button class="btn btn-ghost" id="btnRefreshThreads" type="button">Actualizar</button></div><div class="row" id="chatRoleTabs" style="margin-top:14px"><button class="btn btn-ghost active" data-role-filter="ALL" type="button">Todas</button><button class="btn btn-ghost" data-role-filter="COMPANY" type="button">Ayuda IA · lado empresa</button><button class="btn btn-ghost" data-role-filter="CANDIDATE" type="button">Ayuda IA · lado candidato</button><button class="btn btn-ghost" data-role-filter="SUPERADMIN" type="button">Ayuda IA · administración</button></div><div id="threadList" class="adminList" style="margin-top:16px"></div></div>
-      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Detalle del hilo</h2><div class="muted" id="threadMeta">Seleccioná una conversación.</div></div></div><div id="threadMessages" style="margin-top:16px"></div><div style="margin-top:16px"><label>Respuesta del operador</label><textarea class="input" id="operatorReply" rows="5" placeholder="Escribí la respuesta que verá el usuario."></textarea><label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="replyReusable" /> Incorporar esta respuesta a la base de conocimiento</label><div class="row" style="margin-top:12px"><button class="btn btn-primary" id="btnSendOperatorReply" type="button">Responder</button><span class="muted" id="operatorReplyMsg"></span></div></div></div>
+      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Detalle del hilo</h2><div class="muted" id="threadMeta">Seleccioná una conversación.</div></div></div><div id="threadMessages" style="margin-top:16px"></div><div style="margin-top:16px"><label>Respuesta del operador</label><textarea class="input" id="operatorReply" rows="6" placeholder="Escribí la respuesta que verá el usuario y, si querés, también recibirá por email."></textarea><div class="muted small" id="operatorEmailTarget" style="margin-top:8px">Correo destinatario: seleccioná una conversación.</div><label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="replyReusable" /> Incorporar esta respuesta a la base de conocimiento</label><div class="row" style="margin-top:12px;align-items:center"><button class="btn btn-primary" id="btnSendOperatorReply" type="button">Responder en Talento PyME</button><button class="btn btn-ghost" id="btnSendOperatorReplyEmail" type="button">Responder + enviar por email</button><button class="btn btn-ghost" id="btnResendLastOperatorEmail" type="button">Reenviar último mensaje informado por email</button></div><div class="muted" id="operatorReplyMsg" style="margin-top:10px"></div></div></div>
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.9.7"></script>
-<script src="/auth.js?v=7.9.7"></script>
+<script src="/config.js?v=7.9.8"></script>
+<script src="/auth.js?v=7.9.8"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -1415,13 +1415,22 @@ function renderSelectedThread(){
   const thread = state.threads.find((t) => t.id === state.selectedThreadId);
   const box = document.getElementById('threadMessages');
   const meta = document.getElementById('threadMeta');
+  const emailTarget = document.getElementById('operatorEmailTarget');
+  const resendBtn = document.getElementById('btnResendLastOperatorEmail');
+  const emailReplyBtn = document.getElementById('btnSendOperatorReplyEmail');
   if(!thread){
     meta.textContent = 'Seleccioná una conversación.';
     box.innerHTML = '<div class="muted">Sin hilo seleccionado.</div>';
+    if(emailTarget) emailTarget.textContent = 'Correo destinatario: seleccioná una conversación.';
+    if(resendBtn) resendBtn.disabled = true;
+    if(emailReplyBtn) emailReplyBtn.disabled = true;
     return;
   }
   meta.textContent = `${threadRoleLabel[thread.role] || 'Ayuda IA'} · ${thread.company?.companyName || thread.user?.email || thread.subject || 'Conversación'} · ${thread.needsHuman ? 'pendiente de operador' : 'seguimiento'}`;
-  box.innerHTML = (thread.messages || []).map((m) => `<div class="msgBubble ${m.actor}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b>${esc(actorLabelEs(m.actor))}</b><span class="muted small">${esc(fd(m.createdAt))}</span></div><div style="margin-top:6px">__KEEP__</div></div>`).join('');
+  if(emailTarget) emailTarget.textContent = thread.recipientEmail ? `Correo destinatario: ${thread.recipientEmail}` : 'Esta conversación no tiene un correo destinatario disponible.';
+  if(resendBtn) resendBtn.disabled = !(thread.canEmail && thread.lastOperatorMessage);
+  if(emailReplyBtn) emailReplyBtn.disabled = !thread.canEmail;
+  box.innerHTML = (thread.messages || []).map((m) => `<div class="msgBubble ${m.actor}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b>${esc(actorLabelEs(m.actor))}</b><span class="muted small">${esc(fd(m.createdAt))}</span></div><div style="margin-top:6px;white-space:pre-wrap">${esc(m.content || '')}</div></div>`).join('');
 }
 
 document.getElementById('btnSaveMatrix').onclick = async () => {
@@ -1499,17 +1508,37 @@ document.getElementById('btnTraceReportRefresh').onclick = async () => {
   }
 };
 
-document.getElementById('btnSendOperatorReply').onclick = async () => {
+async function sendOperatorReply({ emailAlso = false } = {}){
   const threadId = state.selectedThreadId;
   const content = document.getElementById('operatorReply').value.trim();
   const msg = document.getElementById('operatorReplyMsg');
   if(!threadId || !content){ msg.textContent = 'Seleccioná un hilo y escribí la respuesta.'; return; }
-  msg.textContent = 'Enviando…';
+  msg.textContent = emailAlso ? 'Guardando en Talento PyME y enviando por email…' : 'Guardando respuesta…';
   try{
-    await apiFetch('/admin/chat/reply', { method:'POST', body:JSON.stringify({ threadId, content, reusable:document.getElementById('replyReusable').checked }) });
+    const data = await apiFetch('/admin/chat/reply', { method:'POST', body:JSON.stringify({ threadId, content, reusable:document.getElementById('replyReusable').checked, emailAlso }) });
     document.getElementById('operatorReply').value = '';
     document.getElementById('replyReusable').checked = false;
-    msg.textContent = 'Respuesta enviada.';
+    if(emailAlso){
+      msg.textContent = data?.email?.ok
+        ? `Respuesta guardada y enviada por email a ${data.email.maskedEmail || 'el correo registrado'}.`
+        : 'La respuesta quedó guardada en Talento PyME, pero el email no pudo enviarse. Podés usar “Reenviar último mensaje informado por email”.';
+    } else {
+      msg.textContent = 'Respuesta guardada en Talento PyME.';
+    }
+    await loadThreads();
+  }catch(e){ msg.textContent = e.message; }
+}
+
+document.getElementById('btnSendOperatorReply').onclick = () => sendOperatorReply({ emailAlso:false });
+document.getElementById('btnSendOperatorReplyEmail').onclick = () => sendOperatorReply({ emailAlso:true });
+document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
+  const threadId = state.selectedThreadId;
+  const msg = document.getElementById('operatorReplyMsg');
+  if(!threadId){ msg.textContent = 'Seleccioná una conversación.'; return; }
+  msg.textContent = 'Reenviando el último mensaje informado…';
+  try{
+    const data = await apiFetch('/admin/chat/resend-last-email', { method:'POST', body:JSON.stringify({ threadId }) });
+    msg.textContent = `Último mensaje reenviado por email a ${data.maskedEmail || 'el correo registrado'}.`;
     await loadThreads();
   }catch(e){ msg.textContent = e.message; }
 };

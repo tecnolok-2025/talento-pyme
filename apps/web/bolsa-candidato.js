@@ -1,4 +1,4 @@
-/* Talento PyME - v7.9.7 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF */
+/* Talento PyME - v7.9.8 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -1031,7 +1031,7 @@ async function initBolsaCandidato(){
       const r=await apiFetch('/candidate/presentation/refine',{method:'POST',body:JSON.stringify({transcript})});
       cand.voiceNarrativeSummary=String(r.summary || transcript).trim().slice(0,8000);
       const analysis=r.analysis || {};
-      cand.voiceNarrativeAnalysisVersion=String(analysis.analysisVersion || 'AI_V6_7.9.7_STRENGTHS_MOTIVATION');
+      cand.voiceNarrativeAnalysisVersion=String(analysis.analysisVersion || 'AI_V6_7.9.8_STRENGTHS_MOTIVATION');
       cand.voiceNarrativeAnalysisSource=String(analysis.source || 'LOCAL_V2');
       cand.voiceNarrativeYears=Number.isFinite(Number(analysis.yearsExperience)) ? Number(analysis.yearsExperience) : null;
       cand.voiceNarrativeProfessionalTitle=String(analysis.professionalTitle || '').trim().slice(0,180);
@@ -1512,7 +1512,7 @@ async function initBolsaCandidato(){
       return;
     }
 
-    // v7.9.7: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
+    // v7.9.8: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
     // cuando el candidato pulsa expresamente “Corrección IA profesional”.
 
     busy = true; render();

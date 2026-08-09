@@ -61,7 +61,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
 const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
-// v7.9.7: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
+// v7.9.8: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
 // Se reutiliza la configuración ya existente en Render para soporte, consultas, recuperaciones y buzón administrativo.
 const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || '').trim().toLowerCase();
 const GMAIL_USER = FACTORY_SUPPORT_EMAIL;
@@ -72,7 +72,7 @@ const GMAIL_REFRESH_TOKEN = String(process.env.GMAIL_REFRESH_TOKEN || '').trim()
 const OPENAI_API_KEY = String(process.env.OPENAI_API_KEY || '').trim();
 const OPENAI_MODEL = String(process.env.OPENAI_MODEL || 'gpt-5-mini').trim() || 'gpt-5-mini';
 const OPENAI_PRESENTATION_TIMEOUT_MS = Math.max(5000, Math.min(30000, Number(process.env.OPENAI_PRESENTATION_TIMEOUT_MS || 18000)));
-const PRESENTATION_ANALYSIS_VERSION = 'AI_V6_7.9.7_STRENGTHS_MOTIVATION';
+const PRESENTATION_ANALYSIS_VERSION = 'AI_V6_7.9.8_STRENGTHS_MOTIVATION';
 const MAIL_FROM_NAME = String(process.env.MAIL_FROM_NAME || 'Talento PyME').trim();
 const WEB_BASE_URL = String(process.env.WEB_BASE_URL || 'https://talento-pyme.onrender.com').replace(/\/$/, '').trim();
 const PASSWORD_RESET_CODE_TTL_MINUTES = Math.max(5, Math.min(30, Number(process.env.PASSWORD_RESET_CODE_TTL_MINUTES || 10)));
@@ -645,6 +645,72 @@ function isMailTransportNetworkError(err){
   const code = String(err?.code || '').toUpperCase();
   const message = String(err?.message || '').toLowerCase();
   return ['ETIMEDOUT','ESOCKET','ECONNREFUSED','ENETUNREACH','EHOSTUNREACH'].includes(code) || message.includes('timeout') || message.includes('network is unreachable');
+}
+
+function clampMultilineText(value = '', max = 4000){
+  const normalized = String(value || '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if(normalized.length <= max) return normalized;
+  return normalized.slice(0, Math.max(0, max - 1)).trimEnd() + '…';
+}
+
+function escapeEmailHtml(value = ''){
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function supportEmailSubjectForRole(role){
+  const normalized = String(role || '').toUpperCase();
+  if(normalized === 'COMPANY') return 'Talento PyME · Información sobre tu cuenta empresa';
+  return 'Talento PyME · Información sobre tu perfil profesional';
+}
+
+function resolveSupportThreadRecipient(thread){
+  const role = String(thread?.role || '').toUpperCase();
+  if(role === 'CANDIDATE') return normalizeEmail(thread?.user?.email || '');
+  if(role === 'COMPANY') return normalizeEmail(thread?.company?.contactEmail || thread?.user?.email || '');
+  return '';
+}
+
+async function sendSupportOperatorEmail({ thread, content, subject = '' }){
+  if(!gmailConfigured()) {
+    const err = new Error('MAIL_NOT_CONFIGURED');
+    err.code = 'MAIL_NOT_CONFIGURED';
+    throw err;
+  }
+  const to = resolveSupportThreadRecipient(thread);
+  if(!to){
+    const err = new Error('RECIPIENT_NOT_AVAILABLE');
+    err.code = 'RECIPIENT_NOT_AVAILABLE';
+    throw err;
+  }
+  const cleanContent = clampMultilineText(content, 4000);
+  if(!cleanContent){
+    const err = new Error('EMPTY_SUPPORT_MESSAGE');
+    err.code = 'EMPTY_SUPPORT_MESSAGE';
+    throw err;
+  }
+  const safeSubject = clampText(String(subject || supportEmailSubjectForRole(thread?.role)).trim(), 180);
+  const htmlBody = escapeEmailHtml(cleanContent).replace(/\n/g, '<br>');
+  const portalLink = `${WEB_BASE_URL}/`;
+  const transport = await getSmtpTransport();
+  await transport.sendMail({
+    from:`"${MAIL_FROM_NAME}" <${GMAIL_USER}>`,
+    to,
+    subject:safeSubject,
+    text:`${cleanContent}\n\nPodés ingresar a Talento PyME desde: ${portalLink}\n\nEste mensaje fue enviado desde el área de Administración de Talento PyME.`,
+    html:`<div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.55;max-width:680px;margin:auto"><div style="padding:18px 20px;background:#0f2f5f;color:#fff;border-radius:14px 14px 0 0"><div style="font-size:20px;font-weight:800">Talento PyME</div><div style="font-size:13px;opacity:.88">Conectando experiencia con producción.</div></div><div style="padding:22px 20px;border:1px solid #dbe4ef;border-top:0;border-radius:0 0 14px 14px"><div style="white-space:normal;font-size:15px">${htmlBody}</div><p style="margin-top:22px"><a href="${portalLink}" style="display:inline-block;background:#1d4ed8;color:white;text-decoration:none;padding:10px 15px;border-radius:9px;font-weight:700">Ingresar a Talento PyME</a></p><p style="color:#64748b;font-size:12px;margin-top:20px">Este mensaje fue enviado desde el área de Administración de Talento PyME.</p></div></div>`,
+  });
+  return { to, maskedEmail:maskEmail(to), subject:safeSubject };
 }
 
 async function sendPasswordRecoveryEmail({ to, code, challengeId, role }){
@@ -3083,7 +3149,7 @@ app.post('/candidate/presentation/refine', auth, requireRole('CANDIDATE'), async
     }
     if(!analysis) analysis=refineCandidatePresentationLocal(parsed.data.transcript, context);
 
-    // v7.9.7: la corrección profesional se ejecuta únicamente a pedido explícito del candidato
+    // v7.9.8: la corrección profesional se ejecuta únicamente a pedido explícito del candidato
     // y pasa a ser inmediatamente la presentación principal por defecto.
     const analyzedAt=new Date();
     const yearsExperience=Number.isFinite(Number(analysis.yearsExperience)) ? Number(analysis.yearsExperience) : null;
@@ -3437,7 +3503,7 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
     const especialidad_by_area = Object.fromEntries(
       Object.entries(rawStats.especialidad_by_area || {}).map(([area, values]) => [area, Object.keys(values || {})])
     );
-    // v7.9.7: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
+    // v7.9.8: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
     // ni conteos por faceta. Los totales de padrón quedan reservados al Panel General.
     return res.json({ ok: true, facets, especialidad_by_area });
   } catch (err) {
@@ -3667,7 +3733,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.9.7 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.9.8 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
@@ -6539,7 +6605,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.billingOrder.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
     ]);
 
-    // v7.9.7 · Directorios clasificados de Administración.
+    // v7.9.8 · Directorios clasificados de Administración.
     // Se consultan campos livianos de todos los registros que cumplen los filtros actuales para que
     // los contadores representen el padrón filtrado completo, no solamente la página visible.
     const [candidateClassificationRows, companyClassificationRows] = await Promise.all([
@@ -6963,8 +7029,20 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
 
 app.get('/admin/chat/threads', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   try {
-    const rows = await prisma.supportThread.findMany({ orderBy: { updatedAt: 'desc' }, take: 100, include: { company: { select: { companyName: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'asc' }, take: 100 } } }).catch(() => []);
-    return res.json({ ok: true, items: rows });
+    const rows = await prisma.supportThread.findMany({ orderBy: { updatedAt: 'desc' }, take: 100, include: { company: { select: { companyName: true, contactEmail: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'asc' }, take: 100 } } }).catch(() => []);
+    const items = rows.map((thread) => {
+      const recipientEmail = resolveSupportThreadRecipient(thread);
+      const lastOperator = [...(thread.messages || [])].reverse().find((m) => m.actor === 'OPERATOR') || null;
+      return {
+        ...thread,
+        recipientEmail: recipientEmail || null,
+        maskedRecipientEmail: recipientEmail ? maskEmail(recipientEmail) : null,
+        canEmail: Boolean(recipientEmail && gmailConfigured()),
+        lastOperatorMessage: lastOperator?.content || null,
+        lastOperatorAt: lastOperator?.createdAt || null,
+      };
+    });
+    return res.json({ ok: true, items, mailConfigured:gmailConfigured() });
   } catch (err) {
     console.error('GET /admin/chat/threads', err);
     return res.status(500).json({ error: 'No se pudo cargar el chat operador.' });
@@ -6974,10 +7052,14 @@ app.get('/admin/chat/threads', auth, requireAnyRole(['ADMIN','SUPERADMIN']), asy
 app.post('/admin/chat/reply', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   try {
     const threadId = String(req.body?.threadId || '').trim();
-    const content = clampText(String(req.body?.content || ''), 4000);
+    const content = clampMultilineText(req.body?.content || '', 4000);
     const reusable = !!req.body?.reusable;
+    const emailAlso = !!req.body?.emailAlso;
     if(!threadId || !content) return res.status(400).json({ error: 'Faltan datos para responder.' });
-    const thread = await prisma.supportThread.findUnique({ where: { id: threadId }, include: { messages: { orderBy: { createdAt: 'desc' }, take: 10 } } });
+    const thread = await prisma.supportThread.findUnique({
+      where: { id: threadId },
+      include: { company: { select: { companyName:true, contactEmail:true } }, user: { select: { email:true } }, messages: { orderBy: { createdAt: 'desc' }, take: 20 } }
+    });
     if(!thread) return res.status(404).json({ error: 'Conversación no encontrada.' });
     await prisma.supportMessage.create({ data: { threadId, actor: 'OPERATOR', content, reusable } });
     await prisma.supportThread.update({ where: { id: threadId }, data: { needsHuman: false, status: 'WAITING_USER', lastAiMessage: content } }).catch(() => null);
@@ -6986,10 +7068,53 @@ app.post('/admin/chat/reply', auth, requireAnyRole(['ADMIN','SUPERADMIN']), asyn
       const keywords = Array.from(new Set(normalizeName(userPrompt).split(' ').filter((tok)=> tok.length >= 4))).slice(0,12);
       await prisma.supportKnowledge.create({ data: { scope: thread.role, keywords, questionSample: userPrompt.slice(0,180), answer: content, source: 'operator', isActive: true } }).catch(() => null);
     }
-    return res.json({ ok: true });
+
+    let emailResult = { requested:emailAlso, ok:false, maskedEmail:null, error:null };
+    if(emailAlso){
+      try {
+        const sent = await sendSupportOperatorEmail({ thread, content });
+        emailResult = { requested:true, ok:true, maskedEmail:sent.maskedEmail, error:null };
+        await recordSecurityEvent({
+          route:'/admin/chat/reply', actorUserId:req.user?.id || null, severity:'INFO', eventType:'SUPPORT_EMAIL_SENT',
+          message:'Respuesta del operador enviada también por correo.',
+          metadata:{ threadId, role:thread.role, recipient:sent.maskedEmail, resend:false }
+        }).catch(() => null);
+      } catch(mailErr) {
+        emailResult = { requested:true, ok:false, maskedEmail:maskEmail(resolveSupportThreadRecipient(thread)), error:mailErr?.code || mailErr?.message || 'MAIL_SEND_FAILED' };
+        console.error('POST /admin/chat/reply email', mailErr?.code || mailErr?.message || mailErr);
+      }
+    }
+    return res.json({ ok: true, email:emailResult });
   } catch (err) {
     console.error('POST /admin/chat/reply', err);
     return res.status(500).json({ error: 'No se pudo enviar la respuesta del operador.' });
+  }
+});
+
+app.post('/admin/chat/resend-last-email', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  try {
+    const threadId = String(req.body?.threadId || '').trim();
+    if(!threadId) return res.status(400).json({ error:'Seleccioná una conversación.' });
+    const thread = await prisma.supportThread.findUnique({
+      where:{ id:threadId },
+      include:{ company:{ select:{ companyName:true, contactEmail:true } }, user:{ select:{ email:true } }, messages:{ orderBy:{ createdAt:'desc' }, take:100 } }
+    });
+    if(!thread) return res.status(404).json({ error:'Conversación no encontrada.' });
+    const lastOperator = (thread.messages || []).find((m) => m.actor === 'OPERATOR');
+    if(!lastOperator?.content) return res.status(400).json({ error:'Todavía no hay un mensaje del administrador para reenviar.' });
+    const sent = await sendSupportOperatorEmail({ thread, content:lastOperator.content });
+    await recordSecurityEvent({
+      route:'/admin/chat/resend-last-email', actorUserId:req.user?.id || null, severity:'INFO', eventType:'SUPPORT_EMAIL_RESENT',
+      message:'Se reenvió por correo el último mensaje informado por el operador.',
+      metadata:{ threadId, role:thread.role, recipient:sent.maskedEmail, resend:true, sourceMessageId:lastOperator.id }
+    }).catch(() => null);
+    return res.json({ ok:true, maskedEmail:sent.maskedEmail, sentAt:new Date().toISOString() });
+  } catch(err) {
+    console.error('POST /admin/chat/resend-last-email', err?.code || err?.message || err);
+    if(err?.code === 'MAIL_NOT_CONFIGURED' || err?.message === 'MAIL_NOT_CONFIGURED') return res.status(503).json({ error:'El correo institucional no está configurado.' });
+    if(err?.code === 'RECIPIENT_NOT_AVAILABLE') return res.status(400).json({ error:'Esta conversación no tiene un correo destinatario disponible.' });
+    if(isMailTransportNetworkError(err)) return res.status(503).json({ error:'No se pudo conectar con Gmail para reenviar el mensaje.' });
+    return res.status(500).json({ error:'No se pudo reenviar el último mensaje por correo.' });
   }
 });
 

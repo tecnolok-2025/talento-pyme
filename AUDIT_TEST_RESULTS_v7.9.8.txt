@@ -1,0 +1,650 @@
+
+> talento-pyme-api@7.9.8 test
+> node --test test/*.test.js
+
+TAP version 13
+# Subtest: empresas se clasifican en Fabricación Logística Servicio con contador administrativo
+ok 1 - empresas se clasifican en Fabricación Logística Servicio con contador administrativo
+  ---
+  duration_ms: 0.955611
+  type: 'test'
+  ...
+# Subtest: clasificación de empresa admite corrección manual persistente
+ok 2 - clasificación de empresa admite corrección manual persistente
+  ---
+  duration_ms: 0.323735
+  type: 'test'
+  ...
+# Subtest: candidatos se agrupan por seniority y expertise
+ok 3 - candidatos se agrupan por seniority y expertise
+  ---
+  duration_ms: 0.73532
+  type: 'test'
+  ...
+# Subtest: clasificación administrativa no se agrega a pantallas públicas
+ok 4 - clasificación administrativa no se agrega a pantallas públicas
+  ---
+  duration_ms: 0.958802
+  type: 'test'
+  ...
+# Subtest: v7.9.8 elimina pendiente de candidatos y usa aprendiz como integración inicial
+ok 5 - v7.9.8 elimina pendiente de candidatos y usa aprendiz como integración inicial
+  ---
+  duration_ms: 1.517859
+  type: 'test'
+  ...
+# Subtest: expertise puede crear subcategoría dinámica cuando no coincide con catálogo
+ok 6 - expertise puede crear subcategoría dinámica cuando no coincide con catálogo
+  ---
+  duration_ms: 0.559688
+  type: 'test'
+  ...
+# Subtest: clasificación prioriza actividad profesional reciente del candidato
+ok 7 - clasificación prioriza actividad profesional reciente del candidato
+  ---
+  duration_ms: 0.759841
+  type: 'test'
+  ...
+# Subtest: índice 0-100 es profesional, dinámico y no usa atributos personales sensibles
+ok 8 - índice 0-100 es profesional, dinámico y no usa atributos personales sensibles
+  ---
+  duration_ms: 0.501632
+  type: 'test'
+  ...
+# Subtest: empresas tienen una actividad principal dentro de Fabricación Logística o Servicio
+ok 9 - empresas tienen una actividad principal dentro de Fabricación Logística o Servicio
+  ---
+  duration_ms: 0.601204
+  type: 'test'
+  ...
+# Subtest: trazabilidad muestra composición por expertise y actividad principal
+ok 10 - trazabilidad muestra composición por expertise y actividad principal
+  ---
+  duration_ms: 0.63518
+  type: 'test'
+  ...
+# Subtest: clasificación avanzada permanece sólo en administración
+ok 11 - clasificación avanzada permanece sólo en administración
+  ---
+  duration_ms: 1.178407
+  type: 'test'
+  ...
+# Subtest: frontend declara v7.9.8
+ok 12 - frontend declara v7.9.8
+  ---
+  duration_ms: 2.933595
+  type: 'test'
+  ...
+# Subtest: comportamiento: supervisor de producción reciente queda clasificado y puntuado
+ok 13 - comportamiento: supervisor de producción reciente queda clasificado y puntuado
+  ---
+  duration_ms: 9.745128
+  type: 'test'
+  ...
+# Subtest: comportamiento: estudiante administrativo escaso no queda pendiente
+ok 14 - comportamiento: estudiante administrativo escaso no queda pendiente
+  ---
+  duration_ms: 2.082583
+  type: 'test'
+  ...
+# Subtest: comportamiento: la función administrativa reciente prevalece sobre un título universitario genérico
+ok 15 - comportamiento: la función administrativa reciente prevalece sobre un título universitario genérico
+  ---
+  duration_ms: 1.778207
+  type: 'test'
+  ...
+# Subtest: comportamiento: expertise desconocido crea etiqueta propia
+ok 16 - comportamiento: expertise desconocido crea etiqueta propia
+  ---
+  duration_ms: 2.07672
+  type: 'test'
+  ...
+# Subtest: comportamiento: la actividad más reciente pesa más que experiencia histórica de otra expertise
+ok 17 - comportamiento: la actividad más reciente pesa más que experiencia histórica de otra expertise
+  ---
+  duration_ms: 2.560759
+  type: 'test'
+  ...
+# Subtest: comportamiento: empresa de transporte se clasifica por actividad principal
+ok 18 - comportamiento: empresa de transporte se clasifica por actividad principal
+  ---
+  duration_ms: 1.440772
+  type: 'test'
+  ...
+# Subtest: comportamiento: 40 años explícitos de experiencia nunca quedan como Junior
+ok 19 - comportamiento: 40 años explícitos de experiencia nunca quedan como Junior
+  ---
+  duration_ms: 2.220813
+  type: 'test'
+  ...
+# Subtest: administración dispone de perfil completo de empresas
+ok 20 - administración dispone de perfil completo de empresas
+  ---
+  duration_ms: 1.260124
+  type: 'test'
+  ...
+# Subtest: administración deriva la recuperación de clave al correo registrado
+ok 21 - administración deriva la recuperación de clave al correo registrado
+  ---
+  duration_ms: 0.427266
+  type: 'test'
+  ...
+# Subtest: administración puede buscar candidatos y empresas por identidad
+ok 22 - administración puede buscar candidatos y empresas por identidad
+  ---
+  duration_ms: 0.536099
+  type: 'test'
+  ...
+# Subtest: v7.9.8 incorpora envio de respuesta de operador tambien por email
+ok 23 - v7.9.8 incorpora envio de respuesta de operador tambien por email
+  ---
+  duration_ms: 1.286961
+  type: 'test'
+  ...
+# Subtest: v7.9.8 permite reenviar ultimo mensaje informado por email
+ok 24 - v7.9.8 permite reenviar ultimo mensaje informado por email
+  ---
+  duration_ms: 0.545783
+  type: 'test'
+  ...
+# Subtest: v7.9.8 utiliza correo institucional existente y no agrega credenciales
+ok 25 - v7.9.8 utiliza correo institucional existente y no agrega credenciales
+  ---
+  duration_ms: 0.246187
+  type: 'test'
+  ...
+# Subtest: v7.9.8 muestra el contenido real del chat operador
+ok 26 - v7.9.8 muestra el contenido real del chat operador
+  ---
+  duration_ms: 0.285619
+  type: 'test'
+  ...
+# Subtest: v7.9.8 no requiere cambio de schema para los envios
+ok 27 - v7.9.8 no requiere cambio de schema para los envios
+  ---
+  duration_ms: 0.181645
+  type: 'test'
+  ...
+# Subtest: v7.9.8 incorpora pestaña administrativa Reportes con descarga y envío
+ok 28 - v7.9.8 incorpora pestaña administrativa Reportes con descarga y envío
+  ---
+  duration_ms: 0.869922
+  type: 'test'
+  ...
+# Subtest: endpoints de reporte quedan restringidos a administración
+ok 29 - endpoints de reporte quedan restringidos a administración
+  ---
+  duration_ms: 0.362001
+  type: 'test'
+  ...
+# Subtest: reporte se genera en tiempo real desde agregados de la base
+ok 30 - reporte se genera en tiempo real desde agregados de la base
+  ---
+  duration_ms: 1.33709
+  type: 'test'
+  ...
+# Subtest: PDF contiene objetivos, tablas, conclusiones y sugerencias
+ok 31 - PDF contiene objetivos, tablas, conclusiones y sugerencias
+  ---
+  duration_ms: 0.72141
+  type: 'test'
+  ...
+# Subtest: reporte no consume identificadores individuales
+ok 32 - reporte no consume identificadores individuales
+  ---
+  duration_ms: 0.386788
+  type: 'test'
+  ...
+# Subtest: envío usa el correo institucional ya configurado y adjunta PDF
+ok 33 - envío usa el correo institucional ya configurado y adjunta PDF
+  ---
+  duration_ms: 0.290621
+  type: 'test'
+  ...
+# Subtest: descarga PDF usa contenido binario autenticado
+ok 34 - descarga PDF usa contenido binario autenticado
+  ---
+  duration_ms: 0.299296
+  type: 'test'
+  ...
+# Subtest: API declara dependencia PDFKit y frontend v7.9.8
+ok 35 - API declara dependencia PDFKit y frontend v7.9.8
+  ---
+  duration_ms: 0.228893
+  type: 'test'
+  ...
+# Subtest: v7.9.8 usa logos institucionales y flujo PDF anclado al margen izquierdo
+ok 36 - v7.9.8 usa logos institucionales y flujo PDF anclado al margen izquierdo
+  ---
+  duration_ms: 0.379605
+  type: 'test'
+  ...
+# Subtest: v7.9.8 contabiliza altas de empresa por la cuenta COMPANY y no por edición del perfil
+ok 37 - v7.9.8 contabiliza altas de empresa por la cuenta COMPANY y no por edición del perfil
+  ---
+  duration_ms: 0.596124
+  type: 'test'
+  ...
+# Subtest: v7.9.8 nombre de archivo comienza con YYMMDD-HHmm para orden cronológico
+ok 38 - v7.9.8 nombre de archivo comienza con YYMMDD-HHmm para orden cronológico
+  ---
+  duration_ms: 0.315089
+  type: 'test'
+  ...
+# Subtest: v7.9.8 infiere ciudad, provincia y país para localidades argentinas inequívocas
+ok 39 - v7.9.8 infiere ciudad, provincia y país para localidades argentinas inequívocas
+  ---
+  duration_ms: 1.406072
+  type: 'test'
+  ...
+# Subtest: v7.9.8 guarda provincia de residencia y metadatos del análisis profesional
+ok 40 - v7.9.8 guarda provincia de residencia y metadatos del análisis profesional
+  ---
+  duration_ms: 0.341783
+  type: 'test'
+  ...
+# Subtest: presentación se corrige sólo por acción explícita del candidato y toma todo el relato
+ok 41 - presentación se corrige sólo por acción explícita del candidato y toma todo el relato
+  ---
+  duration_ms: 0.556051
+  type: 'test'
+  ...
+# Subtest: API puede usar IA generativa server-side y conserva un respaldo local
+ok 42 - API puede usar IA generativa server-side y conserva un respaldo local
+  ---
+  duration_ms: 0.541139
+  type: 'test'
+  ...
+# Subtest: años explícitos de trayectoria tienen prioridad sobre una etiqueta junior aislada
+ok 43 - años explícitos de trayectoria tienen prioridad sobre una etiqueta junior aislada
+  ---
+  duration_ms: 0.370536
+  type: 'test'
+  ...
+# Subtest: candidatos antiguos quedan con la nueva presentación pendiente hasta reprocesarla
+ok 44 - candidatos antiguos quedan con la nueva presentación pendiente hasta reprocesarla
+  ---
+  duration_ms: 0.362104
+  type: 'test'
+  ...
+# Subtest: administración prioriza el resumen elaborado y no muestra la transcripción cruda como ficha principal
+ok 45 - administración prioriza el resumen elaborado y no muestra la transcripción cruda como ficha principal
+  ---
+  duration_ms: 0.220523
+  type: 'test'
+  ...
+# Subtest: CV usa residencia inferida y el título profesional detectado cuando corresponde
+ok 46 - CV usa residencia inferida y el título profesional detectado cuando corresponde
+  ---
+  duration_ms: 0.117963
+  type: 'test'
+  ...
+# Subtest: v7.9.8 separa resumen breve izquierdo de presentación ampliada derecha
+ok 47 - v7.9.8 separa resumen breve izquierdo de presentación ampliada derecha
+  ---
+  duration_ms: 2.06437
+  type: 'test'
+  ...
+# Subtest: corrección IA pide desarrollo amplio sin inventar antecedentes
+ok 48 - corrección IA pide desarrollo amplio sin inventar antecedentes
+  ---
+  duration_ms: 0.403008
+  type: 'test'
+  ...
+# Subtest: guardar no dispara corrección IA implícita
+ok 49 - guardar no dispara corrección IA implícita
+  ---
+  duration_ms: 0.279658
+  type: 'test'
+  ...
+# Subtest: el usuario puede editar o borrar la propuesta IA antes de guardar
+ok 50 - el usuario puede editar o borrar la propuesta IA antes de guardar
+  ---
+  duration_ms: 0.175316
+  type: 'test'
+  ...
+# Subtest: nombre de archivo CV usa YYMMDD-HHmm + CV + nombre, sin sufijo redundante
+ok 51 - nombre de archivo CV usa YYMMDD-HHmm + CV + nombre, sin sufijo redundante
+  ---
+  duration_ms: 0.155696
+  type: 'test'
+  ...
+# Subtest: v7.9.8 genera diez aptitudes profesionales editables, no opiniones de un tercero
+ok 52 - v7.9.8 genera diez aptitudes profesionales editables, no opiniones de un tercero
+  ---
+  duration_ms: 1.175891
+  type: 'test'
+  ...
+# Subtest: la motivación cambia según seniority y contempla candidato que ya trabaja
+ok 53 - la motivación cambia según seniority y contempla candidato que ya trabaja
+  ---
+  duration_ms: 0.417196
+  type: 'test'
+  ...
+# Subtest: proyectista eléctrico recibe vocabulario técnico útil para expresar su expertise
+ok 54 - proyectista eléctrico recibe vocabulario técnico útil para expresar su expertise
+  ---
+  duration_ms: 0.307611
+  type: 'test'
+  ...
+# Subtest: CV incorpora fortalezas y un cierre profesional en primera persona
+ok 55 - CV incorpora fortalezas y un cierre profesional en primera persona
+  ---
+  duration_ms: 0.164224
+  type: 'test'
+  ...
+# Subtest: campos nuevos se guardan, quedan editables y Administración los puede leer
+ok 56 - campos nuevos se guardan, quedan editables y Administración los puede leer
+  ---
+  duration_ms: 0.257043
+  type: 'test'
+  ...
+# Subtest: candidatos con versión vieja vuelven a tener pendiente la nueva presentación enriquecida
+ok 57 - candidatos con versión vieja vuelven a tener pendiente la nueva presentación enriquecida
+  ---
+  duration_ms: 0.378721
+  type: 'test'
+  ...
+# Subtest: v7.9.8 obliga a redactar el CV en primera persona y prohíbe voz de evaluador
+ok 58 - v7.9.8 obliga a redactar el CV en primera persona y prohíbe voz de evaluador
+  ---
+  duration_ms: 3.08006
+  type: 'test'
+  ...
+# Subtest: enriquecimiento técnico contempla proyectista eléctrico y supervisión sin inventar logros
+ok 59 - enriquecimiento técnico contempla proyectista eléctrico y supervisión sin inventar logros
+  ---
+  duration_ms: 0.260393
+  type: 'test'
+  ...
+# Subtest: respaldo local también redacta en primera persona
+ok 60 - respaldo local también redacta en primera persona
+  ---
+  duration_ms: 0.308408
+  type: 'test'
+  ...
+# Subtest: CV lateral también habla desde la voz del candidato
+ok 61 - CV lateral también habla desde la voz del candidato
+  ---
+  duration_ms: 0.105389
+  type: 'test'
+  ...
+# Subtest: descarga conserva el nombre cronológico aun si CORS no entrega Content-Disposition
+ok 62 - descarga conserva el nombre cronológico aun si CORS no entrega Content-Disposition
+  ---
+  duration_ms: 0.165337
+  type: 'test'
+  ...
+# Subtest: v7.9.8 agrega residencia y presentación por voz/texto al perfil candidato
+ok 63 - v7.9.8 agrega residencia y presentación por voz/texto al perfil candidato
+  ---
+  duration_ms: 1.35863
+  type: 'test'
+  ...
+# Subtest: registro rápido permite guardar datos base y presentación para continuar después
+ok 64 - registro rápido permite guardar datos base y presentación para continuar después
+  ---
+  duration_ms: 0.322038
+  type: 'test'
+  ...
+# Subtest: administración muestra presentación personal y trazabilidad geográfica
+ok 65 - administración muestra presentación personal y trazabilidad geográfica
+  ---
+  duration_ms: 0.354446
+  type: 'test'
+  ...
+# Subtest: reporte agrega país y ciudad y reemplaza Actividad general por actividad no especificada
+ok 66 - reporte agrega país y ciudad y reemplaza Actividad general por actividad no especificada
+  ---
+  duration_ms: 0.436203
+  type: 'test'
+  ...
+# Subtest: candidato puede descargar un CV PDF profesional regenerado con datos vigentes
+ok 67 - candidato puede descargar un CV PDF profesional regenerado con datos vigentes
+  ---
+  duration_ms: 0.298033
+  type: 'test'
+  ...
+# Subtest: presentación aprobada enriquece búsqueda profesional sin exponer transcripción cruda a empresa
+ok 68 - presentación aprobada enriquece búsqueda profesional sin exponer transcripción cruda a empresa
+  ---
+  duration_ms: 0.41107
+  type: 'test'
+  ...
+# Subtest: versión unificada 7.9.8
+ok 69 - versión unificada 7.9.8
+  ---
+  duration_ms: 0.203104
+  type: 'test'
+  ...
+# Subtest: resume/parse persiste el contenido útil del CV
+ok 70 - resume/parse persiste el contenido útil del CV
+  ---
+  duration_ms: 5.934162
+  type: 'test'
+  ...
+# Subtest: detalle administrativo usa resumen legado como respaldo
+ok 71 - detalle administrativo usa resumen legado como respaldo
+  ---
+  duration_ms: 3.386022
+  type: 'test'
+  ...
+# Subtest: administración muestra bloque específico de CV
+ok 72 - administración muestra bloque específico de CV
+  ---
+  duration_ms: 2.719508
+  type: 'test'
+  ...
+# Subtest: registro y recuperación usan mínimo 10 caracteres
+ok 73 - registro y recuperación usan mínimo 10 caracteres
+  ---
+  duration_ms: 1.201222
+  type: 'test'
+  ...
+# Subtest: registro legado incompleto no puede reemplazar passHash
+ok 74 - registro legado incompleto no puede reemplazar passHash
+  ---
+  duration_ms: 0.279642
+  type: 'test'
+  ...
+# Subtest: DNI nuevo se comprueba también contra CandidateBolsa histórica
+ok 75 - DNI nuevo se comprueba también contra CandidateBolsa histórica
+  ---
+  duration_ms: 0.266103
+  type: 'test'
+  ...
+# Subtest: sólo el código de recuperación más reciente queda activo
+ok 76 - sólo el código de recuperación más reciente queda activo
+  ---
+  duration_ms: 0.150661
+  type: 'test'
+  ...
+# Subtest: correo institucional sigue unificado sin segunda dirección
+ok 77 - correo institucional sigue unificado sin segunda dirección
+  ---
+  duration_ms: 0.357034
+  type: 'test'
+  ...
+# Subtest: frontend y cache declaran 7.9.8
+ok 78 - frontend y cache declaran 7.9.8
+  ---
+  duration_ms: 0.151702
+  type: 'test'
+  ...
+# Subtest: buscadores legados no exponen perfiles ni permiten bypass de capacidad
+ok 79 - buscadores legados no exponen perfiles ni permiten bypass de capacidad
+  ---
+  duration_ms: 0.337848
+  type: 'test'
+  ...
+# Subtest: analizar web bloquea destinos privados y limita la descarga
+ok 80 - analizar web bloquea destinos privados y limita la descarga
+  ---
+  duration_ms: 0.335085
+  type: 'test'
+  ...
+# Subtest: CV rechaza formatos no soportados y UI sólo ofrece PDF DOCX TXT
+ok 81 - CV rechaza formatos no soportados y UI sólo ofrece PDF DOCX TXT
+  ---
+  duration_ms: 1.270125
+  type: 'test'
+  ...
+# Subtest: recuperación ya no permite cambiar clave sólo con DNI o CUIT
+ok 82 - recuperación ya no permite cambiar clave sólo con DNI o CUIT
+  ---
+  duration_ms: 1.19929
+  type: 'test'
+  ...
+# Subtest: código temporal queda persistido con vencimiento e intentos
+ok 83 - código temporal queda persistido con vencimiento e intentos
+  ---
+  duration_ms: 0.319738
+  type: 'test'
+  ...
+# Subtest: candidato nuevo usa DNI menor a 11 dígitos
+ok 84 - candidato nuevo usa DNI menor a 11 dígitos
+  ---
+  duration_ms: 0.169797
+  type: 'test'
+  ...
+# Subtest: cuentas candidatas legadas pueden autocorregir registro de 11 dígitos tras validar correo
+ok 85 - cuentas candidatas legadas pueden autocorregir registro de 11 dígitos tras validar correo
+  ---
+  duration_ms: 0.238951
+  type: 'test'
+  ...
+# Subtest: correo se muestra enmascarado y nunca completo en recuperación
+ok 86 - correo se muestra enmascarado y nunca completo en recuperación
+  ---
+  duration_ms: 0.246707
+  type: 'test'
+  ...
+# Subtest: panel administrativo dispone de Gmail en páginas de 20
+ok 87 - panel administrativo dispone de Gmail en páginas de 20
+  ---
+  duration_ms: 0.484978
+  type: 'test'
+  ...
+# Subtest: rechaza payment.cardNumber en checkout guard
+ok 88 - rechaza payment.cardNumber en checkout guard
+  ---
+  duration_ms: 1.159511
+  type: 'test'
+  ...
+# Subtest: rechaza payment.cvv en checkout guard
+ok 89 - rechaza payment.cvv en checkout guard
+  ---
+  duration_ms: 0.462141
+  type: 'test'
+  ...
+# Subtest: sanitizeCheckoutPayloadForLog no expone PAN ni CVV
+ok 90 - sanitizeCheckoutPayloadForLog no expone PAN ni CVV
+  ---
+  duration_ms: 0.554558
+  type: 'test'
+  ...
+# Subtest: stripe provider verifica webhook válido y parsea checkout.session.completed
+ok 91 - stripe provider verifica webhook válido y parsea checkout.session.completed
+  ---
+  duration_ms: 1.201153
+  type: 'test'
+  ...
+# Subtest: stripe provider rechaza webhook con firma inválida
+ok 92 - stripe provider rechaza webhook con firma inválida
+  ---
+  duration_ms: 0.171541
+  type: 'test'
+  ...
+# Subtest: mock redirect genera checkoutUrl sin tocar tarjeta
+ok 93 - mock redirect genera checkoutUrl sin tocar tarjeta
+  ---
+  duration_ms: 0.240875
+  type: 'test'
+  ...
+# Subtest: factory.html no contiene inputs operativos de tarjeta
+ok 94 - factory.html no contiene inputs operativos de tarjeta
+  ---
+  duration_ms: 5.749847
+  type: 'test'
+  ...
+# Subtest: service worker excluye endpoints sensibles de caché
+ok 95 - service worker excluye endpoints sensibles de caché
+  ---
+  duration_ms: 1.350327
+  type: 'test'
+  ...
+# Subtest: candidato no ve ni consulta el total global de candidatos
+ok 96 - candidato no ve ni consulta el total global de candidatos
+  ---
+  duration_ms: 1.604023
+  type: 'test'
+  ...
+# Subtest: empresa no ve conteos globales ni conteos por faceta
+ok 97 - empresa no ve conteos globales ni conteos por faceta
+  ---
+  duration_ms: 1.42773
+  type: 'test'
+  ...
+# Subtest: API reserva totales al administrador y no expone conteos en jobs stats
+ok 98 - API reserva totales al administrador y no expone conteos en jobs stats
+  ---
+  duration_ms: 2.124681
+  type: 'test'
+  ...
+# Subtest: portada transmite el rol a recuperación
+ok 99 - portada transmite el rol a recuperación
+  ---
+  duration_ms: 0.599928
+  type: 'test'
+  ...
+# Subtest: recuperación toma role=COMPANY desde la URL
+ok 100 - recuperación toma role=COMPANY desde la URL
+  ---
+  duration_ms: 0.1075
+  type: 'test'
+  ...
+# Subtest: CUIT de recuperación acepta sólo 11 números
+ok 101 - CUIT de recuperación acepta sólo 11 números
+  ---
+  duration_ms: 0.13566
+  type: 'test'
+  ...
+# Subtest: SMTP tiene timeouts explícitos y diagnóstico de red
+ok 102 - SMTP tiene timeouts explícitos y diagnóstico de red
+  ---
+  duration_ms: 0.186335
+  type: 'test'
+  ...
+# Subtest: una sola variable institucional gobierna soporte, recuperación y buzón
+ok 103 - una sola variable institucional gobierna soporte, recuperación y buzón
+  ---
+  duration_ms: 0.797684
+  type: 'test'
+  ...
+# Subtest: Factory ya no hardcodea factory@gmail.com
+ok 104 - Factory ya no hardcodea factory@gmail.com
+  ---
+  duration_ms: 0.151804
+  type: 'test'
+  ...
+# Subtest: Ayuda IA expone el mismo correo institucional
+ok 105 - Ayuda IA expone el mismo correo institucional
+  ---
+  duration_ms: 0.14507
+  type: 'test'
+  ...
+# Subtest: Administración instruye configurar la variable unificada
+ok 106 - Administración instruye configurar la variable unificada
+  ---
+  duration_ms: 0.162361
+  type: 'test'
+  ...
+1..106
+# tests 106
+# suites 0
+# pass 106
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 357.468667

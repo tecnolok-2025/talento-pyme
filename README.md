@@ -105,3 +105,14 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 - Puede descargarse como PDF o generarse y enviarse como adjunto desde el correo institucional definido por `FACTORY_SUPPORT_EMAIL`.
 - El destinatario puede editarse desde Administración. `TRACEABILITY_REPORT_RECIPIENT` es opcional y sólo define el valor sugerido por defecto.
 - La creación del PDF utiliza `pdfkit`; Render instalará la dependencia al reconstruir el API.
+
+
+## v7.9.8 · Mensajes administrativos por email
+
+En Administración > Chat operador se puede guardar una respuesta dentro de Talento PyME y, opcionalmente, enviar exactamente ese mismo mensaje al correo registrado del candidato o empresa mediante la cuenta institucional configurada en `FACTORY_SUPPORT_EMAIL`.
+
+- `Responder en Talento PyME`: guarda el mensaje únicamente en el hilo del portal.
+- `Responder + enviar por email`: guarda el mensaje en el hilo y lo envía por Gmail.
+- `Reenviar último mensaje informado por email`: vuelve a enviar el último mensaje del operador sin duplicarlo dentro del chat.
+
+El panel muestra el destinatario antes de enviar y conserva párrafos/saltos de línea. Los envíos administrativos registran un evento de seguridad con el correo enmascarado. No se agregan variables de entorno ni cambios de Prisma.
