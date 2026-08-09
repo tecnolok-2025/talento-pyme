@@ -52,6 +52,8 @@ model User {
   passHash                  String
   role                      UserRole @default(CANDIDATE)
   candidateKeepIndefinitely Boolean  @default(true)
+  bulkEmailOptOutAt         DateTime?
+  bulkEmailOptOutReason     String?
   createdAt                 DateTime @default(now())
 
   candidateProfile Profile?
@@ -62,6 +64,50 @@ model User {
   applications Application[]
   supportThreads SupportThread[]
   passwordResetChallenges PasswordResetChallenge[]
+}
+
+
+model AdminCommunication {
+  id                  String   @id @default(cuid())
+  audience            String
+  subject             String
+  body                String
+  recipientCount      Int      @default(0)
+  sentCount           Int      @default(0)
+  skippedOptOutCount  Int      @default(0)
+  failedCount         Int      @default(0)
+  status              String   @default("QUEUED")
+  queuedAt            DateTime @default(now())
+  startedAt           DateTime?
+  completedAt         DateTime?
+  waitingUntil        DateTime?
+  lastError           String?
+  createdAt           DateTime @default(now())
+
+  recipients          AdminCommunicationRecipient[]
+
+  @@index([audience, createdAt])
+  @@index([status, createdAt])
+}
+
+model AdminCommunicationRecipient {
+  id               String   @id @default(cuid())
+  communicationId  String
+  userId           String
+  status           String   @default("PENDING")
+  attempts         Int      @default(0)
+  sentAt           DateTime?
+  sentDayKey       String?
+  lastAttemptAt    DateTime?
+  lastError        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  communication    AdminCommunication @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+
+  @@unique([communicationId, userId])
+  @@index([communicationId, status, createdAt])
+  @@index([sentDayKey, status])
 }
 
 model Profile {

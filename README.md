@@ -62,8 +62,8 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.7"`
-- API: `apps/api/package.json` → `7.9.7` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.10"`
+- API: `apps/api/package.json` → `7.9.10` y endpoint `/health`.
 
 ## Administración de candidatos y empresas
 - El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.
@@ -116,3 +116,22 @@ En Administración > Chat operador se puede guardar una respuesta dentro de Tale
 - `Reenviar último mensaje informado por email`: vuelve a enviar el último mensaje del operador sin duplicarlo dentro del chat.
 
 El panel muestra el destinatario antes de enviar y conserva párrafos/saltos de línea. Los envíos administrativos registran un evento de seguridad con el correo enmascarado. No se agregan variables de entorno ni cambios de Prisma.
+
+## v7.9.10 · Comunicaciones institucionales con cola automática protegida
+
+Dentro de **Administración > Correo / Consultas** se mantiene la comunicación separada a candidatos y empresas, pero el envío ya no se ejecuta de golpe desde el navegador. Cada campaña queda guardada en una **cola persistente en PostgreSQL/Neon** y es procesada por el servidor de Render.
+
+- **Comunicación a candidatos** y **Comunicación a empresas** conservan sus encabezados institucionales y el pie automático de baja.
+- El límite interno es de **450 comunicaciones masivas en cualquier ventana móvil de 24 horas**. Es más conservador que un simple cambio de fecha y el código no permite configurarlo por encima de 450.
+- El servidor envía **un correo por vez**, con una separación mínima predeterminada de 60 segundos entre mensajes.
+- Si una campaña consume el cupo disponible de las últimas 24 horas, pasa a `WAITING_DAILY_LIMIT` y continúa automáticamente cuando el envío más antiguo sale de esa ventana. En la práctica, los pendientes continúan al día siguiente sin intervención del administrador.
+- Sólo se procesa **una campaña por vez**. Si Administración programa otra comunicación mientras existe una anterior pendiente, la nueva queda en cola y no adelanta a la primera.
+- La cola sigue funcionando aunque el administrador cierre la pestaña o salga de Talento PyME; el estado está persistido en la base.
+- Si Render reinicia, el worker vuelve a leer la cola y continúa respetando el último envío registrado y el límite diario.
+- Antes de cada email se vuelve a verificar la preferencia `bulkEmailOptOutAt`; una baja posterior a la creación de la campaña también es respetada.
+- Errores temporales de red se reintentan automáticamente. Si Gmail informa cuota o limitación temporal, la campaña se pausa y continúa al día siguiente.
+- El panel muestra uso de las últimas 24 horas, disponibilidad actual, cantidad de campañas en cola, estado y progreso de la campaña activa.
+- Como resguardo extraordinario, Administración dispone de **Cancelar pendientes de esta comunicación**; sólo detiene lo que todavía no salió y no afecta los correos ya enviados.
+- Se reutilizan `FACTORY_SUPPORT_EMAIL` y `GMAIL_APP_PASSWORD`; no se agregan credenciales nuevas.
+
+El límite de 450 se reserva específicamente para comunicaciones generales, dejando un margen prudente para recuperaciones de contraseña, mensajes individuales, reportes y posibles envíos manuales externos. Talento PyME no puede contabilizar los correos que una persona envíe manualmente directamente desde Gmail, por eso se mantiene ese margen.

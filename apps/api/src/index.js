@@ -61,7 +61,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
 const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
-// v7.9.8: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
+// v7.9.10: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
 // Se reutiliza la configuración ya existente en Render para soporte, consultas, recuperaciones y buzón administrativo.
 const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || '').trim().toLowerCase();
 const GMAIL_USER = FACTORY_SUPPORT_EMAIL;
@@ -79,6 +79,15 @@ const PASSWORD_RESET_CODE_TTL_MINUTES = Math.max(5, Math.min(30, Number(process.
 const PASSWORD_RESET_MAX_ATTEMPTS = Math.max(3, Math.min(10, Number(process.env.PASSWORD_RESET_MAX_ATTEMPTS || 5)));
 const PASSWORD_RESET_MAX_REQUESTS_15M = Math.max(1, Math.min(10, Number(process.env.PASSWORD_RESET_MAX_REQUESTS_15M || 3)));
 const MAILBOX_FOLDER = String(process.env.MAILBOX_FOLDER || 'INBOX').trim() || 'INBOX';
+// v7.9.10 · comunicaciones masivas protegidas por cola persistente.
+// El límite queda deliberadamente por debajo del máximo teórico de Gmail para dejar margen
+// a recuperaciones de contraseña, respuestas individuales, reportes y envíos manuales externos.
+const COMMUNICATION_DAILY_LIMIT = Math.max(1, Math.min(450, Number(process.env.COMMUNICATION_DAILY_LIMIT || 450)));
+const COMMUNICATION_SEND_INTERVAL_MS = Math.max(60000, Math.min(300000, Number(process.env.COMMUNICATION_SEND_INTERVAL_MS || 60000)));
+const COMMUNICATION_WORKER_TICK_MS = Math.max(5000, Math.min(60000, Number(process.env.COMMUNICATION_WORKER_TICK_MS || 10000)));
+const COMMUNICATION_RETRY_MINUTES = Math.max(10, Math.min(180, Number(process.env.COMMUNICATION_RETRY_MINUTES || 30)));
+let communicationSchedulerStarted = false;
+let communicationWorkerBusy = false;
 const TRACEABILITY_REPORT_RECIPIENT = String(process.env.TRACEABILITY_REPORT_RECIPIENT || 'nestor.manucci@tecnolok.com.ar').trim().toLowerCase();
 const VIRTUAL_ADMIN_USER_ID = '__factory_admin__';
 const VIRTUAL_ADMIN_ROLE = 'SUPERADMIN';
@@ -711,6 +720,328 @@ async function sendSupportOperatorEmail({ thread, content, subject = '' }){
     html:`<div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.55;max-width:680px;margin:auto"><div style="padding:18px 20px;background:#0f2f5f;color:#fff;border-radius:14px 14px 0 0"><div style="font-size:20px;font-weight:800">Talento PyME</div><div style="font-size:13px;opacity:.88">Conectando experiencia con producción.</div></div><div style="padding:22px 20px;border:1px solid #dbe4ef;border-top:0;border-radius:0 0 14px 14px"><div style="white-space:normal;font-size:15px">${htmlBody}</div><p style="margin-top:22px"><a href="${portalLink}" style="display:inline-block;background:#1d4ed8;color:white;text-decoration:none;padding:10px 15px;border-radius:9px;font-weight:700">Ingresar a Talento PyME</a></p><p style="color:#64748b;font-size:12px;margin-top:20px">Este mensaje fue enviado desde el área de Administración de Talento PyME.</p></div></div>`,
   });
   return { to, maskedEmail:maskEmail(to), subject:safeSubject };
+}
+
+
+function communicationAudienceLabel(audience){
+  return String(audience || '').toUpperCase() === 'COMPANY' ? 'empresas' : 'candidatos';
+}
+
+function communicationDefaultSubject(audience){
+  return String(audience || '').toUpperCase() === 'COMPANY'
+    ? 'Talento PyME · Información para empresas'
+    : 'Talento PyME · Información para candidatos';
+}
+
+function buildBulkEmailUnsubscribeToken(userId){
+  return jwt.sign({ sub:String(userId || ''), purpose:'BULK_EMAIL_UNSUBSCRIBE' }, JWT_SECRET);
+}
+
+function verifyBulkEmailUnsubscribeToken(token){
+  const decoded = jwt.verify(String(token || ''), JWT_SECRET);
+  if(decoded?.purpose !== 'BULK_EMAIL_UNSUBSCRIBE' || !decoded?.sub) throw new Error('INVALID_UNSUBSCRIBE_TOKEN');
+  return decoded;
+}
+
+function bulkCommunicationFooterText(unsubscribeUrl){
+  return `Si no querés recibir futuras comunicaciones informativas de Talento PyME, podés solicitar la baja desde este enlace: ${unsubscribeUrl}\n\nLa baja se aplica únicamente a comunicaciones generales. Los mensajes indispensables para la seguridad o funcionamiento de tu cuenta pueden seguir enviándose.`;
+}
+
+async function sendBulkCommunicationEmail({ to, subject, body, unsubscribePageUrl, unsubscribeApiUrl }){
+  if(!gmailConfigured()) {
+    const err = new Error('MAIL_NOT_CONFIGURED');
+    err.code = 'MAIL_NOT_CONFIGURED';
+    throw err;
+  }
+  const recipient = normalizeEmail(to);
+  const cleanBody = clampMultilineText(body, 10000);
+  if(!recipient || !cleanBody) throw new Error('INVALID_BULK_EMAIL');
+  const safeSubject = clampText(String(subject || '').trim(), 180) || 'Talento PyME · Comunicación';
+  const bodyHtml = escapeEmailHtml(cleanBody).replace(/\n/g, '<br>');
+  const safeUnsubscribeUrl = escapeEmailHtml(unsubscribePageUrl);
+  const portalLink = `${WEB_BASE_URL}/`;
+  const transport = await getSmtpTransport();
+  await transport.sendMail({
+    from:`"${MAIL_FROM_NAME}" <${GMAIL_USER}>`,
+    to:recipient,
+    subject:safeSubject,
+    text:`${cleanBody}\n\n${bulkCommunicationFooterText(unsubscribePageUrl)}\n\nTalento PyME nunca solicita contraseñas ni códigos de seguridad mediante comunicaciones informativas.\nPortal: ${portalLink}`,
+    headers:{ 'List-Unsubscribe':`<${unsubscribeApiUrl}>`, 'List-Unsubscribe-Post':'List-Unsubscribe=One-Click' },
+    html:`<div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.58;max-width:700px;margin:auto"><div style="padding:18px 20px;background:#0f2f5f;color:#fff;border-radius:14px 14px 0 0"><div style="font-size:21px;font-weight:800">Talento PyME</div><div style="font-size:13px;opacity:.9">Conectando experiencia con producción.</div></div><div style="padding:24px 22px;border:1px solid #dbe4ef;border-top:0;border-radius:0 0 14px 14px"><div style="font-size:15px">${bodyHtml}</div><p style="margin-top:24px"><a href="${portalLink}" style="display:inline-block;background:#1d4ed8;color:white;text-decoration:none;padding:10px 15px;border-radius:9px;font-weight:700">Ingresar a Talento PyME</a></p><div style="border-top:1px solid #e2e8f0;margin-top:24px;padding-top:16px;color:#64748b;font-size:12px"><p style="margin:0 0 9px">Si no querés recibir futuras comunicaciones informativas de Talento PyME, <a href="${safeUnsubscribeUrl}" style="color:#475569">podés solicitar la baja desde aquí</a>.</p><p style="margin:0 0 9px">La baja sólo alcanza a comunicaciones generales; no afecta mensajes indispensables para la seguridad o funcionamiento de la cuenta.</p><p style="margin:0">Talento PyME nunca solicita contraseñas ni códigos de seguridad mediante comunicaciones informativas.</p></div></div></div>`,
+  });
+}
+
+async function listBulkCommunicationRecipients(audience){
+  const normalized = String(audience || '').toUpperCase();
+  if(!['CANDIDATE','COMPANY'].includes(normalized)) return { recipients:[], totalAccounts:0, optedOut:0, duplicates:0 };
+  const users = normalized === 'COMPANY'
+    ? await prisma.user.findMany({
+        where:{ role:normalized },
+        select:{ id:true, email:true, bulkEmailOptOutAt:true, company:{ select:{ contactEmail:true } } },
+        orderBy:{ createdAt:'asc' },
+      })
+    : await prisma.user.findMany({
+        where:{ role:normalized },
+        select:{ id:true, email:true, bulkEmailOptOutAt:true },
+        orderBy:{ createdAt:'asc' },
+      });
+  const grouped = new Map();
+  for(const user of users){
+    const email = normalizeEmail(normalized === 'COMPANY' ? (user.company?.contactEmail || user.email) : user.email);
+    if(!email) continue;
+    const prev = grouped.get(email);
+    const row = { userId:user.id, email, optedOut:Boolean(user.bulkEmailOptOutAt) };
+    if(prev){
+      grouped.set(email, { ...prev, optedOut:Boolean(prev.optedOut || row.optedOut) });
+    } else grouped.set(email, row);
+  }
+  const all = [...grouped.values()];
+  return {
+    recipients:all.filter((r) => !r.optedOut),
+    totalAccounts:users.length,
+    optedOut:all.filter((r) => r.optedOut).length,
+    duplicates:Math.max(0, users.length - all.length),
+    reachable:all.length,
+  };
+}
+
+const COMMUNICATION_NON_TERMINAL_STATUSES = ['QUEUED','SENDING','WAITING_DAILY_LIMIT','WAITING_RETRY'];
+
+function buenosAiresDayKey(date = new Date()){
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone:'America/Argentina/Buenos_Aires', year:'numeric', month:'2-digit', day:'2-digit',
+  }).formatToParts(date).reduce((acc, part) => { acc[part.type] = part.value; return acc; }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function nextBuenosAiresMidnightUtc(date = new Date()){
+  const [y,m,d] = buenosAiresDayKey(date).split('-').map(Number);
+  // Argentina utiliza UTC-3; 00:00 local equivale a 03:00 UTC.
+  return new Date(Date.UTC(y, m - 1, d + 1, 3, 0, 5));
+}
+
+async function communicationRolling24hUsage(now = new Date()){
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const [count, oldest] = await Promise.all([
+    prisma.adminCommunicationRecipient.count({ where:{ status:'SENT', sentAt:{ gte:since } } }),
+    prisma.adminCommunicationRecipient.findFirst({
+      where:{ status:'SENT', sentAt:{ gte:since } },
+      orderBy:{ sentAt:'asc' },
+      select:{ sentAt:true },
+    }),
+  ]);
+  const nextAvailableAt = count >= COMMUNICATION_DAILY_LIMIT && oldest?.sentAt
+    ? new Date(new Date(oldest.sentAt).getTime() + 24 * 60 * 60 * 1000 + 60 * 1000)
+    : null;
+  return { count, since, oldestSentAt:oldest?.sentAt || null, nextAvailableAt };
+}
+
+function isMailQuotaOrRateError(err){
+  const code = String(err?.code || '').toUpperCase();
+  const responseCode = Number(err?.responseCode || 0);
+  const text = `${err?.message || ''} ${err?.response || ''}`.toLowerCase();
+  return [421,429,450,451,452,454].includes(responseCode)
+    || ['ERATELIMIT','EQUOTA'].includes(code)
+    || /quota|rate limit|too many|daily limit|sending limit|temporarily deferred|try again later/.test(text);
+}
+
+function isTemporaryCommunicationMailError(err){
+  return isMailTransportNetworkError(err) || isMailQuotaOrRateError(err);
+}
+
+async function communicationQueueSnapshot(){
+  const todayKey = buenosAiresDayKey();
+  const [rolling, sentToday, active, queueCount] = await Promise.all([
+    communicationRolling24hUsage(),
+    prisma.adminCommunicationRecipient.count({ where:{ status:'SENT', sentDayKey:todayKey } }),
+    prisma.adminCommunication.findFirst({
+      where:{ status:{ in:COMMUNICATION_NON_TERMINAL_STATUSES } },
+      orderBy:{ createdAt:'asc' },
+    }),
+    prisma.adminCommunication.count({ where:{ status:{ in:COMMUNICATION_NON_TERMINAL_STATUSES } } }),
+  ]);
+  let activePending = 0;
+  if(active){
+    activePending = await prisma.adminCommunicationRecipient.count({
+      where:{ communicationId:active.id, status:'PENDING' },
+    });
+  }
+  return {
+    dailyLimit:COMMUNICATION_DAILY_LIMIT,
+    sentToday,
+    sentRolling24h:rolling.count,
+    remainingToday:Math.max(0, COMMUNICATION_DAILY_LIMIT - rolling.count),
+    nextAvailableAt:rolling.nextAvailableAt,
+    paceSeconds:Math.round(COMMUNICATION_SEND_INTERVAL_MS / 1000),
+    queueCount,
+    active:active ? {
+      id:active.id,
+      audience:active.audience,
+      subject:active.subject,
+      status:active.status,
+      recipientCount:active.recipientCount,
+      sentCount:active.sentCount,
+      failedCount:active.failedCount,
+      skippedOptOutCount:active.skippedOptOutCount,
+      pendingCount:activePending,
+      waitingUntil:active.waitingUntil,
+      queuedAt:active.queuedAt,
+      startedAt:active.startedAt,
+    } : null,
+  };
+}
+
+async function resolveCommunicationRecipient(recipientRow){
+  const user = await prisma.user.findUnique({
+    where:{ id:recipientRow.userId },
+    select:{ id:true, email:true, role:true, bulkEmailOptOutAt:true, company:{ select:{ contactEmail:true } } },
+  });
+  if(!user || !['CANDIDATE','COMPANY'].includes(String(user.role || ''))) return { invalid:true, reason:'Cuenta no disponible.' };
+  if(user.bulkEmailOptOutAt) return { optedOut:true };
+  const email = normalizeEmail(user.role === 'COMPANY' ? (user.company?.contactEmail || user.email) : user.email);
+  if(!email) return { invalid:true, reason:'Correo no disponible.' };
+  return { user, email };
+}
+
+async function finishCommunicationIfExhausted(communication){
+  const pending = await prisma.adminCommunicationRecipient.count({ where:{ communicationId:communication.id, status:'PENDING' } });
+  if(pending > 0) return false;
+  await prisma.adminCommunication.update({
+    where:{ id:communication.id },
+    data:{ status:'COMPLETED', completedAt:new Date(), waitingUntil:null, lastError:null },
+  });
+  return true;
+}
+
+async function processCommunicationQueueOnce(){
+  if(communicationWorkerBusy || !gmailConfigured()) return;
+  communicationWorkerBusy = true;
+  try {
+    const communication = await prisma.adminCommunication.findFirst({
+      where:{ status:{ in:COMMUNICATION_NON_TERMINAL_STATUSES } },
+      orderBy:{ createdAt:'asc' },
+    });
+    if(!communication) return;
+
+    // Una campaña por vez. Si la más antigua está esperando, ninguna posterior la adelanta.
+    if(communication.status === 'WAITING_RETRY' && communication.waitingUntil && communication.waitingUntil > new Date()) return;
+    if(communication.status === 'WAITING_DAILY_LIMIT' && communication.waitingUntil && communication.waitingUntil > new Date()) return;
+
+    const rolling = await communicationRolling24hUsage();
+    if(rolling.count >= COMMUNICATION_DAILY_LIMIT){
+      const waitingUntil = rolling.nextAvailableAt || new Date(Date.now() + 60 * 60 * 1000);
+      if(communication.status !== 'WAITING_DAILY_LIMIT' || !communication.waitingUntil || Math.abs(new Date(communication.waitingUntil).getTime() - waitingUntil.getTime()) > 60000){
+        await prisma.adminCommunication.update({
+          where:{ id:communication.id },
+          data:{ status:'WAITING_DAILY_LIMIT', waitingUntil, lastError:null },
+        });
+      }
+      return;
+    }
+
+    if(communication.status === 'WAITING_DAILY_LIMIT' || communication.status === 'WAITING_RETRY' || communication.status === 'QUEUED'){
+      await prisma.adminCommunication.update({
+        where:{ id:communication.id },
+        data:{ status:'SENDING', startedAt:communication.startedAt || new Date(), waitingUntil:null, lastError:null },
+      });
+    }
+
+    // Mantener separación temporal aun si Render reinicia el proceso.
+    const lastSent = await prisma.adminCommunicationRecipient.findFirst({
+      where:{ status:'SENT', sentAt:{ not:null } },
+      orderBy:{ sentAt:'desc' },
+      select:{ sentAt:true },
+    });
+    if(lastSent?.sentAt && (Date.now() - new Date(lastSent.sentAt).getTime()) < COMMUNICATION_SEND_INTERVAL_MS) return;
+
+    const recipient = await prisma.adminCommunicationRecipient.findFirst({
+      where:{ communicationId:communication.id, status:'PENDING' },
+      orderBy:{ createdAt:'asc' },
+    });
+    if(!recipient){
+      await finishCommunicationIfExhausted(communication);
+      return;
+    }
+
+    const resolved = await resolveCommunicationRecipient(recipient);
+    if(resolved.optedOut){
+      await prisma.$transaction([
+        prisma.adminCommunicationRecipient.update({ where:{ id:recipient.id }, data:{ status:'SKIPPED_OPTOUT', lastAttemptAt:new Date(), lastError:null } }),
+        prisma.adminCommunication.update({ where:{ id:communication.id }, data:{ skippedOptOutCount:{ increment:1 } } }),
+      ]);
+      return;
+    }
+    if(resolved.invalid){
+      await prisma.$transaction([
+        prisma.adminCommunicationRecipient.update({ where:{ id:recipient.id }, data:{ status:'FAILED', attempts:{ increment:1 }, lastAttemptAt:new Date(), lastError:resolved.reason } }),
+        prisma.adminCommunication.update({ where:{ id:communication.id }, data:{ failedCount:{ increment:1 } } }),
+      ]);
+      return;
+    }
+
+    const token = buildBulkEmailUnsubscribeToken(recipient.userId);
+    const apiBaseUrl = String(process.env.PUBLIC_API_URL || 'https://talento-pyme-api.onrender.com').replace(/\/$/, '');
+    const unsubscribeApiUrl = `${apiBaseUrl}/communications/unsubscribe?token=${encodeURIComponent(token)}`;
+    const unsubscribePageUrl = `${WEB_BASE_URL}/unsubscribe.html?token=${encodeURIComponent(token)}`;
+
+    try {
+      await sendBulkCommunicationEmail({
+        to:resolved.email,
+        subject:communication.subject,
+        body:communication.body,
+        unsubscribePageUrl,
+        unsubscribeApiUrl,
+      });
+      const sentAt = new Date();
+      await prisma.$transaction([
+        prisma.adminCommunicationRecipient.update({
+          where:{ id:recipient.id },
+          data:{ status:'SENT', attempts:{ increment:1 }, sentAt, sentDayKey:buenosAiresDayKey(sentAt), lastAttemptAt:sentAt, lastError:null },
+        }),
+        prisma.adminCommunication.update({ where:{ id:communication.id }, data:{ sentCount:{ increment:1 }, lastError:null } }),
+      ]);
+    } catch (err) {
+      const errText = clampText(String(err?.message || err?.code || 'Error de correo'), 500);
+      if(isMailQuotaOrRateError(err)){
+        await prisma.$transaction([
+          prisma.adminCommunicationRecipient.update({ where:{ id:recipient.id }, data:{ attempts:{ increment:1 }, lastAttemptAt:new Date(), lastError:errText } }),
+          prisma.adminCommunication.update({
+            where:{ id:communication.id },
+            data:{ status:'WAITING_DAILY_LIMIT', waitingUntil:new Date(Date.now() + 24 * 60 * 60 * 1000), lastError:'Gmail indicó límite o control temporal. El envío queda en pausa de seguridad y continuará automáticamente.' },
+          }),
+        ]);
+        return;
+      }
+      if(isTemporaryCommunicationMailError(err)){
+        const waitingUntil = new Date(Date.now() + COMMUNICATION_RETRY_MINUTES * 60 * 1000);
+        await prisma.$transaction([
+          prisma.adminCommunicationRecipient.update({ where:{ id:recipient.id }, data:{ attempts:{ increment:1 }, lastAttemptAt:new Date(), lastError:errText } }),
+          prisma.adminCommunication.update({
+            where:{ id:communication.id },
+            data:{ status:'WAITING_RETRY', waitingUntil, lastError:'Problema temporal de correo. Talento PyME reintentará automáticamente.' },
+          }),
+        ]);
+        return;
+      }
+      await prisma.$transaction([
+        prisma.adminCommunicationRecipient.update({ where:{ id:recipient.id }, data:{ status:'FAILED', attempts:{ increment:1 }, lastAttemptAt:new Date(), lastError:errText } }),
+        prisma.adminCommunication.update({ where:{ id:communication.id }, data:{ failedCount:{ increment:1 }, lastError:errText } }),
+      ]);
+    }
+  } catch (err) {
+    console.error('COMMUNICATION_QUEUE_WORKER', err?.code || err?.message || err);
+  } finally {
+    communicationWorkerBusy = false;
+  }
+}
+
+function startCommunicationQueueScheduler(){
+  if(communicationSchedulerStarted) return;
+  communicationSchedulerStarted = true;
+  setTimeout(() => { processCommunicationQueueOnce().catch(() => {}); }, 5000);
+  const timer = setInterval(() => { processCommunicationQueueOnce().catch(() => {}); }, COMMUNICATION_WORKER_TICK_MS);
+  if(typeof timer.unref === 'function') timer.unref();
+  console.log(`Cola de comunicaciones activa · máximo ${COMMUNICATION_DAILY_LIMIT} en 24 h · 1 envío cada ${Math.round(COMMUNICATION_SEND_INTERVAL_MS/1000)}s`);
 }
 
 async function sendPasswordRecoveryEmail({ to, code, challengeId, role }){
@@ -3149,7 +3480,7 @@ app.post('/candidate/presentation/refine', auth, requireRole('CANDIDATE'), async
     }
     if(!analysis) analysis=refineCandidatePresentationLocal(parsed.data.transcript, context);
 
-    // v7.9.8: la corrección profesional se ejecuta únicamente a pedido explícito del candidato
+    // v7.9.10: la corrección profesional se ejecuta únicamente a pedido explícito del candidato
     // y pasa a ser inmediatamente la presentación principal por defecto.
     const analyzedAt=new Date();
     const yearsExperience=Number.isFinite(Number(analysis.yearsExperience)) ? Number(analysis.yearsExperience) : null;
@@ -3503,7 +3834,7 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
     const especialidad_by_area = Object.fromEntries(
       Object.entries(rawStats.especialidad_by_area || {}).map(([area, values]) => [area, Object.keys(values || {})])
     );
-    // v7.9.8: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
+    // v7.9.10: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
     // ni conteos por faceta. Los totales de padrón quedan reservados al Panel General.
     return res.json({ ok: true, facets, especialidad_by_area });
   } catch (err) {
@@ -3733,7 +4064,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.9.8 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.9.10 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
@@ -6034,6 +6365,156 @@ app.post('/admin/users/:userId/send-password-recovery', auth, requireAnyRole(['A
 // Endpoint antiguo deshabilitado por seguridad: Administración ya no puede fijar contraseñas.
 app.post('/admin/users/:userId/reset-password', auth, requireAnyRole(['ADMIN','SUPERADMIN']), (_req, res) => res.status(410).json({ error:'Por seguridad, la contraseña sólo puede restablecerse mediante verificación por correo.' }));
 
+
+const adminCommunicationSendSchema = z.object({
+  audience:z.enum(['CANDIDATE','COMPANY']),
+  subject:z.string().trim().min(4).max(180),
+  body:z.string().trim().min(10).max(10000),
+});
+
+app.get('/admin/communications/summary', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req, res) => {
+  try {
+    const [candidates, companies, history, queue] = await Promise.all([
+      listBulkCommunicationRecipients('CANDIDATE'),
+      listBulkCommunicationRecipients('COMPANY'),
+      prisma.adminCommunication.findMany({ orderBy:{ createdAt:'desc' }, take:12 }),
+      communicationQueueSnapshot(),
+    ]);
+    const shape = (x) => ({ totalAccounts:x.totalAccounts, reachable:x.reachable, eligible:x.recipients.length, optedOut:x.optedOut, duplicates:x.duplicates });
+    return res.json({ ok:true, configured:gmailConfigured(), candidates:shape(candidates), companies:shape(companies), history, queue });
+  } catch (err) {
+    console.error('GET /admin/communications/summary', err?.message || err);
+    return res.status(500).json({ error:'No se pudo leer el padrón de comunicaciones.' });
+  }
+});
+
+app.post('/admin/communications/send', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  if(!gmailConfigured()) return res.status(503).json({ error:'El correo institucional todavía no está configurado.' });
+  const parsed = adminCommunicationSendSchema.safeParse(req.body || {});
+  if(!parsed.success) return res.status(400).json({ error:'Revisá el destinatario, asunto y contenido de la comunicación.' });
+  const { audience, subject, body } = parsed.data;
+  try {
+    const audienceData = await listBulkCommunicationRecipients(audience);
+    if(!audienceData.recipients.length) return res.status(400).json({ error:'No hay destinatarios habilitados para esta comunicación.' });
+
+    // v7.9.10: el botón ya no dispara SMTP dentro de la petición web. Crea una campaña persistente
+    // y el worker del servidor la procesa aun cuando Administración esté cerrada.
+    const campaign = await prisma.adminCommunication.create({ data:{
+      audience,
+      subject,
+      body,
+      recipientCount:audienceData.recipients.length,
+      sentCount:0,
+      skippedOptOutCount:audienceData.optedOut,
+      failedCount:0,
+      status:'QUEUED',
+      queuedAt:new Date(),
+    }});
+    await prisma.adminCommunicationRecipient.createMany({
+      data:audienceData.recipients.map((recipient) => ({ communicationId:campaign.id, userId:recipient.userId, status:'PENDING' })),
+      skipDuplicates:true,
+    });
+    const queue = await communicationQueueSnapshot();
+    const positionRows = await prisma.adminCommunication.findMany({
+      where:{ status:{ in:COMMUNICATION_NON_TERMINAL_STATUSES }, createdAt:{ lte:campaign.createdAt } },
+      select:{ id:true },
+      orderBy:{ createdAt:'asc' },
+    });
+    const queuePosition = Math.max(1, positionRows.findIndex((row) => row.id === campaign.id) + 1);
+    // No esperamos al próximo intervalo si el worker está libre; igualmente el envío real respeta el pacing persistente.
+    processCommunicationQueueOnce().catch(() => {});
+    return res.json({
+      ok:true,
+      queued:true,
+      communicationId:campaign.id,
+      audience,
+      recipientCount:audienceData.recipients.length,
+      skippedOptOutCount:audienceData.optedOut,
+      queuePosition,
+      queue,
+      message:queuePosition > 1
+        ? `Comunicación guardada en cola, posición ${queuePosition}. Comenzará automáticamente cuando finalice la anterior.`
+        : 'Comunicación guardada en cola. El envío continuará automáticamente aunque cierres Administración.',
+    });
+  } catch (err) {
+    console.error('POST /admin/communications/send', err?.code || err?.message || err);
+    return res.status(500).json({ error:'No se pudo guardar la comunicación en la cola automática.' });
+  }
+});
+
+app.post('/admin/communications/:communicationId/cancel', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  const communicationId = String(req.params.communicationId || '').trim();
+  if(!communicationId) return res.status(400).json({ error:'Falta identificar la comunicación.' });
+  try {
+    const campaign = await prisma.adminCommunication.findUnique({ where:{ id:communicationId } });
+    if(!campaign) return res.status(404).json({ error:'Comunicación no encontrada.' });
+    if(!COMMUNICATION_NON_TERMINAL_STATUSES.includes(campaign.status)) return res.status(409).json({ error:'La comunicación ya finalizó y no tiene pendientes para cancelar.' });
+    const now = new Date();
+    await prisma.$transaction([
+      prisma.adminCommunicationRecipient.updateMany({
+        where:{ communicationId, status:'PENDING' },
+        data:{ status:'CANCELLED', lastAttemptAt:now, lastError:'Cancelado por Administración antes del envío.' },
+      }),
+      prisma.adminCommunication.update({
+        where:{ id:communicationId },
+        data:{ status:'CANCELLED', completedAt:now, waitingUntil:null, lastError:'Pendientes cancelados por Administración.' },
+      }),
+    ]);
+    return res.json({ ok:true, communicationId, status:'CANCELLED' });
+  } catch (err) {
+    console.error('POST /admin/communications/:communicationId/cancel', err?.message || err);
+    return res.status(500).json({ error:'No se pudieron cancelar los envíos pendientes.' });
+  }
+});
+
+app.get('/admin/communications/preference', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  const email = normalizeEmail(req.query?.email || '');
+  if(!email) return res.status(400).json({ error:'Falta el correo a consultar.' });
+  const user = await prisma.user.findFirst({
+    where:{ role:{ in:['CANDIDATE','COMPANY'] }, OR:[
+      { email:{ equals:email, mode:'insensitive' } },
+      { company:{ is:{ contactEmail:{ equals:email, mode:'insensitive' } } } },
+    ]},
+    select:{ id:true, email:true, role:true, bulkEmailOptOutAt:true, company:{ select:{ contactEmail:true, companyName:true } } },
+  }).catch(() => null);
+  if(!user) return res.json({ ok:true, found:false });
+  return res.json({ ok:true, found:true, userId:user.id, role:user.role, email:normalizeEmail(user.company?.contactEmail || user.email), optOut:Boolean(user.bulkEmailOptOutAt), optOutAt:user.bulkEmailOptOutAt || null });
+});
+
+const adminCommunicationPreferenceSchema = z.object({
+  email:z.string().trim().email(),
+  optOut:z.boolean(),
+});
+
+app.post('/admin/communications/preference', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  const parsed = adminCommunicationPreferenceSchema.safeParse(req.body || {});
+  if(!parsed.success) return res.status(400).json({ error:'Preferencia inválida.' });
+  const email = normalizeEmail(parsed.data.email);
+  const user = await prisma.user.findFirst({
+    where:{ role:{ in:['CANDIDATE','COMPANY'] }, OR:[
+      { email:{ equals:email, mode:'insensitive' } },
+      { company:{ is:{ contactEmail:{ equals:email, mode:'insensitive' } } } },
+    ]},
+    select:{ id:true, role:true },
+  });
+  if(!user) return res.status(404).json({ error:'No encontramos una cuenta candidata o empresa asociada a ese correo.' });
+  await prisma.user.update({ where:{ id:user.id }, data:{ bulkEmailOptOutAt:parsed.data.optOut ? new Date() : null, bulkEmailOptOutReason:parsed.data.optOut ? 'ADMIN_MAIL_REPLY' : null } });
+  return res.json({ ok:true, role:user.role, optOut:parsed.data.optOut });
+});
+
+app.post('/communications/unsubscribe', async (req, res) => {
+  try {
+    const token = String(req.query?.token || req.body?.token || '');
+    const decoded = verifyBulkEmailUnsubscribeToken(token);
+    const user = await prisma.user.findUnique({ where:{ id:String(decoded.sub) }, select:{ id:true, role:true } });
+    if(!user || !['CANDIDATE','COMPANY'].includes(user.role)) throw new Error('INVALID_UNSUBSCRIBE_USER');
+    await prisma.user.update({ where:{ id:user.id }, data:{ bulkEmailOptOutAt:new Date(), bulkEmailOptOutReason:'SELF_SERVICE_LINK' } });
+    return res.json({ ok:true, message:'Tu preferencia fue actualizada. No recibirás futuras comunicaciones informativas generales de Talento PyME.' });
+  } catch (err) {
+    return res.status(400).json({ error:'El enlace de baja no es válido o ya no puede utilizarse.' });
+  }
+});
+
 app.get('/admin/mail/inbox', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   if(!gmailConfigured()) return res.json({ ok:true, configured:false, items:[], total:0, unread:0, page:1, totalPages:1, pageSize:20 });
   const page = Math.max(1, Number(req.query?.page || 1));
@@ -6086,6 +6567,7 @@ app.get('/admin/mail/message/:uid', auth, requireAnyRole(['ADMIN','SUPERADMIN'])
         uid,
         subject: parsed.subject || msg.envelope?.subject || '(sin asunto)',
         from: parsed.from?.text || '',
+        fromAddress: normalizeEmail(parsed.from?.value?.[0]?.address || ''),
         to: parsed.to?.text || '',
         date: parsed.date || msg.envelope?.date || null,
         text: String(parsed.text || '').trim().slice(0, 60000) || '(El mensaje no contiene texto legible.)',
@@ -6605,7 +7087,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.billingOrder.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
     ]);
 
-    // v7.9.8 · Directorios clasificados de Administración.
+    // v7.9.10 · Directorios clasificados de Administración.
     // Se consultan campos livianos de todos los registros que cumplen los filtros actuales para que
     // los contadores representen el padrón filtrado completo, no solamente la página visible.
     const [candidateClassificationRows, companyClassificationRows] = await Promise.all([
@@ -7260,6 +7742,7 @@ const PORT = process.env.PORT || 10000;
 const IS_MAIN = process.argv[1] && path.resolve(process.argv[1]) === __filename;
 if (IS_MAIN) {
   startAutomaticBackupScheduler();
+  startCommunicationQueueScheduler();
   app.listen(PORT, "0.0.0.0", () => console.log("Talento PyME API escuchando en", PORT, "(v"+APP_VERSION+")"));
 }
 

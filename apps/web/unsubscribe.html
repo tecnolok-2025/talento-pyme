@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Talento PyME · Preferencias de correo</title>
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css?v=7.9.10" />
+</head>
+<body class="appShell">
+  <div class="wrap" style="max-width:720px;padding-top:42px">
+    <div class="card" style="text-align:center;padding:30px">
+      <img src="/assets/logo-talento-pyme.png" alt="Talento PyME" style="max-width:220px;width:70%;height:auto" />
+      <h1 style="margin:22px 0 8px">Preferencias de comunicaciones</h1>
+      <p class="muted" style="line-height:1.6">Si confirmás esta opción, dejaremos de enviarte comunicaciones informativas generales de Talento PyME. Esto no afecta mensajes indispensables para la seguridad o el funcionamiento de tu cuenta, como la recuperación de contraseña.</p>
+      <div class="row" style="justify-content:center;margin-top:20px"><button class="btn btn-primary" id="btnConfirm" type="button">No quiero recibir más comunicaciones informativas</button><a class="btn btn-ghost" href="/">Volver al portal</a></div>
+      <div id="msg" class="muted" style="margin-top:18px"></div>
+    </div>
+  </div>
+  <script src="/config.js?v=7.9.10"></script>
+  <script>
+    const token = new URLSearchParams(location.search).get('token') || '';
+    const btn = document.getElementById('btnConfirm');
+    const msg = document.getElementById('msg');
+    if(!token){ btn.disabled = true; msg.textContent = 'El enlace recibido no es válido.'; }
+    btn.onclick = async () => {
+      btn.disabled = true; msg.textContent = 'Actualizando preferencia…';
+      try{
+        const r = await fetch(`${TP_API_URL}/communications/unsubscribe?token=${encodeURIComponent(token)}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+        const data = await r.json().catch(() => ({}));
+        if(!r.ok) throw new Error(data.error || 'No se pudo actualizar la preferencia.');
+        msg.textContent = data.message || 'Preferencia actualizada.';
+        btn.style.display = 'none';
+      }catch(e){ msg.textContent = e.message || 'No se pudo actualizar la preferencia.'; btn.disabled = false; }
+    };
+  </script>
+</body>
+</html>
