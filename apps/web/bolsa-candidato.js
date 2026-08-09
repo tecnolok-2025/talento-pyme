@@ -1,4 +1,4 @@
-/* Talento PyME - v7.9.3 (candidato) - perfil por etapas + voz/texto + CV PDF */
+/* Talento PyME - v7.9.5 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -43,6 +43,53 @@ const LOCALIDADES = [
   "CABA", "La Plata", "Mar del Plata", "Bahía Blanca", "Rosario", "Córdoba", "Mendoza", "San Juan", "Neuquén", "Comodoro Rivadavia", "Río Gallegos", "Salta", "Tucumán",
   "Otra",
 ];
+
+
+const TP_ARG_RESIDENCE_MAP = {
+  "campana":["Campana","Buenos Aires","Argentina"],
+  "zarate":["Zárate","Buenos Aires","Argentina"],
+  "lima":["Lima","Buenos Aires","Argentina"],
+  "tigre":["Tigre","Buenos Aires","Argentina"],
+  "san fernando":["San Fernando","Buenos Aires","Argentina"],
+  "san isidro":["San Isidro","Buenos Aires","Argentina"],
+  "san nicolas":["San Nicolás de los Arroyos","Buenos Aires","Argentina"],
+  "san nicolas de los arroyos":["San Nicolás de los Arroyos","Buenos Aires","Argentina"],
+  "pergamino":["Pergamino","Buenos Aires","Argentina"],
+  "general rodriguez":["General Rodríguez","Buenos Aires","Argentina"],
+  "gral rodriguez":["General Rodríguez","Buenos Aires","Argentina"],
+  "escobar":["Escobar","Buenos Aires","Argentina"],
+  "belen de escobar":["Escobar","Buenos Aires","Argentina"],
+  "pilar":["Pilar","Buenos Aires","Argentina"],
+  "exaltacion de la cruz":["Exaltación de la Cruz","Buenos Aires","Argentina"],
+  "capilla del senor":["Exaltación de la Cruz","Buenos Aires","Argentina"],
+  "malvinas argentinas":["Malvinas Argentinas","Buenos Aires","Argentina"],
+  "tortuguitas":["Tortuguitas","Buenos Aires","Argentina"],
+  "lujan":["Luján","Buenos Aires","Argentina"],
+  "baradero":["Baradero","Buenos Aires","Argentina"],
+  "san pedro":["San Pedro","Buenos Aires","Argentina"],
+  "ramallo":["Ramallo","Buenos Aires","Argentina"],
+  "la plata":["La Plata","Buenos Aires","Argentina"],
+  "caba":["CABA","Ciudad Autónoma de Buenos Aires","Argentina"],
+  "capital federal":["CABA","Ciudad Autónoma de Buenos Aires","Argentina"],
+  "ciudad autonoma de buenos aires":["CABA","Ciudad Autónoma de Buenos Aires","Argentina"],
+  "rosario":["Rosario","Santa Fe","Argentina"],
+  "villa constitucion":["Villa Constitución","Santa Fe","Argentina"]
+};
+function tpGeoNorm(v){ return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim(); }
+function inferResidenceClient(locality='', province='', country=''){
+  const raw=String(locality||'').trim();
+  let city=raw, prov=String(province||'').trim(), ctry=String(country||'').trim();
+  const parts=raw.split(/\s*[-–—,|/]\s*/).map(x=>x.trim()).filter(Boolean);
+  if(parts.length>1){
+    const last=tpGeoNorm(parts.at(-1));
+    const knownProv={"buenos aires":"Buenos Aires","caba":"Ciudad Autónoma de Buenos Aires","ciudad autonoma de buenos aires":"Ciudad Autónoma de Buenos Aires","santa fe":"Santa Fe","cordoba":"Córdoba","mendoza":"Mendoza"}[last];
+    if(knownProv){ city=parts.slice(0,-1).join(' - '); if(!prov) prov=knownProv; }
+  }
+  const row=TP_ARG_RESIDENCE_MAP[tpGeoNorm(city)] || TP_ARG_RESIDENCE_MAP[tpGeoNorm(raw)];
+  if(row){ city=row[0]; if(!prov) prov=row[1]; if(!ctry) ctry=row[2]; }
+  if(prov && !ctry && ["buenos aires","ciudad autonoma de buenos aires","santa fe","cordoba","mendoza"].includes(tpGeoNorm(prov))) ctry='Argentina';
+  return {city,province:prov,country:ctry};
+}
 
 const HERRAMIENTAS_MECANICA = [
   "Torno paralelo / torno a tornillo",
@@ -234,8 +281,8 @@ function buildCandidateCompleteness(candidate){
     {
       key: 'presentacion',
       label: 'Presentación personal',
-      hint: 'Contanos con tu voz o escribí qué sabés hacer y qué buscás',
-      complete: hasMeaningfulValue(candidate.voiceNarrativeSummary)
+      hint: 'Contanos con tu voz o escribí; Talento PyME analiza todo el relato y prepara tu presentación profesional',
+      complete: hasMeaningfulValue(candidate.voiceNarrativeSummary) && hasMeaningfulValue(candidate.voiceNarrativeAnalysisVersion)
     },
     {
       key: 'perfil',
@@ -376,6 +423,7 @@ async function initBolsaCandidato(){
     telefono:"",
     correo:"",
     localidad:"",
+    provinciaResidencia:"",
     paisResidencia:"",
     direccion:"",
     areaTrabajo:"",
@@ -391,6 +439,11 @@ async function initBolsaCandidato(){
     observaciones:"",
     voiceNarrativeRaw:"",
     voiceNarrativeSummary:"",
+    voiceNarrativeAnalysisVersion:"",
+    voiceNarrativeAnalysisSource:"",
+    voiceNarrativeYears:null,
+    voiceNarrativeProfessionalTitle:"",
+    voiceNarrativeAnalyzedAt:null,
     photoDataUrl:"",
     herramientasMecanica:[],
     instrumentosElectrica:[]
@@ -424,6 +477,7 @@ async function initBolsaCandidato(){
   let voiceInterim = "";
   let voiceMessage = "";
   let voiceRefining = false;
+  let voiceRawLastRefined = "";
 
   let jobs = {
     q:"",
@@ -616,8 +670,11 @@ async function initBolsaCandidato(){
                 <input id="c_localidad" value="${esc(cand.localidad)}" list="tpCityList" placeholder="Ej: Campana" ${ro()} />
                 <datalist id="tpCityList">${LOCALIDADES.filter(x=>x!=="Otra").map(x=>`<option value="${esc(x)}"></option>`).join("")}</datalist>
               </label>
+              <label>Provincia / jurisdicción
+                <input id="c_provinciaResidencia" value="${esc(cand.provinciaResidencia)}" placeholder="Se completa automáticamente cuando la localidad es inequívoca" ${ro()} />
+              </label>
               <label>País de residencia
-                <input id="c_paisResidencia" value="${esc(cand.paisResidencia)}" list="tpCountryList" placeholder="Ej: Argentina" ${ro()} />
+                <input id="c_paisResidencia" value="${esc(cand.paisResidencia)}" list="tpCountryList" placeholder="Se completa automáticamente cuando es posible" ${ro()} />
                 <datalist id="tpCountryList"><option value="Argentina"></option><option value="Uruguay"></option><option value="Paraguay"></option><option value="Brasil"></option><option value="Chile"></option><option value="Bolivia"></option><option value="Perú"></option><option value="Venezuela"></option><option value="Colombia"></option><option value="Ecuador"></option></datalist>
               </label>
               <label>Dirección (opcional)
@@ -630,11 +687,11 @@ async function initBolsaCandidato(){
             <summary data-detail="d2"><b>2) Contanos con tus palabras · voz o texto</b></summary>
             <div class="tp-voice-card">
               <div class="tp-voice-intro"><b>No hace falta saber redactar un currículum.</b> Contanos qué experiencia tenés, en qué trabajás hoy, qué sabés hacer, qué te gustaría aprender o en qué puesto te gustaría empezar. Si nunca trabajaste, también sirve: podés decirnos qué te interesa y qué querés aprender.</div>
-              <div class="muted small" style="margin-top:7px">Talento PyME convierte tu relato en texto y te ayuda a ordenarlo. <b>Talento PyME no conserva el audio original.</b> Sólo conservamos la transcripción y la presentación que vos revisás y aprobás. En iPhone o en navegadores que no habiliten el dictado web, podés tocar el campo de texto y usar el micrófono del teclado.</div>
+              <div class="muted small" style="margin-top:7px">Hablá o escribí todo lo que quieras y, cuando consideres que terminaste, pulsá <b>“Corrección IA profesional”</b>. Recién en ese momento Talento PyME vuelve a leer <b>todo el relato desde el principio</b> y prepara una presentación profesional. El sistema elimina muletillas y repeticiones, ordena las ideas y destaca experiencia y fortalezas, pero no inventa antecedentes. <b>Talento PyME no conserva el audio original.</b> En iPhone o en navegadores que no habiliten el dictado web, podés tocar el campo de texto y usar el micrófono del teclado.</div>
               <div class="tp-voice-actions">
                 <button class="btn btn-tech" id="btnVoiceStart" type="button" ${(!isEditing||voiceListening)?"disabled":""}>🎙 ${voiceListening ? "Escuchando..." : "Empezar a hablar"}</button>
                 <button class="btn secondary" id="btnVoiceStop" type="button" ${voiceListening?"":"disabled"}>Detener</button>
-                <button class="btn secondary" id="btnVoiceRefine" type="button" ${(!isEditing||voiceRefining)?"disabled":""}>${voiceRefining?"Ordenando...":"Ordenar mi presentación"}</button>
+                <button class="btn btn-tech" id="btnVoiceRefine" type="button" ${(!isEditing||voiceRefining)?"disabled":""}>${voiceRefining?"IA trabajando...":"✨ Corrección IA profesional"}</button>
                 <button class="btn btn-ghost" id="btnQuickSaveVoice" type="button" ${(!isEditing||busy)?"disabled":""}>Guardar y seguir después</button>
               </div>
               ${voiceMessage ? `<div class="muted small" style="margin-top:8px">${esc(voiceMessage)}</div>` : ``}
@@ -642,8 +699,8 @@ async function initBolsaCandidato(){
               <label style="display:block;margin-top:10px">Lo que dijiste / texto libre
                 <textarea id="c_voice_raw" rows="6" placeholder="También podés escribir acá o usar el micrófono del teclado del celular." ${ro()}>${esc(cand.voiceNarrativeRaw)}</textarea>
               </label>
-              <label style="display:block;margin-top:10px">Presentación profesional sugerida
-                <textarea id="c_voice_summary" rows="7" placeholder="Acá aparecerá una versión ordenada. Leela y corregila libremente antes de guardar." ${ro()}>${esc(cand.voiceNarrativeSummary)}</textarea>
+              <label style="display:block;margin-top:10px">Resumen profesional elaborado por Talento PyME
+                <textarea id="c_voice_summary" rows="7" placeholder="Cuando pulses “Corrección IA profesional” aparecerá acá la versión profesional. Será la presentación principal por defecto y podés corregirla manualmente antes de guardar." ${ro()}>${esc(cand.voiceNarrativeSummary)}</textarea>
               </label>
               <div class="tp-voice-next">Podés continuar completando tu perfil ahora o volver cuando quieras. Lo que guardes queda esperando para que agregues CV, experiencia, formación y foto más adelante.</div>
             </div>
@@ -906,6 +963,7 @@ async function initBolsaCandidato(){
     cand.telefono = el("c_telefono").value.trim();
     cand.correo = el("c_correo").value.trim();
     cand.localidad = el("c_localidad").value;
+    cand.provinciaResidencia = el("c_provinciaResidencia")?.value?.trim() || cand.provinciaResidencia || "";
     cand.paisResidencia = el("c_paisResidencia").value.trim();
     cand.direccion = el("c_direccion").value.trim();
 
@@ -949,14 +1007,25 @@ async function initBolsaCandidato(){
     readAltaFromDom();
     const transcript=String(cand.voiceNarrativeRaw || '').trim();
     if(transcript.length < 5){ voiceMessage='Primero hablá o escribí unas palabras sobre tu experiencia y lo que te gustaría hacer.'; render(); return; }
-    voiceRefining=true; voiceMessage='Ordenando tu presentación sin cambiar el sentido de lo que dijiste...'; render();
+    voiceRefining=true; voiceMessage='Corrección IA profesional en curso: estamos leyendo todo tu relato desde el principio, eliminando repeticiones y preparando tu presentación principal...'; render();
     try{
       const r=await apiFetch('/candidate/presentation/refine',{method:'POST',body:JSON.stringify({transcript})});
       cand.voiceNarrativeSummary=String(r.summary || transcript).trim().slice(0,8000);
-      voiceMessage='Listo. Leé la presentación sugerida y corregila libremente antes de guardar.';
+      const analysis=r.analysis || {};
+      cand.voiceNarrativeAnalysisVersion=String(analysis.analysisVersion || 'AI_V3_7.9.5');
+      cand.voiceNarrativeAnalysisSource=String(analysis.source || 'LOCAL_V2');
+      cand.voiceNarrativeYears=Number.isFinite(Number(analysis.yearsExperience)) ? Number(analysis.yearsExperience) : null;
+      cand.voiceNarrativeProfessionalTitle=String(analysis.professionalTitle || '').trim().slice(0,180);
+      cand.voiceNarrativeAnalyzedAt=new Date().toISOString();
+      if(analysis.suggestedExperienceRange && (!cand.rangoExperiencia || cand.rangoExperiencia==='Pendiente')) cand.rangoExperiencia=analysis.suggestedExperienceRange;
+      voiceRawLastRefined=transcript;
+      voiceMessage=analysis.source==='OPENAI'
+        ? 'Listo. La IA leyó el relato completo. Esta corrección queda tomada como tu presentación profesional principal por defecto; podés editarla manualmente si querés.'
+        : 'Listo. El analizador profesional leyó el relato completo. Esta versión queda tomada como tu presentación principal por defecto; podés editarla manualmente si querés.';
+      if(analysis.diagnostic) voiceMessage += ` ${analysis.diagnostic}`;
     }catch(err){
-      cand.voiceNarrativeSummary=cand.voiceNarrativeSummary || transcript;
-      voiceMessage='No pudimos ordenar el texto automáticamente. Podés editarlo manualmente y guardarlo igual.';
+      cand.voiceNarrativeAnalysisVersion='';
+      voiceMessage='No pudimos preparar el resumen en este momento. Tu relato sigue guardado y podés volver a intentarlo.';
     }finally{ voiceRefining=false; render(); }
   }
 
@@ -987,7 +1056,7 @@ async function initBolsaCandidato(){
         const raw=el('c_voice_raw'); if(raw) raw.value=[cand.voiceNarrativeRaw,voiceInterim].filter(Boolean).join(' ').trim();
       };
       voiceRecognition.onerror=(event)=>{ voiceMessage=event?.error==='not-allowed' ? 'El navegador no tiene permiso para usar el micrófono. Habilitá el permiso o usá el micrófono del teclado.' : 'El dictado se interrumpió. Podés continuar escribiendo o volver a intentarlo.'; };
-      voiceRecognition.onend=async()=>{ voiceListening=false; voiceInterim=''; voiceRecognition=null; render(); if(String(cand.voiceNarrativeRaw||'').trim()) await refineVoicePresentation(); };
+      voiceRecognition.onend=()=>{ voiceListening=false; voiceInterim=''; voiceRecognition=null; voiceMessage='Terminamos de escucharte. Si ya contaste todo lo que querías, pulsá “Corrección IA profesional” para preparar tu presentación.'; render(); };
       voiceRecognition.start();
     }catch(_){
       voiceListening=false; voiceMessage='No pudimos iniciar el micrófono. Usá el dictado del teclado del celular o escribí directamente.'; render();
@@ -1032,11 +1101,40 @@ async function initBolsaCandidato(){
     });
 
     // update state on inputs without rerender
-    ["c_nombre","c_apellido","c_dni","c_nacionalidad","c_estadoCivil","c_hijos","c_telefono","c_correo","c_localidad","c_paisResidencia","c_direccion","c_nivel","c_especialidadOtro","c_rangoExp","c_nivelEdu","c_cap","c_trabaja","c_sueldo","c_ultimo","c_obs","c_voice_raw","c_voice_summary"].forEach(id=>{
+    ["c_nombre","c_apellido","c_dni","c_nacionalidad","c_estadoCivil","c_hijos","c_telefono","c_correo","c_localidad","c_provinciaResidencia","c_paisResidencia","c_direccion","c_nivel","c_especialidadOtro","c_rangoExp","c_nivelEdu","c_cap","c_trabaja","c_sueldo","c_ultimo","c_obs","c_voice_raw","c_voice_summary"].forEach(id=>{
       const e=el(id);
       if(e) e.addEventListener("input", ()=>{ readAltaFromDom(); });
       if(e) e.addEventListener("change", ()=>{ readAltaFromDom(); });
     });
+
+    const voiceRawInput=el('c_voice_raw');
+    if(voiceRawInput){
+      voiceRawInput.addEventListener('input',()=>{
+        readAltaFromDom();
+        const now=String(cand.voiceNarrativeRaw || '').trim();
+        if(now !== voiceRawLastRefined){
+          cand.voiceNarrativeAnalysisVersion='';
+          cand.voiceNarrativeAnalysisSource='';
+          cand.voiceNarrativeYears=null;
+          cand.voiceNarrativeProfessionalTitle='';
+          cand.voiceNarrativeAnalyzedAt=null;
+        }
+      });
+    }
+
+    const localityInput=el('c_localidad');
+    const inferResidenceNow=()=>{
+      readAltaFromDom();
+      const inferred=inferResidenceClient(cand.localidad,cand.provinciaResidencia,cand.paisResidencia);
+      cand.localidad=inferred.city || cand.localidad;
+      cand.provinciaResidencia=inferred.province || cand.provinciaResidencia;
+      cand.paisResidencia=inferred.country || cand.paisResidencia;
+      const cityEl=el('c_localidad'), provEl=el('c_provinciaResidencia'), countryEl=el('c_paisResidencia');
+      if(cityEl) cityEl.value=cand.localidad || '';
+      if(provEl) provEl.value=cand.provinciaResidencia || '';
+      if(countryEl) countryEl.value=cand.paisResidencia || '';
+    };
+    if(localityInput){ localityInput.addEventListener('change',inferResidenceNow); localityInput.addEventListener('blur',inferResidenceNow); }
 
     // checkbox change
     root.querySelectorAll('input[type="checkbox"][data-cb-group]').forEach(i=>{
@@ -1054,7 +1152,7 @@ async function initBolsaCandidato(){
     const btnVoiceStart = el("btnVoiceStart");
     if(btnVoiceStart) btnVoiceStart.addEventListener("click", startVoiceRecognition);
     const btnVoiceStop = el("btnVoiceStop");
-    if(btnVoiceStop) btnVoiceStop.addEventListener("click", ()=>{ voiceMessage="Deteniendo el dictado y preparando tu presentación..."; stopVoiceRecognition(); });
+    if(btnVoiceStop) btnVoiceStop.addEventListener("click", ()=>{ voiceMessage="Deteniendo el dictado. Cuando quieras, pulsá “Corrección IA profesional” para procesar todo lo que contaste."; stopVoiceRecognition(); });
     const btnVoiceRefine = el("btnVoiceRefine");
     if(btnVoiceRefine) btnVoiceRefine.addEventListener("click", refineVoicePresentation);
     const btnQuickSaveVoice = el("btnQuickSaveVoice");
@@ -1338,6 +1436,11 @@ async function initBolsaCandidato(){
         cand.localidad = cand.localidad || (me?.profile?.city || "");
         cand.direccion = cand.direccion || (me?.profile?.address || "");
         cand.dni = cand.dni || (me?.profile?.dni || "");
+        const inferredResidence=inferResidenceClient(cand.localidad,cand.provinciaResidencia || me?.profile?.province || "",cand.paisResidencia);
+        cand.localidad=inferredResidence.city || cand.localidad;
+        cand.provinciaResidencia=inferredResidence.province || cand.provinciaResidencia || me?.profile?.province || "";
+        cand.paisResidencia=inferredResidence.country || cand.paisResidencia || "";
+        voiceRawLastRefined=String(cand.voiceNarrativeAnalysisVersion ? cand.voiceNarrativeRaw || '' : '').trim();
         bolsaLoaded = true;
         isEditing = false;
       } else {
@@ -1355,6 +1458,10 @@ async function initBolsaCandidato(){
 
   async function saveAlta({ stayEditing=false, allowPartial=false } = {}){
     readAltaFromDom();
+    const inferredResidence=inferResidenceClient(cand.localidad,cand.provinciaResidencia,cand.paisResidencia);
+    cand.localidad=inferredResidence.city || cand.localidad;
+    cand.provinciaResidencia=inferredResidence.province || cand.provinciaResidencia;
+    cand.paisResidencia=inferredResidence.country || cand.paisResidencia;
     okMsg=""; errMsg="";
     // basic validation
     if(!cand.nombre || !cand.apellido || !cand.dni || !cand.correo || !cand.telefono || !cand.localidad){
@@ -1370,6 +1477,13 @@ async function initBolsaCandidato(){
       return;
     }
 
+    // Si hay un relato nuevo todavía no procesado, intentamos analizarlo antes de guardar.
+    // Si el servicio no responde, conservamos igualmente la transcripción y el bloque queda pendiente.
+    if(String(cand.voiceNarrativeRaw || '').trim().length >= 5 && !cand.voiceNarrativeAnalysisVersion && !voiceRefining){
+      await refineVoicePresentation();
+      readAltaFromDom();
+    }
+
     busy = true; render();
     try{
       const payload = {
@@ -1382,6 +1496,7 @@ async function initBolsaCandidato(){
         telefono: cand.telefono || "",
         correo: cand.correo || "",
         localidad: cand.localidad || "",
+        provinciaResidencia: cand.provinciaResidencia || null,
         paisResidencia: cand.paisResidencia || null,
         direccion: cand.direccion || null,
 
@@ -1400,6 +1515,11 @@ async function initBolsaCandidato(){
         observaciones: (cand.observaciones || "").slice(0,12000) || null,
         voiceNarrativeRaw: (cand.voiceNarrativeRaw || "").slice(0,8000) || null,
         voiceNarrativeSummary: (cand.voiceNarrativeSummary || "").slice(0,8000) || null,
+        voiceNarrativeAnalysisVersion: cand.voiceNarrativeAnalysisVersion || null,
+        voiceNarrativeAnalysisSource: cand.voiceNarrativeAnalysisSource || null,
+        voiceNarrativeYears: Number.isFinite(Number(cand.voiceNarrativeYears)) ? Number(cand.voiceNarrativeYears) : null,
+        voiceNarrativeProfessionalTitle: cand.voiceNarrativeProfessionalTitle || null,
+        voiceNarrativeAnalyzedAt: cand.voiceNarrativeAnalyzedAt || null,
 
         herramientasMecanica: cand.herramientasMecanica || [],
         instrumentosElectrica: cand.instrumentosElectrica || []

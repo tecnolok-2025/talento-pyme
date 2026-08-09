@@ -20,6 +20,7 @@ import { createPaymentProvider, getPaymentConfigFromEnv } from "./services/payme
 import { assertNoCardData, listForbiddenPaymentFields, sanitizeCheckoutPayloadForLog, sha256Hex, PaymentProviderError, PaymentSecurityError } from "./services/payments/provider.js";
 import { buildTraceabilityPdfBuffer, buildTraceabilityReportFilename, buildTraceabilityEmailSubject, buildTraceabilityNarrative } from "./services/traceability-report.js";
 import { buildCandidateCvPdfBuffer, buildCandidateCvFilename } from "./services/candidate-cv.js";
+import { inferResidence, isArgentinaProvince } from "./services/residence.js";
 
 const prisma = new PrismaClient();
 const app = express();
@@ -60,7 +61,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
 const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
-// v7.9.3: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
+// v7.9.5: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
 // Se reutiliza la configuración ya existente en Render para soporte, consultas, recuperaciones y buzón administrativo.
 const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || '').trim().toLowerCase();
 const GMAIL_USER = FACTORY_SUPPORT_EMAIL;
@@ -68,6 +69,10 @@ const GMAIL_APP_PASSWORD = String(process.env.GMAIL_APP_PASSWORD || '').replace(
 const GMAIL_CLIENT_ID = String(process.env.GMAIL_CLIENT_ID || '').trim();
 const GMAIL_CLIENT_SECRET = String(process.env.GMAIL_CLIENT_SECRET || '').trim();
 const GMAIL_REFRESH_TOKEN = String(process.env.GMAIL_REFRESH_TOKEN || '').trim();
+const OPENAI_API_KEY = String(process.env.OPENAI_API_KEY || '').trim();
+const OPENAI_MODEL = String(process.env.OPENAI_MODEL || 'gpt-5-mini').trim() || 'gpt-5-mini';
+const OPENAI_PRESENTATION_TIMEOUT_MS = Math.max(5000, Math.min(30000, Number(process.env.OPENAI_PRESENTATION_TIMEOUT_MS || 18000)));
+const PRESENTATION_ANALYSIS_VERSION = 'AI_V3_7.9.5';
 const MAIL_FROM_NAME = String(process.env.MAIL_FROM_NAME || 'Talento PyME').trim();
 const WEB_BASE_URL = String(process.env.WEB_BASE_URL || 'https://talento-pyme.onrender.com').replace(/\/$/, '').trim();
 const PASSWORD_RESET_CODE_TTL_MINUTES = Math.max(5, Math.min(30, Number(process.env.PASSWORD_RESET_CODE_TTL_MINUTES || 10)));
@@ -2139,6 +2144,7 @@ const bolsaSchema = z.object({
   telefono: z.string().max(40),
   correo: z.string().email().max(160),
   localidad: z.string().max(80),
+  provinciaResidencia: z.string().max(80).optional().nullable(),
   paisResidencia: z.string().max(80).optional().nullable(),
   direccion: z.string().max(160).optional().nullable(),
 
@@ -2156,6 +2162,11 @@ const bolsaSchema = z.object({
   observaciones: z.string().max(12000).optional().nullable(),
   voiceNarrativeRaw: z.string().max(8000).optional().nullable(),
   voiceNarrativeSummary: z.string().max(8000).optional().nullable(),
+  voiceNarrativeAnalysisVersion: z.string().max(80).optional().nullable(),
+  voiceNarrativeAnalysisSource: z.string().max(80).optional().nullable(),
+  voiceNarrativeYears: z.number().int().min(0).max(65).optional().nullable(),
+  voiceNarrativeProfessionalTitle: z.string().max(180).optional().nullable(),
+  voiceNarrativeAnalyzedAt: z.string().datetime().optional().nullable().transform((v)=>v ? new Date(v) : null),
 
   herramientasMecanica: z.array(z.string().max(120)).optional().nullable(),
   instrumentosElectrica: z.array(z.string().max(120)).optional().nullable(),
@@ -2702,9 +2713,16 @@ const candidatePresentationSchema = z.object({
   transcript: z.string().min(5).max(8000),
 });
 
+function professionalNorm(value=''){
+  return String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().replace(/[^a-z0-9+]+/g,' ').replace(/\s+/g,' ').trim();
+}
+
 function presentationSentences(text=''){
   return String(text || '')
-    .replace(/\b(eee+|mmm+|este+|digamos|o sea|bueno,? bueno|viste)\b/gi, ' ')
+    .replace(/\b(hola|buenas tardes|buenos dias|buen día|buenas noches|bueno mira|bueno|mira|eee+|mmm+|este+|digamos|o sea|viste)\b[,.]?/gi, ' ')
+    .replace(/(?:\betc[eé]tera\b[,.]?\s*){1,}/gi, ' ')
     .replace(/\s+/g, ' ')
     .split(/(?<=[.!?])\s+|\s*[;\n]+\s*/)
     .map((row) => row.trim().replace(/^[,.;:\-\s]+|[,;:\-\s]+$/g, ''))
@@ -2718,48 +2736,262 @@ function normalizePresentationSentence(row=''){
   return /[.!?]$/.test(first) ? first : `${first}.`;
 }
 
-function refineCandidatePresentation(transcript='', context={}){
-  const sentences = presentationSentences(transcript).map(normalizePresentationSentence).filter(Boolean);
-  const buckets = { current:[], strengths:[], goal:[], other:[] };
-  const goalRx = /(me gustaria|me gustaría|busco|quisiera|quiero trabajar|me interesa trabajar|primer empleo|aprender|capacitarme)/i;
-  const currentRx = /(actualmente|hoy trabajo|estoy trabajando|me desempeno|me desempeño|trabajo como|trabajo en|mi ultimo trabajo|mi último trabajo)/i;
-  const strengthRx = /(se hacer|sé hacer|manejo|experiencia|especialista|destaco|fortaleza|conozco|puedo|responsable|lider|líder|supervis|tecnico|técnico|ingenier|operador|administr)/i;
-  for(const sentence of sentences){
-    if(goalRx.test(sentence)) buckets.goal.push(sentence);
-    else if(currentRx.test(sentence)) buckets.current.push(sentence);
-    else if(strengthRx.test(sentence)) buckets.strengths.push(sentence);
-    else buckets.other.push(sentence);
+function extractExplicitYearsFromText(text=''){
+  const raw=professionalNorm(text);
+  const candidates=[];
+  const patterns=[
+    /(?:mas de|alrededor de|aproximadamente|cerca de|unos|casi)?\s*(\d{1,2})\s*anos(?:\s+de)?\s+(?:experiencia|trayectoria|trabajo|actividad|rubro)/g,
+    /(?:experiencia|trayectoria|trabaj(?:e|o|ando)|actividad)(?:\s+de|\s+por|\s+durante)?\s*(?:mas de|alrededor de|aproximadamente|cerca de|unos|casi)?\s*(\d{1,2})\s*anos/g,
+    /(?:tengo|cuento con|poseo)\s*(?:mas de|alrededor de|aproximadamente|cerca de|unos|casi)?\s*(\d{1,2})\s*anos/g,
+  ];
+  for(const rx of patterns){
+    for(const m of raw.matchAll(rx)){
+      const n=Number(m[1]);
+      if(Number.isFinite(n) && n>=0 && n<=65) candidates.push(n);
+    }
   }
-  const chunks=[];
-  if(buckets.current.length) chunks.push(`Actividad actual o reciente: ${buckets.current.slice(0,3).join(' ')}`);
-  if(buckets.strengths.length) chunks.push(`Experiencia y fortalezas: ${buckets.strengths.slice(0,5).join(' ')}`);
-  if(buckets.goal.length) chunks.push(`Objetivo laboral: ${buckets.goal.slice(0,3).join(' ')}`);
-  const remaining=buckets.other.slice(0,4);
-  if(remaining.length) chunks.push(`${chunks.length ? 'Información adicional' : 'Presentación'}: ${remaining.join(' ')}`);
-  let summary=chunks.join('\n\n').trim();
-  if(!summary) summary=sentences.slice(0,8).join(' ');
-  const expertise=String(context?.expertise || '').trim();
-  const recentRole=String(context?.recentRole || '').trim();
-  if(summary && expertise && !new RegExp(adminNormText(expertise).replace(/\s+/g,'.*'),'i').test(adminNormText(summary)) && recentRole){
-    summary = `${summary}\n\nReferencia del perfil: ${recentRole}.`;
-  }
-  return clampText(summary, 8000);
+  return candidates.length ? Math.max(...candidates) : null;
 }
 
+function experienceRangeFromYears(years){
+  const n=Number(years);
+  if(!Number.isFinite(n)) return '';
+  if(n <= 1) return '0–1';
+  if(n <= 5) return '2–5';
+  if(n <= 10) return '6–10';
+  if(n <= 20) return '11–20';
+  if(n <= 30) return '21–30';
+  return '31+';
+}
+
+function inferLocalProfessionalTitle(text='', context={}){
+  const raw=String(text || '');
+  const n=professionalNorm(raw);
+  const rules=[
+    [/ingenier[oa]\s+electromecan|electromecanic/, 'Ingeniería Electromecánica'],
+    [/ingenier[oa]\s+electric|ingenieria electric/, 'Ingeniería Eléctrica'],
+    [/ingenier[oa]\s+mecanic|ingenieria mecanic/, 'Ingeniería Mecánica'],
+    [/proyectista/, 'Proyectista'],
+    [/supervisor/, 'Supervisión'],
+    [/jefe|jefatura/, 'Jefatura'],
+    [/tecnic[oa]/, 'Perfil técnico'],
+    [/administrativ|administracion/, 'Administración'],
+  ];
+  const hits=rules.filter(([rx])=>rx.test(n)).map(([,label])=>label);
+  if(hits.length>=2) return `${hits[0]} · ${hits[1]}`;
+  if(hits.length) return hits[0];
+  return String(context?.recentRole || context?.expertise || 'Perfil profesional').trim();
+}
+
+function inferLocalExpertise(text='', context={}){
+  const n=professionalNorm(text);
+  const rules=[
+    [/electrica|electricista|alta tension|media tension|tabler|protecciones/, 'Eléctrica'],
+    [/electromecan|termomecan|aire acondicionado|hvac/, 'Electromecánica / Termomecánica'],
+    [/proyecto|proyectista|ingenieria|oficina tecnica|calcul/, 'Ingeniería / Oficina técnica'],
+    [/mantenimiento/, 'Mantenimiento'],
+    [/produccion|operaciones|manufactura/, 'Producción / Operaciones'],
+    [/logistica|transporte|comex/, 'Logística / Transporte / Comex'],
+    [/calidad|hse|seguridad higiene/, 'Calidad / HSE'],
+    [/administracion|administrativ/, 'Administración'],
+  ];
+  for(const [rx,label] of rules){ if(rx.test(n)) return label; }
+  return String(context?.expertise || '').trim();
+}
+
+function refineCandidatePresentationLocal(transcript='', context={}){
+  const source=String(transcript || '').replace(/\s+/g,' ').trim();
+  const cleaned=source
+    .replace(/^(?:hola|buenas tardes|buenos dias|buen día|buenas noches)[,\s]*/i,'')
+    .replace(/\b(?:bueno|mira|digamos|o sea|viste|eee+|mmm+|este+)\b[,.]?/gi,' ')
+    .replace(/(?:\betc[eé]tera\b[,.]?\s*){1,}/gi,' ')
+    .replace(/\s+/g,' ').trim();
+  const years=extractExplicitYearsFromText(source);
+  const title=inferLocalProfessionalTitle(source, context);
+  const expertise=inferLocalExpertise(source, context);
+  const n=professionalNorm(source);
+  const strengths=[];
+  if(/electric/.test(n)) strengths.push('área eléctrica');
+  if(/aire acondicionado|hvac/.test(n)) strengths.push('aire acondicionado');
+  if(/termomecan/.test(n)) strengths.push('instalaciones termomecánicas');
+  if(/calcul/.test(n)) strengths.push('cálculos y dimensionamiento');
+  if(/proyect/.test(n)) strengths.push('proyectos de ingeniería');
+  if(/supervis/.test(n)) strengths.push('supervisión');
+  if(/mantenimiento/.test(n)) strengths.push('mantenimiento');
+  if(/produccion|operaciones/.test(n)) strengths.push('producción y operaciones');
+  if(/calidad/.test(n)) strengths.push('calidad');
+  const unique=[...new Set(strengths)];
+  const hasEngineer=/ingenier|proyectista|tecnic|supervisor|jefe|gerente|administr/.test(n);
+  const chunks=[];
+  if(title && title !== 'Perfil profesional'){
+    let intro=title;
+    if(years!==null) intro += ` con ${years >= 30 ? 'una trayectoria de más de tres décadas' : `aproximadamente ${years} años de experiencia`}`;
+    if(expertise && !professionalNorm(title).includes(professionalNorm(expertise))) intro += `, con foco en ${expertise.toLowerCase()}`;
+    chunks.push(`${intro}.`);
+  } else if(years!==null){
+    chunks.push(`Profesional con aproximadamente ${years} años de experiencia en el rubro declarado.`);
+  }
+  if(unique.length){
+    const tail=unique.length===1 ? unique[0] : `${unique.slice(0,-1).join(', ')} y ${unique.at(-1)}`;
+    chunks.push(`Experiencia destacada en ${tail}.`);
+  }
+  if(/supervis/.test(n) && /proyect/.test(n)) chunks.push('Trayectoria desarrollada principalmente en funciones de supervisión y proyectos de ingeniería.');
+  else if(/supervis/.test(n)) chunks.push('Cuenta con experiencia en funciones de supervisión y coordinación.');
+  if(!chunks.length && cleaned) chunks.push(normalizePresentationSentence(cleaned));
+  if(cleaned && chunks.join(' ').length < 180 && !chunks.some((x)=>professionalNorm(x).includes(professionalNorm(cleaned).slice(0,30)))){
+    chunks.push(`Información declarada: ${normalizePresentationSentence(cleaned)}`);
+  }
+  const summary=clampText(chunks.join(' ').replace(/\s+/g,' ').trim(), 8000);
+  return {
+    summary:summary || clampText(cleaned,8000),
+    yearsExperience:years,
+    suggestedExperienceRange:experienceRangeFromYears(years),
+    professionalTitle:title,
+    expertise,
+    seniority: years!==null ? (years>=11?'SENIOR':years>=6?'SEMI_SENIOR':years>=2?'JUNIOR':'APRENDIZ') : '',
+    evidence: years!==null ? `${years} años de experiencia mencionados explícitamente por el candidato` : 'Síntesis basada en el relato profesional disponible',
+    source:'LOCAL_V2',
+  };
+}
+
+function responseOutputText(payload={}){
+  if(typeof payload.output_text === 'string') return payload.output_text;
+  const texts=[];
+  for(const item of payload.output || []){
+    for(const content of item?.content || []){
+      if(typeof content?.text === 'string') texts.push(content.text);
+    }
+  }
+  return texts.join('\n').trim();
+}
+
+async function refineCandidatePresentationWithAI(transcript='', context={}){
+  if(!OPENAI_API_KEY) return null;
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),OPENAI_PRESENTATION_TIMEOUT_MS);
+  try{
+    const professionalContext={
+      transcript:clampText(transcript,8000),
+      current_or_recent_role:clampText(context?.recentRole || '',300),
+      current_expertise:clampText(context?.expertise || '',180),
+      cv_summary:clampText(context?.resumeSummary || '',1600),
+      cv_experience:clampText(context?.resumeExperience || '',2200),
+      declared_experience_range:clampText(context?.declaredRange || '',80),
+    };
+    const payload={
+      model:OPENAI_MODEL,
+      store:false,
+      input:[
+        { role:'system', content:[{type:'input_text',text:'Sos el asistente profesional de Talento PyME. Convertí un relato oral imperfecto en una presentación laboral clara, convincente y fiel. No inventes empleos, empresas, títulos, años, certificaciones ni responsabilidades. Eliminá saludos, muletillas y repeticiones. Si el candidato menciona años de experiencia, supervisión, proyectos, profesión o especialidades, dales el peso correspondiente. El seniority describe trayectoria, no calidad humana ni aptitud de contratación. Respondé únicamente con el JSON solicitado.'}] },
+        { role:'user', content:[{type:'input_text',text:`Analizá nuevamente TODO el material profesional cada vez, no sólo lo agregado al final.\n\nDatos profesionales (sin identidad ni contacto):\n${JSON.stringify(professionalContext)}`}]}],
+      text:{format:{type:'json_schema',name:'candidate_professional_presentation',strict:true,schema:{
+        type:'object',additionalProperties:false,
+        properties:{
+          summary:{type:'string'},
+          years_experience:{type:['integer','null'],minimum:0,maximum:65},
+          seniority:{type:'string',enum:['APRENDIZ','JUNIOR','SEMI_SENIOR','SENIOR']},
+          professional_title:{type:'string'},
+          expertise:{type:'string'},
+          evidence:{type:'string'},
+        },
+        required:['summary','years_experience','seniority','professional_title','expertise','evidence']
+      }}}
+    };
+    const response=await fetch('https://api.openai.com/v1/responses',{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${OPENAI_API_KEY}`,'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+      signal:controller.signal,
+    });
+    if(!response.ok){
+      const body=await response.text().catch(()=> '');
+      throw new Error(`OPENAI_${response.status}:${body.slice(0,240)}`);
+    }
+    const body=await response.json();
+    const text=responseOutputText(body);
+    const parsed=JSON.parse(text);
+    const years=Number.isFinite(Number(parsed.years_experience)) ? Number(parsed.years_experience) : extractExplicitYearsFromText(transcript);
+    return {
+      summary:clampText(parsed.summary || '',8000),
+      yearsExperience:years,
+      suggestedExperienceRange:experienceRangeFromYears(years),
+      professionalTitle:clampText(parsed.professional_title || '',180),
+      expertise:clampText(parsed.expertise || '',160),
+      seniority:String(parsed.seniority || '').trim(),
+      evidence:clampText(parsed.evidence || '',500),
+      source:'OPENAI',
+    };
+  }finally{
+    clearTimeout(timer);
+  }
+}
 app.post('/candidate/presentation/refine', auth, requireRole('CANDIDATE'), async (req, res) => {
   const parsed=candidatePresentationSchema.safeParse(req.body || {});
-  if(!parsed.success) return res.status(400).json({ error:'Contanos un poco más para poder ordenar tu presentación.' });
+  if(!parsed.success) return res.status(400).json({ error:'Contanos un poco más para poder preparar tu presentación profesional.' });
   try{
     const candidate=await prisma.user.findUnique({
       where:{ id:req.user.id },
       include:{ candidateProfile:true, candidateBolsa:true, resume:true },
     });
     const classification=buildCandidateAdminClassification(candidate || {});
-    const summary=refineCandidatePresentation(parsed.data.transcript, { expertise:classification.expertiseLabel, recentRole:classification.recentRole });
-    return res.json({ ok:true, summary });
+    const context={
+      expertise:classification.expertiseLabel,
+      recentRole:classification.recentRole,
+      resumeSummary:candidate?.resume?.summary || '',
+      resumeExperience:candidate?.resume?.experience || '',
+      declaredRange:candidate?.candidateBolsa?.rangoExperiencia || '',
+    };
+    let analysis=null;
+    let aiError='';
+    if(OPENAI_API_KEY){
+      try{ analysis=await refineCandidatePresentationWithAI(parsed.data.transcript, context); }
+      catch(err){ aiError=String(err?.message || err || '').slice(0,300); console.error('candidate presentation OpenAI fallback', aiError); }
+    }
+    if(!analysis) analysis=refineCandidatePresentationLocal(parsed.data.transcript, context);
+
+    // v7.9.5: la corrección profesional se ejecuta únicamente a pedido del candidato
+    // y pasa a ser inmediatamente la presentación principal por defecto.
+    const analyzedAt=new Date();
+    const yearsExperience=Number.isFinite(Number(analysis.yearsExperience)) ? Number(analysis.yearsExperience) : null;
+    if(candidate?.candidateBolsa){
+      const suggestedRange=String(analysis.suggestedExperienceRange || '').trim();
+      const currentRange=String(candidate.candidateBolsa.rangoExperiencia || '').trim();
+      await prisma.candidateBolsa.update({
+        where:{ userId:req.user.id },
+        data:{
+          voiceNarrativeRaw:parsed.data.transcript,
+          voiceNarrativeSummary:analysis.summary,
+          voiceNarrativeAnalysisVersion:PRESENTATION_ANALYSIS_VERSION,
+          voiceNarrativeAnalysisSource:analysis.source || 'LOCAL_V2',
+          voiceNarrativeYears:yearsExperience,
+          voiceNarrativeProfessionalTitle:clampText(analysis.professionalTitle || '',180) || null,
+          voiceNarrativeAnalyzedAt:analyzedAt,
+          ...((suggestedRange && (!currentRange || currentRange==='Pendiente')) ? { rangoExperiencia:suggestedRange } : {}),
+        }
+      });
+    }
+
+    return res.json({
+      ok:true,
+      persistedAsDefault:!!candidate?.candidateBolsa,
+      summary:analysis.summary,
+      analysis:{
+        source:analysis.source,
+        analysisVersion:PRESENTATION_ANALYSIS_VERSION,
+        yearsExperience,
+        suggestedExperienceRange:analysis.suggestedExperienceRange || '',
+        seniority:analysis.seniority || '',
+        professionalTitle:analysis.professionalTitle || '',
+        expertise:analysis.expertise || '',
+        evidence:analysis.evidence || '',
+        aiConfigured:!!OPENAI_API_KEY,
+        fallbackUsed:analysis.source !== 'OPENAI',
+        ...(aiError ? { diagnostic:'La IA generativa no respondió y se utilizó el analizador local de respaldo.' } : {}),
+      }
+    });
   }catch(err){
     console.error('POST /candidate/presentation/refine', err);
-    return res.status(500).json({ error:'No se pudo ordenar la presentación en este momento.' });
+    return res.status(500).json({ error:'No se pudo preparar la presentación en este momento.' });
   }
 });
 
@@ -2812,7 +3044,21 @@ const companySchema = z.object({
 
 app.get("/bolsa/me", authRequired, async (req, res) => {
   try{
-    const bolsa = await prisma.candidateBolsa.findUnique({ where: { userId: req.user.id } });
+    let bolsa = await prisma.candidateBolsa.findUnique({ where: { userId: req.user.id } });
+    if(bolsa){
+      const profile = await prisma.profile.findUnique({ where:{ userId:req.user.id }, select:{ city:true, province:true } }).catch(()=>null);
+      const residence=inferResidence({ locality:bolsa.localidad || profile?.city, province:bolsa.provinciaResidencia || profile?.province, country:bolsa.paisResidencia });
+      const patch={};
+      if(residence.city && residence.city !== bolsa.localidad) patch.localidad=residence.city;
+      if(residence.province && residence.province !== bolsa.provinciaResidencia) patch.provinciaResidencia=residence.province;
+      if(residence.country && residence.country !== bolsa.paisResidencia) patch.paisResidencia=residence.country;
+      if(Object.keys(patch).length){
+        bolsa=await prisma.candidateBolsa.update({ where:{ userId:req.user.id }, data:patch }).catch(()=>({ ...bolsa, ...patch }));
+        if(residence.province || residence.city){
+          await prisma.profile.update({ where:{ userId:req.user.id }, data:{ ...(residence.city?{city:residence.city}:{}), ...(residence.province?{province:residence.province}:{}) } }).catch(()=>null);
+        }
+      }
+    }
     return res.json({ ok: true, bolsa });
   }catch(err){
     console.error("GET /bolsa/me", err);
@@ -2829,6 +3075,10 @@ app.post("/bolsa/me", authRequired, async (req, res) => {
     if(data.observaciones) data.observaciones = clampText(data.observaciones, 12000);
 
     const existingProfile = await prisma.profile.findUnique({ where: { userId: req.user.id } });
+    const residence=inferResidence({ locality:data.localidad || existingProfile?.city, province:data.provinciaResidencia || existingProfile?.province, country:data.paisResidencia });
+    if(residence.city) data.localidad=residence.city;
+    if(residence.province) data.provinciaResidencia=residence.province;
+    if(residence.country) data.paisResidencia=residence.country;
     if(existingProfile?.dni && String(existingProfile.dni) !== String(data.dni)){
       return res.status(400).json({ ok:false, error:"DNI_MISMATCH_WITH_PROFILE" });
     }
@@ -2842,6 +3092,7 @@ app.post("/bolsa/me", authRequired, async (req, res) => {
         fullNameNorm: normalizeName(`${data.nombre} ${data.apellido}`.trim()),
         dni: data.dni,
         city: data.localidad,
+        province: data.provinciaResidencia || existingProfile?.province || null,
         address: data.direccion || "",
         phone: data.telefono,
       },
@@ -2850,6 +3101,7 @@ app.post("/bolsa/me", authRequired, async (req, res) => {
         fullNameNorm: normalizeName(`${data.nombre} ${data.apellido}`.trim()),
         dni: data.dni,
         city: data.localidad,
+        province: data.provinciaResidencia || existingProfile?.province || null,
         address: data.direccion || "",
         phone: data.telefono,
       }
@@ -3045,7 +3297,7 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
     const especialidad_by_area = Object.fromEntries(
       Object.entries(rawStats.especialidad_by_area || {}).map(([area, values]) => [area, Object.keys(values || {})])
     );
-    // v7.9.3: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
+    // v7.9.5: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
     // ni conteos por faceta. Los totales de padrón quedan reservados al Panel General.
     return res.json({ ok: true, facets, especialidad_by_area });
   } catch (err) {
@@ -3275,7 +3527,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.9.3 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.9.5 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
@@ -4419,9 +4671,10 @@ function supportContainsAny(text, patterns){
 }
 
 function buildSupportCandidateCompleteness(candidate){
-  if(!candidate) return { done: 0, total: 6, percent: 0, pending: ['datos personales','presentación personal','perfil laboral','trayectoria y pretensión','resumen curricular','foto'] };
+  if(!candidate) return { done: 0, total: 6, percent: 0, pending: ['datos personales','presentación profesional','perfil laboral','trayectoria y pretensión','resumen curricular','foto'] };
   const blocks = [
     { label: 'datos personales', complete: [candidate.dni, candidate.telefono, candidate.correo, candidate.localidad].every((v)=> String(v || '').trim()) },
+    { label: 'presentación profesional', complete: String(candidate.voiceNarrativeSummary || '').trim() && String(candidate.voiceNarrativeAnalysisVersion || '').trim() },
     { label: 'perfil laboral', complete: String(candidate.areaTrabajo || '').trim() && String(candidate.rangoExperiencia || '').trim() && String(candidate.nivelEducativo || '').trim() && (String(candidate.especialidad || '').trim() || String(candidate.especialidadOtro || '').trim()) },
     { label: 'pretensión económica y trayectoria', complete: String(candidate.sueldoPretendido || '').trim() && String(candidate.ultimoTrabajo || '').trim() },
     { label: 'resumen curricular', complete: String(candidate.observaciones || '').trim() },
@@ -5115,6 +5368,7 @@ function candidateRecentProfessionalText(candidate = {}){
     bolsa.ultimoTrabajo,
     String(resume.experience || '').slice(0, 1400),
     String(resume.summary || '').slice(0, 900),
+    String(bolsa.voiceNarrativeProfessionalTitle || '').slice(0, 240),
     String(bolsa.voiceNarrativeSummary || bolsa.voiceNarrativeRaw || '').slice(0, 1200),
     bolsa.especialidadOtro,
     bolsa.especialidad,
@@ -5128,7 +5382,7 @@ function candidateAllProfessionalText(candidate = {}){
   const profile = candidate.candidateProfile || {};
   const resume = candidate.resume || {};
   return adminNormText([
-    bolsa.areaTrabajo, bolsa.nivel, bolsa.especialidad, bolsa.especialidadOtro, bolsa.ultimoTrabajo, bolsa.observaciones, bolsa.voiceNarrativeSummary, bolsa.voiceNarrativeRaw,
+    bolsa.areaTrabajo, bolsa.nivel, bolsa.especialidad, bolsa.especialidadOtro, bolsa.ultimoTrabajo, bolsa.observaciones, bolsa.voiceNarrativeProfessionalTitle, bolsa.voiceNarrativeSummary, bolsa.voiceNarrativeRaw,
     profile.headline, profile.sector, profile.subSector,
     resume.summary, resume.experience, resume.education, resume.certifications, resume.observations,
   ].filter(Boolean).join(' '));
@@ -5138,7 +5392,7 @@ function candidateRecentRoleLabel(candidate = {}){
   const bolsa = candidate.candidateBolsa || {};
   const profile = candidate.candidateProfile || {};
   const resume = candidate.resume || {};
-  const direct = String(bolsa.ultimoTrabajo || profile.headline || '').trim().replace(/\s+/g, ' ');
+  const direct = String(bolsa.ultimoTrabajo || bolsa.voiceNarrativeProfessionalTitle || profile.headline || '').trim().replace(/\s+/g, ' ');
   if(direct) return direct.slice(0, 140);
   const firstExperience = String(resume.experience || '').trim().split(/[\n.!?]/).map((x) => x.trim()).find(Boolean) || '';
   if(firstExperience) return firstExperience.slice(0, 140);
@@ -5256,14 +5510,21 @@ function scoreCandidateProfessionalProfile(candidate = {}){
     '21–30':88, '21-30':88,
     '31+':94,
   };
-  let score = experienceBase[range] ?? null;
+  const storedYears=Number(bolsa.voiceNarrativeYears);
+  const explicitYears=Number.isFinite(storedYears) && storedYears >= 0
+    ? storedYears
+    : extractExplicitYearsFromText([
+        bolsa.voiceNarrativeRaw, bolsa.voiceNarrativeSummary, resume.summary, resume.experience, bolsa.observaciones
+      ].filter(Boolean).join(' '));
+  let score = explicitYears !== null ? experienceBase[experienceRangeFromYears(explicitYears)] : (experienceBase[range] ?? null);
   const evidence = [];
-  if(score !== null) evidence.push(`Experiencia declarada ${String(bolsa.rangoExperiencia || '').trim()} años`);
+  if(explicitYears !== null) evidence.push(`${explicitYears} años de experiencia detectados en la información profesional`);
+  else if(score !== null) evidence.push(`Experiencia declarada ${String(bolsa.rangoExperiencia || '').trim()} años`);
   const apprenticeHit = /(pasante|pasantia|aprendiz|trainee|primer empleo|sin experiencia|estudiante)/.test(recent);
   const juniorHit = /\bjunior\b|\bjr\b/.test(recent);
   const semiHit = /semi senior|semisenior|semi-senior|\bssr\b/.test(recent);
   const seniorHit = /\bsenior\b|\bsr\b/.test(recent);
-  const leadershipHit = /(supervisor|jefe|jefatura|coordinador|lider de equipo|lider de cuadrilla|capataz|encargado)/.test(recent);
+  const leadershipHit = /(supervisor|supervision|jefe|jefatura|coordinador|lider de equipo|lider de cuadrilla|capataz|encargado)/.test(recent);
   const executiveHit = /(gerente|gerencia|director|direccion|head of|plant manager)/.test(recent);
   if(score === null){
     if(seniorHit || executiveHit) score = 78;
@@ -5272,18 +5533,26 @@ function scoreCandidateProfessionalProfile(candidate = {}){
     else if(apprenticeHit) score = 15;
     else score = allText.length > 450 ? 42 : (allText.length > 120 ? 30 : 18);
   }
-  if(executiveHit){ score += 10; evidence.push('Responsabilidad gerencial/directiva reciente'); }
-  else if(leadershipHit){ score += 7; evidence.push('Responsabilidad de supervisión o coordinación'); }
+  if(executiveHit){ score += 8; evidence.push('Responsabilidad gerencial/directiva reciente'); }
+  else if(leadershipHit){ score += 6; evidence.push('Responsabilidad de supervisión o coordinación'); }
+  // La experiencia explícita tiene prioridad sobre palabras sueltas como “junior”.
+  if(explicitYears !== null){
+    if(explicitYears >= 31) score = Math.max(score, 94);
+    else if(explicitYears >= 21) score = Math.max(score, 88);
+    else if(explicitYears >= 11) score = Math.max(score, 76);
+    else if(explicitYears >= 6) score = Math.max(score, 60);
+    else if(explicitYears >= 2) score = Math.max(score, 40);
+  }
   if(seniorHit){ score = Math.max(score, 78); evidence.push('Señal explícita de seniority senior'); }
-  if(semiHit){ score = Math.max(score, 58); evidence.push('Señal explícita de seniority semi-senior'); }
-  if(juniorHit){ score = Math.min(score, 44); evidence.push('Señal explícita de seniority junior'); }
-  if(apprenticeHit && !leadershipHit && !executiveHit){ score = Math.min(score, 24); evidence.push('Pasantía, aprendizaje o primer empleo'); }
+  if(semiHit && explicitYears === null){ score = Math.max(score, 58); evidence.push('Señal explícita de seniority semi-senior'); }
+  if(juniorHit && (explicitYears === null || explicitYears <= 5)){ score = Math.min(score, 44); evidence.push('Señal explícita de seniority junior'); }
+  if(apprenticeHit && !leadershipHit && !executiveHit && (explicitYears === null || explicitYears <= 1)){ score = Math.min(score, 24); evidence.push('Pasantía, aprendizaje o primer empleo'); }
   if(bolsa.trabajaActualmente){ score += 2; evidence.push('Actividad laboral actual informada'); }
   if(['terciaria','universitaria'].includes(adminNormText(bolsa.nivelEducativo))){ score += 2; }
   if(bolsa.tieneCapacitacion || String(resume.certifications || '').trim()){ score += 2; }
   if(String(resume.experience || '').trim().length >= 300){ score += 2; }
   if(String(resume.summary || '').trim().length >= 180){ score += 1; }
-  if(String(bolsa.voiceNarrativeSummary || '').trim().length >= 120){ score += 2; evidence.push('Presentación personal profesional disponible'); }
+  if(String(bolsa.voiceNarrativeSummary || '').trim().length >= 120){ score += 2; evidence.push('Presentación profesional procesada disponible'); }
   score = Math.max(0, Math.min(100, Math.round(score)));
   let seniorityKey = 'APRENDIZ';
   let seniorityLabel = 'Aprendiz / Pasante';
@@ -5294,7 +5563,8 @@ function scoreCandidateProfessionalProfile(candidate = {}){
     profileScore:score,
     seniorityKey,
     seniorityLabel,
-    scoreBasis:evidence.slice(0, 4).join(' · ') || 'Estimación por evidencia profesional disponible',
+    explicitYearsExperience:explicitYears,
+    scoreBasis:evidence.slice(0, 5).join(' · ') || 'Estimación por evidencia profesional disponible',
   };
 }
 
@@ -5357,25 +5627,27 @@ function traceabilityCountBy(items = [], keyField, labelField){
 }
 
 
-const ARGENTINA_PROVINCES = new Set([
-  'buenos aires','caba','ciudad autonoma de buenos aires','catamarca','chaco','chubut','cordoba','corrientes','entre rios','formosa','jujuy','la pampa','la rioja','mendoza','misiones','neuquen','rio negro','salta','san juan','san luis','santa cruz','santa fe','santiago del estero','tierra del fuego','tucuman'
-]);
-
-function candidateResidenceCountry(candidate = {}){
+function candidateResidence(candidate = {}){
   const bolsa=candidate.candidateBolsa || {};
   const profile=candidate.candidateProfile || {};
-  const explicit=String(bolsa.paisResidencia || '').trim();
-  if(explicit) return explicit;
-  const province=adminNormText(profile.province || '');
-  if(province && ARGENTINA_PROVINCES.has(province)) return 'Argentina';
-  return 'País no informado';
+  return inferResidence({
+    locality:bolsa.localidad || profile.city || '',
+    province:bolsa.provinciaResidencia || profile.province || '',
+    country:bolsa.paisResidencia || '',
+  });
 }
+
+function candidateResidenceCountry(candidate = {}){
+  return candidateResidence(candidate).country || 'País no informado';
+}
+
 
 function buildCandidateResidenceComposition(candidateRows = []){
   const map=new Map();
   for(const item of candidateRows || []){
     const country=candidateResidenceCountry(item);
-    const city=String(item?.candidateBolsa?.localidad || item?.candidateProfile?.city || 'Ciudad no informada').trim() || 'Ciudad no informada';
+    const residence=candidateResidence(item);
+    const city=String(residence.city || item?.candidateBolsa?.localidad || item?.candidateProfile?.city || 'Ciudad no informada').trim() || 'Ciudad no informada';
     const key=`${adminNormText(country)}|${adminNormText(city)}`;
     const row=map.get(key) || { key, country, city, label:`${country} · ${city}`, count:0 };
     row.count += 1;
@@ -5465,7 +5737,7 @@ async function buildTraceabilityReportSnapshot(){
       select:{
         id:true, createdAt:true,
         candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, headline:true, sector:true, subSector:true, updatedAt:true } },
-        candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, paisResidencia:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, updatedAt:true } },
+        candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, provinciaResidencia:true, paisResidencia:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, voiceNarrativeAnalysisVersion:true, voiceNarrativeAnalysisSource:true, voiceNarrativeYears:true, voiceNarrativeProfessionalTitle:true, voiceNarrativeAnalyzedAt:true, updatedAt:true } },
         resume:{ select:{ summary:true, experience:true, education:true, certifications:true, observations:true, updatedAt:true } },
       },
     }).catch(()=>[]),
@@ -5717,6 +5989,7 @@ app.get('/admin/candidates/:userId/detail', auth, requireAnyRole(['ADMIN','SUPER
             telefono: true,
             correo: true,
             localidad: true,
+            provinciaResidencia: true,
             paisResidencia: true,
             direccion: true,
             areaTrabajo: true,
@@ -5732,6 +6005,11 @@ app.get('/admin/candidates/:userId/detail', auth, requireAnyRole(['ADMIN','SUPER
             observaciones: true,
             voiceNarrativeRaw: true,
             voiceNarrativeSummary: true,
+            voiceNarrativeAnalysisVersion: true,
+            voiceNarrativeAnalysisSource: true,
+            voiceNarrativeYears: true,
+            voiceNarrativeProfessionalTitle: true,
+            voiceNarrativeAnalyzedAt: true,
             photoDataUrl: true,
             herramientasMecanica: true,
             instrumentosElectrica: true,
@@ -6121,7 +6399,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.billingOrder.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
     ]);
 
-    // v7.9.3 · Directorios clasificados de Administración.
+    // v7.9.5 · Directorios clasificados de Administración.
     // Se consultan campos livianos de todos los registros que cumplen los filtros actuales para que
     // los contadores representen el padrón filtrado completo, no solamente la página visible.
     const [candidateClassificationRows, companyClassificationRows] = await Promise.all([
@@ -6131,7 +6409,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         select: {
           id:true, email:true, candidateKeepIndefinitely:true, createdAt:true,
           candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, headline:true, sector:true, subSector:true, updatedAt:true } },
-          candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, paisResidencia:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, sueldoPretendido:true, updatedAt:true } },
+          candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, provinciaResidencia:true, paisResidencia:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, voiceNarrativeAnalysisVersion:true, voiceNarrativeAnalysisSource:true, voiceNarrativeYears:true, voiceNarrativeProfessionalTitle:true, voiceNarrativeAnalyzedAt:true, sueldoPretendido:true, updatedAt:true } },
           resume:{ select:{ summary:true, experience:true, education:true, certifications:true, observations:true, updatedAt:true } },
         },
       }).catch(() => []),
@@ -6160,9 +6438,9 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         dni:bolsa.dni || profile.dni || '',
         email:bolsa.correo || it.email || '',
         localidad:bolsa.localidad || profile.city || '',
-        province:profile.province || '',
+        province:candidateResidence(it).province || profile.province || '',
         residenceCountry:candidateResidenceCountry(it),
-        residenceCity:bolsa.localidad || profile.city || 'Ciudad no informada',
+        residenceCity:candidateResidence(it).city || bolsa.localidad || profile.city || 'Ciudad no informada',
         areaTrabajo:bolsa.areaTrabajo || profile.headline || 'Perfil todavía incompleto',
         especialidad:bolsa.especialidad === 'Otros' ? (bolsa.especialidadOtro || 'Otros') : (bolsa.especialidad || ''),
         sueldoPretendido:bolsa.sueldoPretendido || 'No informada',

@@ -15,7 +15,7 @@ const cv = fs.readFileSync(path.join(root, 'apps/api/src/services/candidate-cv.j
 const config = fs.readFileSync(path.join(root, 'apps/web/config.js'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'apps/api/package.json'), 'utf8'));
 
-test('v7.9.3 agrega residencia y presentación por voz/texto al perfil candidato', () => {
+test('v7.9.5 agrega residencia y presentación por voz/texto al perfil candidato', () => {
   assert.match(schema, /paisResidencia\s+String\?/);
   assert.match(schema, /voiceNarrativeRaw\s+String\?/);
   assert.match(schema, /voiceNarrativeSummary\s+String\?/);
@@ -35,8 +35,8 @@ test('registro rápido permite guardar datos base y presentación para continuar
 });
 
 test('administración muestra presentación personal y trazabilidad geográfica', () => {
-  assert.match(admin, /Presentación personal · voz o texto/);
-  assert.match(admin, /Presentación profesional aprobada por el candidato/);
+  assert.match(admin, /Resumen profesional elaborado por Talento PyME/);
+  assert.match(admin, /Resumen profesional/);
   assert.match(admin, /Candidatos por país de residencia y ciudad/);
   assert.match(admin, /traceCandidateResidenceComposition/);
   assert.match(api, /candidatesByResidence/);
@@ -70,7 +70,7 @@ test('presentación aprobada enriquece búsqueda profesional sin exponer transcr
   assert.doesNotMatch(jobsBlock, /voiceNarrativeRaw/);
 });
 
-test('versión unificada 7.9.3', () => {
-  assert.equal(pkg.version, '7.9.3');
-  assert.match(config, /TP_APP_VERSION = "7\.9\.3"/);
+test('versión unificada 7.9.5', () => {
+  assert.equal(pkg.version, '7.9.5');
+  assert.match(config, /TP_APP_VERSION = "7\.9\.5"/);
 });

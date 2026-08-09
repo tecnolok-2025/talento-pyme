@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.9.3" />
+  <link rel="stylesheet" href="/styles.css?v=7.9.5" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -465,8 +465,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.9.3"></script>
-<script src="/auth.js?v=7.9.3"></script>
+<script src="/config.js?v=7.9.5"></script>
+<script src="/auth.js?v=7.9.5"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -625,13 +625,15 @@ function renderCandidateDetail(it){
       candidateField('Correo', bolsa.correo || it.email),
       candidateField('País de residencia', bolsa.paisResidencia),
       candidateField('Localidad', bolsa.localidad || profile.city),
-      candidateField('Provincia', profile.province),
+      candidateField('Provincia / jurisdicción', bolsa.provinciaResidencia || profile.province),
       candidateField('Dirección', bolsa.direccion || profile.address),
     ]),
-    candidateSection('Presentación personal · voz o texto', [
-      candidateField('Presentación profesional aprobada por el candidato', bolsa.voiceNarrativeSummary),
-      candidateField('Transcripción original', bolsa.voiceNarrativeRaw),
-      candidateField('Aclaración', bolsa.voiceNarrativeSummary ? 'El candidato puede dictar o escribir esta presentación, revisar la redacción propuesta y corregirla manualmente antes de guardarla. Talento PyME no conserva el audio original.' : 'El candidato todavía no completó una presentación personal por voz o texto.'),
+    candidateSection('Resumen profesional elaborado por Talento PyME', [
+      candidateField('Resumen profesional', bolsa.voiceNarrativeSummary),
+      candidateField('Título profesional detectado', bolsa.voiceNarrativeProfessionalTitle),
+      candidateField('Años de experiencia detectados', Number.isFinite(Number(bolsa.voiceNarrativeYears)) ? `${Number(bolsa.voiceNarrativeYears)} años` : 'No determinados'),
+      candidateField('Procesamiento', bolsa.voiceNarrativeAnalysisSource === 'OPENAI' ? 'IA generativa' : (bolsa.voiceNarrativeAnalysisVersion ? 'Analizador profesional de respaldo' : 'Pendiente de procesar nuevamente')),
+      candidateField('Aclaración', bolsa.voiceNarrativeSummary ? 'Administración muestra la versión profesional preparada por Talento PyME y revisable por el candidato. El audio original no se conserva.' : 'El candidato todavía no completó o reprocesó esta presentación profesional.'),
     ], true),
     candidateSection('Perfil profesional', [
       candidateField('Titular profesional', profile.headline),

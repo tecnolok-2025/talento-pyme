@@ -16,7 +16,7 @@ function functionBlock(name, nextName){
   return api.slice(s, e > s ? e : s + 8000);
 }
 
-test('v7.9.3 elimina pendiente de candidatos y usa aprendiz como integración inicial', () => {
+test('v7.9.5 elimina pendiente de candidatos y usa aprendiz como integración inicial', () => {
   assert.match(api, /APRENDIZ:\s*'Aprendices \/ Pasantes \/ Primer empleo'/);
   assert.match(api, /GERENCIAL:\s*'Gerencia \/ Dirección'/);
   assert.doesNotMatch(api, /PENDIENTE:\s*'Pendientes de clasificar'/);
@@ -79,15 +79,18 @@ test('clasificación avanzada permanece sólo en administración', () => {
   }
 });
 
-test('frontend declara v7.9.3', () => {
-  assert.match(config, /TP_APP_VERSION = "7\.9\.3"/);
+test('frontend declara v7.9.5', () => {
+  assert.match(config, /TP_APP_VERSION = "7\.9\.5"/);
 });
 
 import vm from 'node:vm';
 function classificationFns(){
+  const helperStart = api.indexOf('function professionalNorm');
+  const helperEnd = api.indexOf('function inferLocalProfessionalTitle', helperStart);
+  const helpers = api.slice(helperStart, helperEnd);
   const s = api.indexOf('const ADMIN_COMPANY_CATEGORY_LABELS');
   const e = api.indexOf('const adminCompanyCategorySchema', s);
-  const block = api.slice(s,e) + ';globalThis.__out={buildCandidateAdminClassification,inferAdminCompanyCategory};';
+  const block = helpers + '\n' + api.slice(s,e) + ';globalThis.__out={buildCandidateAdminClassification,inferAdminCompanyCategory};';
   const ctx = {};
   vm.createContext(ctx);
   vm.runInContext(block, ctx);
@@ -140,4 +143,22 @@ test('comportamiento: empresa de transporte se clasifica por actividad principal
   const c = inferAdminCompanyCategory({ companyName:'Transporte Norte', companySummary:'Empresa dedicada al transporte y distribución de cargas industriales.', jobs:[] });
   assert.equal(c.key, 'LOGISTICA');
   assert.equal(c.activityLabel, 'Transporte / Distribución');
+});
+
+test('comportamiento: 40 años explícitos de experiencia nunca quedan como Junior', () => {
+  const { buildCandidateAdminClassification } = classificationFns();
+  const c = buildCandidateAdminClassification({
+    candidateBolsa:{
+      ultimoTrabajo:'Supervisor y proyectista de ingeniería electromecánica',
+      areaTrabajo:'Ingeniería / Oficina técnica',
+      especialidad:'Ingeniería electromecánica',
+      rangoExperiencia:'',
+      nivelEducativo:'Universitaria',
+      voiceNarrativeRaw:'Soy ingeniero electromecánico y proyectista. Tengo alrededor de 40 años de experiencia en el rubro, con trayectoria en supervisión, proyectos de ingeniería, área eléctrica, aire acondicionado e instalaciones termomecánicas.'
+    },
+    resume:{}
+  });
+  assert.equal(c.seniorityLabel, 'Senior');
+  assert.ok(c.profileScore >= 90, `score esperado >= 90, recibido ${c.profileScore}`);
+  assert.equal(c.expertiseKey, 'INGENIERIA');
 });

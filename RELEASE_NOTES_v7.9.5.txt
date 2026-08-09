@@ -1,0 +1,9 @@
+Talento PyME v7.9.5
+
+- Se elimina la espera automática de 3 segundos.
+- La presentación se procesa únicamente al pulsar “Corrección IA profesional”.
+- El botón procesa siempre el relato completo desde el principio.
+- La corrección resultante queda persistida inmediatamente como presentación principal por defecto.
+- Se mantiene edición manual posterior.
+- Sin cambios de esquema de base de datos.
+- 85/85 pruebas aprobadas.

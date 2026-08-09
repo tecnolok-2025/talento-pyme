@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { inferResidence } from './residence.js';
 
 const NAVY='#0B1730';
 const BLUE='#0B5EA8';
@@ -70,7 +71,7 @@ function titleFromData(data){
   const b=data.bolsa||{}, p=data.profile||{}, c=data.classification||{};
   const recent=clean(b.ultimoTrabajo);
   if(recent && recent.length <= 70) return recent;
-  return clean(p.headline || b.especialidadOtro || b.especialidad || c.expertiseLabel || b.areaTrabajo || recent || 'Perfil profesional');
+  return clean(p.headline || b.voiceNarrativeProfessionalTitle || b.especialidadOtro || b.especialidad || c.expertiseLabel || b.areaTrabajo || recent || 'Perfil profesional');
 }
 
 export function buildCandidateCvFilename(data={},generatedAt=new Date()){
@@ -84,9 +85,11 @@ export async function buildCandidateCvPdfBuffer(data={}){
   const b=data.bolsa||{}, p=data.profile||{}, r=data.resume||{}, c=data.classification||{}, user=data.user||{};
   const fullName=(clean(`${b.nombre||''} ${b.apellido||''}`) || clean(p.fullName) || 'Candidato').toUpperCase();
   const title=titleFromData(data);
-  const country=clean(b.paisResidencia) || 'País de residencia no informado';
-  const city=clean(b.localidad || p.city);
-  const location=[city,country].filter(Boolean).join(', ');
+  const residence=inferResidence({ locality:b.localidad || p.city, province:b.provinciaResidencia || p.province, country:b.paisResidencia });
+  const country=clean(residence.country) || 'País de residencia no informado';
+  const province=clean(residence.province);
+  const city=clean(residence.city || b.localidad || p.city);
+  const location=[city,province,country].filter(Boolean).join(', ');
   const presentation=clamp(b.voiceNarrativeSummary || b.voiceNarrativeRaw || r.summary || b.observaciones || '',1050);
   const experienceLines=uniq([
     b.ultimoTrabajo ? `Actividad reciente: ${b.ultimoTrabajo}` : '',

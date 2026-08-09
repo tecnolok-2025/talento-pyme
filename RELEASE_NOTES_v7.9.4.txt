@@ -1,0 +1,52 @@
+Talento PyME v7.9.5
+Fecha: 09/08/2026
+
+OBJETIVO DE ESTA REVISION
+Corregir la interpretación profesional del relato por voz/texto, impedir seniority incoherentes frente a años explícitos de trayectoria, completar residencia de forma razonable a partir de localidades inequívocas y hacer que el nuevo bloque de presentación profesional quede pendiente para candidatos anteriores hasta ser reprocesado.
+
+CAMBIOS PRINCIPALES
+1. Presentación profesional con análisis integral
+- El relato hablado/escrito es materia prima, no texto final.
+- Tras finalizar el dictado o quedar unos segundos sin escribir, el portal espera y vuelve a analizar TODO el relato desde el comienzo.
+- Se eliminan saludos, muletillas, repeticiones y expresiones como “etcétera, etcétera”.
+- Se produce una presentación profesional editable por el candidato.
+- Cuando se agrega información nueva, el análisis vuelve a considerar el contenido completo.
+
+2. IA generativa opcional + respaldo local
+- Si Render tiene OPENAI_API_KEY, el backend utiliza la OpenAI Responses API para elaborar un resumen profesional estructurado.
+- Sólo se envía contexto profesional: relato, rol/expertise, resumen/experiencia curricular y rango de experiencia; no se envían nombre, DNI, email, teléfono ni domicilio.
+- La llamada usa store:false.
+- Si la IA externa no está configurada o falla, el portal utiliza un analizador local de respaldo para no bloquear al candidato.
+
+3. Seniority y trayectoria corregidos
+- Los años de experiencia mencionados explícitamente tienen prioridad sobre palabras aisladas o campos incompletos.
+- Un candidato que declara 40 años de experiencia no puede quedar clasificado como Junior.
+- Supervisión, jefatura, dirección, proyectos y responsabilidad profesional aportan contexto a la clasificación.
+- La clasificación continúa siendo administrativa y descriptiva; no es una recomendación automática de contratación.
+
+4. Candidatos existentes
+- La nueva etapa “Contanos con tus palabras” se considera pendiente hasta que exista un análisis generado por el motor v7.9.5.
+- Un candidato anterior puede entrar, completar/reprocesar esa etapa y recuperar el estado de completitud.
+- No se borra ni descarta ningún registro anterior.
+
+5. Administración
+- La ficha prioriza “Resumen profesional elaborado por Talento PyME”.
+- Muestra título profesional detectado, años de trayectoria detectados y origen del procesamiento.
+- La transcripción cruda no se presenta como contenido principal al administrador.
+
+6. Residencia
+- Se infieren provincia/jurisdicción y país cuando la localidad es inequívoca (ej.: Campana, Zárate, Tigre, San Isidro, San Fernando, San Nicolás, Pergamino, General Rodríguez, Lima, Rosario, CABA, entre otras).
+- CABA se conserva correctamente como Ciudad Autónoma de Buenos Aires, Argentina.
+- Los datos inferidos se usan también en CV, Administración y trazabilidad geográfica.
+- Cuando una ubicación no puede inferirse con seguridad, no se inventa.
+
+7. CV PDF
+- El CV utiliza el nuevo resumen profesional y el título detectado.
+- La residencia se normaliza con ciudad, provincia/jurisdicción y país cuando es posible.
+
+CONFIGURACION OPCIONAL PARA IA GENERATIVA
+OPENAI_API_KEY=<secreto del proyecto>
+OPENAI_MODEL=gpt-5-mini
+OPENAI_PRESENTATION_TIMEOUT_MS=18000
+
+Sin OPENAI_API_KEY el sistema sigue operativo mediante el analizador local de respaldo.
