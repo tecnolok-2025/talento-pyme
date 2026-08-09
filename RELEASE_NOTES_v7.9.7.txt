@@ -1,0 +1,31 @@
+Talento PyME v7.9.7
+
+CV candidato · redacción profesional de excelencia
+- El CV se redacta desde la voz del candidato, en primera persona. Talento PyME asiste la redacción; no aparece como evaluador del perfil.
+- La corrección IA profesional vuelve a leer TODO el relato cada vez que el candidato pulsa el botón correspondiente.
+- El perfil profesional ampliado traduce profesiones y funciones declaradas a vocabulario técnico propio del oficio, sin inventar empleos, logros, empresas, certificaciones, software ni resultados.
+- Para proyectistas eléctricos/electromecánicos se contemplan, cuando son compatibles con el relato, conceptos como ingeniería conceptual/básica/de detalle, esquemas unifilares y trifilares, canalizaciones, distribución, cargas/demanda, conductores, protecciones, caída de tensión, puesta a tierra, especificaciones, documentación y coordinación interdisciplinaria.
+- Supervisión puede expresarse con seguimiento técnico, coordinación, verificación contra planos/especificaciones, avances, calidad, seguridad, desvíos, inspecciones, pruebas y puesta en servicio cuando corresponda.
+- La biblioteca de apoyo también contempla mantenimiento, producción/operaciones, instrumentación/automatización, calidad/HSE, logística/comex, administración/gestión, IT/datos, soldadura/montaje, construcción/obra y planificación/costos.
+
+Nuevas secciones generadas por IA
+- Hasta 10 aptitudes y fortalezas profesionales concretas, editables por el candidato.
+- Motivación y objetivo profesional en primera persona, adaptados al seniority y a si la persona trabaja actualmente.
+- Cierre y proyección profesional en primera persona.
+- Aprendiz/primer empleo, Junior, Semi-senior y Senior reciben redacciones de motivación distintas y coherentes con su etapa profesional.
+- El candidato puede borrar, reemplazar, acortar, ampliar o corregir cualquiera de estas propuestas antes de guardarlas.
+
+CV PDF
+- Nueva sección “Aptitudes y fortalezas profesionales”.
+- Nueva sección “Motivación y proyección profesional”.
+- El pie aclara que el CV fue preparado por el candidato con asistencia de Talento PyME, sin voz de evaluación externa.
+- Si el contenido supera una página, el PDF abre una página de continuación con encabezado profesional y numeración consistente.
+- Nombre automático: YYMMDD-HHmm CV Nombre Apellido.pdf.
+
+Administración
+- La ficha administrativa muestra la presentación profesional, aptitudes/fortalezas, motivación, cierre, título detectado y años de experiencia.
+- Los candidatos procesados con una versión anterior de la presentación vuelven a tener esa etapa pendiente hasta pulsar nuevamente “Corrección IA profesional”. No se borra ningún dato previo.
+
+Base de datos
+- Se agregan tres campos opcionales/no destructivos: voiceNarrativeStrengths, voiceNarrativeMotivation y voiceNarrativeClosing.
+- npm start mantiene prisma db push, por lo que Render agrega las columnas sin eliminar candidatos existentes.
