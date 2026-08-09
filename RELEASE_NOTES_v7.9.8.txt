@@ -1,0 +1,11 @@
+Talento PyME v7.9.8
+
+- Administración > Chat operador: nuevo botón “Responder + enviar por email”.
+- El mismo mensaje queda guardado en Talento PyME y se envía desde FACTORY_SUPPORT_EMAIL al correo registrado del candidato/empresa.
+- Nuevo botón “Reenviar último mensaje informado por email”, que recupera el último mensaje OPERATOR del hilo y lo vuelve a enviar sin duplicarlo dentro del chat.
+- El panel muestra el correo destinatario antes de enviar.
+- Los saltos de línea y párrafos del mensaje del administrador se conservan tanto en el portal como en el email.
+- Los envíos/reenvíos quedan registrados como eventos de seguridad administrativos con destinatario enmascarado.
+- Si Gmail falla al enviar una respuesta combinada, el mensaje igualmente queda guardado en el portal y el panel informa que puede reintentarse.
+- Corrección adicional: el detalle del Chat operador vuelve a mostrar el contenido real de cada mensaje (se eliminó el marcador interno __KEEP__).
+- No hay cambios de esquema Prisma ni nuevas variables de entorno. Reutiliza FACTORY_SUPPORT_EMAIL y GMAIL_APP_PASSWORD ya configurados.
