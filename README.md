@@ -1,6 +1,6 @@
-# Talento PyME — v7.9.12
+# Talento PyME — v7.9.13
 
-> **Versión de despliegue confirmada:** 7.9.12 · **Build:** 20260810_02 · Frontend, API y caché PWA alineados.
+> **Versión de despliegue confirmada:** 7.9.13 · **Build:** 20260810_03 · Frontend, API y caché PWA alineados.
 
 ## Funcionalidad consolidada del CV profesional (incorporada desde v7.9.7)
 
@@ -64,8 +64,8 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.12"`
-- API: `apps/api/package.json` → `7.9.12` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.13"`
+- API: `apps/api/package.json` → `7.9.13` y endpoint `/health`.
 
 ## Administración de candidatos y empresas
 - El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.
@@ -139,13 +139,13 @@ Dentro de **Administración > Correo / Consultas** se mantiene la comunicación 
 El límite de 450 se reserva específicamente para comunicaciones generales, dejando un margen prudente para recuperaciones de contraseña, mensajes individuales, reportes y posibles envíos manuales externos. Talento PyME no puede contabilizar los correos que una persona envíe manualmente directamente desde Gmail, por eso se mantiene ese margen.
 
 
-## v7.9.12 — descarga directa de CV candidato
+## v7.9.13 — descarga directa de CV candidato
 
 - Se elimina el botón **Recargar** de Mi Perfil candidato: sólo releía la información guardada y no era necesario para generar el currículum.
 - **Descargar mi CV PDF** genera directamente un PDF nuevo con toda la información guardada del candidato.
 - La descarga ya no queda bloqueada porque la Presentación Personal necesite una nueva Corrección IA.
 - Compatibilidad reforzada para iPhone/iPad, donde el PDF se abre para Guardar/Compartir/Imprimir.
-- Build **20260810_02** y caché PWA **7.9.12** para evitar que quede cargado JavaScript de 7.9.11.
+- Build **20260810_03** y caché PWA **7.9.13** para evitar que quede cargado JavaScript de 7.9.11.
 - Sin cambios de base de datos.
 
 ## v7.9.11 — onboarding, comunicaciones y CV integrado
@@ -155,3 +155,14 @@ El límite de 450 se reserva específicamente para comunicaciones generales, dej
 - Registro candidato agrega Provincia/Estado/Región y País; trazabilidad agrega País + Provincia/Región + Ciudad.
 - Corrección IA profesional fusiona Presentación Personal con el CV previamente analizado y evita duplicaciones.
 - Botón `Ver CV tipo` con un ejemplo ficticio completo.
+
+## v7.9.13 — recalificación integral por CV y antecedentes curriculares
+
+- El índice de trayectoria, seniority, tipo de perfil y expertise se recalculan en vivo leyendo toda la información profesional vigente del candidato.
+- El CV/antecedentes curriculares ya no funcionan como un respaldo débil: participan con peso alto en la clasificación.
+- El sistema detecta años explícitos de experiencia y también reconstruye trayectoria a partir de períodos laborales fechados (por ejemplo 1994–2005, 2005–2015, 2015–Actualidad).
+- Si el formulario contiene un rango de experiencia bajo pero el CV demuestra una trayectoria superior, prevalece la evidencia profesional más sólida del CV.
+- La actividad más reciente conserva prioridad para definir el expertise principal, sin ignorar el resto del CV.
+- Administración muestra años detectados, fuente principal y fuentes profesionales utilizadas para entender por qué se asignó una calificación.
+- No se persisten notas antiguas: al abrir Administración o el detalle de un candidato se vuelve a calcular la clasificación con los datos actuales.
+- No hay cambios de schema respecto de v7.9.12.
