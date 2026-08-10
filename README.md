@@ -1,6 +1,8 @@
-# Talento PyME — v7.9.7
+# Talento PyME — v7.9.11
 
-## Novedades v7.9.7
+> **Versión de despliegue confirmada:** 7.9.11 · **Build:** 20260810_01 · Frontend, API y caché PWA alineados.
+
+## Funcionalidad consolidada del CV profesional (incorporada desde v7.9.7)
 
 - El CV habla desde la voz del candidato: la presentación ampliada, la motivación y el cierre se redactan **en primera persona**, no como una evaluación externa.
 - **Corrección IA profesional** relee todo el relato y lo traduce a vocabulario técnico coherente con la profesión u oficio detectado, sin inventar antecedentes.
@@ -15,7 +17,7 @@
 
 Proyecto pensado como **Web + PWA instalable** (sin App Store / Play Store) + **API Node** + **PostgreSQL (Neon)**. La infraestructura puede combinar servicios gratuitos y pagos según la capacidad y las funciones habilitadas.
 
-## Novedades v7.9.7
+## Funcionalidad consolidada de perfil y trazabilidad (incorporada desde v7.9.7)
 
 - Trazabilidad geográfica agregada por país de residencia y ciudad, sin cruce con expertise.
 - La actividad empresarial de fallback se denomina “Actividad principal no especificada”; ya no se usa “Actividad general”.
@@ -62,8 +64,8 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.10"`
-- API: `apps/api/package.json` → `7.9.10` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.11"`
+- API: `apps/api/package.json` → `7.9.11` y endpoint `/health`.
 
 ## Administración de candidatos y empresas
 - El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.

@@ -1,0 +1,14 @@
+Talento PyME v7.9.11 — R01 de identificación
+Fecha: 2026-08-10
+
+Corrección solicitada antes del deploy:
+- README encabezado actualizado a v7.9.11.
+- Se eliminaron referencias de "versión única" que todavía mostraban v7.9.10.
+- Build ID actualizado a 20260810_01.
+- La versión ejecutable ya estaba correctamente en v7.9.11 y se mantiene:
+  * apps/web/config.js = 7.9.11
+  * apps/web/sw.js = 7.9.11
+  * apps/api/package.json = 7.9.11
+  * assets HTML versionados = 7.9.11
+
+Esta revisión no cambia funcionalidades ni base de datos respecto de v7.9.11; sólo corrige y unifica la identificación visible/documental del build antes del deploy.
