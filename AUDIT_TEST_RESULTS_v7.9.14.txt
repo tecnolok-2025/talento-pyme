@@ -1,0 +1,7 @@
+Talento PyME v7.9.14 — Audit Test Results
+
+Node test suite: 152 passed / 152 total / 0 failed.
+JavaScript syntax validation: 37 files valid.
+Inline HTML scripts: 17 valid.
+Build: 20260810_04.
+ZIP integrity: verified; no errors detected in compressed data.
