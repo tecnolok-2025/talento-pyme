@@ -1,0 +1,39 @@
+Talento PyME v7.9.11 — 10/08/2026
+
+1. Comunicaciones sin repetir
+- “Enviar sólo a quienes todavía no recibieron esta misma comunicación” queda tildado por defecto.
+- Se identifican destinatarios ya enviados o ya programados de campañas anteriores con el mismo asunto y cuerpo.
+- Los candidatos/empresas nuevos sí entran en el próximo envío de esa misma comunicación.
+- Al destildar, el administrador puede reenviar deliberadamente al padrón habilitado completo.
+
+2. Bienvenida automática
+- Cada alta nueva CANDIDATE o COMPANY queda en cola para recibir un correo de bienvenida institucional.
+- Candidato: confirma el alta, explica Editar CV, Presentación Personal, Corrección IA profesional, carga de CV, Ver CV tipo, Descargar mi CV PDF y Guardar cambios.
+- Empresa: confirma el alta y resume perfil, búsqueda de talento, publicaciones y postulaciones.
+- La cola es persistente y no depende de que Administración permanezca abierta.
+
+3. Protección Gmail
+- Campañas masivas + bienvenidas comparten un máximo interno de 450 correos automáticos en una ventana móvil de 24 horas.
+- Las bienvenidas tienen prioridad sobre comunicaciones generales.
+- Los envíos se escalonan y continúan automáticamente cuando vuelve a existir cupo.
+
+4. Residencia
+- Registro candidato incorpora campos obligatorios Provincia / Estado / Región y País.
+- País no se presupone para localidades desconocidas; localidades argentinas inequívocas completan provincia y país automáticamente.
+- Profile conserva country además de city/province.
+- Reporte de trazabilidad agrega País + Provincia/Región + Ciudad, cantidades y participación.
+
+5. Presentación personal + CV leído
+- Corrección IA profesional fusiona relato completo + resumen/experiencia/formación/certificaciones/observaciones del CV cargado.
+- Deduplica fuentes y prioriza la información concreta y reciente.
+- Si el CV se carga o modifica, la presentación queda pendiente de volver a procesar de manera explícita; guardar nunca dispara IA automáticamente.
+- El CV PDF evita repetir líneas de experiencia ya absorbidas por la presentación principal.
+
+6. CV tipo
+- Nuevo botón “Ver CV tipo”.
+- Genera un PDF de ejemplo con datos ficticios de un Supervisor Eléctrico Industrial, marcado expresamente como ejemplo.
+- Muestra perfil, 10 fortalezas, experiencia cronológica, formación, capacitaciones, motivación y cierre.
+
+Base de datos
+- Cambios aditivos: User agrega metadatos de bienvenida; Profile agrega country; AdminCommunication agrega modo de destinatarios e indicador de previamente informados.
+- No se eliminan registros existentes.

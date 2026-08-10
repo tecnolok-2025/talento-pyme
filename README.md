@@ -135,3 +135,11 @@ Dentro de **Administración > Correo / Consultas** se mantiene la comunicación 
 - Se reutilizan `FACTORY_SUPPORT_EMAIL` y `GMAIL_APP_PASSWORD`; no se agregan credenciales nuevas.
 
 El límite de 450 se reserva específicamente para comunicaciones generales, dejando un margen prudente para recuperaciones de contraseña, mensajes individuales, reportes y posibles envíos manuales externos. Talento PyME no puede contabilizar los correos que una persona envíe manualmente directamente desde Gmail, por eso se mantiene ese margen.
+
+## v7.9.11 — onboarding, comunicaciones y CV integrado
+- Comunicaciones repetidas: por defecto sólo destinatarios que todavía no recibieron la misma comunicación.
+- Bienvenida automática a nuevas altas CANDIDATE/COMPANY mediante la cola SMTP protegida.
+- Campañas + bienvenidas comparten un techo interno de 450 envíos automáticos en 24 h.
+- Registro candidato agrega Provincia/Estado/Región y País; trazabilidad agrega País + Provincia/Región + Ciudad.
+- Corrección IA profesional fusiona Presentación Personal con el CV previamente analizado y evita duplicaciones.
+- Botón `Ver CV tipo` con un ejemplo ficticio completo.
