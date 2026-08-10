@@ -1,0 +1,12 @@
+Talento PyME v7.9.14
+Build 20260810_04
+
+NOVEDADES
+- Perfiles candidatos: desplegable dinámico de perfiles/expertise reales con cantidad.
+- Perfiles empresas: desplegable dinámico de familia/actividad principal con cantidad.
+- Ambos desplegables se enriquecen automáticamente al aparecer nuevas subcategorías.
+- Buscador por palabra clave ampliado en ambos directorios.
+- Candidato: palabra clave incluye CV, presentación, experiencia, educación, certificaciones, expertise, seniority y rol reciente.
+- Empresa: palabra clave incluye datos institucionales, actividad inferida y búsquedas publicadas.
+- Filtros combinables con período y botón Limpiar filtros.
+- Sin cambios de esquema de base de datos.

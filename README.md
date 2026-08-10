@@ -1,6 +1,17 @@
-# Talento PyME — v7.9.13
+# Talento PyME — v7.9.14
 
-> **Versión de despliegue confirmada:** 7.9.13 · **Build:** 20260810_03 · Frontend, API y caché PWA alineados.
+> **Versión de despliegue confirmada:** 7.9.14 · **Build:** 20260810_04 · Frontend, API y caché PWA alineados.
+
+
+## v7.9.14 — buscadores dinámicos en Perfiles candidatos y Perfiles empresas
+
+- **Perfiles candidatos:** nuevo desplegable dinámico construido a partir de los tipos de perfil y expertise que existen realmente en el padrón. Cada opción muestra su cantidad y permite elegir una categoría completa o una expertise puntual.
+- **Perfiles empresas:** nuevo desplegable dinámico por familia (Fabricación / Logística / Servicio) y actividad principal existente, también con cantidades.
+- Las subcategorías dinámicas que aparezcan por nuevos perfiles o actividades se incorporan automáticamente al desplegable; no requieren editar una lista manual.
+- Ambos módulos mantienen un **buscador por palabra clave**. En candidatos busca también en presentación profesional, CV, experiencia, educación, certificaciones, especialidad, clasificación y seniority calculado. En empresas incluye actividad inferida, descripción institucional y búsquedas publicadas.
+- Los filtros se pueden combinar: **perfil + palabra clave + período**. “Limpiar filtros” vuelve al padrón completo.
+- La clasificación y los buscadores siguen siendo exclusivos de Administración. No modifican la visibilidad pública ni descartan candidatos o empresas.
+- Sin cambios de Prisma respecto de v7.9.13. Build **20260810_04** y caché PWA **7.9.14**.
 
 ## Funcionalidad consolidada del CV profesional (incorporada desde v7.9.7)
 
@@ -64,8 +75,8 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.13"`
-- API: `apps/api/package.json` → `7.9.13` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.14"`
+- API: `apps/api/package.json` → `7.9.14` y endpoint `/health`.
 
 ## Administración de candidatos y empresas
 - El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.
@@ -139,13 +150,13 @@ Dentro de **Administración > Correo / Consultas** se mantiene la comunicación 
 El límite de 450 se reserva específicamente para comunicaciones generales, dejando un margen prudente para recuperaciones de contraseña, mensajes individuales, reportes y posibles envíos manuales externos. Talento PyME no puede contabilizar los correos que una persona envíe manualmente directamente desde Gmail, por eso se mantiene ese margen.
 
 
-## v7.9.13 — descarga directa de CV candidato
+## v7.9.12 — descarga directa de CV candidato
 
 - Se elimina el botón **Recargar** de Mi Perfil candidato: sólo releía la información guardada y no era necesario para generar el currículum.
 - **Descargar mi CV PDF** genera directamente un PDF nuevo con toda la información guardada del candidato.
 - La descarga ya no queda bloqueada porque la Presentación Personal necesite una nueva Corrección IA.
 - Compatibilidad reforzada para iPhone/iPad, donde el PDF se abre para Guardar/Compartir/Imprimir.
-- Build **20260810_03** y caché PWA **7.9.13** para evitar que quede cargado JavaScript de 7.9.11.
+- Build **20260810_02** y caché PWA **7.9.12** para evitar que quede cargado JavaScript de 7.9.11.
 - Sin cambios de base de datos.
 
 ## v7.9.11 — onboarding, comunicaciones y CV integrado
