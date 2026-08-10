@@ -12,7 +12,7 @@ const candidate=fs.readFileSync(path.join(root,'apps/web/bolsa-candidato.js'),'u
 
 const between=(src,a,b)=>src.slice(src.indexOf(a),src.indexOf(b,src.indexOf(a)+a.length));
 
-test('v7.9.11 obliga a redactar el CV en primera persona y prohíbe voz de evaluador',()=>{
+test('v7.9.12 obliga a redactar el CV en primera persona y prohíbe voz de evaluador',()=>{
   assert.match(api,/AL CANDIDATO A ESCRIBIR SU PROPIO CURRÍCULUM/);
   assert.match(api,/EN PRIMERA PERSONA/);
   assert.match(api,/Está prohibido redactar como evaluador externo/);

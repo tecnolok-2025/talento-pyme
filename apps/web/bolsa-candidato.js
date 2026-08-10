@@ -1,5 +1,4 @@
-/* Talento PyME - v7.9.11 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF */
-const PRESENTATION_REQUIRED_ANALYSIS_VERSION = "AI_V7_7.9.11_VOICE_CV_FUSION";
+/* Talento PyME - v7.9.12 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF directo */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -545,10 +544,9 @@ async function initBolsaCandidato(){
           <div class="tp-hero">
             <div>
               <div class="tp-hero-title">Mi Perfil del candidato</div>
-              <div class="muted">Los datos del registro se cargan por defecto. <b>Recargar</b> vuelve a leer los datos guardados. <b>Guardar cambios</b> confirma y registra las modificaciones del perfil.</div>
+              <div class="muted">Tu perfil muestra la información guardada en Talento PyME. <b>Descargar mi CV PDF</b> genera en ese momento un currículum nuevo con todos tus datos vigentes. Si editás algo, recordá guardar los cambios para que también aparezcan en el próximo PDF.</div>
             </div>
             <div class="tp-hero-actions">
-              <button class="btn secondary" id="btnReloadBolsa" type="button">Recargar</button>
               <button class="btn btn-tech" id="btnDownloadCandidateCv" type="button">Descargar mi CV PDF</button>
               <button class="btn secondary" id="btnSampleCandidateCv" type="button">Ver CV tipo</button>
               <label class="btn secondary tp-upload-btn" for="cvUploadInput">Cargar currículum</label>
@@ -1106,34 +1104,59 @@ async function initBolsaCandidato(){
     return `${yy}${t.month}${t.day}-${t.hour}${t.minute} CV ${full}.pdf`;
   }
 
+  function candidateNeedsIosPdfOpen(){
+    const ua=String(navigator.userAgent || '');
+    const ios=/iPad|iPhone|iPod/i.test(ua);
+    const ipadDesktop=navigator.platform==='MacIntel' && Number(navigator.maxTouchPoints||0)>1;
+    return ios || ipadDesktop;
+  }
+
   async function downloadCandidateCv(){
-    readAltaFromDom();
     const btn=el('btnDownloadCandidateCv');
-    if(btn) btn.disabled=true;
-    okMsg='Preparando tu currículum PDF...'; errMsg=''; render();
+    const originalLabel=btn?.textContent || 'Descargar mi CV PDF';
+    const iosMode=candidateNeedsIosPdfOpen();
+    // En iPhone/iPad abrimos la pestaña dentro del gesto del usuario para que Safari no bloquee el PDF
+    // después del fetch autenticado. En el resto de los navegadores descargamos el archivo normalmente.
+    let iosWindow=null;
+    if(iosMode){
+      try{ iosWindow=window.open('about:blank','_blank'); }catch(_){ iosWindow=null; }
+      if(iosWindow){
+        try{ iosWindow.document.title='Preparando CV · Talento PyME'; iosWindow.document.body.innerHTML='<p style="font-family:Arial,sans-serif;padding:24px">Preparando tu currículum PDF…</p>'; }catch(_){ }
+      }
+    }
+    if(btn){ btn.disabled=true; btn.textContent='Generando PDF…'; }
+    okMsg=''; errMsg='';
     try{
-      // Si hay cambios en edición, los guardamos primero para que el PDF refleje exactamente la versión visible.
-      if(isEditing){
-        await saveAlta({ stayEditing:true, allowPartial:true });
-        if(errMsg) throw new Error(errMsg);
-      }
-      const hasNarrative=String(cand.voiceNarrativeRaw || '').trim().length>0;
-      const analysisCurrent=String(cand.voiceNarrativeAnalysisVersion || '') === PRESENTATION_REQUIRED_ANALYSIS_VERSION;
-      if(hasNarrative && !analysisCurrent){
-        detailsState.d2=true;
-        throw new Error('Antes de descargar el CV, pulsá “Corrección IA profesional” en Presentación Personal. Así Talento PyME integrará tu relato con el CV cargado y evitará información repetida.');
-      }
+      // El CV se genera siempre con la última información YA GUARDADA del candidato.
+      // No exige volver a ejecutar Corrección IA profesional ni realizar un paso previo de “recarga”.
       const headers=new Headers(); const token=tpToken(); if(token) headers.set('Authorization','Bearer '+token);
-      const res=await fetch(`${window.TP_API_URL}/candidate/cv/pdf`,{headers});
-      if(!res.ok){ const d=await res.json().catch(()=>({})); throw new Error(d.error || 'No se pudo generar el currículum.'); }
+      const res=await fetch(`${window.TP_API_URL}/candidate/cv/pdf`,{headers,cache:'no-store'});
+      if(!res.ok){ const d=await res.json().catch(()=>({})); throw new Error(d.error || `No se pudo generar el currículum (HTTP ${res.status}).`); }
       const blob=await res.blob();
+      if(!blob || blob.size<100) throw new Error('El currículum se generó vacío. Volvé a intentarlo.');
       const disposition=res.headers.get('content-disposition') || '';
       const match=disposition.match(/filename="?([^";]+)"?/i);
       const filename=match?.[1] || localCandidateCvFilename();
-      const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1200);
-      okMsg='Currículum generado. Podés imprimirlo o guardarlo y volver a generarlo cuando actualices tu perfil.';
-    }catch(err){ errMsg=err?.message || 'No se pudo generar el currículum.'; okMsg=''; }
-    finally{ if(btn) btn.disabled=false; render(); }
+      const url=URL.createObjectURL(blob);
+      if(iosMode && iosWindow && !iosWindow.closed){
+        iosWindow.location.replace(url);
+        okMsg='Currículum generado. En iPhone/iPad se abre el PDF para que puedas guardarlo, compartirlo o imprimirlo.';
+        setTimeout(()=>URL.revokeObjectURL(url),120000);
+      }else{
+        const a=document.createElement('a');
+        a.href=url; a.download=filename; a.rel='noopener';
+        document.body.appendChild(a); a.click(); a.remove();
+        okMsg='Currículum generado y descargado. Podés volver a generarlo cada vez que actualices tu perfil.';
+        setTimeout(()=>URL.revokeObjectURL(url),60000);
+      }
+    }catch(err){
+      try{ if(iosWindow && !iosWindow.closed) iosWindow.close(); }catch(_){ }
+      errMsg=err?.message || 'No se pudo generar el currículum PDF.'; okMsg='';
+    }finally{
+      const currentBtn=el('btnDownloadCandidateCv');
+      if(currentBtn){ currentBtn.disabled=false; currentBtn.textContent=originalLabel; }
+      render();
+    }
   }
 
   async function viewCandidateSampleCv(){
@@ -1205,8 +1228,6 @@ async function initBolsaCandidato(){
 
     const btnSave = el("btnSaveBolsa");
     if(btnSave) btnSave.addEventListener("click", saveAlta);
-    const btnReload = el("btnReloadBolsa");
-    if(btnReload) btnReload.addEventListener("click", async ()=>{ if(parsingCv) return; await loadMe(); await loadBolsa(); });
     const btnEdit = el("btnEditBolsa");
     if(btnEdit) btnEdit.addEventListener("click", ()=>{ if(parsingCv) return; okMsg=""; errMsg=""; isEditing = true; detailsState.d1 = true; render(); });
     const btnCancel = el("btnCancelEdit");
@@ -1546,7 +1567,7 @@ async function initBolsaCandidato(){
       return;
     }
 
-    // v7.9.11: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
+    // v7.9.12: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
     // cuando el candidato pulsa expresamente “Corrección IA profesional”.
 
     busy = true; render();

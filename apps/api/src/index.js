@@ -3708,12 +3708,19 @@ app.get('/candidate/cv/pdf', auth, requireRole('CANDIDATE'), async (req, res) =>
       },
     });
     if(!candidate) return res.status(404).json({ error:'Candidato no encontrado.' });
-    const classification=buildCandidateAdminClassification(candidate);
+    // La clasificación es un enriquecimiento del CV, nunca una condición para poder descargarlo.
+    // Si un registro histórico tiene algún dato atípico, generamos igualmente el PDF con la información disponible.
+    let classification={};
+    try{ classification=buildCandidateAdminClassification(candidate) || {}; }
+    catch(classificationError){ console.warn('candidate cv classification fallback', req.user.id, classificationError?.message || classificationError); }
     const pdf=await buildCandidateCvPdfBuffer({ user:{id:candidate.id,email:candidate.email}, profile:candidate.candidateProfile, bolsa:candidate.candidateBolsa, resume:candidate.resume, classification });
+    if(!Buffer.isBuffer(pdf) || pdf.length<100) throw new Error('El generador devolvió un PDF vacío.');
     const filename=buildCandidateCvFilename({ profile:candidate.candidateProfile, bolsa:candidate.candidateBolsa }, new Date());
     res.setHeader('Content-Type','application/pdf');
     res.setHeader('Content-Disposition',`attachment; filename="${filename.replace(/"/g,'')}"`);
-    res.setHeader('Cache-Control','no-store');
+    res.setHeader('Content-Length',String(pdf.length));
+    res.setHeader('Cache-Control','no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma','no-cache');
     return res.send(pdf);
   }catch(err){
     console.error('GET /candidate/cv/pdf', err);
@@ -4243,7 +4250,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.9.11 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.9.12 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
