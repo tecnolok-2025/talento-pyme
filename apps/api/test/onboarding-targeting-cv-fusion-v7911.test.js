@@ -16,7 +16,7 @@ const register=fs.readFileSync(path.join(repo,'web/index.html'),'utf8');
 const admin=fs.readFileSync(path.join(repo,'web/admin.html'),'utf8');
 const pkg=JSON.parse(fs.readFileSync(path.join(apiRoot,'package.json'),'utf8'));
 
-test('v7.9.12 unifica versión',()=>assert.equal(pkg.version,'7.9.12'));
+test('v7.9.13 unifica versión',()=>assert.equal(pkg.version,'7.9.13'));
 test('comunicación segura queda por defecto sólo para no informados',()=>{
   assert.match(admin,/communicationOnlyUnsent[^>]+checked/);
   assert.match(admin,/onlyUnsent:true/);

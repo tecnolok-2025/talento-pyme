@@ -16,7 +16,7 @@ function functionBlock(source,name,nextName){
   return source.slice(a,b>0?b:source.length);
 }
 
-test('v7.9.12 separa resumen breve izquierdo de presentación ampliada derecha',()=>{
+test('v7.9.13 separa resumen breve izquierdo de presentación ampliada derecha',()=>{
   assert.match(cv,/function buildSidebarAbout/);
   assert.match(cv,/const sideAbout=buildSidebarAbout\(data,presentation\)/);
   assert.match(cv,/clampParagraphs\(b\.voiceNarrativeSummary/);

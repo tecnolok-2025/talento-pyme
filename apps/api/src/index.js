@@ -3316,6 +3316,112 @@ function experienceRangeFromYears(years){
   return '31+';
 }
 
+
+function normalizeCvYear(yearValue, nowYear = new Date().getFullYear()){
+  const raw=String(yearValue ?? '').trim().toLowerCase();
+  if(!raw) return null;
+  if(/actualidad|actual|presente|hoy|current|present/.test(raw)) return nowYear;
+  const n=Number(raw);
+  if(!Number.isFinite(n)) return null;
+  if(n >= 1900 && n <= nowYear + 1) return n;
+  if(n >= 0 && n <= 99){
+    const pivot=(nowYear % 100) + 1;
+    return n <= pivot ? 2000 + n : 1900 + n;
+  }
+  return null;
+}
+
+function estimateExperienceYearsFromResumeDates(text=''){
+  const raw=String(text || '').replace(/[‐‑‒–—]/g,'-');
+  if(!raw.trim()) return { years:null, intervalsCount:0, basis:'' };
+  const now=new Date();
+  const nowYear=now.getFullYear();
+  const nowMonth=now.getMonth()+1;
+  const intervals=[];
+  const addInterval=(startYear,startMonth,endYear,endMonth)=>{
+    const sy=normalizeCvYear(startYear,nowYear);
+    const ey=normalizeCvYear(endYear,nowYear);
+    if(!sy || !ey || ey < sy || sy < 1950 || ey > nowYear + 1) return;
+    const sm=Math.max(1,Math.min(12,Number(startMonth)||1));
+    const em=Math.max(1,Math.min(12,Number(endMonth)||12));
+    const start=(sy*12)+(sm-1);
+    const end=(ey*12)+(em-1);
+    if(end < start || (end-start) > 65*12) return;
+    intervals.push([start,end]);
+  };
+
+  // Ejemplos: 1998-2012 / 2012-presente.
+  const yearRange=/\b((?:19|20)\d{2})\s*(?:-|\ba\b|\bal\b|\bhasta\b|\bto\b)\s*((?:19|20)\d{2}|actualidad|actual|presente|hoy|current|present)\b/gi;
+  for(const m of raw.matchAll(yearRange)){
+    const endToken=String(m[2] || '').toLowerCase();
+    addInterval(m[1],1,m[2],/actualidad|actual|presente|hoy|current|present/.test(endToken)?nowMonth:12);
+  }
+
+  // Ejemplos: 04/24-01/26 / 05/2010-actualidad.
+  const monthRange=/\b(0?[1-9]|1[0-2])[\/.](\d{2,4})\s*(?:-|\ba\b|\bal\b|\bhasta\b|\bto\b)\s*(?:(0?[1-9]|1[0-2])[\/.])?(\d{2,4}|actualidad|actual|presente|hoy|current|present)\b/gi;
+  for(const m of raw.matchAll(monthRange)){
+    const endToken=String(m[4] || '').toLowerCase();
+    addInterval(m[2],m[1],m[4],m[3] || (/actualidad|actual|presente|hoy|current|present/.test(endToken)?nowMonth:12));
+  }
+
+  if(intervals.length){
+    intervals.sort((a,b)=>a[0]-b[0] || a[1]-b[1]);
+    const merged=[];
+    for(const interval of intervals){
+      const last=merged[merged.length-1];
+      if(!last || interval[0] > last[1] + 1) merged.push([...interval]);
+      else last[1]=Math.max(last[1],interval[1]);
+    }
+    const months=merged.reduce((sum,[a,b])=>sum+(b-a+1),0);
+    const years=Math.max(1,Math.min(65,Math.round(months/12)));
+    return { years, intervalsCount:intervals.length, basis:`${intervals.length} período(s) laboral(es) fechado(s) detectado(s) en el CV` };
+  }
+
+  // Respaldo: si la sección Experiencia contiene varios años, usa el tramo cronológico.
+  const years=[...raw.matchAll(/\b((?:19|20)\d{2})\b/g)]
+    .map((m)=>Number(m[1]))
+    .filter((y)=>y>=1950 && y<=nowYear+1);
+  if(years.length>=2){
+    const min=Math.min(...years), max=Math.max(...years);
+    const span=max-min;
+    if(span>=2 && span<=65) return { years:span, intervalsCount:0, basis:'Tramo cronológico detectado en la sección de experiencia del CV' };
+  }
+  return { years:null, intervalsCount:0, basis:'' };
+}
+
+function candidateExperienceEvidence(candidate = {}){
+  const bolsa=candidate.candidateBolsa || {};
+  const resume=candidate.resume || {};
+  const voiceText=[bolsa.voiceNarrativeRaw,bolsa.voiceNarrativeSummary,bolsa.observaciones].filter(Boolean).join(' ');
+  const cvText=[resume.summary,resume.experience,resume.observations].filter(Boolean).join(' ');
+  const storedYears=Number(bolsa.voiceNarrativeYears);
+  const candidates=[];
+  if(Number.isFinite(storedYears) && storedYears>=0 && storedYears<=65) candidates.push({years:storedYears,source:'Presentación personal procesada'});
+  const voiceYears=extractExplicitYearsFromText(voiceText);
+  if(voiceYears!==null) candidates.push({years:voiceYears,source:'Años explícitos en la presentación personal'});
+  const cvExplicitYears=extractExplicitYearsFromText(cvText);
+  if(cvExplicitYears!==null) candidates.push({years:cvExplicitYears,source:'Años explícitos en el CV / antecedentes curriculares'});
+  const cvDates=estimateExperienceYearsFromResumeDates(resume.experience || '');
+  if(cvDates.years!==null) candidates.push({years:cvDates.years,source:cvDates.basis || 'Fechas laborales del CV'});
+  candidates.sort((a,b)=>b.years-a.years);
+  const best=candidates[0] || null;
+  const resumeExperienceLength=String(resume.experience || '').trim().length;
+  const resumeSummaryLength=String(resume.summary || '').trim().length;
+  const cvStrong=!!(cvDates.years!==null || cvExplicitYears!==null || resumeExperienceLength>=260 || resumeSummaryLength>=220);
+  const sources=[];
+  if(String(resume.summary || resume.experience || resume.education || resume.certifications || resume.observations || '').trim()) sources.push('CV / antecedentes curriculares');
+  if(String(bolsa.voiceNarrativeSummary || bolsa.voiceNarrativeRaw || '').trim()) sources.push('Presentación personal');
+  if(String(bolsa.areaTrabajo || bolsa.especialidad || bolsa.ultimoTrabajo || bolsa.rangoExperiencia || '').trim()) sources.push('Perfil declarado');
+  return {
+    years:best?.years ?? null,
+    source:best?.source || '',
+    cvYears:cvExplicitYears ?? cvDates.years ?? null,
+    cvIntervalsCount:cvDates.intervalsCount || 0,
+    cvStrong,
+    sources,
+  };
+}
+
 function inferLocalProfessionalTitle(text='', context={}){
   const raw=String(text || '');
   const n=professionalNorm(raw);
@@ -4250,7 +4356,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.9.12 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.9.13 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
@@ -6126,21 +6232,27 @@ function candidateRecentRoleLabel(candidate = {}){
 function inferAdminCandidateExpertise(candidate = {}){
   const bolsa = candidate.candidateBolsa || {};
   const profile = candidate.candidateProfile || {};
+  const resume = candidate.resume || {};
   const current = candidateCurrentProfessionalText(candidate);
-  const recent = candidateRecentProfessionalText(candidate);
+  const cvRecent = adminNormText([
+    String(resume.experience || '').slice(0, 2600),
+    String(resume.summary || '').slice(0, 1400),
+  ].filter(Boolean).join(' '));
+  const cvAll = adminNormText([resume.summary,resume.experience,resume.education,resume.certifications,resume.observations].filter(Boolean).join(' '));
+  const voice = adminNormText([bolsa.voiceNarrativeProfessionalTitle,bolsa.voiceNarrativeSummary,bolsa.voiceNarrativeRaw].filter(Boolean).join(' '));
   const allText = candidateAllProfessionalText(candidate);
   const rules = [
     ['LOGISTICA', ['logistica','transporte','comercio exterior','comex','deposito','chofer','clark','autoelevador','despachante','ruteador','forwarder','supply chain']],
     ['INSTRUMENTACION', ['instrumentacion','instrumentista','automatizacion','automatista','plc','scada','dcs','calibracion']],
-    ['ELECTRICA', ['electrica','electricista','tablerista','media tension','alta tension','bobinador','protecciones rele']],
+    ['ELECTRICA', ['electrica','electricista','tablerista','media tension','alta tension','bobinador','protecciones rele','subestacion','unifilar','trifilar','canalizacion electrica']],
     ['MECANICA', ['mecanica','mecanico','bombas','valvulas','compresores','turbomaquinas','hidraulica','neumatica','tornero','fresador','mecanizado']],
     ['SOLDADURA_MONTAJE', ['soldadura','soldador','caneria','canero','montaje','montajista','caldereria','calderero','piping']],
-    ['MANTENIMIENTO', ['mantenimiento','planner mantenimiento','lubricacion','inspector de mantenimiento','confiabilidad']],
+    ['MANTENIMIENTO', ['mantenimiento','planner mantenimiento','lubricacion','inspector de mantenimiento','confiabilidad','preventivo','correctivo','predictivo']],
     ['PRODUCCION', ['produccion','operador de planta','operador de proceso','sala de control','utilidades','manufactura']],
     ['CALIDAD_HSE', ['calidad','qa qc','inspector','ensayo no destructivo','seguridad higiene','hse','brigadista','iso 9001']],
     ['PLANIFICACION', ['planificacion','planificador','programacion','control de costos','primavera p6','ms project']],
-    ['PROYECTOS', ['project manager','gerente de proyecto','jefe de proyecto','coordinador de proyecto','proyectos industriales']],
-    ['INGENIERIA', ['ingenieria','ingeniero','proyectista','oficina tecnica','cad','bim','calculista','calculo','dibujante tecnico']],
+    ['PROYECTOS', ['project manager','gerente de proyecto','jefe de proyecto','coordinador de proyecto','proyectos industriales','direccion de proyecto']],
+    ['INGENIERIA', ['ingenieria','ingeniero','proyectista','oficina tecnica','cad','bim','calculista','calculo','dibujante tecnico','ingenieria de detalle']],
     ['CONSTRUCCION', ['construccion','obra civil','albanil','hormigon','encofrador','fierrero','andamiero','gruista','excavadora']],
     ['AMBIENTE', ['sustentabilidad','medio ambiente','gestion ambiental','huella de carbono','iso 14001','esg','residuos']],
     ['IT', ['software','helpdesk','sistemas','redes','ciberseguridad','frontend','backend','full stack','devops','data bi','testing','programador']],
@@ -6154,13 +6266,18 @@ function inferAdminCandidateExpertise(candidate = {}){
   ];
   const ranked = rules.map(([key, words], order) => {
     const currentHits = countAdminKeywords(current, words);
-    const recentHits = countAdminKeywords(recent, words);
+    const cvRecentHits = countAdminKeywords(cvRecent, words);
+    const cvAllHits = countAdminKeywords(cvAll, words);
+    const voiceHits = countAdminKeywords(voice, words);
     const allHits = countAdminKeywords(allText, words);
-    return { key, words, order, currentHits, recentHits, allHits, score:(currentHits * 8) + (recentHits * 3) + allHits };
-  }).sort((a,b) => b.score - a.score || b.currentHits - a.currentHits || b.recentHits - a.recentHits || a.order - b.order);
+    // v7.9.13: el CV completo deja de ser un simple fallback. Cuando existe,
+    // participa fuertemente de la detección de expertise junto con el rol reciente.
+    return { key, words, order, currentHits, cvRecentHits, cvAllHits, voiceHits, allHits,
+      score:(currentHits * 14) + (cvRecentHits * 5) + (voiceHits * 4) + cvAllHits };
+  }).sort((a,b) => b.score - a.score || b.currentHits - a.currentHits || b.cvRecentHits - a.cvRecentHits || b.cvAllHits - a.cvAllHits || a.order - b.order);
   const best = ranked[0];
   if(best?.score > 0){
-    const source = best.currentHits > 0 ? 'RECENT' : (best.recentHits > 0 ? 'CV_RECIENTE' : 'GENERAL');
+    const source = best.currentHits > 0 ? 'RECENT' : (best.cvRecentHits > 0 ? 'CV_RECIENTE' : (best.cvAllHits > 0 ? 'CV_COMPLETO' : (best.voiceHits > 0 ? 'PRESENTACION' : 'GENERAL')));
     return { key:best.key, label:ADMIN_EXPERTISE_LABELS[best.key], source };
   }
   const raw = [bolsa.especialidadOtro, bolsa.especialidad, bolsa.areaTrabajo, profile.headline]
@@ -6173,57 +6290,15 @@ function inferAdminCandidateExpertise(candidate = {}){
   return { key:'GENERAL', label:ADMIN_EXPERTISE_LABELS.GENERAL, source:'FALLBACK' };
 }
 
-function inferAdminCandidateClass(candidate = {}){
-  const bolsa = candidate.candidateBolsa || {};
-  const profile = candidate.candidateProfile || {};
-  const resume = candidate.resume || {};
-  const level = adminNormText(bolsa.nivel);
-  const area = adminNormText(bolsa.areaTrabajo);
-  const education = adminNormText(bolsa.nivelEducativo);
-  const current = candidateCurrentProfessionalText(candidate);
-  const recent = candidateRecentProfessionalText(candidate);
-  const text = candidateAllProfessionalText(candidate);
-  const roleText = current || recent;
-  const apprenticeWords = ['pasante','pasantia','aprendiz','trainee','primer empleo','sin experiencia','estudiante','practica profesional'];
-  if(apprenticeWords.some((word) => roleText.includes(adminNormText(word))) && !/(supervisor|jefe|gerente|senior)/.test(roleText)){
-    return { key:'APRENDIZ', label:ADMIN_CANDIDATE_CLASS_LABELS.APRENDIZ, reason:'Perfil inicial, pasantía, aprendizaje o primer empleo detectado en la actividad más reciente' };
-  }
-  const executiveWords = ['gerente','gerencia','director','direccion','head of','country manager','plant manager','manager general'];
-  if(executiveWords.some((word) => roleText.includes(adminNormText(word)))){
-    return { key:'GERENCIAL', label:ADMIN_CANDIDATE_CLASS_LABELS.GERENCIAL, reason:'Responsabilidad gerencial o de dirección detectada en la actividad más reciente' };
-  }
-  const supervisorWords = ['supervisor','supervision','jefe','jefatura','capataz','encargado','coordinador','responsable de turno','lider de equipo','lider de cuadrilla'];
-  if(level === 'supervisor' || area.includes('supervision') || supervisorWords.some((word) => roleText.includes(adminNormText(word)))){
-    return { key:'SUPERVISION', label:ADMIN_CANDIDATE_CLASS_LABELS.SUPERVISION, reason:'Nivel o actividad reciente de conducción detectada' };
-  }
-  const professionalWords = ['ingeniero','ingeniera','licenciado','licenciada','arquitecto','arquitecta','project manager','analista senior'];
-  if(professionalWords.some((word) => roleText.includes(adminNormText(word)))){
-    return { key:'PROFESIONAL', label:ADMIN_CANDIDATE_CLASS_LABELS.PROFESIONAL, reason:'Función profesional detectada en la actividad reciente' };
-  }
-  if(/administrativ|recursos humanos|rrhh|finanzas|contabilidad|tesoreria|facturacion|comercial|ventas|compras|abastecimiento/.test(roleText) || area.includes('administrativo')){
-    return { key:'ADMINISTRATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.ADMINISTRATIVO, reason:'Área administrativa, comercial o de gestión detectada en la actividad reciente' };
-  }
-  const technicalWords = ['tecnico','tecnica','instrumentista','automatista','proyectista','inspector qa qc','seguridad e higiene','planificador','programador','analista comex','administrador de sistemas','desarrollador','devops'];
-  if(level === 'tecnico' || education === 'terciaria' || technicalWords.some((word) => roleText.includes(adminNormText(word)))){
-    return { key:'TECNICO', label:ADMIN_CANDIDATE_CLASS_LABELS.TECNICO, reason:'Nivel técnico o especialidad técnica detectada en la actividad reciente' };
-  }
-  if(education === 'universitaria' && text.length > 0){
-    return { key:'PROFESIONAL', label:ADMIN_CANDIDATE_CLASS_LABELS.PROFESIONAL, reason:'Formación universitaria detectada sin otra función reciente más específica' };
-  }
-  const hasLaboralData = !!String(bolsa.areaTrabajo || bolsa.especialidad || bolsa.ultimoTrabajo || resume.summary || resume.experience || '').trim();
-  if(hasLaboralData){
-    return { key:'OPERATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.OPERATIVO, reason:'Perfil operativo u oficio detectado; la expertise específica se conserva como subcategoría' };
-  }
-  return { key:'APRENDIZ', label:ADMIN_CANDIDATE_CLASS_LABELS.APRENDIZ, reason:'Información profesional todavía escasa; se integra como perfil inicial en lugar de dejarlo sin clasificar' };
-}
-
 function scoreCandidateProfessionalProfile(candidate = {}){
   // Indicador exclusivamente profesional: NO usa edad, foto, género, nacionalidad,
   // estado civil, hijos, dirección, salario ni ningún otro atributo personal sensible.
+  // v7.9.13: siempre relee perfil + presentación + antecedentes curriculares completos.
   const bolsa = candidate.candidateBolsa || {};
   const resume = candidate.resume || {};
   const recent = candidateRecentProfessionalText(candidate);
   const allText = candidateAllProfessionalText(candidate);
+  const cvText = adminNormText([resume.summary,resume.experience,resume.education,resume.certifications,resume.observations].filter(Boolean).join(' '));
   const range = String(bolsa.rangoExperiencia || '').trim().replace(/\s/g,'');
   const experienceBase = {
     '0–1':20, '0-1':20,
@@ -6233,32 +6308,37 @@ function scoreCandidateProfessionalProfile(candidate = {}){
     '21–30':88, '21-30':88,
     '31+':94,
   };
-  const storedYears=Number(bolsa.voiceNarrativeYears);
-  const explicitYears=Number.isFinite(storedYears) && storedYears >= 0
-    ? storedYears
-    : extractExplicitYearsFromText([
-        bolsa.voiceNarrativeRaw, bolsa.voiceNarrativeSummary, resume.summary, resume.experience, bolsa.observaciones
-      ].filter(Boolean).join(' '));
+  const exp = candidateExperienceEvidence(candidate);
+  const explicitYears = exp.years;
   let score = explicitYears !== null ? experienceBase[experienceRangeFromYears(explicitYears)] : (experienceBase[range] ?? null);
   const evidence = [];
-  if(explicitYears !== null) evidence.push(`${explicitYears} años de experiencia detectados en la información profesional`);
+  if(explicitYears !== null) evidence.push(`${explicitYears} años de experiencia detectados · ${exp.source}`);
   else if(score !== null) evidence.push(`Experiencia declarada ${String(bolsa.rangoExperiencia || '').trim()} años`);
+  if(exp.sources.length) evidence.push(`Fuentes leídas: ${exp.sources.join(' + ')}`);
+
   const apprenticeHit = /(pasante|pasantia|aprendiz|trainee|primer empleo|sin experiencia|estudiante)/.test(recent);
   const juniorHit = /\bjunior\b|\bjr\b/.test(recent);
   const semiHit = /semi senior|semisenior|semi-senior|\bssr\b/.test(recent);
-  const seniorHit = /\bsenior\b|\bsr\b/.test(recent);
-  const leadershipHit = /(supervisor|supervision|jefe|jefatura|coordinador|lider de equipo|lider de cuadrilla|capataz|encargado)/.test(recent);
-  const executiveHit = /(gerente|gerencia|director|direccion|head of|plant manager)/.test(recent);
+  const seniorHit = /\bsenior\b|\bsr\b/.test(`${recent} ${cvText}`);
+  const leadershipHit = /(supervisor|supervision|jefe|jefatura|coordinador|lider de equipo|lider de cuadrilla|capataz|encargado|responsable de turno)/.test(`${recent} ${cvText}`);
+  const executiveHit = /(gerente|gerencia|director|direccion|head of|plant manager|country manager)/.test(`${recent} ${cvText}`);
+  const cvRoleHits = (cvText.match(/\b(supervisor|jefe|gerente|ingeniero|tecnico|analista|coordinador|responsable|operador|proyectista|especialista|encargado)\b/g) || []).length;
+
   if(score === null){
     if(seniorHit || executiveHit) score = 78;
     else if(semiHit || leadershipHit) score = 60;
+    else if(exp.cvStrong && (exp.cvIntervalsCount >= 2 || cvRoleHits >= 3)) score = 52;
     else if(juniorHit) score = 32;
-    else if(apprenticeHit) score = 15;
+    else if(apprenticeHit && !exp.cvStrong) score = 15;
     else score = allText.length > 450 ? 42 : (allText.length > 120 ? 30 : 18);
   }
-  if(executiveHit){ score += 8; evidence.push('Responsabilidad gerencial/directiva reciente'); }
-  else if(leadershipHit){ score += 6; evidence.push('Responsabilidad de supervisión o coordinación'); }
-  // La experiencia explícita tiene prioridad sobre palabras sueltas como “junior”.
+
+  // El CV puede corregir un rango de experiencia inicial cargado de manera incompleta.
+  if(exp.cvStrong && exp.cvIntervalsCount >= 2 && score < 50){ score = 50; evidence.push('Trayectoria cronológica consistente detectada en antecedentes curriculares'); }
+  if(executiveHit){ score += 8; evidence.push('Responsabilidad gerencial/directiva detectada'); }
+  else if(leadershipHit){ score += 6; evidence.push('Responsabilidad de supervisión o coordinación detectada'); }
+
+  // La experiencia explícita tiene prioridad sobre palabras sueltas. La evidencia cronológica del CV también tiene prioridad sobre un rango mal cargado.
   if(explicitYears !== null){
     if(explicitYears >= 31) score = Math.max(score, 94);
     else if(explicitYears >= 21) score = Math.max(score, 88);
@@ -6266,16 +6346,18 @@ function scoreCandidateProfessionalProfile(candidate = {}){
     else if(explicitYears >= 6) score = Math.max(score, 60);
     else if(explicitYears >= 2) score = Math.max(score, 40);
   }
-  if(seniorHit){ score = Math.max(score, 78); evidence.push('Señal explícita de seniority senior'); }
+  if(seniorHit){ score = Math.max(score, 78); evidence.push('Señal explícita de seniority senior en la información profesional'); }
   if(semiHit && explicitYears === null){ score = Math.max(score, 58); evidence.push('Señal explícita de seniority semi-senior'); }
-  if(juniorHit && (explicitYears === null || explicitYears <= 5)){ score = Math.min(score, 44); evidence.push('Señal explícita de seniority junior'); }
-  if(apprenticeHit && !leadershipHit && !executiveHit && (explicitYears === null || explicitYears <= 1)){ score = Math.min(score, 24); evidence.push('Pasantía, aprendizaje o primer empleo'); }
+  if(juniorHit && !exp.cvStrong && (explicitYears === null || explicitYears <= 5)){ score = Math.min(score, 44); evidence.push('Señal explícita de seniority junior'); }
+  if(apprenticeHit && !exp.cvStrong && !leadershipHit && !executiveHit && (explicitYears === null || explicitYears <= 1)){ score = Math.min(score, 24); evidence.push('Pasantía, aprendizaje o primer empleo'); }
+
   if(bolsa.trabajaActualmente){ score += 2; evidence.push('Actividad laboral actual informada'); }
   if(['terciaria','universitaria'].includes(adminNormText(bolsa.nivelEducativo))){ score += 2; }
   if(bolsa.tieneCapacitacion || String(resume.certifications || '').trim()){ score += 2; }
-  if(String(resume.experience || '').trim().length >= 300){ score += 2; }
+  if(String(resume.experience || '').trim().length >= 300){ score += 2; evidence.push('Antecedentes laborales desarrollados en el CV'); }
   if(String(resume.summary || '').trim().length >= 180){ score += 1; }
   if(String(bolsa.voiceNarrativeSummary || '').trim().length >= 120){ score += 2; evidence.push('Presentación profesional procesada disponible'); }
+
   score = Math.max(0, Math.min(100, Math.round(score)));
   let seniorityKey = 'APRENDIZ';
   let seniorityLabel = 'Aprendiz / Pasante';
@@ -6287,14 +6369,63 @@ function scoreCandidateProfessionalProfile(candidate = {}){
     seniorityKey,
     seniorityLabel,
     explicitYearsExperience:explicitYears,
-    scoreBasis:evidence.slice(0, 5).join(' · ') || 'Estimación por evidencia profesional disponible',
+    experienceEvidenceSource:exp.source || (score !== null ? 'Perfil profesional disponible' : ''),
+    professionalSourcesUsed:exp.sources,
+    cvEvidenceUsed:exp.sources.includes('CV / antecedentes curriculares'),
+    scoreBasis:evidence.slice(0, 7).join(' · ') || 'Estimación por evidencia profesional disponible',
   };
 }
 
+function inferAdminCandidateClass(candidate = {}, scoring = {}){
+  const bolsa = candidate.candidateBolsa || {};
+  const resume = candidate.resume || {};
+  const level = adminNormText(bolsa.nivel);
+  const area = adminNormText(bolsa.areaTrabajo);
+  const education = adminNormText(bolsa.nivelEducativo);
+  const current = candidateCurrentProfessionalText(candidate);
+  const recent = candidateRecentProfessionalText(candidate);
+  const text = candidateAllProfessionalText(candidate);
+  const cvRoleText = adminNormText([resume.summary,resume.experience].filter(Boolean).join(' '));
+  const roleText = current || recent;
+  const strongEvidenceText = `${roleText} ${scoring.cvEvidenceUsed ? cvRoleText : ''}`.trim();
+  const apprenticeWords = ['pasante','pasantia','aprendiz','trainee','primer empleo','sin experiencia','estudiante','practica profesional'];
+  if(scoring.seniorityKey === 'APRENDIZ' && !scoring.cvEvidenceUsed && apprenticeWords.some((word) => roleText.includes(adminNormText(word))) && !/(supervisor|jefe|gerente|senior)/.test(roleText)){
+    return { key:'APRENDIZ', label:ADMIN_CANDIDATE_CLASS_LABELS.APRENDIZ, reason:'Perfil inicial, pasantía, aprendizaje o primer empleo detectado sin antecedentes curriculares que indiquen una trayectoria superior' };
+  }
+  const executiveWords = ['gerente','gerencia','director','direccion','head of','country manager','plant manager','manager general'];
+  if(executiveWords.some((word) => strongEvidenceText.includes(adminNormText(word)))){
+    return { key:'GERENCIAL', label:ADMIN_CANDIDATE_CLASS_LABELS.GERENCIAL, reason:'Responsabilidad gerencial o de dirección detectada en perfil, presentación o antecedentes curriculares' };
+  }
+  const supervisorWords = ['supervisor','supervision','jefe','jefatura','capataz','encargado','coordinador','responsable de turno','lider de equipo','lider de cuadrilla'];
+  if(level === 'supervisor' || area.includes('supervision') || supervisorWords.some((word) => strongEvidenceText.includes(adminNormText(word)))){
+    return { key:'SUPERVISION', label:ADMIN_CANDIDATE_CLASS_LABELS.SUPERVISION, reason:'Conducción, supervisión o coordinación detectada en la información profesional completa' };
+  }
+  const professionalWords = ['ingeniero','ingeniera','licenciado','licenciada','arquitecto','arquitecta','project manager','analista senior','profesional'];
+  if(professionalWords.some((word) => strongEvidenceText.includes(adminNormText(word)))){
+    return { key:'PROFESIONAL', label:ADMIN_CANDIDATE_CLASS_LABELS.PROFESIONAL, reason:'Función profesional detectada en perfil, presentación o CV' };
+  }
+  if(/administrativ|recursos humanos|rrhh|finanzas|contabilidad|tesoreria|facturacion|comercial|ventas|compras|abastecimiento/.test(strongEvidenceText) || area.includes('administrativo')){
+    return { key:'ADMINISTRATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.ADMINISTRATIVO, reason:'Área administrativa, comercial o de gestión detectada en la información profesional completa' };
+  }
+  const technicalWords = ['tecnico','tecnica','instrumentista','automatista','proyectista','inspector qa qc','seguridad e higiene','planificador','programador','analista comex','administrador de sistemas','desarrollador','devops','especialista'];
+  if(level === 'tecnico' || education === 'terciaria' || technicalWords.some((word) => strongEvidenceText.includes(adminNormText(word)))){
+    return { key:'TECNICO', label:ADMIN_CANDIDATE_CLASS_LABELS.TECNICO, reason:'Nivel técnico o especialidad técnica detectada en perfil, presentación o antecedentes curriculares' };
+  }
+  if(education === 'universitaria' && text.length > 0){
+    return { key:'PROFESIONAL', label:ADMIN_CANDIDATE_CLASS_LABELS.PROFESIONAL, reason:'Formación universitaria detectada sin otra función más específica' };
+  }
+  const hasLaboralData = !!String(bolsa.areaTrabajo || bolsa.especialidad || bolsa.ultimoTrabajo || resume.summary || resume.experience || '').trim();
+  if(hasLaboralData){
+    return { key:'OPERATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.OPERATIVO, reason:'Perfil operativo u oficio detectado; la expertise específica se conserva como subcategoría' };
+  }
+  return { key:'APRENDIZ', label:ADMIN_CANDIDATE_CLASS_LABELS.APRENDIZ, reason:'Información profesional todavía escasa; se integra como perfil inicial en lugar de dejarlo sin clasificar' };
+}
+
 function buildCandidateAdminClassification(candidate = {}){
-  const primary = inferAdminCandidateClass(candidate);
-  const expertise = inferAdminCandidateExpertise(candidate);
+  // Nunca se persiste una calificación vieja: cada llamada relee toda la información vigente.
   const scoring = scoreCandidateProfessionalProfile(candidate);
+  const primary = inferAdminCandidateClass(candidate, scoring);
+  const expertise = inferAdminCandidateExpertise(candidate);
   return {
     classKey:primary.key,
     classLabel:primary.label,

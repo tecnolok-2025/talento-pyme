@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.9.12" />
+  <link rel="stylesheet" href="/styles.css?v=7.9.13" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -510,8 +510,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.9.12"></script>
-<script src="/auth.js?v=7.9.12"></script>
+<script src="/config.js?v=7.9.13"></script>
+<script src="/auth.js?v=7.9.13"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -657,6 +657,9 @@ function renderCandidateDetail(it){
       candidateField('Actividad / rol más reciente utilizado', adminClass.recentRole),
       candidateField('Nivel estimado', adminClass.seniorityLabel),
       candidateField('Índice de trayectoria', Number.isFinite(Number(adminClass.profileScore)) ? `${Number(adminClass.profileScore)}%` : 'No disponible'),
+      candidateField('Años de experiencia detectados', Number.isFinite(Number(adminClass.explicitYearsExperience)) ? `${Number(adminClass.explicitYearsExperience)} año(s)` : 'No se pudo determinar con precisión'),
+      candidateField('Fuente principal de experiencia', adminClass.experienceEvidenceSource),
+      candidateField('Fuentes profesionales analizadas', Array.isArray(adminClass.professionalSourcesUsed) ? adminClass.professionalSourcesUsed.join(' + ') : ''),
       candidateField('Base del indicador', adminClass.scoreBasis),
       candidateField('Criterio de clasificación', adminClass.reason),
       candidateField('Aclaración', 'Indicador administrativo orientativo basado únicamente en antecedentes profesionales informados. No constituye una recomendación automática de contratación.'),
@@ -1724,7 +1727,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v7.9.12: el estado de la cola se refresca mientras Administración permanece abierto.
+// v7.9.13: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();
