@@ -54,6 +54,11 @@ model User {
   candidateKeepIndefinitely Boolean  @default(true)
   bulkEmailOptOutAt         DateTime?
   bulkEmailOptOutReason     String?
+  welcomeEmailQueuedAt       DateTime?
+  welcomeEmailSentAt         DateTime?
+  welcomeEmailAttempts       Int      @default(0)
+  welcomeEmailLastAttemptAt  DateTime?
+  welcomeEmailLastError      String?
   createdAt                 DateTime @default(now())
 
   candidateProfile Profile?
@@ -82,6 +87,8 @@ model AdminCommunication {
   completedAt         DateTime?
   waitingUntil        DateTime?
   lastError           String?
+  recipientMode       String   @default("UNSENT_ONLY")
+  skippedPreviouslySentCount Int @default(0)
   createdAt           DateTime @default(now())
 
   recipients          AdminCommunicationRecipient[]
@@ -118,6 +125,7 @@ model Profile {
   dni         String?  @unique
   city        String?
   province    String?
+  country     String?
   phone       String?
   address     String?
   headline    String?

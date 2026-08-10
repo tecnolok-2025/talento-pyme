@@ -1,4 +1,5 @@
-/* Talento PyME - v7.9.10 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF */
+/* Talento PyME - v7.9.11 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF */
+const PRESENTATION_REQUIRED_ANALYSIS_VERSION = "AI_V7_7.9.11_VOICE_CV_FUSION";
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -549,6 +550,7 @@ async function initBolsaCandidato(){
             <div class="tp-hero-actions">
               <button class="btn secondary" id="btnReloadBolsa" type="button">Recargar</button>
               <button class="btn btn-tech" id="btnDownloadCandidateCv" type="button">Descargar mi CV PDF</button>
+              <button class="btn secondary" id="btnSampleCandidateCv" type="button">Ver CV tipo</button>
               <label class="btn secondary tp-upload-btn" for="cvUploadInput">Cargar currículum</label>
               <input id="cvUploadInput" type="file" accept=".pdf,.docx,.txt" hidden />
               ${isEditing ? `
@@ -628,7 +630,8 @@ async function initBolsaCandidato(){
             <section class="tp-retention-card">
               <div class="tp-mini-label">Conservación del perfil curricular</div>
               <div class="tp-mini-value">Tu perfil curricular se conservará por <b>2 años desde su última actualización</b>. Si querés mantenerlo activo, actualizá tus datos periódicamente para seguir visible en las búsquedas de empresas.</div>
-              <div class="muted small" style="margin-top:10px"><b>Cómo funciona:</b> cuando cargás un CV en PDF, DOCX o TXT, el sistema no guarda el archivo original de forma permanente. Extrae la información más importante, genera un resumen curricular optimizado y conserva solamente ese contenido resumido para acelerar búsquedas, reducir almacenamiento y mantener actualizado tu perfil profesional.</div>
+              <div class="muted small" style="margin-top:10px"><b>Cómo funciona:</b> cuando cargás un CV en PDF, DOCX o TXT, el sistema no guarda el archivo original de forma permanente. Extrae la información más importante y la usa para enriquecer tu perfil profesional. Al pulsar <b>Corrección IA profesional</b>, Talento PyME combina lo que contaste con los antecedentes leídos del CV para preparar una presentación única, evitando repetir la misma información.</div>
+              <div class="muted small" style="margin-top:8px"><b>¿Querés ver cómo puede quedar?</b> Usá <b>Ver CV tipo</b>. Es un ejemplo con datos ficticios de un supervisor eléctrico y muestra el nivel de detalle, la distribución y las secciones que podés completar.</div>
               ${renderCompletenessPanel(cand)}
             </section>
           </div>
@@ -690,7 +693,7 @@ async function initBolsaCandidato(){
             <summary data-detail="d2"><b>2) Contanos con tus palabras · voz o texto</b></summary>
             <div class="tp-voice-card">
               <div class="tp-voice-intro"><b>No hace falta saber redactar un currículum.</b> Contanos qué experiencia tenés, en qué trabajás hoy, qué sabés hacer, qué te gustaría aprender o en qué puesto te gustaría empezar. Si nunca trabajaste, también sirve: podés decirnos qué te interesa y qué querés aprender.</div>
-              <div class="muted small" style="margin-top:7px">Hablá o escribí todo lo que quieras y, cuando consideres que terminaste, pulsá <b>“Corrección IA profesional”</b>. Recién en ese momento Talento PyME vuelve a leer <b>todo el relato desde el principio</b> y prepara una presentación profesional. El sistema elimina muletillas y repeticiones, ordena las ideas y destaca experiencia y fortalezas, pero no inventa antecedentes. <b>Talento PyME no conserva el audio original.</b> En iPhone o en navegadores que no habiliten el dictado web, podés tocar el campo de texto y usar el micrófono del teclado.</div>
+              <div class="muted small" style="margin-top:7px">Hablá o escribí todo lo que quieras y, cuando consideres que terminaste, pulsá <b>“Corrección IA profesional”</b>. Recién en ese momento Talento PyME vuelve a leer <b>todo el relato desde el principio</b> y, si ya cargaste un CV, también toma sus antecedentes para preparar <b>una única presentación profesional integrada</b>. El sistema elimina muletillas y repeticiones, evita duplicar información, ordena las ideas y destaca experiencia y fortalezas, pero no inventa antecedentes. <b>Talento PyME no conserva el audio original.</b> En iPhone o en navegadores que no habiliten el dictado web, podés tocar el campo de texto y usar el micrófono del teclado.</div>
               <div class="tp-voice-actions">
                 <button class="btn btn-tech" id="btnVoiceStart" type="button" ${(!isEditing||voiceListening)?"disabled":""}>🎙 ${voiceListening ? "Escuchando..." : "Empezar a hablar"}</button>
                 <button class="btn secondary" id="btnVoiceStop" type="button" ${voiceListening?"":"disabled"}>Detener</button>
@@ -1114,6 +1117,12 @@ async function initBolsaCandidato(){
         await saveAlta({ stayEditing:true, allowPartial:true });
         if(errMsg) throw new Error(errMsg);
       }
+      const hasNarrative=String(cand.voiceNarrativeRaw || '').trim().length>0;
+      const analysisCurrent=String(cand.voiceNarrativeAnalysisVersion || '') === PRESENTATION_REQUIRED_ANALYSIS_VERSION;
+      if(hasNarrative && !analysisCurrent){
+        detailsState.d2=true;
+        throw new Error('Antes de descargar el CV, pulsá “Corrección IA profesional” en Presentación Personal. Así Talento PyME integrará tu relato con el CV cargado y evitará información repetida.');
+      }
       const headers=new Headers(); const token=tpToken(); if(token) headers.set('Authorization','Bearer '+token);
       const res=await fetch(`${window.TP_API_URL}/candidate/cv/pdf`,{headers});
       if(!res.ok){ const d=await res.json().catch(()=>({})); throw new Error(d.error || 'No se pudo generar el currículum.'); }
@@ -1124,6 +1133,24 @@ async function initBolsaCandidato(){
       const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1200);
       okMsg='Currículum generado. Podés imprimirlo o guardarlo y volver a generarlo cuando actualices tu perfil.';
     }catch(err){ errMsg=err?.message || 'No se pudo generar el currículum.'; okMsg=''; }
+    finally{ if(btn) btn.disabled=false; render(); }
+  }
+
+  async function viewCandidateSampleCv(){
+    const btn=el('btnSampleCandidateCv');
+    if(btn) btn.disabled=true;
+    okMsg='Preparando un currículum tipo con datos ficticios...'; errMsg=''; render();
+    try{
+      const headers=new Headers(); const token=tpToken(); if(token) headers.set('Authorization','Bearer '+token);
+      const res=await fetch(`${window.TP_API_URL}/candidate/cv/sample.pdf`,{headers});
+      if(!res.ok){ const d=await res.json().catch(()=>({})); throw new Error(d.error || 'No se pudo generar el CV tipo.'); }
+      const blob=await res.blob();
+      const url=URL.createObjectURL(blob);
+      const win=window.open(url,'_blank','noopener');
+      if(!win){ const a=document.createElement('a'); a.href=url; a.download='CV-Tipo-Talento-PyME.pdf'; document.body.appendChild(a); a.click(); a.remove(); }
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      okMsg='CV tipo abierto. Todos los datos de ese ejemplo son ficticios y sirven sólo como guía.';
+    }catch(err){ errMsg=err?.message || 'No se pudo abrir el CV tipo.'; okMsg=''; }
     finally{ if(btn) btn.disabled=false; render(); }
   }
 
@@ -1194,6 +1221,8 @@ async function initBolsaCandidato(){
     if(btnQuickSaveVoice) btnQuickSaveVoice.addEventListener("click", quickSaveVoice);
     const btnDownloadCandidateCv = el("btnDownloadCandidateCv");
     if(btnDownloadCandidateCv) btnDownloadCandidateCv.addEventListener("click", downloadCandidateCv);
+    const btnSampleCandidateCv = el("btnSampleCandidateCv");
+    if(btnSampleCandidateCv) btnSampleCandidateCv.addEventListener("click", viewCandidateSampleCv);
 
     const up = el("cvUploadInput");
     if(up) up.addEventListener("change", async (ev)=>{ const file = ev.target.files && ev.target.files[0]; if(file) await parseCurriculum(file); up.value = ""; });
@@ -1396,6 +1425,8 @@ async function initBolsaCandidato(){
         cand.dni = cand.dni || (r.profile?.dni || "");
         cand.telefono = cand.telefono || (r.profile?.phone || "");
         cand.localidad = cand.localidad || (r.profile?.city || "");
+        cand.provinciaResidencia = cand.provinciaResidencia || (r.profile?.province || "");
+        cand.paisResidencia = cand.paisResidencia || (r.profile?.country || "");
         cand.direccion = cand.direccion || (r.profile?.address || "");
         cand.correo = cand.correo || (r.user?.email || "");
       }
@@ -1425,9 +1456,12 @@ async function initBolsaCandidato(){
       const summaryText = String(r.summaryText || "").trim();
       parsedMeta = r.analysis || null;
       cand.observaciones = (summaryText || buildSummaryFromSections(r.sections || {}, r.analysis || {})).slice(0, 12000);
-      okMsg = "Resumen curricular generado. Revisalo en el punto 6 antes de guardar.";
+      cand.voiceNarrativeAnalysisVersion = "";
+      cand.voiceNarrativeAnalysisSource = "CV_UPDATED_REQUIRES_REFINEMENT";
+      okMsg = "CV leído y guardado. Para fusionar estos antecedentes con tu Presentación Personal, volvé al punto 2 y pulsá ‘Corrección IA profesional’. La IA releerá el relato y el CV juntos, sin duplicarlos.";
       if(!isEditing) isEditing = true;
       detailsState.d6 = true;
+      detailsState.d2 = true;
     }catch(err){
       errMsg = err?.message || "No se pudo analizar el currículum cargado.";
     }finally{
@@ -1471,10 +1505,10 @@ async function initBolsaCandidato(){
         cand.localidad = cand.localidad || (me?.profile?.city || "");
         cand.direccion = cand.direccion || (me?.profile?.address || "");
         cand.dni = cand.dni || (me?.profile?.dni || "");
-        const inferredResidence=inferResidenceClient(cand.localidad,cand.provinciaResidencia || me?.profile?.province || "",cand.paisResidencia);
+        const inferredResidence=inferResidenceClient(cand.localidad,cand.provinciaResidencia || me?.profile?.province || "",cand.paisResidencia || me?.profile?.country || "");
         cand.localidad=inferredResidence.city || cand.localidad;
         cand.provinciaResidencia=inferredResidence.province || cand.provinciaResidencia || me?.profile?.province || "";
-        cand.paisResidencia=inferredResidence.country || cand.paisResidencia || "";
+        cand.paisResidencia=inferredResidence.country || cand.paisResidencia || me?.profile?.country || "";
         voiceRawLastRefined=String(cand.voiceNarrativeAnalysisVersion ? cand.voiceNarrativeRaw || '' : '').trim();
         bolsaLoaded = true;
         isEditing = false;
@@ -1512,7 +1546,7 @@ async function initBolsaCandidato(){
       return;
     }
 
-    // v7.9.10: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
+    // v7.9.11: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
     // cuando el candidato pulsa expresamente “Corrección IA profesional”.
 
     busy = true; render();

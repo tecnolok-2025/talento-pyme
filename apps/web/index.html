@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Talento PyME</title>
   <meta name="theme-color" content="#0B1220" />
-  <link rel="manifest" href="/manifest.webmanifest?v=7.9.10" />
+  <link rel="manifest" href="/manifest.webmanifest?v=7.9.11" />
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.9.10" />
+  <link rel="stylesheet" href="/styles.css?v=7.9.11" />
 </head>
 <body class="authBody">
   <div class="authTop">
@@ -88,6 +88,14 @@
 
                 <label>Localidad</label>
                 <input class="input" id="regCity" placeholder="Ej: Campana" />
+
+                <label>Provincia / Estado / Región</label>
+                <input class="input" id="regProvince" placeholder="Ej: Buenos Aires" />
+                <div class="muted small">Es obligatorio para ubicar correctamente tu residencia. Si la localidad es conocida, Talento PyME intenta completarlo automáticamente.</div>
+
+                <label>País de residencia</label>
+                <input class="input" id="regCountry" list="regCountryList" placeholder="Ej: Argentina" />
+                <datalist id="regCountryList"><option value="Argentina"></option><option value="Uruguay"></option><option value="Paraguay"></option><option value="Brasil"></option><option value="Chile"></option><option value="Bolivia"></option><option value="Perú"></option><option value="Venezuela"></option><option value="Colombia"></option><option value="Ecuador"></option></datalist>
 
                 <label>Teléfono</label>
                 <input class="input" id="regPhone" placeholder="Ej: +54 9 ..." />
@@ -182,8 +190,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=7.9.10"></script>
-  <script src="/auth.js?v=7.9.10"></script>
+  <script src="/config.js?v=7.9.11"></script>
+  <script src="/auth.js?v=7.9.11"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));
@@ -281,6 +289,26 @@
       window.location.replace(next);
     }
 
+
+    const REG_RESIDENCE = {
+      'campana':['Buenos Aires','Argentina'],'zarate':['Buenos Aires','Argentina'],'lima':['Buenos Aires','Argentina'],
+      'tigre':['Buenos Aires','Argentina'],'san nicolas':['Buenos Aires','Argentina'],'san isidro':['Buenos Aires','Argentina'],
+      'san fernando':['Buenos Aires','Argentina'],'pergamino':['Buenos Aires','Argentina'],'general rodriguez':['Buenos Aires','Argentina'],
+      'pilar':['Buenos Aires','Argentina'],'escobar':['Buenos Aires','Argentina'],'la plata':['Buenos Aires','Argentina'],
+      'caba':['Ciudad Autónoma de Buenos Aires','Argentina'],'capital federal':['Ciudad Autónoma de Buenos Aires','Argentina'],
+      'rosario':['Santa Fe','Argentina'],'villa constitucion':['Santa Fe','Argentina']
+    };
+    const regGeoNorm = (v='') => String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+    function inferRegistrationResidence(){
+      const city = $("regCity")?.value?.trim() || '';
+      const row = REG_RESIDENCE[regGeoNorm(city)];
+      if(!row) return;
+      if(!($("regProvince")?.value || '').trim()) $("regProvince").value = row[0];
+      if(!($("regCountry")?.value || '').trim()) $("regCountry").value = row[1];
+    }
+    $("regCity")?.addEventListener('blur', inferRegistrationResidence);
+    $("regCity")?.addEventListener('change', inferRegistrationResidence);
+
 $("btnRegister").onclick = async () => {
       msg(""); setBusy(true, "Registrando… conectando con la base de datos");
       disable($("btnRegister"), true);
@@ -291,6 +319,9 @@ $("btnRegister").onclick = async () => {
           const dni = $("regDni").value.trim();
           const address = $("regAddress").value.trim();
           const city = $("regCity").value.trim();
+          inferRegistrationResidence();
+          const province = $("regProvince").value.trim();
+          const country = $("regCountry").value.trim();
           const phone = $("regPhone").value.trim();
           const password = $("regPassword").value;
           if(!fullName) throw new Error("Falta Nombre y apellido");
@@ -300,9 +331,11 @@ $("btnRegister").onclick = async () => {
           if(!/^\d{6,10}$/.test(dniDigits)) throw new Error("Ingresá un DNI válido, sin puntos. Debe tener menos de 11 dígitos.");
           if(!address) throw new Error("Falta Dirección");
           if(!city) throw new Error("Falta Localidad");
+          if(!province) throw new Error("Falta Provincia / Estado / Región");
+          if(!country) throw new Error("Falta País de residencia");
           if(!phone) throw new Error("Falta Teléfono");
           if((password||"").length < 10) throw new Error("La contraseña debe tener mínimo 10 caracteres");
-          await post("/auth/register", { role: "CANDIDATE", fullName, email, dni, address, city, phone, password });
+          await post("/auth/register", { role: "CANDIDATE", fullName, email, dni, address, city, province, country, phone, password });
         } else {
           const fullName = $("regContactName").value.trim();
           const companyName = $("regCompanyName").value.trim();

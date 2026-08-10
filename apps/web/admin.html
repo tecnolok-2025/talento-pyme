@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.9.10" />
+  <link rel="stylesheet" href="/styles.css?v=7.9.11" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -464,6 +464,7 @@
           <div class="communicationStatRow"><div class="communicationStat"><span class="muted small">Cuentas</span><b id="commTotal">—</b></div><div class="communicationStat"><span class="muted small">Recibirán el correo</span><b id="commEligible">—</b></div><div class="communicationStat"><span class="muted small">No enviar / baja</span><b id="commOptOut">—</b></div></div>
           <div style="margin-top:14px"><label>Asunto</label><input class="input" id="communicationSubject" maxlength="180" /></div>
           <div style="margin-top:12px"><label>Cuerpo de la comunicación</label><textarea class="input" id="communicationBody" rows="11" placeholder="Pegá acá el contenido que querés informar."></textarea></div>
+          <label style="display:flex;gap:9px;align-items:flex-start;margin-top:12px;padding:11px 12px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;cursor:pointer"><input id="communicationOnlyUnsent" type="checkbox" checked style="margin-top:3px" /><span><b>Enviar sólo a quienes todavía no recibieron esta misma comunicación</b><br><span class="muted small">Queda tildado por defecto para evitar repeticiones. Si lo destildás, se programará para todo el padrón habilitado.</span></span></label>
           <div class="muted small" style="margin-top:9px">El pie de baja se agrega automáticamente. Talento PyME también aclara que nunca solicita contraseñas ni códigos de seguridad mediante estas comunicaciones.</div>
           <div class="communicationQueueBox">
             <b>Envío automático protegido</b>
@@ -509,8 +510,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.9.10"></script>
-<script src="/auth.js?v=7.9.10"></script>
+<script src="/config.js?v=7.9.11"></script>
+<script src="/auth.js?v=7.9.11"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -1400,11 +1401,12 @@ function defaultCommunicationDraft(audience){
   return {
     subject:isCompany ? 'Talento PyME · Información para empresas' : 'Talento PyME · Información para candidatos',
     body:isCompany ? 'Estimada empresa de Talento PyME:\n\nEnviamos la siguiente comunicación:\n\n' : 'Estimado candidato de Talento PyME:\n\nEnviamos la siguiente comunicación:\n\n',
+    onlyUnsent:true,
   };
 }
 function saveCommunicationDraft(){
   const audience = state.communications.audience || 'CANDIDATE';
-  state.communications.drafts[audience] = { subject:document.getElementById('communicationSubject')?.value || '', body:document.getElementById('communicationBody')?.value || '' };
+  state.communications.drafts[audience] = { subject:document.getElementById('communicationSubject')?.value || '', body:document.getElementById('communicationBody')?.value || '', onlyUnsent:document.getElementById('communicationOnlyUnsent')?.checked !== false };
 }
 function communicationStatusLabel(status){
   return ({
@@ -1424,6 +1426,7 @@ function renderCommunications(){
   const draft = c.drafts[audience] || defaultCommunicationDraft(audience);
   document.getElementById('communicationSubject').value = draft.subject;
   document.getElementById('communicationBody').value = draft.body;
+  const onlyUnsentEl=document.getElementById('communicationOnlyUnsent'); if(onlyUnsentEl) onlyUnsentEl.checked=draft.onlyUnsent !== false;
   document.getElementById('btnSendCommunication').textContent = audience === 'COMPANY' ? 'Programar comunicación a empresas' : 'Programar comunicación a candidatos';
 
   const q = c.queue || {};
@@ -1439,7 +1442,7 @@ function renderCommunications(){
     : `Sin comunicaciones pendientes. Límite interno: ${q.dailyLimit || 450} por día.`;
 
   const history = c.history || [];
-  document.getElementById('communicationHistory').innerHTML = history.map((it) => `<div class="adminRow"><b>${esc(it.subject || 'Comunicación')}</b><div class="muted small">${String(it.audience || '').toUpperCase() === 'COMPANY' ? 'Empresas' : 'Candidatos'} · ${fd(it.createdAt)} · ${esc(communicationStatusLabel(it.status))}</div><div class="muted small">Enviados: ${Number(it.sentCount || 0)} · Fallidos: ${Number(it.failedCount || 0)} · Excluidos por baja: ${Number(it.skippedOptOutCount || 0)}</div></div>`).join('') || '<div class="muted">Todavía no hay comunicaciones registradas.</div>';
+  document.getElementById('communicationHistory').innerHTML = history.map((it) => `<div class="adminRow"><b>${esc(it.subject || 'Comunicación')}</b><div class="muted small">${String(it.audience || '').toUpperCase() === 'COMPANY' ? 'Empresas' : 'Candidatos'} · ${fd(it.createdAt)} · ${esc(communicationStatusLabel(it.status))}</div><div class="muted small">Enviados: ${Number(it.sentCount || 0)} · Fallidos: ${Number(it.failedCount || 0)} · Excluidos por baja: ${Number(it.skippedOptOutCount || 0)}${Number(it.skippedPreviouslySentCount || 0) ? ` · Ya informados: ${Number(it.skippedPreviouslySentCount || 0)}` : ''}</div></div>`).join('') || '<div class="muted">Todavía no hay comunicaciones registradas.</div>';
 }
 async function loadCommunications(){
   try {
@@ -1467,13 +1470,14 @@ async function sendCommunication(){
   if(!eligible){ document.getElementById('communicationMsg').textContent = 'No hay destinatarios habilitados.'; return; }
   const subject = document.getElementById('communicationSubject').value.trim();
   const body = document.getElementById('communicationBody').value.trim();
+  const onlyNotPreviouslySent = document.getElementById('communicationOnlyUnsent')?.checked !== false;
   if(subject.length < 4 || body.length < 10){ document.getElementById('communicationMsg').textContent = 'Completá asunto y contenido.'; return; }
-  if(!confirm(`La comunicación quedará programada para ${eligible} ${label}. Talento PyME la enviará automáticamente, respetando el límite de 450 en 24 horas y esperando a que finalice cualquier comunicación anterior. ¿Confirmás?`)) return;
+  if(!confirm(onlyNotPreviouslySent ? `Talento PyME excluirá automáticamente a quienes ya tengan esta misma comunicación enviada o programada. El resto quedará en la cola protegida. ¿Confirmás?` : `La comunicación se programará para todo el padrón habilitado (${eligible} ${label}), incluso si algunos ya recibieron el mismo mensaje. ¿Confirmás el reenvío general?`)) return;
   const btn = document.getElementById('btnSendCommunication');
   const msg = document.getElementById('communicationMsg');
   btn.disabled = true; msg.textContent = 'Guardando en la cola automática…';
   try {
-    const result = await apiFetch('/admin/communications/send', { method:'POST', body:JSON.stringify({ audience, subject, body }) });
+    const result = await apiFetch('/admin/communications/send', { method:'POST', body:JSON.stringify({ audience, subject, body, onlyNotPreviouslySent }) });
     msg.textContent = result.message || `Comunicación programada. Posición en cola: ${result.queuePosition || 1}.`;
     await loadCommunications();
   } catch (err) { msg.textContent = err?.message || 'No se pudo programar la comunicación.'; }
@@ -1649,6 +1653,7 @@ document.getElementById('btnRefreshCommunications').onclick = () => loadCommunic
 document.getElementById('btnSendCommunication').onclick = () => sendCommunication();
 document.getElementById('communicationSubject').oninput = () => saveCommunicationDraft();
 document.getElementById('communicationBody').oninput = () => saveCommunicationDraft();
+document.getElementById('communicationOnlyUnsent').onchange = () => saveCommunicationDraft();
 document.getElementById('btnCancelCommunication').onclick = async () => {
   const id = document.getElementById('btnCancelCommunication').dataset.id || '';
   if(!id || !confirm('Se detendrán únicamente los correos todavía pendientes de esta comunicación. Los ya enviados no pueden retirarse. ¿Confirmás?')) return;
@@ -1719,7 +1724,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v7.9.10: el estado de la cola se refresca mientras Administración permanece abierto.
+// v7.9.11: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();

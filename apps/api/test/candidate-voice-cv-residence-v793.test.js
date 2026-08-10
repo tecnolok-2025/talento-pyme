@@ -15,7 +15,7 @@ const cv = fs.readFileSync(path.join(root, 'apps/api/src/services/candidate-cv.j
 const config = fs.readFileSync(path.join(root, 'apps/web/config.js'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'apps/api/package.json'), 'utf8'));
 
-test('v7.9.10 agrega residencia y presentación por voz/texto al perfil candidato', () => {
+test('v7.9.11 agrega residencia y presentación por voz/texto al perfil candidato', () => {
   assert.match(schema, /paisResidencia\s+String\?/);
   assert.match(schema, /voiceNarrativeRaw\s+String\?/);
   assert.match(schema, /voiceNarrativeSummary\s+String\?/);
@@ -42,9 +42,9 @@ test('administración muestra presentación personal y trazabilidad geográfica'
   assert.match(api, /candidatesByResidence/);
 });
 
-test('reporte agrega país y ciudad y reemplaza Actividad general por actividad no especificada', () => {
-  assert.match(report, /4\.1 País de residencia y ciudad/);
-  assert.match(report, /País de residencia','Ciudad','Cantidad','Participación/);
+test('reporte agrega país, provincia y ciudad y reemplaza Actividad general por actividad no especificada', () => {
+  assert.match(report, /4\.1 País, provincia \/ región y ciudad de residencia/);
+  assert.match(report, /'País','Provincia \/ región','Ciudad','Cantidad','Participación'/);
   assert.doesNotMatch(api, /Actividad general/);
   assert.doesNotMatch(report, /Actividad general/);
   assert.match(api, /Actividad principal no especificada/);
@@ -70,7 +70,7 @@ test('presentación aprobada enriquece búsqueda profesional sin exponer transcr
   assert.doesNotMatch(jobsBlock, /voiceNarrativeRaw/);
 });
 
-test('versión unificada 7.9.10', () => {
-  assert.equal(pkg.version, '7.9.10');
-  assert.match(config, /TP_APP_VERSION = "7\.9\.10"/);
+test('versión unificada 7.9.11', () => {
+  assert.equal(pkg.version, '7.9.11');
+  assert.match(config, /TP_APP_VERSION = "7\.9\.11"/);
 });

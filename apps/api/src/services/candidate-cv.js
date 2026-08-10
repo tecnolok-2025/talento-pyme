@@ -18,6 +18,19 @@ function cleanParagraphs(v=''){ return String(v || '').replace(/\r/g,'').split(/
 function clampParagraphs(v='', n=2400){ const s=cleanParagraphs(v); return s.length>n ? `${s.slice(0,n-1).trim()}…` : s; }
 function lines(v=''){ return String(v || '').split(/\r?\n|•/).map(clean).filter(Boolean); }
 function uniq(arr=[]){ return [...new Set(arr.map(clean).filter(Boolean))]; }
+function normCompare(v=''){ return clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+function tokenSet(v=''){ return new Set(normCompare(v).split(/\s+/).filter((x)=>x.length>=4)); }
+function overlapsNarrative(line='', narrative=''){
+  const a=tokenSet(line), b=tokenSet(narrative);
+  if(!a.size || !b.size) return false;
+  let common=0; for(const t of a){ if(b.has(t)) common++; }
+  return common / Math.max(1,a.size) >= 0.62;
+}
+function experienceHighlights(raw='', narrative=''){
+  return uniq(lines(raw))
+    .filter((row)=>row.length>=8 && !overlapsNarrative(row,narrative))
+    .slice(0,7);
+}
 function safeFilePart(v=''){ return clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,50) || 'Candidato'; }
 function argParts(value=new Date()){
   const d=value instanceof Date?value:new Date(value);
@@ -119,7 +132,33 @@ function addContinuationPage(doc,fullName,title){
   return 82;
 }
 
+export function buildCandidateSampleCvData(){
+  return {
+    sample:true,
+    user:{email:'martin.gomez@ejemplo.com'},
+    profile:{fullName:'Martín Gómez',city:'Campana',province:'Buenos Aires',country:'Argentina',phone:'+54 3489 000000',headline:'Supervisor Eléctrico Industrial'},
+    bolsa:{
+      nombre:'Martín',apellido:'Gómez',telefono:'+54 3489 000000',correo:'martin.gomez@ejemplo.com',localidad:'Campana',provinciaResidencia:'Buenos Aires',paisResidencia:'Argentina',
+      areaTrabajo:'Eléctrica (Industrial)',nivel:'Supervisor',especialidad:'Supervisión eléctrica',rangoExperiencia:'11–20',ultimoTrabajo:'Supervisor Eléctrico Industrial',
+      voiceNarrativeProfessionalTitle:'Supervisor Eléctrico Industrial',voiceNarrativeYears:14,
+      voiceNarrativeSummary:'Soy supervisor eléctrico industrial con 14 años de experiencia en plantas productivas y proyectos de montaje, mantenimiento y mejora de instalaciones. Coordino trabajos sobre tableros de baja tensión, centros de control de motores, motores eléctricos, canalizaciones y distribución de energía, interpretando planos y documentación técnica para organizar cada intervención. En mi función superviso equipos propios y contratistas, distribuyo tareas, verifico condiciones de seguridad, controlo avances y calidad de ejecución y participo en la resolución de desvíos técnicos. También acompaño inspecciones, pruebas funcionales y puestas en servicio, coordinando con mantenimiento, producción, ingeniería y seguridad. Me interesa trabajar con planificación, orden documental y una comunicación clara con el personal de campo, priorizando siempre la continuidad operativa, la calidad y el cumplimiento de los procedimientos.',
+      voiceNarrativeStrengths:['Supervisión técnica de trabajos eléctricos','Interpretación de planos unifilares y documentación eléctrica','Coordinación de equipos y contratistas','Planificación y seguimiento de tareas de mantenimiento','Control de calidad de montaje e instalaciones','Aplicación de criterios de seguridad eléctrica','Diagnóstico y resolución de desvíos técnicos','Coordinación con Producción, Mantenimiento e Ingeniería','Seguimiento de pruebas y puesta en servicio','Comunicación técnica y organización de prioridades'],
+      voiceNarrativeMotivation:'Busco nuevos desafíos donde pueda aportar mi experiencia en supervisión eléctrica industrial, asumir proyectos de mayor alcance y seguir desarrollándome junto con equipos técnicos orientados a la seguridad, la confiabilidad y la mejora continua.',
+      voiceNarrativeClosing:'Mi objetivo es aportar criterio técnico y experiencia de campo para que los trabajos se ejecuten con seguridad, calidad y orden. Quiero continuar incorporando nuevas herramientas, transferir conocimiento al equipo y participar en proyectos que me permitan seguir creciendo profesionalmente.',
+      herramientasMecanica:[],instrumentosElectrica:['Multímetro','Pinza amperométrica','Megóhmetro'],trabajaActualmente:true,nivelEducativo:'Secundaria técnica',tieneCapacitacion:true,
+    },
+    resume:{
+      experience:'2019 – Actualidad | Empresa Industrial A | Supervisor Eléctrico\n2014 – 2019 | Empresa Industrial B | Técnico Electricista de Mantenimiento\n2009 – 2014 | Empresa Industrial C | Electricista Industrial',
+      education:'Técnico Electromecánico | Escuela Técnica (dato ficticio de ejemplo)',
+      certifications:'Seguridad eléctrica y bloqueo de energías | Formación interna (ejemplo)\nInterpretación de planos eléctricos | Capacitación técnica (ejemplo)',
+      summary:'',observations:'',
+    },
+    classification:{expertiseLabel:'Eléctrica / Supervisión industrial',seniorityLabel:'Senior'},
+  };
+}
+
 export function buildCandidateCvFilename(data={},generatedAt=new Date()){
+
   const b=data.bolsa||{}, p=data.profile||{};
   const full=clean(`${b.nombre||''} ${b.apellido||''}`) || clean(p.fullName) || 'Candidato';
   const t=argParts(generatedAt); const yy=String(t.year).slice(-2);
@@ -128,9 +167,10 @@ export function buildCandidateCvFilename(data={},generatedAt=new Date()){
 
 export async function buildCandidateCvPdfBuffer(data={}){
   const b=data.bolsa||{}, p=data.profile||{}, r=data.resume||{}, c=data.classification||{}, user=data.user||{};
+  const isSample=!!data.sample;
   const fullName=(clean(`${b.nombre||''} ${b.apellido||''}`) || clean(p.fullName) || 'Candidato').toUpperCase();
   const title=titleFromData(data);
-  const residence=inferResidence({ locality:b.localidad || p.city, province:b.provinciaResidencia || p.province, country:b.paisResidencia });
+  const residence=inferResidence({ locality:b.localidad || p.city, province:b.provinciaResidencia || p.province, country:b.paisResidencia || p.country });
   const country=clean(residence.country) || 'País de residencia no informado';
   const province=clean(residence.province);
   const city=clean(residence.city || b.localidad || p.city);
@@ -141,7 +181,7 @@ export async function buildCandidateCvPdfBuffer(data={}){
   const closing=clampParagraphs(b.voiceNarrativeClosing || '',2400);
   const experienceLines=uniq([
     b.ultimoTrabajo ? `Actividad reciente: ${b.ultimoTrabajo}` : '',
-    ...lines(r.experience).slice(0,7),
+    ...experienceHighlights(r.experience,presentation),
   ]);
   const educationLines=uniq([
     b.nivelEducativo ? `Nivel educativo: ${b.nivelEducativo}` : '',
@@ -182,9 +222,12 @@ export async function buildCandidateCvPdfBuffer(data={}){
   if(skills.length && sy<650){ sy+=10; sy=sidebarHeading(doc,'Competencias',sy); for(const row of skills.slice(0,7)){doc.fillColor('#E6EDF5').font('Helvetica').fontSize(7.7).text(`• ${row}`,28,sy,{width:125,lineGap:1});sy=doc.y+4;} }
 
   try{ if(fs.existsSync(TALENTO_LOGO)) doc.image(TALENTO_LOGO,28,H-64,{fit:[116,30],align:'center'}); }catch{}
-  doc.fillColor('#A9B7C8').font('Helvetica').fontSize(6.8).text('CV generado con Talento PyME',28,H-28,{width:125,align:'center',lineBreak:false});
+  doc.fillColor('#A9B7C8').font('Helvetica').fontSize(6.8).text(isSample?'CV tipo · datos ficticios':'CV generado con Talento PyME',28,H-28,{width:125,align:'center',lineBreak:false});
 
-  let y=42;
+  let y=isSample?56:42;
+  if(isSample){
+    doc.fillColor(BLUE).font('Helvetica-Bold').fontSize(8).text('EJEMPLO · DATOS FICTICIOS',mainX,34,{width:mainW,align:'left',lineBreak:false});
+  }
   doc.fillColor(TEXT).font('Helvetica').fontSize(25).text(fullName,mainX,y,{width:mainW,lineGap:0}); y=doc.y+5;
   doc.fillColor(TEXT).font('Helvetica').fontSize(12).text(title.toUpperCase(),mainX,y,{width:mainW}); y=doc.y+10;
   doc.fillColor(NAVY).rect(mainX,y,28,5).fill(); y+=18;
@@ -249,7 +292,7 @@ export async function buildCandidateCvPdfBuffer(data={}){
     const fx=first?196:42;
     const fw=first?(W-fx-34):(W-84);
     doc.strokeColor('#DCE4ED').lineWidth(0.6).moveTo(fx,H-34).lineTo(first?W-34:W-42,H-34).stroke();
-    doc.fillColor(MUTED).font('Helvetica').fontSize(6.6).text(`CV preparado por el candidato con asistencia de Talento PyME · Página ${i+1} de ${range.count}`,fx,H-26,{width:fw,align:'center',lineBreak:false});
+    doc.fillColor(MUTED).font('Helvetica').fontSize(6.6).text(isSample ? `CV tipo de ejemplo · datos ficticios · Página ${i+1} de ${range.count}` : `CV preparado por el candidato con asistencia de Talento PyME · Página ${i+1} de ${range.count}`,fx,H-26,{width:fw,align:'center',lineBreak:false});
   }
   doc.end();
   return done;

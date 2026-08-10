@@ -14,7 +14,7 @@ const schema=fs.readFileSync(path.join(root,'apps/api/prisma/schema.prisma'),'ut
 
 const between=(src,a,b)=>src.slice(src.indexOf(a),src.indexOf(b,src.indexOf(a)+a.length));
 
-test('v7.9.10 genera diez aptitudes profesionales editables, no opiniones de un tercero',()=>{
+test('v7.9.11 genera diez aptitudes profesionales editables, no opiniones de un tercero',()=>{
   const prompt=between(api,"{ role:'system'","{ role:'user'");
   assert.match(prompt,/EXACTAMENTE 10 aptitudes\/competencias/);
   assert.match(prompt,/no opiniones de un tercero/);
@@ -67,7 +67,7 @@ test('campos nuevos se guardan, quedan editables y Administración los puede lee
 });
 
 test('candidatos con versión vieja vuelven a tener pendiente la nueva presentación enriquecida',()=>{
-  assert.match(api,/AI_V6_7\.9\.8_STRENGTHS_MOTIVATION/);
+  assert.match(api,/AI_V7_7\.9\.11_VOICE_CV_FUSION/);
   assert.match(api,/voiceNarrativeAnalysisVersion[^\n]+PRESENTATION_ANALYSIS_VERSION/);
   assert.match(api,/String\(candidate\.voiceNarrativeMotivation/);
 });

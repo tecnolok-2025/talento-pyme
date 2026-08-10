@@ -19,7 +19,7 @@ import { fileURLToPath } from "url";
 import { createPaymentProvider, getPaymentConfigFromEnv } from "./services/payments/index.js";
 import { assertNoCardData, listForbiddenPaymentFields, sanitizeCheckoutPayloadForLog, sha256Hex, PaymentProviderError, PaymentSecurityError } from "./services/payments/provider.js";
 import { buildTraceabilityPdfBuffer, buildTraceabilityReportFilename, buildTraceabilityEmailSubject, buildTraceabilityNarrative } from "./services/traceability-report.js";
-import { buildCandidateCvPdfBuffer, buildCandidateCvFilename } from "./services/candidate-cv.js";
+import { buildCandidateCvPdfBuffer, buildCandidateCvFilename, buildCandidateSampleCvData } from "./services/candidate-cv.js";
 import { inferResidence, isArgentinaProvince } from "./services/residence.js";
 
 const prisma = new PrismaClient();
@@ -61,7 +61,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
 const FACTORY_ADMIN_PASSWORD = String(process.env.FACTORY_ADMIN_PASSWORD || '').trim();
-// v7.9.10: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
+// v7.9.11: FACTORY_SUPPORT_EMAIL sigue siendo la única identidad institucional de correo de Talento PyME.
 // Se reutiliza la configuración ya existente en Render para soporte, consultas, recuperaciones y buzón administrativo.
 const FACTORY_SUPPORT_EMAIL = String(process.env.FACTORY_SUPPORT_EMAIL || '').trim().toLowerCase();
 const GMAIL_USER = FACTORY_SUPPORT_EMAIL;
@@ -72,22 +72,28 @@ const GMAIL_REFRESH_TOKEN = String(process.env.GMAIL_REFRESH_TOKEN || '').trim()
 const OPENAI_API_KEY = String(process.env.OPENAI_API_KEY || '').trim();
 const OPENAI_MODEL = String(process.env.OPENAI_MODEL || 'gpt-5-mini').trim() || 'gpt-5-mini';
 const OPENAI_PRESENTATION_TIMEOUT_MS = Math.max(5000, Math.min(30000, Number(process.env.OPENAI_PRESENTATION_TIMEOUT_MS || 18000)));
-const PRESENTATION_ANALYSIS_VERSION = 'AI_V6_7.9.8_STRENGTHS_MOTIVATION';
+const PRESENTATION_ANALYSIS_VERSION = 'AI_V7_7.9.11_VOICE_CV_FUSION';
 const MAIL_FROM_NAME = String(process.env.MAIL_FROM_NAME || 'Talento PyME').trim();
 const WEB_BASE_URL = String(process.env.WEB_BASE_URL || 'https://talento-pyme.onrender.com').replace(/\/$/, '').trim();
 const PASSWORD_RESET_CODE_TTL_MINUTES = Math.max(5, Math.min(30, Number(process.env.PASSWORD_RESET_CODE_TTL_MINUTES || 10)));
 const PASSWORD_RESET_MAX_ATTEMPTS = Math.max(3, Math.min(10, Number(process.env.PASSWORD_RESET_MAX_ATTEMPTS || 5)));
 const PASSWORD_RESET_MAX_REQUESTS_15M = Math.max(1, Math.min(10, Number(process.env.PASSWORD_RESET_MAX_REQUESTS_15M || 3)));
 const MAILBOX_FOLDER = String(process.env.MAILBOX_FOLDER || 'INBOX').trim() || 'INBOX';
-// v7.9.10 · comunicaciones masivas protegidas por cola persistente.
+// v7.9.11 · comunicaciones masivas protegidas por cola persistente.
 // El límite queda deliberadamente por debajo del máximo teórico de Gmail para dejar margen
 // a recuperaciones de contraseña, respuestas individuales, reportes y envíos manuales externos.
 const COMMUNICATION_DAILY_LIMIT = Math.max(1, Math.min(450, Number(process.env.COMMUNICATION_DAILY_LIMIT || 450)));
 const COMMUNICATION_SEND_INTERVAL_MS = Math.max(60000, Math.min(300000, Number(process.env.COMMUNICATION_SEND_INTERVAL_MS || 60000)));
 const COMMUNICATION_WORKER_TICK_MS = Math.max(5000, Math.min(60000, Number(process.env.COMMUNICATION_WORKER_TICK_MS || 10000)));
 const COMMUNICATION_RETRY_MINUTES = Math.max(10, Math.min(180, Number(process.env.COMMUNICATION_RETRY_MINUTES || 30)));
+// v7.9.11 · bienvenida automática protegida. Se reserva capacidad fuera de las campañas masivas.
+const WELCOME_DAILY_LIMIT = Math.max(1, Math.min(40, Number(process.env.WELCOME_DAILY_LIMIT || 40)));
+const WELCOME_SEND_INTERVAL_MS = Math.max(120000, Math.min(600000, Number(process.env.WELCOME_SEND_INTERVAL_MS || 120000)));
+const WELCOME_RETRY_MINUTES = Math.max(10, Math.min(180, Number(process.env.WELCOME_RETRY_MINUTES || 30)));
 let communicationSchedulerStarted = false;
 let communicationWorkerBusy = false;
+let welcomeWorkerBusy = false;
+let automaticMailSchedulerBusy = false;
 const TRACEABILITY_REPORT_RECIPIENT = String(process.env.TRACEABILITY_REPORT_RECIPIENT || 'nestor.manucci@tecnolok.com.ar').trim().toLowerCase();
 const VIRTUAL_ADMIN_USER_ID = '__factory_admin__';
 const VIRTUAL_ADMIN_ROLE = 'SUPERADMIN';
@@ -723,6 +729,86 @@ async function sendSupportOperatorEmail({ thread, content, subject = '' }){
 }
 
 
+function welcomeEmailCopy(role='CANDIDATE'){
+  const isCompany=String(role || '').toUpperCase()==='COMPANY';
+  if(isCompany){
+    return {
+      subject:'Bienvenido a Talento PyME · Tu empresa ya está registrada',
+      text:`Estimada empresa de Talento PyME:\n\nTu registro se completó correctamente y tu cuenta ya está disponible.\n\nAl ingresar podés completar y mantener actualizado el perfil de la empresa, buscar talento, revisar candidatos, publicar búsquedas y utilizar las herramientas de seguimiento disponibles en el portal.\n\nPara comenzar:\n1. Ingresá a Talento PyME con los datos utilizados en el registro.\n2. Revisá y completá el perfil de la empresa.\n3. Utilizá Buscar Talento para explorar perfiles.\n4. Cuando corresponda, publicá una búsqueda laboral y administrá las postulaciones desde el portal.\n\nNo es necesario hacer todo en una sola vez: podés volver y actualizar la información cuando lo necesites.\n\nTalento PyME nunca solicita contraseñas ni códigos de seguridad por correo electrónico.`,
+    };
+  }
+  return {
+    subject:'Bienvenido a Talento PyME · Tu perfil ya está registrado',
+    text:`Estimado candidato de Talento PyME:
+
+¡Bienvenido! Tu registro se completó correctamente y tu perfil ya está disponible.
+
+Para comenzar, ingresá con tu email y contraseña y abrí “Editar CV”. Podés completar la información paso a paso y guardar para continuar otro día.
+
+En “Presentación Personal” podés hablar desde el micrófono del celular o escribir con tus propias palabras qué sabés hacer, cuál es tu experiencia, cuáles son tus fortalezas y qué tipo de trabajo buscás. Cuando termines, pulsá “Corrección IA profesional”: Talento PyME ordena y mejora la redacción y, si ya cargaste un CV, combina también esos antecedentes para preparar una presentación única. Todo lo generado queda bajo tu control y podés corregirlo, ampliarlo o borrarlo antes de guardar.
+
+También podés cargar tu CV en PDF, DOCX o TXT, agregar una foto si lo deseás, consultar “Ver CV tipo” para conocer un ejemplo completo y descargar tu propio currículum desde “Descargar mi CV PDF”.
+
+Recordá pulsar “Guardar cambios” para conservar cada actualización. Podés volver cuando quieras para seguir enriqueciendo tu perfil.
+
+Talento PyME nunca solicita contraseñas ni códigos de seguridad por correo electrónico.`,
+  };
+}
+
+async function sendWelcomeEmail(user){
+  if(!gmailConfigured()) throw new Error('MAIL_NOT_CONFIGURED');
+  const role=String(user?.role || '').toUpperCase();
+  const recipient=normalizeEmail(role==='COMPANY' ? (user?.company?.contactEmail || user?.email || '') : (user?.email || ''));
+  if(!recipient) throw new Error('RECIPIENT_NOT_AVAILABLE');
+  const copy=welcomeEmailCopy(role);
+  const portalLink=`${WEB_BASE_URL}/`;
+  const htmlBody=escapeEmailHtml(copy.text).replace(/\n/g,'<br>');
+  const transport=await getSmtpTransport();
+  await transport.sendMail({
+    from:`"${MAIL_FROM_NAME}" <${GMAIL_USER}>`,
+    to:recipient,
+    subject:copy.subject,
+    text:`${copy.text}\n\nIngresar a Talento PyME: ${portalLink}`,
+    html:`<div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.58;max-width:700px;margin:auto"><div style="padding:18px 20px;background:#0f2f5f;color:#fff;border-radius:14px 14px 0 0"><div style="font-size:21px;font-weight:800">Talento PyME</div><div style="font-size:13px;opacity:.9">Conectando experiencia con producción.</div></div><div style="padding:24px 22px;border:1px solid #dbe4ef;border-top:0;border-radius:0 0 14px 14px"><div style="font-size:15px">${htmlBody}</div><p style="margin-top:24px"><a href="${portalLink}" style="display:inline-block;background:#1d4ed8;color:white;text-decoration:none;padding:10px 15px;border-radius:9px;font-weight:700">Ingresar a Talento PyME</a></p><div style="border-top:1px solid #e2e8f0;margin-top:24px;padding-top:16px;color:#64748b;font-size:12px">Este correo confirma tu registro en Talento PyME. No incluye solicitudes de contraseñas ni códigos de seguridad.</div></div></div>`,
+  });
+  return {recipient};
+}
+
+async function processWelcomeEmailQueueOnce(){
+  if(welcomeWorkerBusy || !gmailConfigured()) return;
+  welcomeWorkerBusy=true;
+  try{
+    const now=new Date();
+    const since=new Date(now.getTime()-24*60*60*1000);
+    const [sentCount,rolling,lastSentAt]=await Promise.all([
+      prisma.user.count({ where:{ welcomeEmailSentAt:{ gte:since } } }),
+      communicationRolling24hUsage(now),
+      lastAutomaticMailSentAt(),
+    ]);
+    if(sentCount>=WELCOME_DAILY_LIMIT || rolling.count>=COMMUNICATION_DAILY_LIMIT) return;
+    if(lastSentAt && now.getTime()-lastSentAt.getTime()<WELCOME_SEND_INTERVAL_MS) return;
+    const retryBefore=new Date(now.getTime()-WELCOME_RETRY_MINUTES*60*1000);
+    const user=await prisma.user.findFirst({
+      where:{
+        role:{ in:['CANDIDATE','COMPANY'] },
+        welcomeEmailQueuedAt:{ not:null },
+        welcomeEmailSentAt:null,
+        OR:[{welcomeEmailLastAttemptAt:null},{welcomeEmailLastAttemptAt:{lte:retryBefore}}],
+      },
+      orderBy:{ welcomeEmailQueuedAt:'asc' },
+      include:{ company:{select:{contactEmail:true}} },
+    });
+    if(!user) return;
+    try{
+      await sendWelcomeEmail(user);
+      await prisma.user.update({ where:{id:user.id}, data:{ welcomeEmailSentAt:new Date(), welcomeEmailLastAttemptAt:new Date(), welcomeEmailLastError:null, welcomeEmailAttempts:{increment:1} } });
+    }catch(err){
+      await prisma.user.update({ where:{id:user.id}, data:{ welcomeEmailLastAttemptAt:new Date(), welcomeEmailLastError:String(err?.message || err || '').slice(0,500), welcomeEmailAttempts:{increment:1} } }).catch(()=>null);
+    }
+  }finally{ welcomeWorkerBusy=false; }
+}
+
+
 function communicationAudienceLabel(audience){
   return String(audience || '').toUpperCase() === 'COMPANY' ? 'empresas' : 'candidatos';
 }
@@ -805,6 +891,27 @@ async function listBulkCommunicationRecipients(audience){
   };
 }
 
+
+async function filterCommunicationRecipientsByHistory({ audience, subject, body, recipients=[], onlyNotPreviouslySent=true }){
+  if(!onlyNotPreviouslySent || !recipients.length) return { recipients, skippedPreviouslySent:0, priorCampaignIds:[] };
+  // v7.9.11: se compara la misma comunicación por audiencia + asunto + cuerpo. Esto también
+  // reconoce campañas creadas en v7.9.11, que todavía no tenían una huella específica.
+  const priorCampaigns=await prisma.adminCommunication.findMany({
+    where:{ audience, subject, body },
+    select:{ id:true },
+  });
+  if(!priorCampaigns.length) return { recipients, skippedPreviouslySent:0, priorCampaignIds:[] };
+  const priorIds=priorCampaigns.map((row)=>row.id);
+  const existing=await prisma.adminCommunicationRecipient.findMany({
+    where:{ communicationId:{in:priorIds}, status:{in:['SENT','PENDING']} },
+    select:{ userId:true },
+    distinct:['userId'],
+  });
+  const blocked=new Set(existing.map((row)=>row.userId));
+  const filtered=recipients.filter((row)=>!blocked.has(row.userId));
+  return { recipients:filtered, skippedPreviouslySent:recipients.length-filtered.length, priorCampaignIds:priorIds };
+}
+
 const COMMUNICATION_NON_TERMINAL_STATUSES = ['QUEUED','SENDING','WAITING_DAILY_LIMIT','WAITING_RETRY'];
 
 function buenosAiresDayKey(date = new Date()){
@@ -822,18 +929,28 @@ function nextBuenosAiresMidnightUtc(date = new Date()){
 
 async function communicationRolling24hUsage(now = new Date()){
   const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const [count, oldest] = await Promise.all([
+  const [campaignCount, welcomeCount, oldestCampaign, oldestWelcome] = await Promise.all([
     prisma.adminCommunicationRecipient.count({ where:{ status:'SENT', sentAt:{ gte:since } } }),
-    prisma.adminCommunicationRecipient.findFirst({
-      where:{ status:'SENT', sentAt:{ gte:since } },
-      orderBy:{ sentAt:'asc' },
-      select:{ sentAt:true },
-    }),
+    prisma.user.count({ where:{ welcomeEmailSentAt:{ gte:since } } }),
+    prisma.adminCommunicationRecipient.findFirst({ where:{ status:'SENT', sentAt:{ gte:since } }, orderBy:{ sentAt:'asc' }, select:{ sentAt:true } }),
+    prisma.user.findFirst({ where:{ welcomeEmailSentAt:{ gte:since } }, orderBy:{ welcomeEmailSentAt:'asc' }, select:{ welcomeEmailSentAt:true } }),
   ]);
-  const nextAvailableAt = count >= COMMUNICATION_DAILY_LIMIT && oldest?.sentAt
-    ? new Date(new Date(oldest.sentAt).getTime() + 24 * 60 * 60 * 1000 + 60 * 1000)
+  const count=Number(campaignCount||0)+Number(welcomeCount||0);
+  const oldestCandidates=[oldestCampaign?.sentAt,oldestWelcome?.welcomeEmailSentAt].filter(Boolean).map((d)=>new Date(d));
+  const oldestSentAt=oldestCandidates.length ? new Date(Math.min(...oldestCandidates.map((d)=>d.getTime()))) : null;
+  const nextAvailableAt = count >= COMMUNICATION_DAILY_LIMIT && oldestSentAt
+    ? new Date(oldestSentAt.getTime() + 24 * 60 * 60 * 1000 + 60 * 1000)
     : null;
-  return { count, since, oldestSentAt:oldest?.sentAt || null, nextAvailableAt };
+  return { count, campaignCount, welcomeCount, since, oldestSentAt, nextAvailableAt };
+}
+
+async function lastAutomaticMailSentAt(){
+  const [campaign,welcome]=await Promise.all([
+    prisma.adminCommunicationRecipient.findFirst({ where:{status:'SENT',sentAt:{not:null}},orderBy:{sentAt:'desc'},select:{sentAt:true} }),
+    prisma.user.findFirst({ where:{welcomeEmailSentAt:{not:null}},orderBy:{welcomeEmailSentAt:'desc'},select:{welcomeEmailSentAt:true} }),
+  ]);
+  const dates=[campaign?.sentAt,welcome?.welcomeEmailSentAt].filter(Boolean).map((d)=>new Date(d));
+  return dates.length ? new Date(Math.max(...dates.map((d)=>d.getTime()))) : null;
 }
 
 function isMailQuotaOrRateError(err){
@@ -947,12 +1064,8 @@ async function processCommunicationQueueOnce(){
     }
 
     // Mantener separación temporal aun si Render reinicia el proceso.
-    const lastSent = await prisma.adminCommunicationRecipient.findFirst({
-      where:{ status:'SENT', sentAt:{ not:null } },
-      orderBy:{ sentAt:'desc' },
-      select:{ sentAt:true },
-    });
-    if(lastSent?.sentAt && (Date.now() - new Date(lastSent.sentAt).getTime()) < COMMUNICATION_SEND_INTERVAL_MS) return;
+    const lastSentAt = await lastAutomaticMailSentAt();
+    if(lastSentAt && (Date.now() - lastSentAt.getTime()) < COMMUNICATION_SEND_INTERVAL_MS) return;
 
     const recipient = await prisma.adminCommunicationRecipient.findFirst({
       where:{ communicationId:communication.id, status:'PENDING' },
@@ -1035,13 +1148,24 @@ async function processCommunicationQueueOnce(){
   }
 }
 
+async function processAutomaticMailQueuesOnce(){
+  if(automaticMailSchedulerBusy) return;
+  automaticMailSchedulerBusy=true;
+  try{
+    // La bienvenida es transaccional y tiene prioridad sobre una comunicación general pendiente.
+    // Ambas colas comparten el mismo techo y el mismo espaciado para no producir picos SMTP.
+    await processWelcomeEmailQueueOnce();
+    await processCommunicationQueueOnce();
+  }finally{ automaticMailSchedulerBusy=false; }
+}
+
 function startCommunicationQueueScheduler(){
   if(communicationSchedulerStarted) return;
   communicationSchedulerStarted = true;
-  setTimeout(() => { processCommunicationQueueOnce().catch(() => {}); }, 5000);
-  const timer = setInterval(() => { processCommunicationQueueOnce().catch(() => {}); }, COMMUNICATION_WORKER_TICK_MS);
+  setTimeout(() => { processAutomaticMailQueuesOnce().catch(() => {}); }, 5000);
+  const timer = setInterval(() => { processAutomaticMailQueuesOnce().catch(() => {}); }, COMMUNICATION_WORKER_TICK_MS);
   if(typeof timer.unref === 'function') timer.unref();
-  console.log(`Cola de comunicaciones activa · máximo ${COMMUNICATION_DAILY_LIMIT} en 24 h · 1 envío cada ${Math.round(COMMUNICATION_SEND_INTERVAL_MS/1000)}s`);
+  console.log(`Cola de correos automática activa · máximo compartido ${COMMUNICATION_DAILY_LIMIT} en 24 h · campañas + bienvenidas · 1 envío escalonado`);
 }
 
 async function sendPasswordRecoveryEmail({ to, code, challengeId, role }){
@@ -1970,6 +2094,7 @@ app.get("/me", authRequired, async (req, res) => {
         phone: user.candidateProfile.phone || null,
         city: user.candidateProfile.city || null,
         province: user.candidateProfile.province || null,
+        country: user.candidateProfile.country || null,
         address: user.candidateProfile.address || null,
       } : null,
     });
@@ -2010,6 +2135,7 @@ const registerSchema = z.object({
   address: z.string().max(200).optional(),
   city: z.string().max(120).optional(),
   province: z.string().max(120).optional(),
+  country: z.string().max(120).optional(),
   phone: z.string().max(60).optional(),
   contactName: z.string().max(120).optional(),
   contactEmail: z.string().email().max(180).optional()
@@ -2054,6 +2180,7 @@ app.post("/auth/register", async (req, res) => {
     address,
     city,
     province,
+    country,
   } = parsed.data;
 
   const emailNorm = normalizeEmail(email);
@@ -2064,6 +2191,8 @@ app.post("/auth/register", async (req, res) => {
     const dniNorm = normalizeId(dni || "");
     if (!dniNorm) return res.status(400).json({ error: "DNI requerido" });
     if (!isCandidateDni(dniNorm)) return res.status(400).json({ error: "Ingresá un DNI válido, sin puntos. Debe tener menos de 11 dígitos." });
+    if(!String(province || '').trim()) return res.status(400).json({ error: "Provincia / Estado / Región requerida" });
+    if(!String(country || '').trim()) return res.status(400).json({ error: "País de residencia requerido" });
 
     const [existingByDni, existingBolsaByDni] = await Promise.all([
       prisma.profile.findUnique({ where: { dni: dniNorm } }),
@@ -2080,6 +2209,10 @@ app.post("/auth/register", async (req, res) => {
     const existingByCuit = await prisma.companyProfile.findUnique({ where: { cuit: cuitNorm } });
     if (existingByCuit) return res.status(409).json({ error: "Ya existe una empresa con ese CUIT" });
   }
+
+  const registrationResidence = role === "CANDIDATE"
+    ? inferResidence({ locality:city || '', province:province || '', country:country || '' })
+    : { city:city || '', province:province || '', country:country || '' };
 
   // Si el email ya existe, permitimos "completar" el registro
   // (caso típico: versiones anteriores crearon el usuario pero no el perfil por mismatch de schema/código)
@@ -2104,6 +2237,7 @@ app.post("/auth/register", async (req, res) => {
       await prisma.user.update({
         where: { id: existingUser.id },
         data: {
+          welcomeEmailQueuedAt: existingUser.welcomeEmailSentAt ? existingUser.welcomeEmailQueuedAt : new Date(),
           candidateProfile: {
             create: {
               fullName,
@@ -2111,8 +2245,9 @@ app.post("/auth/register", async (req, res) => {
               dni: dniNorm,
               phone: phone || "",
               address: address || "",
-              city: city || "",
-              province: province || "",
+              city: registrationResidence.city || city || "",
+              province: registrationResidence.province || province || "",
+              country: registrationResidence.country || country || null,
             },
           },
           ...(existingUser.resume ? {} : { resume: { create: {} } }),
@@ -2133,6 +2268,7 @@ app.post("/auth/register", async (req, res) => {
       await prisma.user.update({
         where: { id: existingUser.id },
         data: {
+          welcomeEmailQueuedAt: existingUser.welcomeEmailSentAt ? existingUser.welcomeEmailQueuedAt : new Date(),
           company: {
             create: {
               companyName,
@@ -2168,6 +2304,7 @@ app.post("/auth/register", async (req, res) => {
           email: emailNorm,
           passHash,
           role,
+          welcomeEmailQueuedAt:new Date(),
           candidateProfile: {
             create: {
               fullName,
@@ -2175,8 +2312,9 @@ app.post("/auth/register", async (req, res) => {
               dni: dniNorm,
               phone: phone || "",
               address: address || "",
-              city: city || "",
-              province: province || "",
+              city: registrationResidence.city || city || "",
+              province: registrationResidence.province || province || "",
+              country: registrationResidence.country || country || null,
             },
           },
           resume: { create: {} },
@@ -2196,6 +2334,7 @@ app.post("/auth/register", async (req, res) => {
           email: emailNorm,
           passHash,
           role,
+          welcomeEmailQueuedAt:new Date(),
           company: {
             create: {
               companyName,
@@ -2523,6 +2662,7 @@ const profileSchema = z.object({
   dni: z.string().max(20).optional().nullable(),
   city: z.string().max(80).optional().nullable(),
   province: z.string().max(80).optional().nullable(),
+  country: z.string().max(80).optional().nullable(),
   phone: z.string().max(40).optional().nullable(),
   headline: z.string().max(140).optional().nullable(),
   sector: z.string().max(80).optional().nullable(),
@@ -3077,7 +3217,15 @@ app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
       create: { userId: req.user.id, ...resumeData },
     });
 
-    return res.json({ ok:true, sections, analysis, summaryText, resume: savedResume });
+    // v7.9.11: un CV nuevo o actualizado debe volver a fusionarse explícitamente con la presentación personal.
+    // Conservamos el texto aprobado, pero marcamos el análisis como pendiente hasta que el candidato pulse
+    // “Corrección IA profesional”; nunca se ejecuta IA automáticamente al guardar o cargar el archivo.
+    await prisma.candidateBolsa.updateMany({
+      where:{ userId:req.user.id },
+      data:{ voiceNarrativeAnalysisVersion:null, voiceNarrativeAnalysisSource:'CV_UPDATED_REQUIRES_REFINEMENT', voiceNarrativeAnalyzedAt:null },
+    }).catch(()=>null);
+
+    return res.json({ ok:true, sections, analysis, summaryText, resume: savedResume, presentationNeedsRefinement:true });
   }catch(err){
     if(err?.code === "UNSUPPORTED_RESUME_FORMAT" || err?.message === "UNSUPPORTED_RESUME_FORMAT"){
       return res.status(415).json({ error: "Formato no admitido. Usá PDF, DOCX o TXT." });
@@ -3102,6 +3250,10 @@ app.put("/resume/me", auth, async (req, res) => {
     update: data,
     create: { userId: req.user.id, ...data }
   });
+  await prisma.candidateBolsa.updateMany({
+    where:{ userId:req.user.id },
+    data:{ voiceNarrativeAnalysisVersion:null, voiceNarrativeAnalysisSource:'CV_UPDATED_REQUIRES_REFINEMENT', voiceNarrativeAnalyzedAt:null },
+  }).catch(()=>null);
   res.json(r);
 });
 
@@ -3312,15 +3464,16 @@ function buildProfessionalClosingLocal(seniority='', context={}){
 
 function refineCandidatePresentationLocal(transcript='', context={}){
   const source=String(transcript || '').replace(/\s+/g,' ').trim();
+  const combinedSource=[source,context?.resumeSummary,context?.resumeExperience,context?.resumeEducation,context?.resumeCertifications,context?.resumeObservations].filter(Boolean).join('\n');
   const cleaned=source
     .replace(/^(?:hola|buenas tardes|buenos dias|buen día|buenas noches)[,\s]*/i,'')
     .replace(/\b(?:bueno|mira|digamos|o sea|viste|eee+|mmm+|este+)\b[,.]?/gi,' ')
     .replace(/(?:\betc[eé]tera\b[,.]?\s*){1,}/gi,' ')
     .replace(/\s+/g,' ').trim();
-  const years=extractExplicitYearsFromText(source);
-  const title=inferLocalProfessionalTitle(source, context);
-  const expertise=inferLocalExpertise(source, context);
-  const n=professionalNorm(source);
+  const years=extractExplicitYearsFromText(combinedSource);
+  const title=inferLocalProfessionalTitle(combinedSource, context);
+  const expertise=inferLocalExpertise(combinedSource, context);
+  const n=professionalNorm(combinedSource);
   const paragraphs=[];
 
   const isElectromech=/electromecan/.test(n);
@@ -3347,6 +3500,11 @@ function refineCandidatePresentationLocal(transcript='', context={}){
     paragraphs.push('Como proyectista, desarrollo documentación e ingeniería de detalle, realizo cálculos y dimensionamientos, preparo planos y especificaciones y coordino técnicamente las interfaces necesarias para llevar una solución desde la definición inicial hasta su ejecución.');
   }
 
+  const resumeHighlights=String(context?.resumeExperience || '').split(/\r?\n|•/).map((x)=>x.replace(/\s+/g,' ').trim()).filter((x)=>x.length>=12 && x.length<=220).slice(0,3);
+  if(resumeHighlights.length){
+    paragraphs.push(`Entre los antecedentes que ya tengo documentados en mi currículum se destacan ${resumeHighlights.join('; ')}. Esta información complementa lo que expresé en mi presentación personal y forma parte de la misma trayectoria profesional.`);
+  }
+
   if(isHvac){
     paragraphs.push('También cuento con experiencia en aire acondicionado e instalaciones termomecánicas, participando en cálculos y dimensionamiento, definición técnica de instalaciones y coordinación electromecánica con los restantes sistemas del proyecto.');
   } else if(isCalc){
@@ -3360,7 +3518,7 @@ function refineCandidatePresentationLocal(transcript='', context={}){
   if(!paragraphs.length && cleaned) paragraphs.push(`Mi experiencia puede resumirse de la siguiente manera: ${normalizePresentationSentence(cleaned)}`);
   const summary=clampText(paragraphs.join('\n\n').trim(), 8000);
   const seniority=years!==null ? (years>=11?'SENIOR':years>=6?'SEMI_SENIOR':years>=2?'JUNIOR':'APRENDIZ') : '';
-  const strengths=inferProfessionalStrengthsLocal(source,{...context,expertise},seniority);
+  const strengths=inferProfessionalStrengthsLocal(combinedSource,{...context,expertise},seniority);
   return {
     summary:summary || clampText(cleaned,8000),
     yearsExperience:years,
@@ -3397,16 +3555,19 @@ async function refineCandidatePresentationWithAI(transcript='', context={}){
       current_or_recent_role:clampText(context?.recentRole || '',300),
       current_expertise:clampText(context?.expertise || '',180),
       cv_summary:clampText(context?.resumeSummary || '',1600),
-      cv_experience:clampText(context?.resumeExperience || '',2200),
+      cv_experience:clampText(context?.resumeExperience || '',3600),
+      cv_education:clampText(context?.resumeEducation || '',2400),
+      cv_certifications:clampText(context?.resumeCertifications || '',2400),
+      cv_observations:clampText(context?.resumeObservations || '',2200),
       declared_experience_range:clampText(context?.declaredRange || '',80),
       currently_working:!!context?.currentlyWorking,
-      role_reference_hints:candidateRoleKnowledgeHints(transcript,context),
+      role_reference_hints:candidateRoleKnowledgeHints([transcript,context?.resumeSummary,context?.resumeExperience].filter(Boolean).join('\n'),context),
     };
     const payload={
       model:OPENAI_MODEL,
       store:false,
       input:[
-        { role:'system', content:[{type:'input_text',text:'Sos el asistente de redacción profesional de Talento PyME. Estás ayudando AL CANDIDATO A ESCRIBIR SU PROPIO CURRÍCULUM. Todo el contenido que irá al CV debe sonar como escrito por la propia persona, nunca como una opinión de Talento PyME. El campo summary debe quedar EN PRIMERA PERSONA: “Soy…”, “Cuento con…”, “Me especializo…”, “Desarrollo…”, “Superviso…”. Está prohibido redactar como evaluador externo: no usar “el candidato”, “su perfil”, “la experiencia declarada permite identificar”, “el relato evidencia”, “se observa”, “demuestra” ni fórmulas equivalentes. Convertí el relato oral imperfecto en una PRESENTACIÓN PROFESIONAL AMPLIADA, clara, convincente y fiel para la parte blanca principal del CV. No debe ser un resumen corto ni repetir la columna lateral. Cuando el material lo permita, desarrollala en 2 a 4 párrafos y aproximadamente 180 a 340 palabras. Traducí profesiones y funciones declaradas a vocabulario técnico propio del oficio para ayudar a la persona a nombrar tareas que realiza pero quizá no sabe expresar. Podés usar role_reference_hints como conocimiento profesional de apoyo sólo cuando sea compatible con el relato; si una tarea es típica del rol pero no fue mencionada expresamente, presentala como alcance habitual o capacidad asociada al rol, nunca como un logro o proyecto específico comprobado. Generá strengths con EXACTAMENTE 10 aptitudes/competencias positivas y concretas, preferentemente técnicas y de gestión, coherentes con la profesión, expertise, seniority y experiencia disponible. Deben ser frases breves utilizables directamente como viñetas de un CV y no opiniones de un tercero. Generá motivation en primera persona explicando qué busca profesionalmente la persona y por qué desea crecer o seguir desarrollándose: para APRENDIZ/primer empleo enfatizar aprender y adquirir experiencia; para JUNIOR consolidar práctica y responsabilidades; para SEMI_SENIOR ampliar autonomía y alcance; para SENIOR aportar experiencia acumulada, asumir desafíos de mayor alcance, transferir conocimiento y seguir evolucionando. Si currently_working es true, no escribir como si estuviera desempleado: hablar de nuevos desafíos y evolución. Generá closing en primera persona como cierre profesional de 2 a 4 frases, integrando expertise, aporte y proyección. No inventes empleos, empresas, títulos, años, certificaciones, resultados, cantidades, marcas, software, normas, tensión, potencia, presupuestos ni tecnologías no mencionadas. Eliminá saludos, muletillas, repeticiones y “etcétera”. Si menciona años de experiencia, supervisión, proyectos, profesión o especialidades, dales el peso correspondiente. El seniority describe trayectoria, no calidad humana ni aptitud de contratación. Respondé únicamente con el JSON solicitado.'}] },
+        { role:'system', content:[{type:'input_text',text:'Sos el asistente de redacción profesional de Talento PyME. Estás ayudando AL CANDIDATO A ESCRIBIR SU PROPIO CURRÍCULUM. Todo el contenido que irá al CV debe sonar como escrito por la propia persona, nunca como una opinión de Talento PyME. El campo summary debe quedar EN PRIMERA PERSONA: “Soy…”, “Cuento con…”, “Me especializo…”, “Desarrollo…”, “Superviso…”. Está prohibido redactar como evaluador externo: no usar “el candidato”, “su perfil”, “la experiencia declarada permite identificar”, “el relato evidencia”, “se observa”, “demuestra” ni fórmulas equivalentes. Fusioná el relato personal y, si existe, todo el CV ya leído por Talento PyME en UNA ÚNICA PRESENTACIÓN PROFESIONAL AMPLIADA, clara, convincente y fiel para la parte blanca principal del CV. El relato y el CV son fuentes complementarias: el CV aporta cargos, fechas, formación, certificaciones y antecedentes; la voz/texto aporta contexto, objetivos, fortalezas y detalles que quizá no estaban escritos. No pegues ni repitas las dos fuentes una detrás de otra: integrá, deduplicá y priorizá la información más concreta y reciente. Si hay una aparente contradicción, usá una redacción prudente y no inventes. No debe ser un resumen corto ni repetir la columna lateral. Cuando el material lo permita, desarrollala en 2 a 4 párrafos y aproximadamente 180 a 340 palabras. Traducí profesiones y funciones declaradas a vocabulario técnico propio del oficio para ayudar a la persona a nombrar tareas que realiza pero quizá no sabe expresar. Podés usar role_reference_hints como conocimiento profesional de apoyo sólo cuando sea compatible con el relato; si una tarea es típica del rol pero no fue mencionada expresamente, presentala como alcance habitual o capacidad asociada al rol, nunca como un logro o proyecto específico comprobado. Generá strengths con EXACTAMENTE 10 aptitudes/competencias positivas y concretas, preferentemente técnicas y de gestión, coherentes con la profesión, expertise, seniority y experiencia disponible. Deben ser frases breves utilizables directamente como viñetas de un CV y no opiniones de un tercero. Generá motivation en primera persona explicando qué busca profesionalmente la persona y por qué desea crecer o seguir desarrollándose: para APRENDIZ/primer empleo enfatizar aprender y adquirir experiencia; para JUNIOR consolidar práctica y responsabilidades; para SEMI_SENIOR ampliar autonomía y alcance; para SENIOR aportar experiencia acumulada, asumir desafíos de mayor alcance, transferir conocimiento y seguir evolucionando. Si currently_working es true, no escribir como si estuviera desempleado: hablar de nuevos desafíos y evolución. Generá closing en primera persona como cierre profesional de 2 a 4 frases, integrando expertise, aporte y proyección. No inventes empleos, empresas, títulos, años, certificaciones, resultados, cantidades, marcas, software, normas, tensión, potencia, presupuestos ni tecnologías no mencionadas. Eliminá saludos, muletillas, repeticiones y “etcétera”. Si menciona años de experiencia, supervisión, proyectos, profesión o especialidades, dales el peso correspondiente. El seniority describe trayectoria, no calidad humana ni aptitud de contratación. Respondé únicamente con el JSON solicitado.'}] },
         { role:'user', content:[{type:'input_text',text:`Analizá nuevamente TODO el material profesional cada vez, no sólo lo agregado al final.\n\nDatos profesionales (sin identidad ni contacto):\n${JSON.stringify(professionalContext)}`}]}],
       text:{format:{type:'json_schema',name:'candidate_professional_presentation',strict:true,schema:{
         type:'object',additionalProperties:false,
@@ -3437,7 +3598,7 @@ async function refineCandidatePresentationWithAI(transcript='', context={}){
     const body=await response.json();
     const text=responseOutputText(body);
     const parsed=JSON.parse(text);
-    const years=Number.isFinite(Number(parsed.years_experience)) ? Number(parsed.years_experience) : extractExplicitYearsFromText(transcript);
+    const years=Number.isFinite(Number(parsed.years_experience)) ? Number(parsed.years_experience) : extractExplicitYearsFromText([transcript,context?.resumeSummary,context?.resumeExperience].filter(Boolean).join('\n'));
     return {
       summary:clampText(parsed.summary || '',8000),
       yearsExperience:years,
@@ -3469,6 +3630,9 @@ app.post('/candidate/presentation/refine', auth, requireRole('CANDIDATE'), async
       recentRole:classification.recentRole,
       resumeSummary:candidate?.resume?.summary || '',
       resumeExperience:candidate?.resume?.experience || '',
+      resumeEducation:candidate?.resume?.education || '',
+      resumeCertifications:candidate?.resume?.certifications || '',
+      resumeObservations:candidate?.resume?.observations || '',
       declaredRange:candidate?.candidateBolsa?.rangoExperiencia || '',
       currentlyWorking:!!candidate?.candidateBolsa?.trabajaActualmente,
     };
@@ -3480,7 +3644,7 @@ app.post('/candidate/presentation/refine', auth, requireRole('CANDIDATE'), async
     }
     if(!analysis) analysis=refineCandidatePresentationLocal(parsed.data.transcript, context);
 
-    // v7.9.10: la corrección profesional se ejecuta únicamente a pedido explícito del candidato
+    // v7.9.11: la corrección profesional se ejecuta únicamente a pedido explícito del candidato
     // y pasa a ser inmediatamente la presentación principal por defecto.
     const analyzedAt=new Date();
     const yearsExperience=Number.isFinite(Number(analysis.yearsExperience)) ? Number(analysis.yearsExperience) : null;
@@ -3538,7 +3702,7 @@ app.get('/candidate/cv/pdf', auth, requireRole('CANDIDATE'), async (req, res) =>
       where:{ id:req.user.id },
       select:{
         id:true,email:true,createdAt:true,
-        candidateProfile:{ select:{ fullName:true,dni:true,city:true,province:true,phone:true,address:true,headline:true,sector:true,subSector:true } },
+        candidateProfile:{ select:{ fullName:true,dni:true,city:true,province:true,country:true,phone:true,address:true,headline:true,sector:true,subSector:true } },
         candidateBolsa:true,
         resume:true,
       },
@@ -3554,6 +3718,19 @@ app.get('/candidate/cv/pdf', auth, requireRole('CANDIDATE'), async (req, res) =>
   }catch(err){
     console.error('GET /candidate/cv/pdf', err);
     return res.status(500).json({ error:'No se pudo generar el currículum PDF.' });
+  }
+});
+
+app.get('/candidate/cv/sample.pdf', auth, requireRole('CANDIDATE'), async (req, res) => {
+  try{
+    const pdf=await buildCandidateCvPdfBuffer(buildCandidateSampleCvData());
+    res.setHeader('Content-Type','application/pdf');
+    res.setHeader('Content-Disposition','inline; filename="CV-Tipo-Talento-PyME.pdf"');
+    res.setHeader('Cache-Control','no-store');
+    return res.send(pdf);
+  }catch(err){
+    console.error('GET /candidate/cv/sample.pdf', err);
+    return res.status(500).json({ error:'No se pudo generar el currículum tipo.' });
   }
 });
 
@@ -3583,8 +3760,8 @@ app.get("/bolsa/me", authRequired, async (req, res) => {
   try{
     let bolsa = await prisma.candidateBolsa.findUnique({ where: { userId: req.user.id } });
     if(bolsa){
-      const profile = await prisma.profile.findUnique({ where:{ userId:req.user.id }, select:{ city:true, province:true } }).catch(()=>null);
-      const residence=inferResidence({ locality:bolsa.localidad || profile?.city, province:bolsa.provinciaResidencia || profile?.province, country:bolsa.paisResidencia });
+      const profile = await prisma.profile.findUnique({ where:{ userId:req.user.id }, select:{ city:true, province:true, country:true } }).catch(()=>null);
+      const residence=inferResidence({ locality:bolsa.localidad || profile?.city, province:bolsa.provinciaResidencia || profile?.province, country:bolsa.paisResidencia || profile?.country });
       const patch={};
       if(residence.city && residence.city !== bolsa.localidad) patch.localidad=residence.city;
       if(residence.province && residence.province !== bolsa.provinciaResidencia) patch.provinciaResidencia=residence.province;
@@ -3592,7 +3769,7 @@ app.get("/bolsa/me", authRequired, async (req, res) => {
       if(Object.keys(patch).length){
         bolsa=await prisma.candidateBolsa.update({ where:{ userId:req.user.id }, data:patch }).catch(()=>({ ...bolsa, ...patch }));
         if(residence.province || residence.city){
-          await prisma.profile.update({ where:{ userId:req.user.id }, data:{ ...(residence.city?{city:residence.city}:{}), ...(residence.province?{province:residence.province}:{}) } }).catch(()=>null);
+          await prisma.profile.update({ where:{ userId:req.user.id }, data:{ ...(residence.city?{city:residence.city}:{}), ...(residence.province?{province:residence.province}:{}), ...(residence.country?{country:residence.country}:{}) } }).catch(()=>null);
         }
       }
     }
@@ -3612,7 +3789,7 @@ app.post("/bolsa/me", authRequired, async (req, res) => {
     if(data.observaciones) data.observaciones = clampText(data.observaciones, 12000);
 
     const existingProfile = await prisma.profile.findUnique({ where: { userId: req.user.id } });
-    const residence=inferResidence({ locality:data.localidad || existingProfile?.city, province:data.provinciaResidencia || existingProfile?.province, country:data.paisResidencia });
+    const residence=inferResidence({ locality:data.localidad || existingProfile?.city, province:data.provinciaResidencia || existingProfile?.province, country:data.paisResidencia || existingProfile?.country });
     if(residence.city) data.localidad=residence.city;
     if(residence.province) data.provinciaResidencia=residence.province;
     if(residence.country) data.paisResidencia=residence.country;
@@ -3630,6 +3807,7 @@ app.post("/bolsa/me", authRequired, async (req, res) => {
         dni: data.dni,
         city: data.localidad,
         province: data.provinciaResidencia || existingProfile?.province || null,
+        country: data.paisResidencia || existingProfile?.country || null,
         address: data.direccion || "",
         phone: data.telefono,
       },
@@ -3639,6 +3817,7 @@ app.post("/bolsa/me", authRequired, async (req, res) => {
         dni: data.dni,
         city: data.localidad,
         province: data.provinciaResidencia || existingProfile?.province || null,
+        country: data.paisResidencia || existingProfile?.country || null,
         address: data.direccion || "",
         phone: data.telefono,
       }
@@ -3834,7 +4013,7 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
     const especialidad_by_area = Object.fromEntries(
       Object.entries(rawStats.especialidad_by_area || {}).map(([area, values]) => [area, Object.keys(values || {})])
     );
-    // v7.9.10: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
+    // v7.9.11: la vista empresa recibe disponibilidad de filtros, pero no cantidades globales
     // ni conteos por faceta. Los totales de padrón quedan reservados al Panel General.
     return res.json({ ok: true, facets, especialidad_by_area });
   } catch (err) {
@@ -4064,7 +4243,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.9.10 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.9.11 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
@@ -6136,9 +6315,10 @@ function buildAdminComposition(candidateItems = [], companyItems = []){
   const residenceMap = new Map();
   for(const item of candidateItems || []){
     const country=String(item?.residenceCountry || 'País no informado');
+    const province=String(item?.residenceProvince || item?.province || 'Provincia / región no informada');
     const city=String(item?.residenceCity || item?.localidad || 'Ciudad no informada');
-    const key=`${adminNormText(country)}|${adminNormText(city)}`;
-    const row=residenceMap.get(key) || { key, label:`${country} · ${city}`, country, city, count:0 };
+    const key=`${adminNormText(country)}|${adminNormText(province)}|${adminNormText(city)}`;
+    const row=residenceMap.get(key) || { key, label:`${country} · ${province} · ${city}`, country, province, city, count:0 };
     row.count += 1;
     residenceMap.set(key,row);
   }
@@ -6170,7 +6350,7 @@ function candidateResidence(candidate = {}){
   return inferResidence({
     locality:bolsa.localidad || profile.city || '',
     province:bolsa.provinciaResidencia || profile.province || '',
-    country:bolsa.paisResidencia || '',
+    country:bolsa.paisResidencia || profile.country || '',
   });
 }
 
@@ -6184,13 +6364,14 @@ function buildCandidateResidenceComposition(candidateRows = []){
   for(const item of candidateRows || []){
     const country=candidateResidenceCountry(item);
     const residence=candidateResidence(item);
+    const province=String(residence.province || item?.candidateBolsa?.provinciaResidencia || item?.candidateProfile?.province || 'Provincia / región no informada').trim() || 'Provincia / región no informada';
     const city=String(residence.city || item?.candidateBolsa?.localidad || item?.candidateProfile?.city || 'Ciudad no informada').trim() || 'Ciudad no informada';
-    const key=`${adminNormText(country)}|${adminNormText(city)}`;
-    const row=map.get(key) || { key, country, city, label:`${country} · ${city}`, count:0 };
+    const key=`${adminNormText(country)}|${adminNormText(province)}|${adminNormText(city)}`;
+    const row=map.get(key) || { key, country, province, city, label:`${country} · ${province} · ${city}`, count:0 };
     row.count += 1;
     map.set(key,row);
   }
-  return [...map.values()].sort((a,b)=>b.count-a.count || a.country.localeCompare(b.country,'es') || a.city.localeCompare(b.city,'es'));
+  return [...map.values()].sort((a,b)=>b.count-a.count || a.country.localeCompare(b.country,'es') || a.province.localeCompare(b.province,'es') || a.city.localeCompare(b.city,'es'));
 }
 
 function traceabilityMonthKey(value){
@@ -6273,7 +6454,7 @@ async function buildTraceabilityReportSnapshot(){
       where:{ role:'CANDIDATE' },
       select:{
         id:true, createdAt:true,
-        candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, headline:true, sector:true, subSector:true, updatedAt:true } },
+        candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, country:true, headline:true, sector:true, subSector:true, updatedAt:true } },
         candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, provinciaResidencia:true, paisResidencia:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, voiceNarrativeAnalysisVersion:true, voiceNarrativeAnalysisSource:true, voiceNarrativeYears:true, voiceNarrativeProfessionalTitle:true, voiceNarrativeStrengths:true, voiceNarrativeMotivation:true, voiceNarrativeClosing:true, voiceNarrativeAnalyzedAt:true, updatedAt:true } },
         resume:{ select:{ summary:true, experience:true, education:true, certifications:true, observations:true, updatedAt:true } },
       },
@@ -6305,6 +6486,7 @@ async function buildTraceabilityReportSnapshot(){
   }).length;
   const candidatesWithPresentation=(candidateRows || []).filter((it)=>String(it?.candidateBolsa?.voiceNarrativeSummary || '').trim()).length;
   const candidatesWithResidenceCountry=(candidateRows || []).filter((it)=>candidateResidenceCountry(it) !== 'País no informado').length;
+  const candidatesWithResidenceProvince=(candidateRows || []).filter((it)=>{ const p=String(candidateResidence(it).province || '').trim(); return p && p !== 'Provincia / región no informada'; }).length;
   const composition={
     candidatesByClass:traceabilityCountBy(candidateItems,'classKey','classLabel'),
     candidatesByExpertise:traceabilityCountBy(candidateItems,'expertiseKey','expertiseLabel'),
@@ -6326,10 +6508,12 @@ async function buildTraceabilityReportSnapshot(){
       candidatesWithProfessionalProfile,
       candidatesWithPresentation,
       candidatesWithResidenceCountry,
+      candidatesWithResidenceProvince,
       cvCoveragePct:candidateCount ? Math.round((candidatesWithCv/candidateCount)*100) : 0,
       profileCoveragePct:candidateCount ? Math.round((candidatesWithProfessionalProfile/candidateCount)*100) : 0,
       presentationCoveragePct:candidateCount ? Math.round((candidatesWithPresentation/candidateCount)*100) : 0,
       residenceCoveragePct:candidateCount ? Math.round((candidatesWithResidenceCountry/candidateCount)*100) : 0,
+      residenceProvinceCoveragePct:candidateCount ? Math.round((candidatesWithResidenceProvince/candidateCount)*100) : 0,
     },
     composition,
     monthlySeries:buildTraceabilityMonthlySeries({ candidateRows:candidateTimeline, companyRows:companyTimeline, jobRows:jobTimeline, applicationRows:applicationTimeline }),
@@ -6370,6 +6554,7 @@ const adminCommunicationSendSchema = z.object({
   audience:z.enum(['CANDIDATE','COMPANY']),
   subject:z.string().trim().min(4).max(180),
   body:z.string().trim().min(10).max(10000),
+  onlyNotPreviouslySent:z.boolean().optional().default(true),
 });
 
 app.get('/admin/communications/summary', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req, res) => {
@@ -6392,26 +6577,30 @@ app.post('/admin/communications/send', auth, requireAnyRole(['ADMIN','SUPERADMIN
   if(!gmailConfigured()) return res.status(503).json({ error:'El correo institucional todavía no está configurado.' });
   const parsed = adminCommunicationSendSchema.safeParse(req.body || {});
   if(!parsed.success) return res.status(400).json({ error:'Revisá el destinatario, asunto y contenido de la comunicación.' });
-  const { audience, subject, body } = parsed.data;
+  const { audience, subject, body, onlyNotPreviouslySent } = parsed.data;
   try {
     const audienceData = await listBulkCommunicationRecipients(audience);
-    if(!audienceData.recipients.length) return res.status(400).json({ error:'No hay destinatarios habilitados para esta comunicación.' });
+    const historyFilter = await filterCommunicationRecipientsByHistory({ audience, subject, body, recipients:audienceData.recipients, onlyNotPreviouslySent });
+    const targetRecipients = historyFilter.recipients;
+    if(!targetRecipients.length) return res.status(400).json({ error: onlyNotPreviouslySent ? 'Todos los destinatarios habilitados ya recibieron esta misma comunicación. Destildá “Sólo quienes todavía no recibieron este mensaje” si querés reenviarla a todos.' : 'No hay destinatarios habilitados para esta comunicación.' });
 
-    // v7.9.10: el botón ya no dispara SMTP dentro de la petición web. Crea una campaña persistente
+    // v7.9.11: el botón no dispara SMTP dentro de la petición web. Crea una campaña persistente
     // y el worker del servidor la procesa aun cuando Administración esté cerrada.
     const campaign = await prisma.adminCommunication.create({ data:{
       audience,
       subject,
       body,
-      recipientCount:audienceData.recipients.length,
+      recipientCount:targetRecipients.length,
       sentCount:0,
       skippedOptOutCount:audienceData.optedOut,
+      skippedPreviouslySentCount:historyFilter.skippedPreviouslySent,
+      recipientMode:onlyNotPreviouslySent ? 'UNSENT_ONLY' : 'ALL_ELIGIBLE',
       failedCount:0,
       status:'QUEUED',
       queuedAt:new Date(),
     }});
     await prisma.adminCommunicationRecipient.createMany({
-      data:audienceData.recipients.map((recipient) => ({ communicationId:campaign.id, userId:recipient.userId, status:'PENDING' })),
+      data:targetRecipients.map((recipient) => ({ communicationId:campaign.id, userId:recipient.userId, status:'PENDING' })),
       skipDuplicates:true,
     });
     const queue = await communicationQueueSnapshot();
@@ -6428,13 +6617,15 @@ app.post('/admin/communications/send', auth, requireAnyRole(['ADMIN','SUPERADMIN
       queued:true,
       communicationId:campaign.id,
       audience,
-      recipientCount:audienceData.recipients.length,
+      recipientCount:targetRecipients.length,
       skippedOptOutCount:audienceData.optedOut,
+      skippedPreviouslySentCount:historyFilter.skippedPreviouslySent,
+      recipientMode:onlyNotPreviouslySent ? 'UNSENT_ONLY' : 'ALL_ELIGIBLE',
       queuePosition,
       queue,
       message:queuePosition > 1
         ? `Comunicación guardada en cola, posición ${queuePosition}. Comenzará automáticamente cuando finalice la anterior.`
-        : 'Comunicación guardada en cola. El envío continuará automáticamente aunque cierres Administración.',
+        : `Comunicación guardada en cola para ${targetRecipients.length} destinatario(s).${historyFilter.skippedPreviouslySent ? ` Se excluyeron ${historyFilter.skippedPreviouslySent} porque ya tenían esta misma comunicación enviada o programada.` : ''} El envío continuará automáticamente aunque cierres Administración.`,
     });
   } catch (err) {
     console.error('POST /admin/communications/send', err?.code || err?.message || err);
@@ -7087,7 +7278,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       prisma.billingOrder.findMany({ select: { createdAt: true }, orderBy: { createdAt: 'asc' } }).catch(() => []),
     ]);
 
-    // v7.9.10 · Directorios clasificados de Administración.
+    // v7.9.11 · Directorios clasificados de Administración.
     // Se consultan campos livianos de todos los registros que cumplen los filtros actuales para que
     // los contadores representen el padrón filtrado completo, no solamente la página visible.
     const [candidateClassificationRows, companyClassificationRows] = await Promise.all([
@@ -7096,7 +7287,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         orderBy: { createdAt:'desc' },
         select: {
           id:true, email:true, candidateKeepIndefinitely:true, createdAt:true,
-          candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, headline:true, sector:true, subSector:true, updatedAt:true } },
+          candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, country:true, headline:true, sector:true, subSector:true, updatedAt:true } },
           candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, provinciaResidencia:true, paisResidencia:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, voiceNarrativeAnalysisVersion:true, voiceNarrativeAnalysisSource:true, voiceNarrativeYears:true, voiceNarrativeProfessionalTitle:true, voiceNarrativeStrengths:true, voiceNarrativeMotivation:true, voiceNarrativeClosing:true, voiceNarrativeAnalyzedAt:true, sueldoPretendido:true, updatedAt:true } },
           resume:{ select:{ summary:true, experience:true, education:true, certifications:true, observations:true, updatedAt:true } },
         },
@@ -7127,6 +7318,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         email:bolsa.correo || it.email || '',
         localidad:bolsa.localidad || profile.city || '',
         province:candidateResidence(it).province || profile.province || '',
+        residenceProvince:candidateResidence(it).province || profile.province || '',
         residenceCountry:candidateResidenceCountry(it),
         residenceCity:candidateResidence(it).city || bolsa.localidad || profile.city || 'Ciudad no informada',
         areaTrabajo:bolsa.areaTrabajo || profile.headline || 'Perfil todavía incompleto',

@@ -83,7 +83,7 @@ function buildConclusions(data){
   }
   const topResidence=(comp.candidatesByResidence || []).find((row)=>String(row?.country || '').toLowerCase() !== 'país no informado') || (comp.candidatesByResidence || [])[0];
   if(topResidence && s.candidateCount){
-    conclusions.push(`La mayor concentración geográfica informada corresponde a ${safeText(topResidence.city || 'Ciudad no informada')}, ${safeText(topResidence.country || 'País no informado')}, con ${fmtNum(topResidence.count)} candidato(s).`);
+    conclusions.push(`La mayor concentración geográfica informada corresponde a ${safeText(topResidence.city || 'Ciudad no informada')}, ${safeText(topResidence.province || 'Provincia / región no informada')}, ${safeText(topResidence.country || 'País no informado')}, con ${fmtNum(topResidence.count)} candidato(s).`);
   }
   const topFamily=(comp.companiesByFamily || [])[0];
   if(topFamily && s.companyCount){
@@ -92,7 +92,7 @@ function buildConclusions(data){
 
   if(q.cvCoveragePct < 70) recommendations.push('Impulsar una campaña de actualización de CV y perfil para elevar la calidad de lectura del padrón sin excluir a quienes todavía tienen información parcial.');
   if(Number(q.presentationCoveragePct || 0) < 45) recommendations.push('Promover el uso de la presentación por voz o texto para enriquecer perfiles incompletos, especialmente en primer empleo, aprendices y candidatos que no cuentan con un CV desarrollado.');
-  if(Number(q.residenceCoveragePct || 0) < 80) recommendations.push('Completar país y ciudad de residencia para mejorar la lectura territorial de la convocatoria y orientar acciones locales de difusión y empleo.');
+  if(Number(q.residenceCoveragePct || 0) < 80) recommendations.push('Completar país, provincia / estado / región y ciudad de residencia para mejorar la lectura territorial de la convocatoria y orientar acciones locales de difusión y empleo.');
   if(a.jobsLast30 < Math.max(1, s.companyCount * 0.35)) recommendations.push('Trabajar la activación de empresas registradas para transformar cuentas en búsquedas concretas y aumentar la demanda visible de talento.');
   if(a.applicationsLast30 < Math.max(1, a.jobsLast30 * 1.5)) recommendations.push('Reforzar la difusión de oportunidades y la comunicación hacia candidatos para aumentar la interacción con las búsquedas existentes.');
   if(topExpertise && pct(topExpertise.count,s.candidateCount) >= 35) recommendations.push(`Diversificar la captación de perfiles: hoy existe una concentración relevante en “${safeText(topExpertise.label)}”.`);
@@ -321,8 +321,8 @@ export async function buildTraceabilityPdfBuffer(data){
   table(doc,['Tipo de perfil','Cantidad','Participación'],(comp.candidatesByClass || []).map(x=>[x.label,fmtNum(x.count),fmtPct(pct(x.count,s.candidateCount))]),{widths:[285,100,110]});
   table(doc,['Expertise principal','Cantidad','Participación'],(comp.candidatesByExpertise || []).map(x=>[x.label,fmtNum(x.count),fmtPct(pct(x.count,s.candidateCount))]),{widths:[285,100,110]});
 
-  sectionTitle(doc,'4.1 País de residencia y ciudad','Distribución geográfica agregada de candidatos. No se cruza con expertise para mantener una lectura simple y compacta.');
-  table(doc,['País de residencia','Ciudad','Cantidad','Participación'],(comp.candidatesByResidence || []).map(x=>[x.country || 'País no informado',x.city || 'Ciudad no informada',fmtNum(x.count),fmtPct(pct(x.count,s.candidateCount))]),{widths:[150,190,75,80]});
+  sectionTitle(doc,'4.1 País, provincia / región y ciudad de residencia','Distribución geográfica agregada de candidatos. No se cruza con expertise para mantener una lectura simple y compacta.');
+  table(doc,['País','Provincia / región','Ciudad','Cantidad','Participación'],(comp.candidatesByResidence || []).map(x=>[x.country || 'País no informado',x.province || 'Provincia / región no informada',x.city || 'Ciudad no informada',fmtNum(x.count),fmtPct(pct(x.count,s.candidateCount))]),{widths:[105,140,135,55,60]});
 
   sectionTitle(doc,'5. Composición de empresas','Clasificación por familia y actividad principal declarada o inferida administrativamente.');
   table(doc,['Familia','Cantidad','Participación'],(comp.companiesByFamily || []).map(x=>[x.label,fmtNum(x.count),fmtPct(pct(x.count,s.companyCount))]),{widths:[285,100,110]});
@@ -334,6 +334,7 @@ export async function buildTraceabilityPdfBuffer(data){
     ['Candidatos con perfil profesional / laboral',fmtNum(q.candidatesWithProfessionalProfile),fmtPct(q.profileCoveragePct)],
     ['Candidatos con presentación personal (voz/texto)',fmtNum(q.candidatesWithPresentation),fmtPct(q.presentationCoveragePct)],
     ['Candidatos con país de residencia identificado',fmtNum(q.candidatesWithResidenceCountry),fmtPct(q.residenceCoveragePct)],
+    ['Candidatos con provincia / región identificada',fmtNum(q.candidatesWithResidenceProvince),fmtPct(q.residenceProvinceCoveragePct)],
     ['Candidatos actualizados en los últimos 30 días',fmtNum(a.candidatesUpdatedLast30),fmtPct(pct(a.candidatesUpdatedLast30,s.candidateCount))],
     ['Empresas activas o actualizadas en los últimos 30 días',fmtNum(a.companiesUpdatedLast30),fmtPct(pct(a.companiesUpdatedLast30,s.companyCount))],
   ],{widths:[295,100,100]});
