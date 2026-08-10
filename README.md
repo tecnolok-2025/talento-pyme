@@ -1,6 +1,6 @@
-# Talento PyME — v7.9.11
+# Talento PyME — v7.9.12
 
-> **Versión de despliegue confirmada:** 7.9.11 · **Build:** 20260810_01 · Frontend, API y caché PWA alineados.
+> **Versión de despliegue confirmada:** 7.9.12 · **Build:** 20260810_02 · Frontend, API y caché PWA alineados.
 
 ## Funcionalidad consolidada del CV profesional (incorporada desde v7.9.7)
 
@@ -64,8 +64,8 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.11"`
-- API: `apps/api/package.json` → `7.9.11` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.12"`
+- API: `apps/api/package.json` → `7.9.12` y endpoint `/health`.
 
 ## Administración de candidatos y empresas
 - El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.
@@ -137,6 +137,16 @@ Dentro de **Administración > Correo / Consultas** se mantiene la comunicación 
 - Se reutilizan `FACTORY_SUPPORT_EMAIL` y `GMAIL_APP_PASSWORD`; no se agregan credenciales nuevas.
 
 El límite de 450 se reserva específicamente para comunicaciones generales, dejando un margen prudente para recuperaciones de contraseña, mensajes individuales, reportes y posibles envíos manuales externos. Talento PyME no puede contabilizar los correos que una persona envíe manualmente directamente desde Gmail, por eso se mantiene ese margen.
+
+
+## v7.9.12 — descarga directa de CV candidato
+
+- Se elimina el botón **Recargar** de Mi Perfil candidato: sólo releía la información guardada y no era necesario para generar el currículum.
+- **Descargar mi CV PDF** genera directamente un PDF nuevo con toda la información guardada del candidato.
+- La descarga ya no queda bloqueada porque la Presentación Personal necesite una nueva Corrección IA.
+- Compatibilidad reforzada para iPhone/iPad, donde el PDF se abre para Guardar/Compartir/Imprimir.
+- Build **20260810_02** y caché PWA **7.9.12** para evitar que quede cargado JavaScript de 7.9.11.
+- Sin cambios de base de datos.
 
 ## v7.9.11 — onboarding, comunicaciones y CV integrado
 - Comunicaciones repetidas: por defecto sólo destinatarios que todavía no recibieron la misma comunicación.

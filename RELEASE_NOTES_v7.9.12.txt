@@ -1,0 +1,13 @@
+Talento PyME v7.9.12
+
+Corrección funcional del perfil candidato:
+- Se elimina el botón “Recargar” de Mi Perfil. Su única función era volver a leer desde la API los datos ya guardados y generaba confusión.
+- “Descargar mi CV PDF” pasa a ser una acción directa e independiente: no exige Corrección IA profesional, no exige recarga previa y no fuerza un guardado adicional.
+- El PDF se genera en el momento desde la información vigente YA GUARDADA del candidato, incluyendo perfil, presentación, CV procesado, residencia, experiencia, fortalezas, formación y demás datos disponibles.
+- Una Presentación Personal pendiente de una nueva Corrección IA no bloquea la descarga. El PDF utiliza la mejor información actualmente guardada y podrá regenerarse más adelante.
+- Se incorpora compatibilidad específica con Safari de iPhone/iPad: el PDF se abre en una pestaña autorizada por el gesto del usuario para poder guardarlo, compartirlo o imprimirlo.
+- En navegadores de escritorio/Android se mantiene la descarga directa del archivo.
+- El nombre de archivo conserva YYMMDD-HHmm CV Nombre Apellido.pdf.
+- Se incrementa versión PWA a 7.9.12 y build 20260810_02 para forzar renovación de caché respecto de 7.9.11/R01.
+
+No hay cambios de Prisma ni migraciones de datos.
