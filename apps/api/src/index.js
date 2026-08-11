@@ -4356,7 +4356,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.9.13 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.9.15 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
@@ -6044,6 +6044,7 @@ const ADMIN_COMPANY_CATEGORY_LABELS = {
 };
 
 const ADMIN_CANDIDATE_CLASS_LABELS = {
+  INICIAL: 'Información profesional por completar',
   APRENDIZ: 'Aprendices / Pasantes / Primer empleo',
   OPERATIVO: 'Operativos / Oficios',
   TECNICO: 'Técnicos / Especialistas',
@@ -6078,6 +6079,85 @@ const ADMIN_EXPERTISE_LABELS = {
   GENERAL: 'Primer empleo / Perfil general',
 };
 
+function buildCandidateDirectoryFilterOptions(items = []){
+  return Object.entries(ADMIN_CANDIDATE_CLASS_LABELS).map(([classKey, classLabel]) => {
+    const classItems = (items || []).filter((item) => String(item.classKey || '') === classKey);
+    const profileMap = new Map();
+    for(const item of classItems){
+      const key = String(item.expertiseKey || 'GENERAL');
+      const current = profileMap.get(key) || { key, label:item.expertiseLabel || ADMIN_EXPERTISE_LABELS.GENERAL, count:0 };
+      current.count += 1;
+      profileMap.set(key, current);
+    }
+    return {
+      key:classKey,
+      label:classLabel,
+      count:classItems.length,
+      profiles:[...profileMap.values()].sort((a,b) => b.count - a.count || a.label.localeCompare(b.label, 'es')),
+    };
+  }).filter((group) => group.count > 0);
+}
+function filterCandidateDirectoryItems(items = [], token = 'ALL'){
+  const raw = String(token || 'ALL').trim();
+  if(!raw || raw === 'ALL') return items;
+  const parts = raw.split('::');
+  if(parts[0] === 'CLASS' && parts[1]) return items.filter((item) => String(item.classKey || '') === parts[1]);
+  if(parts[0] === 'PROFILE' && parts[1] && parts[2]) return items.filter((item) => String(item.classKey || '') === parts[1] && String(item.expertiseKey || '') === parts[2]);
+  return items;
+}
+function candidateDirectoryFilterLabel(options = [], token = 'ALL'){
+  const raw = String(token || 'ALL').trim();
+  if(!raw || raw === 'ALL') return '';
+  const parts = raw.split('::');
+  const group = options.find((item) => String(item.key || '') === String(parts[1] || ''));
+  if(!group) return '';
+  if(parts[0] === 'CLASS') return group.label;
+  if(parts[0] === 'PROFILE'){
+    const profile = (group.profiles || []).find((item) => String(item.key || '') === String(parts[2] || ''));
+    return profile ? `${group.label} · ${profile.label}` : group.label;
+  }
+  return '';
+}
+function buildCompanyDirectoryFilterOptions(items = []){
+  return Object.entries(ADMIN_COMPANY_CATEGORY_LABELS).map(([categoryKey, categoryLabel]) => {
+    const familyItems = (items || []).filter((item) => String(item.categoryKey || '') === categoryKey);
+    const profileMap = new Map();
+    for(const item of familyItems){
+      const key = String(item.activityKey || 'ACTIVIDAD_NO_ESPECIFICADA');
+      const current = profileMap.get(key) || { key, label:item.activityLabel || 'Actividad principal no especificada', count:0 };
+      current.count += 1;
+      profileMap.set(key, current);
+    }
+    return {
+      key:categoryKey,
+      label:categoryLabel,
+      count:familyItems.length,
+      profiles:[...profileMap.values()].sort((a,b) => b.count - a.count || a.label.localeCompare(b.label, 'es')),
+    };
+  }).filter((group) => group.count > 0);
+}
+function filterCompanyDirectoryItems(items = [], token = 'ALL'){
+  const raw = String(token || 'ALL').trim();
+  if(!raw || raw === 'ALL') return items;
+  const parts = raw.split('::');
+  if(parts[0] === 'FAMILY' && parts[1]) return items.filter((item) => String(item.categoryKey || '') === parts[1]);
+  if(parts[0] === 'PROFILE' && parts[1] && parts[2]) return items.filter((item) => String(item.categoryKey || '') === parts[1] && String(item.activityKey || '') === parts[2]);
+  return items;
+}
+function companyDirectoryFilterLabel(options = [], token = 'ALL'){
+  const raw = String(token || 'ALL').trim();
+  if(!raw || raw === 'ALL') return '';
+  const parts = raw.split('::');
+  const group = options.find((item) => String(item.key || '') === String(parts[1] || ''));
+  if(!group) return '';
+  if(parts[0] === 'FAMILY') return group.label;
+  if(parts[0] === 'PROFILE'){
+    const profile = (group.profiles || []).find((item) => String(item.key || '') === String(parts[2] || ''));
+    return profile ? `${group.label} · ${profile.label}` : group.label;
+  }
+  return '';
+}
+
 function adminNormText(value = ''){
   return String(value || '')
     .normalize('NFD')
@@ -6106,6 +6186,13 @@ function countAdminKeywords(text, words = []){
   const normalized = ` ${adminNormText(text)} `;
   return words.reduce((score, word) => score + (normalized.includes(adminNormText(word)) ? 1 : 0), 0);
 }
+function adminSearchTextMatch(text, query = ''){
+  const q = adminNormText(query);
+  if(!q) return true;
+  const haystack = ` ${adminNormText(text)} `;
+  const tokens = q.split(' ').filter(Boolean);
+  return tokens.length ? tokens.every((token) => haystack.includes(token)) : true;
+}
 
 const ADMIN_COMPANY_ACTIVITY_RULES = [
   { key:'METALURGIA', label:'Metalurgia / Mecanizado', family:'FABRICACION', words:['metalurgica','metalurgico','mecanizado','mecanica industrial','caldereria','fundicion','acero','siderurg'] },
@@ -6131,7 +6218,7 @@ const ADMIN_COMPANY_ACTIVITY_RULES = [
 function inferAdminCompanyPrimaryActivity(company = {}){
   const jobs = Array.isArray(company.jobs) ? company.jobs : [];
   const core = [company.companySummary, company.companyName, company.website].filter(Boolean).join(' ');
-  const jobText = jobs.map((job) => [job.title, job.description, job.requirements].filter(Boolean).join(' ')).join(' ');
+  const jobText = jobs.map((job) => [job.title, job.description, job.requirements, job.location].filter(Boolean).join(' ')).join(' ');
   const ranked = ADMIN_COMPANY_ACTIVITY_RULES.map((rule) => ({
     ...rule,
     score:(countAdminKeywords(core, rule.words) * 5) + countAdminKeywords(jobText, rule.words),
@@ -6270,7 +6357,7 @@ function inferAdminCandidateExpertise(candidate = {}){
     const cvAllHits = countAdminKeywords(cvAll, words);
     const voiceHits = countAdminKeywords(voice, words);
     const allHits = countAdminKeywords(allText, words);
-    // v7.9.13: el CV completo deja de ser un simple fallback. Cuando existe,
+    // v7.9.15: el CV completo deja de ser un simple fallback. Cuando existe,
     // participa fuertemente de la detección de expertise junto con el rol reciente.
     return { key, words, order, currentHits, cvRecentHits, cvAllHits, voiceHits, allHits,
       score:(currentHits * 14) + (cvRecentHits * 5) + (voiceHits * 4) + cvAllHits };
@@ -6290,89 +6377,147 @@ function inferAdminCandidateExpertise(candidate = {}){
   return { key:'GENERAL', label:ADMIN_EXPERTISE_LABELS.GENERAL, source:'FALLBACK' };
 }
 
-function scoreCandidateProfessionalProfile(candidate = {}){
-  // Indicador exclusivamente profesional: NO usa edad, foto, género, nacionalidad,
-  // estado civil, hijos, dirección, salario ni ningún otro atributo personal sensible.
-  // v7.9.13: siempre relee perfil + presentación + antecedentes curriculares completos.
+function candidateProfessionalMaturityEvidence(candidate = {}){
   const bolsa = candidate.candidateBolsa || {};
   const resume = candidate.resume || {};
-  const recent = candidateRecentProfessionalText(candidate);
+  const profile = candidate.candidateProfile || {};
+  const exp = candidateExperienceEvidence(candidate);
+  const resumeExperience = adminNormText(resume.experience || '');
+  const resumeSummary = adminNormText(resume.summary || '');
+  const voice = adminNormText([bolsa.voiceNarrativeSummary,bolsa.voiceNarrativeRaw,bolsa.voiceNarrativeProfessionalTitle].filter(Boolean).join(' '));
+  const profileText = adminNormText([bolsa.ultimoTrabajo,bolsa.areaTrabajo,bolsa.nivel,bolsa.especialidad,bolsa.especialidadOtro,bolsa.observaciones,profile.headline,profile.sector,profile.subSector].filter(Boolean).join(' '));
+  const all = ` ${[resumeExperience,resumeSummary,voice,profileText].filter(Boolean).join(' ')} `;
+
+  const countRx=(rx)=> (all.match(rx) || []).length;
+  const roleHits=countRx(/\b(gerente|director|jefe|supervisor|coordinador|responsable|lider|capataz|encargado|ingeniero|tecnico|analista|especialista|proyectista|operador|oficial|electricista|mecanico|instrumentista|planificador|administrativo|vendedor|chofer)\b/g);
+  const leadershipHits=countRx(/\b(supervisor|supervision|jefe|jefatura|coordinador|coordinacion|lider|liderazgo|capataz|encargado|responsable de turno|responsable de equipo)\b/g);
+  const executiveHits=countRx(/\b(gerente|gerencia|director|direccion|plant manager|country manager|head of)\b/g);
+  const responsibilityHits=countRx(/\b(supervis|coordina|lider|planific|programa|gestiona|gestion|dirig|controla|control|presupuest|proyect|disen|calculo|mantenim|confiabilidad|inspeccion|auditoria|calibracion|puesta en marcha|comisionamiento|produccion|operacion|mejora continua|seguridad|calidad|capacita)\w*/g);
+  const technicalTaskHits=countRx(/\b(mantenimiento|preventivo|correctivo|predictivo|electricidad|electrica|mecanica|instrumentacion|automatizacion|plc|scada|tableros|subestacion|soldadura|montaje|piping|ingenieria|proyectos|oficina tecnica|produccion|logistica|calidad|hse|compras|ventas|administracion)\b/g);
+  const firstEmploymentExplicit=/\b(primer empleo|busco mi primer empleo|sin experiencia laboral|sin experiencia previa|pasantia|pasante|aprendiz|trainee|practica profesional)\b/.test(all);
+  const explicitSeniority={
+    senior:/\b(senior|sr)\b/.test(all),
+    semi:/\b(semi senior|semisenior|semi-senior|ssr)\b/.test(all),
+    junior:/\b(junior|jr)\b/.test(all),
+  };
+  const maturityNarrative=/\b(amplia experiencia|extensa trayectoria|solida trayectoria|larga trayectoria|vasta experiencia|experiencia comprobable|trayectoria comprobable)\b/.test(all);
+  const richResume=String(resume.experience || '').trim().length >= 220 || (String(resume.experience || '').trim().length >= 100 && String(resume.summary || '').trim().length >= 120);
+  const richVoice=String(bolsa.voiceNarrativeSummary || bolsa.voiceNarrativeRaw || '').trim().length >= 260;
+  const hasWorkText=!!String(resume.experience || bolsa.ultimoTrabajo || bolsa.voiceNarrativeSummary || bolsa.voiceNarrativeRaw || '').trim();
+  const leadershipHit=leadershipHits>0;
+  const executiveHit=executiveHits>0;
+  const contradictoryExperience=exp.years!==null || exp.cvIntervalsCount>0 || leadershipHit || executiveHit || (richResume && roleHits>=2) || responsibilityHits>=4 || maturityNarrative;
+  const sufficientForEstimate=exp.years!==null || executiveHit || leadershipHit || explicitSeniority.senior || explicitSeniority.semi || (richResume && roleHits>=2 && responsibilityHits>=2) || (richVoice && responsibilityHits>=3) || (roleHits>=3 && responsibilityHits>=3);
+  let confidence='BAJA';
+  if(exp.years!==null || exp.cvIntervalsCount>=1) confidence='ALTA';
+  else if(sufficientForEstimate || richResume || richVoice) confidence='MEDIA';
+  return { exp, roleHits, leadershipHits, executiveHits, responsibilityHits, technicalTaskHits, firstEmploymentExplicit, explicitSeniority, maturityNarrative, richResume, richVoice, hasWorkText, leadershipHit, executiveHit, contradictoryExperience, sufficientForEstimate, confidence };
+}
+
+function scoreCandidateProfessionalProfile(candidate = {}){
+  // Indicador exclusivamente profesional: NO usa edad, fecha de nacimiento, foto, género,
+  // nacionalidad, estado civil, hijos, dirección, salario ni ningún otro atributo personal sensible.
+  // v7.9.15: la ausencia de años NO se interpreta como poca experiencia. Se relee de punta a punta
+  // perfil + presentación + CV + períodos + cargos + tareas + responsabilidades + formación.
+  const bolsa = candidate.candidateBolsa || {};
+  const resume = candidate.resume || {};
   const allText = candidateAllProfessionalText(candidate);
-  const cvText = adminNormText([resume.summary,resume.experience,resume.education,resume.certifications,resume.observations].filter(Boolean).join(' '));
   const range = String(bolsa.rangoExperiencia || '').trim().replace(/\s/g,'');
   const experienceBase = {
-    '0–1':20, '0-1':20,
-    '2–5':40, '2-5':40,
-    '6–10':60, '6-10':60,
-    '11–20':76, '11-20':76,
-    '21–30':88, '21-30':88,
-    '31+':94,
+    '0–1':28, '0-1':28,
+    '2–5':42, '2-5':42,
+    '6–10':62, '6-10':62,
+    '11–20':78, '11-20':78,
+    '21–30':89, '21-30':89,
+    '31+':95,
   };
-  const exp = candidateExperienceEvidence(candidate);
-  const explicitYears = exp.years;
-  let score = explicitYears !== null ? experienceBase[experienceRangeFromYears(explicitYears)] : (experienceBase[range] ?? null);
-  const evidence = [];
-  if(explicitYears !== null) evidence.push(`${explicitYears} años de experiencia detectados · ${exp.source}`);
-  else if(score !== null) evidence.push(`Experiencia declarada ${String(bolsa.rangoExperiencia || '').trim()} años`);
+  const maturity=candidateProfessionalMaturityEvidence(candidate);
+  const exp=maturity.exp;
+  const explicitYears=exp.years;
+  const declaredScore=experienceBase[range] ?? null;
+  const lowDeclaredRange=['0–1','0-1'].includes(range);
+  const ignoreLowDeclaredRange=lowDeclaredRange && maturity.contradictoryExperience;
+  let score=explicitYears!==null ? experienceBase[experienceRangeFromYears(explicitYears)] : (!ignoreLowDeclaredRange ? declaredScore : null);
+  const evidence=[];
+
+  if(explicitYears!==null) evidence.push(`${explicitYears} años de experiencia detectados · ${exp.source}`);
+  else if(declaredScore!==null && !ignoreLowDeclaredRange) evidence.push(`Experiencia declarada ${String(bolsa.rangoExperiencia || '').trim()} años`);
+  else if(ignoreLowDeclaredRange) evidence.push('El rango inicial 0–1 no se usa como techo porque existen antecedentes profesionales que lo contradicen');
   if(exp.sources.length) evidence.push(`Fuentes leídas: ${exp.sources.join(' + ')}`);
 
-  const apprenticeHit = /(pasante|pasantia|aprendiz|trainee|primer empleo|sin experiencia|estudiante)/.test(recent);
-  const juniorHit = /\bjunior\b|\bjr\b/.test(recent);
-  const semiHit = /semi senior|semisenior|semi-senior|\bssr\b/.test(recent);
-  const seniorHit = /\bsenior\b|\bsr\b/.test(`${recent} ${cvText}`);
-  const leadershipHit = /(supervisor|supervision|jefe|jefatura|coordinador|lider de equipo|lider de cuadrilla|capataz|encargado|responsable de turno)/.test(`${recent} ${cvText}`);
-  const executiveHit = /(gerente|gerencia|director|direccion|head of|plant manager|country manager)/.test(`${recent} ${cvText}`);
-  const cvRoleHits = (cvText.match(/\b(supervisor|jefe|gerente|ingeniero|tecnico|analista|coordinador|responsable|operador|proyectista|especialista|encargado)\b/g) || []).length;
-
-  if(score === null){
-    if(seniorHit || executiveHit) score = 78;
-    else if(semiHit || leadershipHit) score = 60;
-    else if(exp.cvStrong && (exp.cvIntervalsCount >= 2 || cvRoleHits >= 3)) score = 52;
-    else if(juniorHit) score = 32;
-    else if(apprenticeHit && !exp.cvStrong) score = 15;
-    else score = allText.length > 450 ? 42 : (allText.length > 120 ? 30 : 18);
+  // Sólo se usa una categoría inicial cuando la propia información profesional lo dice de forma expresa.
+  if(score===null){
+    if(maturity.explicitSeniority.senior || maturity.executiveHit) score=82;
+    else if(maturity.leadershipHit && (maturity.richResume || maturity.maturityNarrative)) score=76;
+    else if(maturity.leadershipHit) score=65;
+    else if(maturity.explicitSeniority.semi) score=60;
+    else if(maturity.richResume && maturity.roleHits>=3 && maturity.responsibilityHits>=3) score=64;
+    else if(maturity.maturityNarrative && maturity.richResume && maturity.roleHits>=2) score=62;
+    else if(maturity.richResume && maturity.roleHits>=2 && maturity.responsibilityHits>=2) score=55;
+    else if(maturity.richVoice && maturity.responsibilityHits>=3) score=52;
+    else if(maturity.explicitSeniority.junior) score=34;
+    else if(maturity.firstEmploymentExplicit && !maturity.contradictoryExperience) score=15;
+    else score=null;
   }
 
-  // El CV puede corregir un rango de experiencia inicial cargado de manera incompleta.
-  if(exp.cvStrong && exp.cvIntervalsCount >= 2 && score < 50){ score = 50; evidence.push('Trayectoria cronológica consistente detectada en antecedentes curriculares'); }
-  if(executiveHit){ score += 8; evidence.push('Responsabilidad gerencial/directiva detectada'); }
-  else if(leadershipHit){ score += 6; evidence.push('Responsabilidad de supervisión o coordinación detectada'); }
+  if(score!==null){
+    if(maturity.executiveHit){ score=Math.max(score,82); evidence.push('Responsabilidad gerencial/directiva detectada'); }
+    else if(maturity.leadershipHit){ score=Math.max(score,maturity.richResume?70:62); evidence.push('Responsabilidad de supervisión, coordinación o conducción detectada'); }
+    if(maturity.richResume && maturity.roleHits>=2){ score=Math.max(score,52); evidence.push('CV desarrollado con múltiples roles/tareas profesionales'); }
+    if(maturity.maturityNarrative && maturity.richResume){ score=Math.max(score,60); evidence.push('Trayectoria extensa/comprobable descripta en antecedentes profesionales'); }
 
-  // La experiencia explícita tiene prioridad sobre palabras sueltas. La evidencia cronológica del CV también tiene prioridad sobre un rango mal cargado.
-  if(explicitYears !== null){
-    if(explicitYears >= 31) score = Math.max(score, 94);
-    else if(explicitYears >= 21) score = Math.max(score, 88);
-    else if(explicitYears >= 11) score = Math.max(score, 76);
-    else if(explicitYears >= 6) score = Math.max(score, 60);
-    else if(explicitYears >= 2) score = Math.max(score, 40);
+    // La experiencia explícita tiene prioridad sobre palabras sueltas. La cronología del CV también prevalece sobre etiquetas aisladas.
+    if(explicitYears!==null){
+      if(explicitYears>=31) score=Math.max(score,95);
+      else if(explicitYears>=21) score=Math.max(score,89);
+      else if(explicitYears>=11) score=Math.max(score,78);
+      else if(explicitYears>=6) score=Math.max(score,62);
+      else if(explicitYears>=2) score=Math.max(score,42);
+    }
+    if(maturity.explicitSeniority.senior){ score=Math.max(score,80); evidence.push('Señal explícita de seniority senior en la información profesional'); }
+    if(maturity.explicitSeniority.semi && explicitYears===null){ score=Math.max(score,58); evidence.push('Señal explícita de seniority semi-senior'); }
+    if(maturity.explicitSeniority.junior && !maturity.contradictoryExperience && (explicitYears===null || explicitYears<=5)){ score=Math.min(score,44); evidence.push('Señal explícita de seniority junior'); }
+    if(maturity.firstEmploymentExplicit && !maturity.contradictoryExperience && !maturity.leadershipHit && !maturity.executiveHit && (explicitYears===null || explicitYears<=1)){ score=Math.min(score,24); evidence.push('Primer empleo, pasantía o aprendizaje expresamente informado'); }
+
+    if(bolsa.trabajaActualmente){ score += 2; evidence.push('Actividad laboral actual informada'); }
+    if(['terciaria','universitaria'].includes(adminNormText(bolsa.nivelEducativo))) score += 2;
+    if(bolsa.tieneCapacitacion || String(resume.certifications || '').trim()) score += 2;
+    if(String(resume.experience || '').trim().length >= 300){ score += 2; evidence.push('Antecedentes laborales desarrollados en el CV'); }
+    if(String(resume.summary || '').trim().length >= 180) score += 1;
+    if(String(bolsa.voiceNarrativeSummary || '').trim().length >= 120){ score += 2; evidence.push('Presentación profesional procesada disponible'); }
+    if(maturity.firstEmploymentExplicit && !maturity.contradictoryExperience && !maturity.leadershipHit && !maturity.executiveHit && (explicitYears===null || explicitYears<=1)) score=Math.min(score,24);
+    score=Math.max(0,Math.min(100,Math.round(score)));
   }
-  if(seniorHit){ score = Math.max(score, 78); evidence.push('Señal explícita de seniority senior en la información profesional'); }
-  if(semiHit && explicitYears === null){ score = Math.max(score, 58); evidence.push('Señal explícita de seniority semi-senior'); }
-  if(juniorHit && !exp.cvStrong && (explicitYears === null || explicitYears <= 5)){ score = Math.min(score, 44); evidence.push('Señal explícita de seniority junior'); }
-  if(apprenticeHit && !exp.cvStrong && !leadershipHit && !executiveHit && (explicitYears === null || explicitYears <= 1)){ score = Math.min(score, 24); evidence.push('Pasantía, aprendizaje o primer empleo'); }
 
-  if(bolsa.trabajaActualmente){ score += 2; evidence.push('Actividad laboral actual informada'); }
-  if(['terciaria','universitaria'].includes(adminNormText(bolsa.nivelEducativo))){ score += 2; }
-  if(bolsa.tieneCapacitacion || String(resume.certifications || '').trim()){ score += 2; }
-  if(String(resume.experience || '').trim().length >= 300){ score += 2; evidence.push('Antecedentes laborales desarrollados en el CV'); }
-  if(String(resume.summary || '').trim().length >= 180){ score += 1; }
-  if(String(bolsa.voiceNarrativeSummary || '').trim().length >= 120){ score += 2; evidence.push('Presentación profesional procesada disponible'); }
+  let seniorityKey='NO_DETERMINADO';
+  let seniorityLabel='Trayectoria no determinada';
+  if(score!==null){
+    if(maturity.firstEmploymentExplicit && !maturity.contradictoryExperience && score<=24){ seniorityKey='APRENDIZ'; seniorityLabel='Aprendiz / Pasante / Primer empleo'; }
+    else if(score>=75){ seniorityKey='SENIOR'; seniorityLabel='Senior'; }
+    else if(score>=50){ seniorityKey='SEMI_SENIOR'; seniorityLabel='Semi-senior'; }
+    else { seniorityKey='JUNIOR'; seniorityLabel='Junior'; }
+  }
 
-  score = Math.max(0, Math.min(100, Math.round(score)));
-  let seniorityKey = 'APRENDIZ';
-  let seniorityLabel = 'Aprendiz / Pasante';
-  if(score >= 75){ seniorityKey = 'SENIOR'; seniorityLabel = 'Senior'; }
-  else if(score >= 50){ seniorityKey = 'SEMI_SENIOR'; seniorityLabel = 'Semi-senior'; }
-  else if(score >= 25){ seniorityKey = 'JUNIOR'; seniorityLabel = 'Junior'; }
+  const source=exp.source || (maturity.richResume ? 'Antecedentes curriculares completos' : (maturity.richVoice ? 'Presentación profesional completa' : (maturity.hasWorkText ? 'Información profesional disponible sin duración precisa' : 'Información profesional insuficiente')));
+  if(score===null) evidence.push('No se asigna un nivel bajo por falta de años: la trayectoria queda sin determinar hasta contar con evidencia profesional suficiente');
   return {
     profileScore:score,
     seniorityKey,
     seniorityLabel,
     explicitYearsExperience:explicitYears,
-    experienceEvidenceSource:exp.source || (score !== null ? 'Perfil profesional disponible' : ''),
+    experienceEvidenceSource:source,
     professionalSourcesUsed:exp.sources,
     cvEvidenceUsed:exp.sources.includes('CV / antecedentes curriculares'),
-    scoreBasis:evidence.slice(0, 7).join(' · ') || 'Estimación por evidencia profesional disponible',
+    classificationConfidence:maturity.confidence,
+    firstEmploymentExplicit:maturity.firstEmploymentExplicit,
+    professionalEvidenceSummary:{
+      rolesDetected:maturity.roleHits,
+      responsibilitySignals:maturity.responsibilityHits,
+      leadershipSignals:maturity.leadershipHits + maturity.executiveHits,
+      richResume:maturity.richResume,
+      richPresentation:maturity.richVoice,
+    },
+    scoreBasis:evidence.slice(0, 9).join(' · ') || 'Estimación por evidencia profesional disponible',
   };
 }
 
@@ -6386,11 +6531,11 @@ function inferAdminCandidateClass(candidate = {}, scoring = {}){
   const recent = candidateRecentProfessionalText(candidate);
   const text = candidateAllProfessionalText(candidate);
   const cvRoleText = adminNormText([resume.summary,resume.experience].filter(Boolean).join(' '));
-  const roleText = current || recent;
+  const roleText = [current,recent].filter(Boolean).join(' ').trim();
   const strongEvidenceText = `${roleText} ${scoring.cvEvidenceUsed ? cvRoleText : ''}`.trim();
-  const apprenticeWords = ['pasante','pasantia','aprendiz','trainee','primer empleo','sin experiencia','estudiante','practica profesional'];
-  if(scoring.seniorityKey === 'APRENDIZ' && !scoring.cvEvidenceUsed && apprenticeWords.some((word) => roleText.includes(adminNormText(word))) && !/(supervisor|jefe|gerente|senior)/.test(roleText)){
-    return { key:'APRENDIZ', label:ADMIN_CANDIDATE_CLASS_LABELS.APRENDIZ, reason:'Perfil inicial, pasantía, aprendizaje o primer empleo detectado sin antecedentes curriculares que indiquen una trayectoria superior' };
+  const apprenticeWords = ['pasante','pasantia','aprendiz','trainee','primer empleo','sin experiencia','practica profesional'];
+  if(scoring.seniorityKey === 'APRENDIZ' && scoring.firstEmploymentExplicit && apprenticeWords.some((word) => text.includes(adminNormText(word))) && !/(supervisor|jefe|gerente|senior)/.test(strongEvidenceText)){
+    return { key:'APRENDIZ', label:ADMIN_CANDIDATE_CLASS_LABELS.APRENDIZ, reason:'Pasantía, aprendizaje o primer empleo expresamente informado y sin antecedentes profesionales que indiquen una trayectoria superior' };
   }
   const executiveWords = ['gerente','gerencia','director','direccion','head of','country manager','plant manager','manager general'];
   if(executiveWords.some((word) => strongEvidenceText.includes(adminNormText(word)))){
@@ -6414,11 +6559,11 @@ function inferAdminCandidateClass(candidate = {}, scoring = {}){
   if(education === 'universitaria' && text.length > 0){
     return { key:'PROFESIONAL', label:ADMIN_CANDIDATE_CLASS_LABELS.PROFESIONAL, reason:'Formación universitaria detectada sin otra función más específica' };
   }
-  const hasLaboralData = !!String(bolsa.areaTrabajo || bolsa.especialidad || bolsa.ultimoTrabajo || resume.summary || resume.experience || '').trim();
+  const hasLaboralData = !!String(bolsa.areaTrabajo || bolsa.especialidad || bolsa.ultimoTrabajo || bolsa.voiceNarrativeSummary || bolsa.voiceNarrativeRaw || resume.summary || resume.experience || '').trim();
   if(hasLaboralData){
-    return { key:'OPERATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.OPERATIVO, reason:'Perfil operativo u oficio detectado; la expertise específica se conserva como subcategoría' };
+    return { key:'OPERATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.OPERATIVO, reason:'Existe información laboral u oficio; se conserva su expertise aunque el nivel de trayectoria pueda quedar sin determinar si faltan evidencias suficientes' };
   }
-  return { key:'APRENDIZ', label:ADMIN_CANDIDATE_CLASS_LABELS.APRENDIZ, reason:'Información profesional todavía escasa; se integra como perfil inicial en lugar de dejarlo sin clasificar' };
+  return { key:'INICIAL', label:ADMIN_CANDIDATE_CLASS_LABELS.INICIAL, reason:'Información profesional todavía insuficiente. No se presume que sea aprendiz, pasante ni primer empleo por falta de datos' };
 }
 
 function buildCandidateAdminClassification(candidate = {}){
@@ -6600,7 +6745,7 @@ async function buildTraceabilityReportSnapshot(){
     prisma.companyProfile.findMany({
       select:{
         id:true, companyName:true, companySummary:true, website:true, adminCategory:true, createdAt:true, updatedAt:true,
-        jobs:{ select:{ title:true, description:true, requirements:true }, orderBy:{ createdAt:'desc' }, take:20 },
+        jobs:{ select:{ title:true, description:true, requirements:true, location:true }, orderBy:{ createdAt:'desc' }, take:20 },
       },
     }).catch(()=>[]),
     prisma.user.findMany({ where:{ role:'CANDIDATE', createdAt:{ gte:since6Months } }, select:{ createdAt:true } }).catch(()=>[]),
@@ -7269,8 +7414,10 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
     const candidateDays = String(req.query.candidateDays || 'ALL').toUpperCase();
     const companyDays = String(req.query.companyDays || 'ALL').toUpperCase();
     const billingDays = String(req.query.billingDays || 'ALL').toUpperCase();
-    const candidateSearch = String(req.query.candidateSearch || '').trim().slice(0, 120);
-    const companySearch = String(req.query.companySearch || '').trim().slice(0, 160);
+    const candidateSearch = String(req.query.candidateSearch || '').trim().slice(0, 160);
+    const companySearch = String(req.query.companySearch || '').trim().slice(0, 180);
+    const candidateProfile = String(req.query.candidateProfile || 'ALL').trim().slice(0, 180) || 'ALL';
+    const companyProfile = String(req.query.companyProfile || 'ALL').trim().slice(0, 180) || 'ALL';
     const candidatePage = Math.max(1, num(req.query.candidatePage, 1));
     const companyPage = Math.max(1, num(req.query.companyPage, 1));
     const billingPage = Math.max(1, num(req.query.billingPage, 1));
@@ -7283,9 +7430,15 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
     const companySince = parseDaysFilter(companyDays);
     const billingSince = parseDaysFilter(billingDays);
 
-    const candidateWhere = {
+    const candidateDirectoryWhere = {
       role: 'CANDIDATE',
       ...(candidateSince ? { createdAt: { gte: candidateSince } } : {}),
+    };
+    const companyDirectoryWhere = {
+      ...(companySince ? { createdAt: { gte: companySince } } : {}),
+    };
+    const candidateWhere = {
+      ...candidateDirectoryWhere,
       ...(candidateSearch ? {
         OR: [
           { email: { contains: candidateSearch, mode: 'insensitive' } },
@@ -7299,16 +7452,29 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
           { candidateBolsa: { is: { especialidad: { contains: candidateSearch, mode: 'insensitive' } } } },
           { candidateBolsa: { is: { especialidadOtro: { contains: candidateSearch, mode: 'insensitive' } } } },
           { candidateBolsa: { is: { ultimoTrabajo: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateBolsa: { is: { voiceNarrativeProfessionalTitle: { contains: candidateSearch, mode: 'insensitive' } } } },
           { candidateBolsa: { is: { voiceNarrativeSummary: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateBolsa: { is: { voiceNarrativeRaw: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateBolsa: { is: { observaciones: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateBolsa: { is: { provinciaResidencia: { contains: candidateSearch, mode: 'insensitive' } } } },
           { candidateBolsa: { is: { paisResidencia: { contains: candidateSearch, mode: 'insensitive' } } } },
           { candidateBolsa: { is: { localidad: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateProfile: { is: { headline: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateProfile: { is: { sector: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateProfile: { is: { subSector: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateProfile: { is: { city: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateProfile: { is: { province: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { candidateProfile: { is: { country: { contains: candidateSearch, mode: 'insensitive' } } } },
           { resume: { is: { summary: { contains: candidateSearch, mode: 'insensitive' } } } },
           { resume: { is: { experience: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { resume: { is: { education: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { resume: { is: { certifications: { contains: candidateSearch, mode: 'insensitive' } } } },
+          { resume: { is: { observations: { contains: candidateSearch, mode: 'insensitive' } } } },
         ],
       } : {}),
     };
     const companyWhere = {
-      ...(companySince ? { createdAt: { gte: companySince } } : {}),
+      ...companyDirectoryWhere,
       ...(companySearch ? {
         OR: [
           { companyName: { contains: companySearch, mode: 'insensitive' } },
@@ -7317,8 +7483,16 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
           { contactEmail: { contains: companySearch, mode: 'insensitive' } },
           { phone: { contains: companySearch, mode: 'insensitive' } },
           { city: { contains: companySearch, mode: 'insensitive' } },
+          { province: { contains: companySearch, mode: 'insensitive' } },
+          { website: { contains: companySearch, mode: 'insensitive' } },
           { companySummary: { contains: companySearch, mode: 'insensitive' } },
           { adminCategory: { contains: companySearch, mode: 'insensitive' } },
+          { jobs: { some: { OR: [
+            { title: { contains: companySearch, mode: 'insensitive' } },
+            { description: { contains: companySearch, mode: 'insensitive' } },
+            { requirements: { contains: companySearch, mode: 'insensitive' } },
+            { location: { contains: companySearch, mode: 'insensitive' } },
+          ] } } },
         ],
       } : {}),
     };
@@ -7421,7 +7595,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
     // los contadores representen el padrón filtrado completo, no solamente la página visible.
     const [candidateClassificationRows, companyClassificationRows] = await Promise.all([
       prisma.user.findMany({
-        where: candidateWhere,
+        where: candidateDirectoryWhere,
         orderBy: { createdAt:'desc' },
         select: {
           id:true, email:true, candidateKeepIndefinitely:true, createdAt:true,
@@ -7431,7 +7605,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         },
       }).catch(() => []),
       prisma.companyProfile.findMany({
-        where: companyWhere,
+        where: companyDirectoryWhere,
         orderBy: [{ companyName:'asc' }],
         select: {
           id:true, userId:true, companyName:true, cuit:true, contactName:true, contactEmail:true, phone:true, city:true, province:true,
@@ -7442,7 +7616,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       }).catch(() => []),
     ]);
 
-    const candidateDirectoryItems = (candidateClassificationRows || []).map((it) => {
+    const candidateDirectoryAllItems = (candidateClassificationRows || []).map((it) => {
       const bolsa = it.candidateBolsa || {};
       const profile = it.candidateProfile || {};
       const fullNameParts = String(profile.fullName || '').trim().split(/\s+/).filter(Boolean);
@@ -7467,8 +7641,21 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         updatedAt:bolsa.updatedAt || profile.updatedAt || it.resume?.updatedAt || it.createdAt,
         profileStatus:String(it.resume?.summary || bolsa.observaciones || '').trim() ? 'CV / resumen cargado' : (it.candidateBolsa ? 'Perfil laboral cargado' : (it.candidateProfile ? 'Registro inicial' : 'Registro pendiente')),
         ...classification,
+        _searchText:[
+          it.email, bolsa.nombre, bolsa.apellido, bolsa.dni, bolsa.correo, bolsa.localidad, bolsa.provinciaResidencia, bolsa.paisResidencia,
+          bolsa.areaTrabajo, bolsa.nivel, bolsa.especialidad, bolsa.especialidadOtro, bolsa.ultimoTrabajo, bolsa.observaciones,
+          bolsa.voiceNarrativeProfessionalTitle, bolsa.voiceNarrativeSummary, bolsa.voiceNarrativeRaw,
+          profile.fullName, profile.dni, profile.city, profile.province, profile.country, profile.headline, profile.sector, profile.subSector,
+          it.resume?.summary, it.resume?.experience, it.resume?.education, it.resume?.certifications, it.resume?.observations,
+          classification.classLabel, classification.expertiseLabel, classification.seniorityLabel, classification.recentRole, classification.scoreBasis,
+        ].filter(Boolean).join(' '),
       };
     });
+
+    const candidateDirectoryFilterOptions = buildCandidateDirectoryFilterOptions(candidateDirectoryAllItems);
+    const candidateDirectoryKeywordItems = candidateDirectoryAllItems.filter((item) => adminSearchTextMatch(item._searchText, candidateSearch));
+    const candidateDirectoryItems = filterCandidateDirectoryItems(candidateDirectoryKeywordItems, candidateProfile).map(({ _searchText, ...item }) => item);
+    const candidateProfileLabel = candidateDirectoryFilterLabel(candidateDirectoryFilterOptions, candidateProfile);
 
     const candidateDirectoryGroups = Object.entries(ADMIN_CANDIDATE_CLASS_LABELS).map(([classKey, classLabel]) => {
       const items = candidateDirectoryItems.filter((item) => item.classKey === classKey);
@@ -7483,7 +7670,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       return { key:classKey, label:classLabel, count:items.length, expertise, items };
     }).filter((group) => group.count > 0);
 
-    const companyDirectoryItems = (companyClassificationRows || []).map((it) => {
+    const companyDirectoryAllItems = (companyClassificationRows || []).map((it) => {
       const classification = inferAdminCompanyCategory(it);
       return {
         id:it.id, companyId:it.id, userId:it.userId,
@@ -7493,8 +7680,18 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         adminCategory:it.adminCategory || null,
         categoryKey:classification.key, categoryLabel:classification.label, categorySource:classification.source, categoryConfidence:classification.confidence,
         activityKey:classification.activityKey || 'ACTIVIDAD_NO_ESPECIFICADA', activityLabel:classification.activityLabel || 'Actividad principal no especificada',
+        _searchText:[
+          it.companyName, it.cuit, it.contactName, it.contactEmail, it.phone, it.city, it.province, it.companySummary, it.website, it.adminCategory,
+          classification.label, classification.activityLabel,
+          ...(Array.isArray(it.jobs) ? it.jobs.flatMap((job) => [job.title, job.description, job.requirements]) : []),
+        ].filter(Boolean).join(' '),
       };
     });
+
+    const companyDirectoryFilterOptions = buildCompanyDirectoryFilterOptions(companyDirectoryAllItems);
+    const companyDirectoryKeywordItems = companyDirectoryAllItems.filter((item) => adminSearchTextMatch(item._searchText, companySearch));
+    const companyDirectoryItems = filterCompanyDirectoryItems(companyDirectoryKeywordItems, companyProfile).map(({ _searchText, ...item }) => item);
+    const companyProfileLabel = companyDirectoryFilterLabel(companyDirectoryFilterOptions, companyProfile);
 
     const companyDirectoryGroups = Object.entries(ADMIN_COMPANY_CATEGORY_LABELS).map(([categoryKey, categoryLabel]) => {
       const items = companyDirectoryItems.filter((item) => item.categoryKey === categoryKey);
@@ -7799,10 +7996,16 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       candidateDirectory: {
         total:candidateDirectoryItems.length,
         groups:candidateDirectoryGroups,
+        filterOptions:candidateDirectoryFilterOptions,
+        selectedProfile:candidateProfile,
+        selectedProfileLabel:candidateProfileLabel,
       },
       companyDirectory: {
         total:companyDirectoryItems.length,
         groups:companyDirectoryGroups,
+        filterOptions:companyDirectoryFilterOptions,
+        selectedProfile:companyProfile,
+        selectedProfileLabel:companyProfileLabel,
       },
       candidates: normalizedCandidates,
       companies: normalizedCompanies,
@@ -7810,6 +8013,8 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       candidatePaging: {
         days: candidateDays,
         search: candidateSearch,
+        profile: candidateProfile,
+        profileLabel: candidateProfileLabel,
         page: candidatePage,
         perPage: candidatePerPage,
         total: filteredCandidateCount,
@@ -7818,6 +8023,8 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
       companyPaging: {
         days: companyDays,
         search: companySearch,
+        profile: companyProfile,
+        profileLabel: companyProfileLabel,
         page: companyPage,
         perPage: companyPerPage,
         total: filteredCompanyCount,

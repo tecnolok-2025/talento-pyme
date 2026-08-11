@@ -24,12 +24,12 @@ function classificationFns(){
   return ctx.__out;
 }
 
-test('v7.9.13 unifica versión y recalcula sin persistir una nota vieja',()=>{
-  assert.equal(pkg.version,'7.9.13');
+test('v7.9.15 unifica versión y recalcula sin persistir una nota vieja',()=>{
+  assert.equal(pkg.version,'7.9.15');
   assert.match(api,/Nunca se persiste una calificación vieja: cada llamada relee toda la información vigente/);
 });
 
-test('v7.9.13 estima trayectoria desde períodos laborales fechados del CV',()=>{
+test('v7.9.15 estima trayectoria desde períodos laborales fechados del CV',()=>{
   const {estimateExperienceYearsFromResumeDates}=classificationFns();
   const r=estimateExperienceYearsFromResumeDates('1994-2004 Técnico eléctrico. 2004-2014 Supervisor. 2014-Presente Jefe de mantenimiento.');
   assert.ok(r.years>=30,`esperado >=30 años, recibido ${r.years}`);
@@ -69,11 +69,32 @@ test('expertise usa CV completo con peso fuerte y no sólo campos básicos',()=>
   assert.ok(['CV_RECIENTE','CV_COMPLETO'].includes(c.expertiseSource));
 });
 
-test('sin antecedentes suficientes un perfil realmente inicial puede seguir en nivel bajo',()=>{
+test('primer empleo explícito puede conservar categoría inicial sin usar edad ni suposiciones',()=>{
   const {buildCandidateAdminClassification}=classificationFns();
   const c=buildCandidateAdminClassification({candidateBolsa:{areaTrabajo:'Administración',especialidad:'Administrativo',rangoExperiencia:'0–1',ultimoTrabajo:'Busco mi primer empleo'},resume:{}});
-  assert.equal(c.seniorityLabel,'Aprendiz / Pasante');
+  assert.equal(c.seniorityLabel,'Aprendiz / Pasante / Primer empleo');
   assert.ok(c.profileScore<=24);
+});
+
+test('si faltan años pero el CV muestra múltiples roles y responsabilidades no cae automáticamente en aprendiz',()=>{
+  const {buildCandidateAdminClassification}=classificationFns();
+  const c=buildCandidateAdminClassification({candidateBolsa:{areaTrabajo:'Mantenimiento',especialidad:'Eléctrica',rangoExperiencia:'0–1'},resume:{summary:'Técnico especialista en mantenimiento eléctrico industrial con amplia experiencia en planta.',experience:'Técnico electricista en mantenimiento preventivo y correctivo. Supervisor de cuadrilla eléctrica, coordinación de personal, planificación de paradas, control de trabajos, tableros, motores y puesta en marcha. Responsable de seguridad operativa y seguimiento de contratistas.'}});
+  assert.notEqual(c.seniorityKey,'APRENDIZ');
+  assert.ok(['SEMI_SENIOR','SENIOR'].includes(c.seniorityKey),`seniority inesperado ${c.seniorityKey}`);
+  assert.notEqual(c.classKey,'APRENDIZ');
+});
+
+test('sin evidencia suficiente no inventa junior ni aprendiz: deja trayectoria no determinada',()=>{
+  const {buildCandidateAdminClassification}=classificationFns();
+  const c=buildCandidateAdminClassification({candidateBolsa:{areaTrabajo:'Producción'},resume:{}});
+  assert.equal(c.seniorityKey,'NO_DETERMINADO');
+  assert.equal(c.profileScore,null);
+  assert.equal(c.seniorityLabel,'Trayectoria no determinada');
+});
+
+test('la lógica de seniority no utiliza edad, fecha de nacimiento ni DNI como proxy de experiencia',()=>{
+  const block=api.slice(api.indexOf('function candidateProfessionalMaturityEvidence'),api.indexOf('function inferAdminCandidateClass'));
+  assert.doesNotMatch(block,/bolsa\.(edad|fechaNacimiento|dni)|profile\.(birth|birthDate|fechaNacimiento)/i);
 });
 
 test('administración muestra años, fuente y fuentes profesionales analizadas',()=>{

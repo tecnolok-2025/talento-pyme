@@ -14,7 +14,7 @@ const schema=fs.readFileSync(path.join(root,'apps/api/prisma/schema.prisma'),'ut
 
 const between=(src,a,b)=>src.slice(src.indexOf(a),src.indexOf(b,src.indexOf(a)+a.length));
 
-test('v7.9.13 genera diez aptitudes profesionales editables, no opiniones de un tercero',()=>{
+test('v7.9.15 genera diez aptitudes profesionales editables, no opiniones de un tercero',()=>{
   const prompt=between(api,"{ role:'system'","{ role:'user'");
   assert.match(prompt,/EXACTAMENTE 10 aptitudes\/competencias/);
   assert.match(prompt,/no opiniones de un tercero/);

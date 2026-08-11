@@ -16,11 +16,12 @@ function functionBlock(name, nextName){
   return api.slice(s, e > s ? e : s + 8000);
 }
 
-test('v7.9.13 elimina pendiente de candidatos y usa aprendiz como integración inicial', () => {
+test('v7.9.15 reserva aprendiz para evidencia explícita y agrega perfil inicial neutral', () => {
   assert.match(api, /APRENDIZ:\s*'Aprendices \/ Pasantes \/ Primer empleo'/);
   assert.match(api, /GERENCIAL:\s*'Gerencia \/ Dirección'/);
   assert.doesNotMatch(api, /PENDIENTE:\s*'Pendientes de clasificar'/);
-  assert.match(api, /Información profesional todavía escasa; se integra como perfil inicial/);
+  assert.match(api, /INICIAL:\s*'Información profesional por completar'/);
+  assert.match(api, /No se presume que sea aprendiz, pasante ni primer empleo/);
 });
 
 test('expertise puede crear subcategoría dinámica cuando no coincide con catálogo', () => {
@@ -79,8 +80,8 @@ test('clasificación avanzada permanece sólo en administración', () => {
   }
 });
 
-test('frontend declara v7.9.13', () => {
-  assert.match(config, /TP_APP_VERSION = "7\.9\.13"/);
+test('frontend declara v7.9.15', () => {
+  assert.match(config, /TP_APP_VERSION = "7\.9\.15"/);
 });
 
 import vm from 'node:vm';
@@ -110,6 +111,7 @@ test('comportamiento: estudiante administrativo escaso no queda pendiente', () =
   const { buildCandidateAdminClassification } = classificationFns();
   const c = buildCandidateAdminClassification({ candidateBolsa:{ areaTrabajo:'Administración', especialidad:'Administrativo', rangoExperiencia:'0–1', nivelEducativo:'Universitaria', ultimoTrabajo:'Estudiante buscando pasantía administrativa' }, resume:{} });
   assert.equal(c.classKey, 'APRENDIZ');
+  assert.equal(c.seniorityKey, 'APRENDIZ');
   assert.equal(c.expertiseKey, 'ADMINISTRACION');
   assert.ok(c.profileScore <= 24);
 });

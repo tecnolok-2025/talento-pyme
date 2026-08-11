@@ -13,7 +13,7 @@ const candidate=fs.readFileSync(path.join(root,'apps/web/bolsa-candidato.js'),'u
 const admin=fs.readFileSync(path.join(root,'apps/web/admin.html'),'utf8');
 const cv=fs.readFileSync(path.join(root,'apps/api/src/services/candidate-cv.js'),'utf8');
 
-test('v7.9.13 infiere ciudad, provincia y país para localidades argentinas inequívocas',()=>{
+test('v7.9.15 infiere ciudad, provincia y país para localidades argentinas inequívocas',()=>{
   assert.deepEqual(inferResidence({locality:'Campana'}),{city:'Campana',province:'Buenos Aires',country:'Argentina',inferred:true});
   assert.equal(inferResidence({locality:'Rosario'}).province,'Santa Fe');
   assert.equal(inferResidence({locality:'CABA'}).country,'Argentina');
@@ -21,7 +21,7 @@ test('v7.9.13 infiere ciudad, provincia y país para localidades argentinas ineq
   assert.equal(inferResidence({locality:'General Rodríguez'}).country,'Argentina');
 });
 
-test('v7.9.13 guarda provincia de residencia y metadatos del análisis profesional',()=>{
+test('v7.9.15 guarda provincia de residencia y metadatos del análisis profesional',()=>{
   assert.match(schema,/provinciaResidencia\s+String\?/);
   assert.match(schema,/voiceNarrativeAnalysisVersion\s+String\?/);
   assert.match(schema,/voiceNarrativeAnalysisSource\s+String\?/);
@@ -53,9 +53,9 @@ test('API puede usar IA generativa server-side y conserva un respaldo local',()=
 
 test('años explícitos de trayectoria tienen prioridad sobre una etiqueta junior aislada',()=>{
   assert.match(api,/extractExplicitYearsFromText/);
-  assert.match(api,/explicitYears >= 31/);
+  assert.match(api,/explicitYears\s*>=\s*31/);
   assert.match(api,/La experiencia explícita tiene prioridad sobre palabras sueltas/);
-  assert.match(api,/juniorHit && !exp\.cvStrong/);
+  assert.match(api,/maturity\.explicitSeniority\.junior && !maturity\.contradictoryExperience/);
 });
 
 test('candidatos antiguos quedan con la nueva presentación pendiente hasta reprocesarla',()=>{

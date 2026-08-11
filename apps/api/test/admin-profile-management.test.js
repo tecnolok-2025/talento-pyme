@@ -25,6 +25,6 @@ test('administración deriva la recuperación de clave al correo registrado', ()
 test('administración puede buscar candidatos y empresas por identidad', () => {
   assert.match(apiSource, /candidateSearch/);
   assert.match(apiSource, /companySearch/);
-  assert.match(adminHtml, /Buscar por nombre, DNI, mail, área o especialidad/);
-  assert.match(adminHtml, /Buscar por empresa, contacto, CUIT o mail/);
+  assert.match(adminHtml, /Palabra clave: nombre, expertise, CV, experiencia, estudios/);
+  assert.match(adminHtml, /Palabra clave: empresa, actividad, búsqueda, ciudad, CUIT/);
 });

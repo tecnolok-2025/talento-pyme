@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.9.13" />
+  <link rel="stylesheet" href="/styles.css?v=7.9.15" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -177,7 +177,7 @@
     .companyCategoryActions select{min-width:220px}
     .adminCategorySource{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#e2e8f0;color:#334155;font-size:11px;font-weight:800;margin-left:6px}
     .candidateScoreBadge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#ecfdf5;color:#166534;border:1px solid #bbf7d0;font-size:12px;font-weight:900;margin-left:8px;white-space:nowrap}
-    .candidateScoreBadge.low{background:#fff7ed;color:#9a3412;border-color:#fed7aa}.candidateScoreBadge.mid{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}.candidateScoreBadge.high{background:#ecfdf5;color:#166534;border-color:#bbf7d0}
+    .candidateScoreBadge.low{background:#fff7ed;color:#9a3412;border-color:#fed7aa}.candidateScoreBadge.mid{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}.candidateScoreBadge.high{background:#ecfdf5;color:#166534;border-color:#bbf7d0}.candidateScoreBadge.neutral{background:#f8fafc;color:#475569;border-color:#cbd5e1}
     .compositionGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}.compositionList{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.compositionPill{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;background:#f8fafc;border:1px solid var(--tp-border);font-size:12px;font-weight:800;color:#334155}.compositionPill b{color:#0b5ea8}
     .reportGrid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:16px;margin-top:16px}
     .reportHero{border:1px solid #bfdbfe;background:linear-gradient(135deg,#eff6ff,#f8fbff);border-radius:18px;padding:18px}
@@ -220,11 +220,12 @@
   <section class="tabPane" id="tab-candidate-records">
     <div class="card">
       <div class="toolbarCard">
-        <div><h2 style="margin:0">Perfiles completos de candidatos</h2><div class="muted">Clasificados por tipo de perfil, expertise y nivel estimado. El porcentaje junto a cada nombre es un indicador administrativo de trayectoria profesional (0–100) calculado sólo con experiencia, responsabilidades, formación y evidencia curricular; se recalcula cuando el perfil o CV cambia.</div></div>
+        <div><h2 style="margin:0">Perfiles completos de candidatos</h2><div class="muted">Clasificados por tipo de perfil, expertise y nivel estimado. El desplegable se construye automáticamente con los perfiles que realmente existen y se amplía cuando aparece una nueva expertise. También podés buscar por palabra clave dentro del perfil, presentación y antecedentes curriculares. El porcentaje junto a cada nombre es un indicador administrativo de trayectoria profesional (0–100) calculado sólo con experiencia, responsabilidades, formación y evidencia curricular; se recalcula cuando el perfil o CV cambia.</div></div>
         <div class="adminSearchRow">
-          <input class="input" id="candidateDirectorySearch" placeholder="Buscar por nombre, DNI, mail, área o especialidad" style="min-width:240px" />
+          <select class="input" id="candidateDirectoryProfileFilter" aria-label="Filtrar candidatos por perfil" style="min-width:290px"><option value="ALL">Todos los perfiles</option></select>
+          <input class="input" id="candidateDirectorySearch" placeholder="Palabra clave: nombre, expertise, CV, experiencia, estudios…" style="min-width:290px" />
           <button class="btn btn-primary" id="btnCandidateDirectorySearch" type="button">Buscar</button>
-          <button class="btn btn-ghost" id="btnCandidateDirectoryClear" type="button">Limpiar</button>
+          <button class="btn btn-ghost" id="btnCandidateDirectoryClear" type="button">Limpiar filtros</button>
           <select class="input" id="candidateDirectoryDaysFilter" style="min-width:160px"><option value="30">Últimos 30 días</option><option value="60">Últimos 60 días</option><option value="100">Últimos 100 días</option><option value="365">Último año</option><option value="730">Últimos 2 años</option><option value="ALL" selected>Todos</option></select>
           <select class="input" id="candidateDirectoryPerPage" style="display:none"><option value="50">50 por página</option><option value="100">100 por página</option></select>
         </div>
@@ -244,11 +245,12 @@
   <section class="tabPane" id="tab-company-records">
     <div class="card">
       <div class="toolbarCard">
-        <div><h2 style="margin:0">Perfiles completos de empresas</h2><div class="muted">Clasificados por familia y actividad principal. Cada empresa queda en una sola actividad predominante; Fabricación, Logística y Servicio se abren en subactividades con sus respectivos contadores.</div></div>
+        <div><h2 style="margin:0">Perfiles completos de empresas</h2><div class="muted">Clasificados por familia y actividad principal. El desplegable se arma automáticamente con las actividades que existen en el padrón y se amplía cuando aparece una nueva. La palabra clave busca también dentro de la descripción de la empresa y sus búsquedas publicadas. Cada empresa queda en una sola actividad predominante; Fabricación, Logística y Servicio se abren en subactividades con sus respectivos contadores.</div></div>
         <div class="adminSearchRow">
-          <input class="input" id="companyDirectorySearch" placeholder="Buscar por empresa, contacto, CUIT o mail" style="min-width:270px" />
+          <select class="input" id="companyDirectoryProfileFilter" aria-label="Filtrar empresas por perfil o actividad" style="min-width:290px"><option value="ALL">Todos los perfiles de empresa</option></select>
+          <input class="input" id="companyDirectorySearch" placeholder="Palabra clave: empresa, actividad, búsqueda, ciudad, CUIT…" style="min-width:290px" />
           <button class="btn btn-primary" id="btnCompanyDirectorySearch" type="button">Buscar</button>
-          <button class="btn btn-ghost" id="btnCompanyDirectoryClear" type="button">Limpiar</button>
+          <button class="btn btn-ghost" id="btnCompanyDirectoryClear" type="button">Limpiar filtros</button>
           <select class="input" id="companyDirectoryDaysFilter" style="min-width:160px"><option value="30">Últimos 30 días</option><option value="60">Últimos 60 días</option><option value="100">Últimos 100 días</option><option value="365">Último año</option><option value="730">Últimos 2 años</option><option value="ALL" selected>Todos</option></select>
           <select class="input" id="companyDirectoryPerPage" style="display:none"><option value="50">50 por página</option><option value="100">100 por página</option></select>
         </div>
@@ -510,8 +512,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.9.13"></script>
-<script src="/auth.js?v=7.9.13"></script>
+<script src="/config.js?v=7.9.15"></script>
+<script src="/auth.js?v=7.9.15"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -535,8 +537,8 @@ const state = {
   mail: { page:1, totalPages:1, total:0, unread:0, items:[], selectedUid:null, loaded:false, selectedFromAddress:'' },
   communications: { loaded:false, audience:'CANDIDATE', candidates:null, companies:null, history:[], drafts:{} },
   filters: {
-    candidateDays: 'ALL', candidateSearch: '', candidatePage: 1, candidatePerPage: 50,
-    companyDays: 'ALL', companySearch: '', companyPage: 1, companyPerPage: 50,
+    candidateDays: 'ALL', candidateSearch: '', candidateProfile: 'ALL', candidatePage: 1, candidatePerPage: 50,
+    companyDays: 'ALL', companySearch: '', companyProfile: 'ALL', companyPage: 1, companyPerPage: 50,
     billingDays: 'ALL', billingStatus: 'ALL', billingPage: 1, billingPerPage: 50,
   },
   traceabilityView: {
@@ -615,10 +617,12 @@ function wireAdminPasswordReset(host){
 function candidateDirectoryRowHtml(it){
   const name = `${it.nombre || ''} ${it.apellido || ''}`.trim() || it.email || 'Candidato';
   const checked = it.keepIndefinitely === false ? '' : 'checked';
-  const score = Math.max(0, Math.min(100, Number(it.profileScore || 0)));
-  const scoreClass = score >= 75 ? 'high' : (score >= 50 ? 'mid' : 'low');
-  const seniority = it.seniorityLabel || 'Aprendiz / Pasante';
-  return `<article class="candidateAccordion" data-user-id="${esc(it.userId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(name)}</span><span class="candidateScoreBadge ${scoreClass}" title="Indicador orientativo de trayectoria profesional; no reemplaza la evaluación humana">${score}% · ${esc(seniority)}</span>${it.recentRole ? `<span class="muted" style="display:block;margin-top:6px"><b>Actividad/rol más reciente:</b> ${esc(it.recentRole)}</span>` : ''}<span class="muted" style="display:block;margin-top:4px">${esc(it.areaTrabajo || 'Perfil todavía incompleto')} ${it.localidad ? '· ' + esc(it.localidad) : ''} · DNI ${esc(it.dni || 'sin dato')}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.classLabel || it.profileStatus || 'Registro')}</span>${it.expertiseLabel ? `<span class="adminCategorySource">${esc(it.expertiseLabel)}</span>` : ''}</span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button><div><label class="candidateRetention"><input class="candidateRetentionInput" type="checkbox" ${checked}> Mantener indefinidamente</label><div class="candidateSaveMsg" aria-live="polite"></div></div></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
+  const hasScore = it.profileScore !== null && it.profileScore !== undefined && Number.isFinite(Number(it.profileScore));
+  const score = hasScore ? Math.max(0, Math.min(100, Number(it.profileScore))) : null;
+  const scoreClass = !hasScore ? 'neutral' : (score >= 75 ? 'high' : (score >= 50 ? 'mid' : 'low'));
+  const seniority = it.seniorityLabel || 'Trayectoria no determinada';
+  const scoreLabel = hasScore ? `${score}% · ${seniority}` : `N/D · ${seniority}`;
+  return `<article class="candidateAccordion" data-user-id="${esc(it.userId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(name)}</span><span class="candidateScoreBadge ${scoreClass}" title="Indicador orientativo de trayectoria profesional; no reemplaza la evaluación humana">${esc(scoreLabel)}</span>${it.recentRole ? `<span class="muted" style="display:block;margin-top:6px"><b>Actividad/rol más reciente:</b> ${esc(it.recentRole)}</span>` : ''}<span class="muted" style="display:block;margin-top:4px">${esc(it.areaTrabajo || 'Perfil todavía incompleto')} ${it.localidad ? '· ' + esc(it.localidad) : ''} · DNI ${esc(it.dni || 'sin dato')}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.classLabel || it.profileStatus || 'Registro')}</span>${it.expertiseLabel ? `<span class="adminCategorySource">${esc(it.expertiseLabel)}</span>` : ''}</span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button><div><label class="candidateRetention"><input class="candidateRetentionInput" type="checkbox" ${checked}> Mantener indefinidamente</label><div class="candidateSaveMsg" aria-live="polite"></div></div></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
 }
 function renderCandidateDirectoryClassification(directory){
   const groups = Array.isArray(directory?.groups) ? directory.groups : [];
@@ -656,9 +660,11 @@ function renderCandidateDetail(it){
       candidateField('Expertise principal', adminClass.expertiseLabel),
       candidateField('Actividad / rol más reciente utilizado', adminClass.recentRole),
       candidateField('Nivel estimado', adminClass.seniorityLabel),
-      candidateField('Índice de trayectoria', Number.isFinite(Number(adminClass.profileScore)) ? `${Number(adminClass.profileScore)}%` : 'No disponible'),
+      candidateField('Índice de trayectoria', adminClass.profileScore !== null && adminClass.profileScore !== undefined && Number.isFinite(Number(adminClass.profileScore)) ? `${Number(adminClass.profileScore)}%` : 'No determinado por falta de evidencia suficiente'),
       candidateField('Años de experiencia detectados', Number.isFinite(Number(adminClass.explicitYearsExperience)) ? `${Number(adminClass.explicitYearsExperience)} año(s)` : 'No se pudo determinar con precisión'),
       candidateField('Fuente principal de experiencia', adminClass.experienceEvidenceSource),
+      candidateField('Confianza de la clasificación', adminClass.classificationConfidence === 'ALTA' ? 'Alta' : (adminClass.classificationConfidence === 'MEDIA' ? 'Media' : 'Baja')),
+      candidateField('Evidencia profesional detectada', adminClass.professionalEvidenceSummary ? `${Number(adminClass.professionalEvidenceSummary.rolesDetected || 0)} rol(es) · ${Number(adminClass.professionalEvidenceSummary.responsibilitySignals || 0)} señal(es) de responsabilidad · ${Number(adminClass.professionalEvidenceSummary.leadershipSignals || 0)} señal(es) de conducción` : ''),
       candidateField('Fuentes profesionales analizadas', Array.isArray(adminClass.professionalSourcesUsed) ? adminClass.professionalSourcesUsed.join(' + ') : ''),
       candidateField('Base del indicador', adminClass.scoreBasis),
       candidateField('Criterio de clasificación', adminClass.reason),
@@ -1226,15 +1232,78 @@ async function openUpgradeAccess(){
   }
 }
 
+function populateCandidateProfileFilter(directory){
+  const select = document.getElementById('candidateDirectoryProfileFilter');
+  if(!select) return;
+  const current = state.filters.candidateProfile || 'ALL';
+  select.innerHTML = '<option value="ALL">Todos los perfiles</option>';
+  const groups = Array.isArray(directory?.filterOptions) ? directory.filterOptions : [];
+  groups.forEach((group) => {
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = `${group.label || 'Perfil'} (${Number(group.count || 0)})`;
+    const all = document.createElement('option');
+    all.value = `CLASS::${group.key}`;
+    all.textContent = `Todos en ${group.label} (${Number(group.count || 0)})`;
+    optgroup.appendChild(all);
+    (Array.isArray(group.profiles) ? group.profiles : []).forEach((profile) => {
+      const opt = document.createElement('option');
+      opt.value = `PROFILE::${group.key}::${profile.key}`;
+      opt.textContent = `${profile.label} (${Number(profile.count || 0)})`;
+      optgroup.appendChild(opt);
+    });
+    select.appendChild(optgroup);
+  });
+  const exists = Array.from(select.options).some((opt) => opt.value === current);
+  if(!exists && current !== 'ALL'){
+    const selected = document.createElement('option');
+    selected.value = current;
+    selected.textContent = `${directory?.selectedProfileLabel || 'Perfil seleccionado'} (sin coincidencias con la palabra clave)`;
+    select.appendChild(selected);
+  }
+  select.value = current;
+}
+function populateCompanyProfileFilter(directory){
+  const select = document.getElementById('companyDirectoryProfileFilter');
+  if(!select) return;
+  const current = state.filters.companyProfile || 'ALL';
+  select.innerHTML = '<option value="ALL">Todos los perfiles de empresa</option>';
+  const groups = Array.isArray(directory?.filterOptions) ? directory.filterOptions : [];
+  groups.forEach((group) => {
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = `${group.label || 'Familia'} (${Number(group.count || 0)})`;
+    const all = document.createElement('option');
+    all.value = `FAMILY::${group.key}`;
+    all.textContent = `Todas en ${group.label} (${Number(group.count || 0)})`;
+    optgroup.appendChild(all);
+    (Array.isArray(group.profiles) ? group.profiles : []).forEach((profile) => {
+      const opt = document.createElement('option');
+      opt.value = `PROFILE::${group.key}::${profile.key}`;
+      opt.textContent = `${profile.label} (${Number(profile.count || 0)})`;
+      optgroup.appendChild(opt);
+    });
+    select.appendChild(optgroup);
+  });
+  const exists = Array.from(select.options).some((opt) => opt.value === current);
+  if(!exists && current !== 'ALL'){
+    const selected = document.createElement('option');
+    selected.value = current;
+    selected.textContent = `${directory?.selectedProfileLabel || 'Perfil seleccionado'} (sin coincidencias con la palabra clave)`;
+    select.appendChild(selected);
+  }
+  select.value = current;
+}
+
 async function loadOverview(){
   const f = state.filters || {};
   const qs = new URLSearchParams({
     candidateDays: f.candidateDays,
     candidateSearch: f.candidateSearch || '',
+    candidateProfile: f.candidateProfile || 'ALL',
     candidatePage: String(f.candidatePage),
     candidatePerPage: String(f.candidatePerPage),
     companyDays: f.companyDays,
     companySearch: f.companySearch || '',
+    companyProfile: f.companyProfile || 'ALL',
     companyPage: String(f.companyPage),
     companyPerPage: String(f.companyPerPage),
     billingDays: f.billingDays,
@@ -1244,6 +1313,8 @@ async function loadOverview(){
   });
   const data = await apiFetch('/admin/bootstrap?' + qs.toString());
   state.overview = data;
+  populateCandidateProfileFilter(data.candidateDirectory || {});
+  populateCompanyProfileFilter(data.companyDirectory || {});
   document.getElementById('sumCandidates').textContent = String(data.summary?.candidateCount || 0);
   document.getElementById('sumCompanies').textContent = String(data.summary?.companyCount || 0);
   document.getElementById('sumJobs').textContent = String(data.summary?.jobsCount || 0);
@@ -1263,9 +1334,9 @@ async function loadOverview(){
   const sp = data.companyPaging || {};
   const bp = data.billingPaging || {};
   document.getElementById('candidatePagingInfo').textContent = `Mostrando página ${cp.page || 1} de ${cp.totalPages || 1} · ${cp.total || 0} candidato(s)`;
-  document.getElementById('candidateDirectoryPagingInfo').textContent = `${data.candidateDirectory?.total || 0} candidato(s) clasificado(s)${cp.search ? ' · búsqueda: ' + cp.search : ''}`;
+  document.getElementById('candidateDirectoryPagingInfo').textContent = `${data.candidateDirectory?.total || 0} candidato(s) visible(s)${cp.profileLabel ? ' · perfil: ' + cp.profileLabel : ''}${cp.search ? ' · palabra clave: ' + cp.search : ''}`;
   document.getElementById('companyPagingInfo').textContent = `Mostrando página ${sp.page || 1} de ${sp.totalPages || 1} · ${sp.total || 0} empresa(s)`;
-  document.getElementById('companyDirectoryPagingInfo').textContent = `${data.companyDirectory?.total || 0} empresa(s) clasificada(s)${sp.search ? ' · búsqueda: ' + sp.search : ''}`;
+  document.getElementById('companyDirectoryPagingInfo').textContent = `${data.companyDirectory?.total || 0} empresa(s) visible(s)${sp.profileLabel ? ' · perfil: ' + sp.profileLabel : ''}${sp.search ? ' · palabra clave: ' + sp.search : ''}`;
   document.getElementById('billingPagingInfo').textContent = `Mostrando página ${bp.page || 1} de ${bp.totalPages || 1} · ${bp.total || 0} documento(s)`;
   document.getElementById('btnCandidatePrev').disabled = (cp.page || 1) <= 1;
   document.getElementById('btnCandidateNext').disabled = (cp.page || 1) >= (cp.totalPages || 1);
@@ -1280,10 +1351,12 @@ async function loadOverview(){
   document.getElementById('candidateDaysFilter').value = f.candidateDays;
   document.getElementById('candidateDirectoryDaysFilter').value = f.candidateDays;
   document.getElementById('candidateDirectorySearch').value = f.candidateSearch || '';
+  document.getElementById('candidateDirectoryProfileFilter').value = f.candidateProfile || 'ALL';
   document.getElementById('candidatePerPage').value = String(f.candidatePerPage);
   document.getElementById('candidateDirectoryPerPage').value = String(f.candidatePerPage);
   document.getElementById('companyDirectoryDaysFilter').value = f.companyDays;
   document.getElementById('companyDirectorySearch').value = f.companySearch || '';
+  document.getElementById('companyDirectoryProfileFilter').value = f.companyProfile || 'ALL';
   document.getElementById('companyDirectoryPerPage').value = String(f.companyPerPage);
 
   const tc = data.traceability?.candidate || {};
@@ -1622,15 +1695,17 @@ document.getElementById('candidateDaysFilter').onchange = (e) => { state.filters
 document.getElementById('candidatePerPage').onchange = (e) => { state.filters.candidatePerPage = Number(e.target.value || 50); state.filters.candidatePage = 1; loadOverview(); };
 document.getElementById('candidateDirectoryDaysFilter').onchange = (e) => { state.filters.candidateDays = e.target.value; state.filters.candidatePage = 1; loadOverview(); };
 document.getElementById('candidateDirectoryPerPage').onchange = (e) => { state.filters.candidatePerPage = Number(e.target.value || 50); state.filters.candidatePage = 1; loadOverview(); };
+document.getElementById('candidateDirectoryProfileFilter').onchange = (e) => { state.filters.candidateProfile = e.target.value || 'ALL'; state.filters.candidatePage = 1; loadOverview(); };
 document.getElementById('btnCandidateDirectorySearch').onclick = () => { state.filters.candidateSearch = document.getElementById('candidateDirectorySearch').value.trim(); state.filters.candidatePage = 1; loadOverview(); };
-document.getElementById('btnCandidateDirectoryClear').onclick = () => { document.getElementById('candidateDirectorySearch').value = ''; state.filters.candidateSearch = ''; state.filters.candidatePage = 1; loadOverview(); };
+document.getElementById('btnCandidateDirectoryClear').onclick = () => { document.getElementById('candidateDirectorySearch').value = ''; document.getElementById('candidateDirectoryProfileFilter').value = 'ALL'; state.filters.candidateSearch = ''; state.filters.candidateProfile = 'ALL'; state.filters.candidatePage = 1; loadOverview(); };
 document.getElementById('candidateDirectorySearch').onkeydown = (e) => { if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('btnCandidateDirectorySearch').click(); } };
 document.getElementById('companyDaysFilter').onchange = (e) => { state.filters.companyDays = e.target.value; state.filters.companyPage = 1; loadOverview(); };
 document.getElementById('companyPerPage').onchange = (e) => { state.filters.companyPerPage = Number(e.target.value || 50); state.filters.companyPage = 1; loadOverview(); };
 document.getElementById('companyDirectoryDaysFilter').onchange = (e) => { state.filters.companyDays = e.target.value; state.filters.companyPage = 1; loadOverview(); };
 document.getElementById('companyDirectoryPerPage').onchange = (e) => { state.filters.companyPerPage = Number(e.target.value || 50); state.filters.companyPage = 1; loadOverview(); };
+document.getElementById('companyDirectoryProfileFilter').onchange = (e) => { state.filters.companyProfile = e.target.value || 'ALL'; state.filters.companyPage = 1; loadOverview(); };
 document.getElementById('btnCompanyDirectorySearch').onclick = () => { state.filters.companySearch = document.getElementById('companyDirectorySearch').value.trim(); state.filters.companyPage = 1; loadOverview(); };
-document.getElementById('btnCompanyDirectoryClear').onclick = () => { document.getElementById('companyDirectorySearch').value = ''; state.filters.companySearch = ''; state.filters.companyPage = 1; loadOverview(); };
+document.getElementById('btnCompanyDirectoryClear').onclick = () => { document.getElementById('companyDirectorySearch').value = ''; document.getElementById('companyDirectoryProfileFilter').value = 'ALL'; state.filters.companySearch = ''; state.filters.companyProfile = 'ALL'; state.filters.companyPage = 1; loadOverview(); };
 document.getElementById('companyDirectorySearch').onkeydown = (e) => { if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('btnCompanyDirectorySearch').click(); } };
 document.getElementById('billingDaysFilter').onchange = (e) => { state.filters.billingDays = e.target.value; state.filters.billingPage = 1; loadOverview(); };
 document.getElementById('billingStatusFilter').onchange = (e) => { state.filters.billingStatus = e.target.value; state.filters.billingPage = 1; loadOverview(); };
@@ -1727,7 +1802,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v7.9.13: el estado de la cola se refresca mientras Administración permanece abierto.
+// v7.9.15: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();
