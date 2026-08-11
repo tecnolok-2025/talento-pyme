@@ -1,0 +1,11 @@
+Talento PyME v7.9.15
+
+Reclasificación integral de candidatos
+- La ausencia de años de experiencia ya no se interpreta automáticamente como poca experiencia.
+- Aprendiz / Pasante / Primer empleo se reserva para casos en que el propio perfil lo informa expresamente y no existe evidencia profesional que lo contradiga.
+- Si faltan datos suficientes para estimar seniority, se muestra “Trayectoria no determinada” y el índice queda N/D en vez de inventar un porcentaje bajo.
+- Se releen en cada cálculo CV completo, períodos laborales, cargos, responsabilidades, presentación personal, perfil, formación y certificaciones.
+- Un rango 0–1 cargado inicialmente deja de funcionar como techo cuando el CV o la presentación muestran múltiples roles, conducción o responsabilidades profesionales.
+- Se agregan confianza de clasificación y resumen de evidencia profesional al detalle administrativo.
+- La clasificación no utiliza edad ni otros atributos personales como proxy de experiencia.
+- No se modifica schema.prisma ni se persiste una calificación histórica: el cálculo se rehace con la información vigente.

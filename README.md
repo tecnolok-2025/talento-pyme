@@ -1,17 +1,25 @@
-# Talento PyME — v7.9.14
+# Talento PyME — v7.9.15
 
-> **Versión de despliegue confirmada:** 7.9.14 · **Build:** 20260810_04 · Frontend, API y caché PWA alineados.
+> **Versión de despliegue confirmada:** 7.9.15 · **Build:** 20260811_01 · Frontend, API y caché PWA alineados.
 
+
+## v7.9.15 — recalificación integral de candidatos
+
+- El seniority se vuelve a calcular leyendo de punta a punta **CV, períodos laborales, cargos, tareas, responsabilidades, Presentación Personal, perfil, formación y certificaciones**.
+- La ausencia de años declarados **ya no equivale automáticamente a experiencia baja**.
+- **Aprendiz / Pasante / Primer empleo** se reserva para casos donde esa condición surge expresamente de la propia información profesional y no hay antecedentes que la contradigan.
+- Si no existe evidencia suficiente para determinar trayectoria, Administración muestra **Trayectoria no determinada** e índice **N/D**, en vez de inventar un porcentaje bajo.
+- Un rango inicial `0–1` deja de funcionar como techo cuando el CV o la Presentación Personal muestran múltiples roles, supervisión, conducción o responsabilidades profesionales.
+- Se incorporan **confianza de clasificación** y **evidencia profesional detectada** para que Administración pueda entender por qué se llegó a cada resultado.
+- La clasificación no usa edad ni otros atributos personales como sustituto de experiencia.
+- No se modifica `schema.prisma`; la clasificación no se persiste como nota fija y se recalcula con los datos vigentes.
 
 ## v7.9.14 — buscadores dinámicos en Perfiles candidatos y Perfiles empresas
 
-- **Perfiles candidatos:** nuevo desplegable dinámico construido a partir de los tipos de perfil y expertise que existen realmente en el padrón. Cada opción muestra su cantidad y permite elegir una categoría completa o una expertise puntual.
-- **Perfiles empresas:** nuevo desplegable dinámico por familia (Fabricación / Logística / Servicio) y actividad principal existente, también con cantidades.
-- Las subcategorías dinámicas que aparezcan por nuevos perfiles o actividades se incorporan automáticamente al desplegable; no requieren editar una lista manual.
-- Ambos módulos mantienen un **buscador por palabra clave**. En candidatos busca también en presentación profesional, CV, experiencia, educación, certificaciones, especialidad, clasificación y seniority calculado. En empresas incluye actividad inferida, descripción institucional y búsquedas publicadas.
-- Los filtros se pueden combinar: **perfil + palabra clave + período**. “Limpiar filtros” vuelve al padrón completo.
-- La clasificación y los buscadores siguen siendo exclusivos de Administración. No modifican la visibilidad pública ni descartan candidatos o empresas.
-- Sin cambios de Prisma respecto de v7.9.13. Build **20260810_04** y caché PWA **7.9.14**.
+- **Perfiles candidatos:** desplegable dinámico construido a partir de los tipos de perfil y expertise que existen realmente en el padrón. Cada opción muestra su cantidad y permite elegir una categoría completa o una expertise puntual.
+- **Perfiles empresas:** desplegable dinámico por familia (Fabricación / Logística / Servicio) y actividad principal existente, también con cantidades.
+- Las subcategorías dinámicas que aparezcan por nuevos perfiles o actividades se incorporan automáticamente al desplegable.
+- Ambos módulos mantienen un **buscador por palabra clave** y los filtros se pueden combinar con período.
 
 ## Funcionalidad consolidada del CV profesional (incorporada desde v7.9.7)
 
@@ -75,8 +83,8 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.14"`
-- API: `apps/api/package.json` → `7.9.14` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.15"`
+- API: `apps/api/package.json` → `7.9.15` y endpoint `/health`.
 
 ## Administración de candidatos y empresas
 - El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.
