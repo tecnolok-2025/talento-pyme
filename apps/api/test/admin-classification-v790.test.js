@@ -16,7 +16,7 @@ function functionBlock(name, nextName){
   return api.slice(s, e > s ? e : s + 8000);
 }
 
-test('v7.9.15 reserva aprendiz para evidencia explícita y agrega perfil inicial neutral', () => {
+test('v7.9.16 reserva aprendiz para evidencia explícita y agrega perfil inicial neutral', () => {
   assert.match(api, /APRENDIZ:\s*'Aprendices \/ Pasantes \/ Primer empleo'/);
   assert.match(api, /GERENCIAL:\s*'Gerencia \/ Dirección'/);
   assert.doesNotMatch(api, /PENDIENTE:\s*'Pendientes de clasificar'/);
@@ -80,8 +80,8 @@ test('clasificación avanzada permanece sólo en administración', () => {
   }
 });
 
-test('frontend declara v7.9.15', () => {
-  assert.match(config, /TP_APP_VERSION = "7\.9\.15"/);
+test('frontend declara v7.9.16', () => {
+  assert.match(config, /TP_APP_VERSION = "7\.9\.16"/);
 });
 
 import vm from 'node:vm';

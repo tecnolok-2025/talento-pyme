@@ -12,7 +12,7 @@ const api=fs.readFileSync(path.join(apiRoot,'src/index.js'),'utf8');
 const config=fs.readFileSync(path.join(repo,'web/config.js'),'utf8');
 const pkg=JSON.parse(fs.readFileSync(path.join(apiRoot,'package.json'),'utf8'));
 
-test('v7.9.15 elimina Recargar del perfil candidato',()=>{
+test('v7.9.16 elimina Recargar del perfil candidato',()=>{
   assert.doesNotMatch(web,/id="btnReloadBolsa"/);
   assert.doesNotMatch(web,/const btnReload = el\("btnReloadBolsa"\)/);
   assert.doesNotMatch(web,/<b>Recargar<\/b>/);
@@ -42,8 +42,8 @@ test('API mantiene generación directa y autenticada de CV para cualquier candid
   assert.match(api,/Cache-Control','no-store/);
 });
 
-test('versión de despliegue v7.9.15',()=>{
-  assert.equal(pkg.version,'7.9.15');
-  assert.match(config,/TP_APP_VERSION = "7\.9\.15"/);
-  assert.match(config,/TP_BUILD_ID = "20260811_01"/);
+test('versión de despliegue v7.9.16',()=>{
+  assert.equal(pkg.version,'7.9.16');
+  assert.match(config,/TP_APP_VERSION = "7\.9\.16"/);
+  assert.match(config,/TP_BUILD_ID = "20260811_02"/);
 });

@@ -4356,7 +4356,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.9.15 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.9.16 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
@@ -6045,6 +6045,7 @@ const ADMIN_COMPANY_CATEGORY_LABELS = {
 
 const ADMIN_CANDIDATE_CLASS_LABELS = {
   INICIAL: 'Información profesional por completar',
+  TRAYECTORIA: 'Perfil profesional / Trayectoria no determinada',
   APRENDIZ: 'Aprendices / Pasantes / Primer empleo',
   OPERATIVO: 'Operativos / Oficios',
   TECNICO: 'Técnicos / Especialistas',
@@ -6076,7 +6077,7 @@ const ADMIN_EXPERTISE_LABELS = {
   LABORATORIO: 'Laboratorio / Ensayos',
   ENERGIA: 'Energía / Utilities',
   PROYECTOS: 'Proyectos / Project Management',
-  GENERAL: 'Primer empleo / Perfil general',
+  GENERAL: 'Perfil general / Expertise no determinado',
 };
 
 function buildCandidateDirectoryFilterOptions(items = []){
@@ -6357,7 +6358,7 @@ function inferAdminCandidateExpertise(candidate = {}){
     const cvAllHits = countAdminKeywords(cvAll, words);
     const voiceHits = countAdminKeywords(voice, words);
     const allHits = countAdminKeywords(allText, words);
-    // v7.9.15: el CV completo deja de ser un simple fallback. Cuando existe,
+    // v7.9.16: el CV completo deja de ser un simple fallback. Cuando existe,
     // participa fuertemente de la detección de expertise junto con el rol reciente.
     return { key, words, order, currentHits, cvRecentHits, cvAllHits, voiceHits, allHits,
       score:(currentHits * 14) + (cvRecentHits * 5) + (voiceHits * 4) + cvAllHits };
@@ -6391,7 +6392,8 @@ function candidateProfessionalMaturityEvidence(candidate = {}){
   const countRx=(rx)=> (all.match(rx) || []).length;
   const roleHits=countRx(/\b(gerente|director|jefe|supervisor|coordinador|responsable|lider|capataz|encargado|ingeniero|tecnico|analista|especialista|proyectista|operador|oficial|electricista|mecanico|instrumentista|planificador|administrativo|vendedor|chofer)\b/g);
   const leadershipHits=countRx(/\b(supervisor|supervision|jefe|jefatura|coordinador|coordinacion|lider|liderazgo|capataz|encargado|responsable de turno|responsable de equipo)\b/g);
-  const executiveHits=countRx(/\b(gerente|gerencia|director|direccion|plant manager|country manager|head of)\b/g);
+  const executiveHits=countRx(/\b(gerente|gerencia|director|direccion|plant manager|country manager|head of|presidente|presidenta)\b/g);
+  const businessLeadershipHits=countRx(/\b(empresario|empresaria|fundador|fundadora|socio gerente|socia gerente|titular de empresa|dueno de empresa|dueño de empresa)\b/g);
   const responsibilityHits=countRx(/\b(supervis|coordina|lider|planific|programa|gestiona|gestion|dirig|controla|control|presupuest|proyect|disen|calculo|mantenim|confiabilidad|inspeccion|auditoria|calibracion|puesta en marcha|comisionamiento|produccion|operacion|mejora continua|seguridad|calidad|capacita)\w*/g);
   const technicalTaskHits=countRx(/\b(mantenimiento|preventivo|correctivo|predictivo|electricidad|electrica|mecanica|instrumentacion|automatizacion|plc|scada|tableros|subestacion|soldadura|montaje|piping|ingenieria|proyectos|oficina tecnica|produccion|logistica|calidad|hse|compras|ventas|administracion)\b/g);
   const firstEmploymentExplicit=/\b(primer empleo|busco mi primer empleo|sin experiencia laboral|sin experiencia previa|pasantia|pasante|aprendiz|trainee|practica profesional)\b/.test(all);
@@ -6406,18 +6408,19 @@ function candidateProfessionalMaturityEvidence(candidate = {}){
   const hasWorkText=!!String(resume.experience || bolsa.ultimoTrabajo || bolsa.voiceNarrativeSummary || bolsa.voiceNarrativeRaw || '').trim();
   const leadershipHit=leadershipHits>0;
   const executiveHit=executiveHits>0;
-  const contradictoryExperience=exp.years!==null || exp.cvIntervalsCount>0 || leadershipHit || executiveHit || (richResume && roleHits>=2) || responsibilityHits>=4 || maturityNarrative;
-  const sufficientForEstimate=exp.years!==null || executiveHit || leadershipHit || explicitSeniority.senior || explicitSeniority.semi || (richResume && roleHits>=2 && responsibilityHits>=2) || (richVoice && responsibilityHits>=3) || (roleHits>=3 && responsibilityHits>=3);
+  const businessLeadershipHit=businessLeadershipHits>0;
+  const contradictoryExperience=exp.years!==null || exp.cvIntervalsCount>0 || leadershipHit || executiveHit || businessLeadershipHit || (richResume && roleHits>=2) || responsibilityHits>=4 || maturityNarrative;
+  const sufficientForEstimate=exp.years!==null || executiveHit || businessLeadershipHit || leadershipHit || explicitSeniority.senior || explicitSeniority.semi || (richResume && roleHits>=2 && responsibilityHits>=2) || (richVoice && responsibilityHits>=3) || (roleHits>=3 && responsibilityHits>=3);
   let confidence='BAJA';
   if(exp.years!==null || exp.cvIntervalsCount>=1) confidence='ALTA';
   else if(sufficientForEstimate || richResume || richVoice) confidence='MEDIA';
-  return { exp, roleHits, leadershipHits, executiveHits, responsibilityHits, technicalTaskHits, firstEmploymentExplicit, explicitSeniority, maturityNarrative, richResume, richVoice, hasWorkText, leadershipHit, executiveHit, contradictoryExperience, sufficientForEstimate, confidence };
+  return { exp, roleHits, leadershipHits, executiveHits, businessLeadershipHits, responsibilityHits, technicalTaskHits, firstEmploymentExplicit, explicitSeniority, maturityNarrative, richResume, richVoice, hasWorkText, leadershipHit, executiveHit, businessLeadershipHit, contradictoryExperience, sufficientForEstimate, confidence };
 }
 
 function scoreCandidateProfessionalProfile(candidate = {}){
   // Indicador exclusivamente profesional: NO usa edad, fecha de nacimiento, foto, género,
   // nacionalidad, estado civil, hijos, dirección, salario ni ningún otro atributo personal sensible.
-  // v7.9.15: la ausencia de años NO se interpreta como poca experiencia. Se relee de punta a punta
+  // v7.9.16: la ausencia de años NO se interpreta como poca experiencia. Se relee de punta a punta
   // perfil + presentación + CV + períodos + cargos + tareas + responsabilidades + formación.
   const bolsa = candidate.candidateBolsa || {};
   const resume = candidate.resume || {};
@@ -6448,6 +6451,8 @@ function scoreCandidateProfessionalProfile(candidate = {}){
   // Sólo se usa una categoría inicial cuando la propia información profesional lo dice de forma expresa.
   if(score===null){
     if(maturity.explicitSeniority.senior || maturity.executiveHit) score=82;
+    else if(maturity.businessLeadershipHit && (maturity.richResume || maturity.richVoice || maturity.responsibilityHits>=2)) score=68;
+    else if(maturity.businessLeadershipHit) score=58;
     else if(maturity.leadershipHit && (maturity.richResume || maturity.maturityNarrative)) score=76;
     else if(maturity.leadershipHit) score=65;
     else if(maturity.explicitSeniority.semi) score=60;
@@ -6462,6 +6467,7 @@ function scoreCandidateProfessionalProfile(candidate = {}){
 
   if(score!==null){
     if(maturity.executiveHit){ score=Math.max(score,82); evidence.push('Responsabilidad gerencial/directiva detectada'); }
+    else if(maturity.businessLeadershipHit){ score=Math.max(score,(maturity.richResume || maturity.richVoice || maturity.responsibilityHits>=2)?68:58); evidence.push('Rol empresarial, fundador o socio gerente detectado en la información profesional'); }
     else if(maturity.leadershipHit){ score=Math.max(score,maturity.richResume?70:62); evidence.push('Responsabilidad de supervisión, coordinación o conducción detectada'); }
     if(maturity.richResume && maturity.roleHits>=2){ score=Math.max(score,52); evidence.push('CV desarrollado con múltiples roles/tareas profesionales'); }
     if(maturity.maturityNarrative && maturity.richResume){ score=Math.max(score,60); evidence.push('Trayectoria extensa/comprobable descripta en antecedentes profesionales'); }
@@ -6477,7 +6483,7 @@ function scoreCandidateProfessionalProfile(candidate = {}){
     if(maturity.explicitSeniority.senior){ score=Math.max(score,80); evidence.push('Señal explícita de seniority senior en la información profesional'); }
     if(maturity.explicitSeniority.semi && explicitYears===null){ score=Math.max(score,58); evidence.push('Señal explícita de seniority semi-senior'); }
     if(maturity.explicitSeniority.junior && !maturity.contradictoryExperience && (explicitYears===null || explicitYears<=5)){ score=Math.min(score,44); evidence.push('Señal explícita de seniority junior'); }
-    if(maturity.firstEmploymentExplicit && !maturity.contradictoryExperience && !maturity.leadershipHit && !maturity.executiveHit && (explicitYears===null || explicitYears<=1)){ score=Math.min(score,24); evidence.push('Primer empleo, pasantía o aprendizaje expresamente informado'); }
+    if(maturity.firstEmploymentExplicit && !maturity.contradictoryExperience && !maturity.leadershipHit && !maturity.executiveHit && !maturity.businessLeadershipHit && (explicitYears===null || explicitYears<=1)){ score=Math.min(score,24); evidence.push('Primer empleo, pasantía o aprendizaje expresamente informado'); }
 
     if(bolsa.trabajaActualmente){ score += 2; evidence.push('Actividad laboral actual informada'); }
     if(['terciaria','universitaria'].includes(adminNormText(bolsa.nivelEducativo))) score += 2;
@@ -6485,7 +6491,7 @@ function scoreCandidateProfessionalProfile(candidate = {}){
     if(String(resume.experience || '').trim().length >= 300){ score += 2; evidence.push('Antecedentes laborales desarrollados en el CV'); }
     if(String(resume.summary || '').trim().length >= 180) score += 1;
     if(String(bolsa.voiceNarrativeSummary || '').trim().length >= 120){ score += 2; evidence.push('Presentación profesional procesada disponible'); }
-    if(maturity.firstEmploymentExplicit && !maturity.contradictoryExperience && !maturity.leadershipHit && !maturity.executiveHit && (explicitYears===null || explicitYears<=1)) score=Math.min(score,24);
+    if(maturity.firstEmploymentExplicit && !maturity.contradictoryExperience && !maturity.leadershipHit && !maturity.executiveHit && !maturity.businessLeadershipHit && (explicitYears===null || explicitYears<=1)) score=Math.min(score,24);
     score=Math.max(0,Math.min(100,Math.round(score)));
   }
 
@@ -6513,7 +6519,7 @@ function scoreCandidateProfessionalProfile(candidate = {}){
     professionalEvidenceSummary:{
       rolesDetected:maturity.roleHits,
       responsibilitySignals:maturity.responsibilityHits,
-      leadershipSignals:maturity.leadershipHits + maturity.executiveHits,
+      leadershipSignals:maturity.leadershipHits + maturity.executiveHits + maturity.businessLeadershipHits,
       richResume:maturity.richResume,
       richPresentation:maturity.richVoice,
     },
@@ -6537,7 +6543,7 @@ function inferAdminCandidateClass(candidate = {}, scoring = {}){
   if(scoring.seniorityKey === 'APRENDIZ' && scoring.firstEmploymentExplicit && apprenticeWords.some((word) => text.includes(adminNormText(word))) && !/(supervisor|jefe|gerente|senior)/.test(strongEvidenceText)){
     return { key:'APRENDIZ', label:ADMIN_CANDIDATE_CLASS_LABELS.APRENDIZ, reason:'Pasantía, aprendizaje o primer empleo expresamente informado y sin antecedentes profesionales que indiquen una trayectoria superior' };
   }
-  const executiveWords = ['gerente','gerencia','director','direccion','head of','country manager','plant manager','manager general'];
+  const executiveWords = ['gerente','gerencia','director','direccion','head of','country manager','plant manager','manager general','presidente','presidenta','empresario','empresaria','fundador','fundadora','socio gerente','socia gerente','titular de empresa'];
   if(executiveWords.some((word) => strongEvidenceText.includes(adminNormText(word)))){
     return { key:'GERENCIAL', label:ADMIN_CANDIDATE_CLASS_LABELS.GERENCIAL, reason:'Responsabilidad gerencial o de dirección detectada en perfil, presentación o antecedentes curriculares' };
   }
@@ -6561,7 +6567,10 @@ function inferAdminCandidateClass(candidate = {}, scoring = {}){
   }
   const hasLaboralData = !!String(bolsa.areaTrabajo || bolsa.especialidad || bolsa.ultimoTrabajo || bolsa.voiceNarrativeSummary || bolsa.voiceNarrativeRaw || resume.summary || resume.experience || '').trim();
   if(hasLaboralData){
-    return { key:'OPERATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.OPERATIVO, reason:'Existe información laboral u oficio; se conserva su expertise aunque el nivel de trayectoria pueda quedar sin determinar si faltan evidencias suficientes' };
+    if(scoring.seniorityKey === 'NO_DETERMINADO'){
+      return { key:'TRAYECTORIA', label:ADMIN_CANDIDATE_CLASS_LABELS.TRAYECTORIA, reason:'Existe información profesional, pero no hay evidencia suficiente para determinar la trayectoria. No se lo ubica en Primer empleo/Pasante por falta de datos.' };
+    }
+    return { key:'OPERATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.OPERATIVO, reason:'Existe información laboral u oficio y evidencia suficiente para estimar trayectoria; se conserva el expertise detectado' };
   }
   return { key:'INICIAL', label:ADMIN_CANDIDATE_CLASS_LABELS.INICIAL, reason:'Información profesional todavía insuficiente. No se presume que sea aprendiz, pasante ni primer empleo por falta de datos' };
 }

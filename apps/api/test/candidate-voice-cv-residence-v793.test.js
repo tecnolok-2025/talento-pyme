@@ -15,7 +15,7 @@ const cv = fs.readFileSync(path.join(root, 'apps/api/src/services/candidate-cv.j
 const config = fs.readFileSync(path.join(root, 'apps/web/config.js'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'apps/api/package.json'), 'utf8'));
 
-test('v7.9.15 agrega residencia y presentación por voz/texto al perfil candidato', () => {
+test('v7.9.16 agrega residencia y presentación por voz/texto al perfil candidato', () => {
   assert.match(schema, /paisResidencia\s+String\?/);
   assert.match(schema, /voiceNarrativeRaw\s+String\?/);
   assert.match(schema, /voiceNarrativeSummary\s+String\?/);
@@ -70,7 +70,7 @@ test('presentación aprobada enriquece búsqueda profesional sin exponer transcr
   assert.doesNotMatch(jobsBlock, /voiceNarrativeRaw/);
 });
 
-test('versión unificada 7.9.15', () => {
-  assert.equal(pkg.version, '7.9.15');
-  assert.match(config, /TP_APP_VERSION = "7\.9\.15"/);
+test('versión unificada 7.9.16', () => {
+  assert.equal(pkg.version, '7.9.16');
+  assert.match(config, /TP_APP_VERSION = "7\.9\.16"/);
 });

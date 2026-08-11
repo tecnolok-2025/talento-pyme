@@ -12,7 +12,7 @@ const report = fs.readFileSync(path.join(root, 'apps/api/src/services/traceabili
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'apps/api/package.json'), 'utf8'));
 const config = fs.readFileSync(path.join(root, 'apps/web/config.js'), 'utf8');
 
-test('v7.9.15 incorpora pestaña administrativa Reportes con descarga y envío', () => {
+test('v7.9.16 incorpora pestaña administrativa Reportes con descarga y envío', () => {
   assert.match(admin, /data-tab="reports"/);
   assert.match(admin, /id="tab-reports"/);
   assert.match(admin, /btnTraceReportDownload/);
@@ -69,14 +69,14 @@ test('descarga PDF usa contenido binario autenticado', () => {
   assert.match(admin, /await res\.blob\(\)/);
 });
 
-test('API declara dependencia PDFKit y frontend v7.9.15', () => {
+test('API declara dependencia PDFKit y frontend v7.9.16', () => {
   assert.ok(pkg.dependencies?.pdfkit);
-  assert.equal(pkg.version, '7.9.15');
-  assert.match(config, /TP_APP_VERSION = "7\.9\.15"/);
+  assert.equal(pkg.version, '7.9.16');
+  assert.match(config, /TP_APP_VERSION = "7\.9\.16"/);
 });
 
 
-test('v7.9.15 usa logos institucionales y flujo PDF anclado al margen izquierdo', () => {
+test('v7.9.16 usa logos institucionales y flujo PDF anclado al margen izquierdo', () => {
   assert.match(report, /logo-uic\.jpg/);
   assert.match(report, /logo-talento-pyme\.png/);
   assert.match(report, /function resetFlow\(doc\)/);
@@ -85,13 +85,13 @@ test('v7.9.15 usa logos institucionales y flujo PDF anclado al margen izquierdo'
   assert.match(report, /drawFooter\(doc,i\+1,range\.count\)/);
 });
 
-test('v7.9.15 contabiliza altas de empresa por la cuenta COMPANY y no por edición del perfil', () => {
+test('v7.9.16 contabiliza altas de empresa por la cuenta COMPANY y no por edición del perfil', () => {
   assert.match(api, /prisma\.user\.count\(\{ where:\{ role:'COMPANY', createdAt:\{ gte:since30 \} \} \}\)/);
   assert.match(api, /prisma\.user\.findMany\(\{ where:\{ role:'COMPANY', createdAt:\{ gte:since6Months \} \}, select:\{ createdAt:true \} \}\)/);
   assert.match(report, /fecha de alta de la cuenta empresa/);
 });
 
-test('v7.9.15 nombre de archivo comienza con YYMMDD-HHmm para orden cronológico', () => {
+test('v7.9.16 nombre de archivo comienza con YYMMDD-HHmm para orden cronológico', () => {
   assert.match(report, /return `\$\{stamp\.prefix\} Talento-PyME-Informe-Trazabilidad-\$\{stamp\.long\}\.pdf`/);
   assert.match(report, /timeZone: ARG_TZ/);
 });

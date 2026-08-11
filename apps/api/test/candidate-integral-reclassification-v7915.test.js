@@ -21,9 +21,9 @@ function fns(){
   return ctx.__out;
 }
 
-test('v7.9.15 unifica versión y build',()=>{
-  assert.equal(pkg.version,'7.9.15');
-  assert.match(fs.readFileSync(path.join(root,'apps/web/config.js'),'utf8'),/TP_BUILD_ID = "20260811_01"/);
+test('v7.9.16 unifica versión y build',()=>{
+  assert.equal(pkg.version,'7.9.16');
+  assert.match(fs.readFileSync(path.join(root,'apps/web/config.js'),'utf8'),/TP_BUILD_ID = "20260811_02"/);
 });
 
 test('CV con cargos sucesivos y conducción prevalece sobre rango inicial mal cargado',()=>{
