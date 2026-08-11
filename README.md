@@ -1,9 +1,9 @@
-# Talento PyME — v7.9.15
+# Talento PyME — v7.9.16
 
-> **Versión de despliegue confirmada:** 7.9.15 · **Build:** 20260811_01 · Frontend, API y caché PWA alineados.
+> **Versión de despliegue confirmada:** 7.9.16 · **Build:** 20260811_02 · Frontend, API y caché PWA alineados.
 
 
-## v7.9.15 — recalificación integral de candidatos
+## v7.9.16 — recalificación integral de candidatos
 
 - El seniority se vuelve a calcular leyendo de punta a punta **CV, períodos laborales, cargos, tareas, responsabilidades, Presentación Personal, perfil, formación y certificaciones**.
 - La ausencia de años declarados **ya no equivale automáticamente a experiencia baja**.
@@ -83,8 +83,8 @@ La PWA usa Service Worker con caché versionada (por ejemplo `tp-cache-4.3.0`) y
 
 
 ## Versión única (anti-confusión)
-- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.15"`
-- API: `apps/api/package.json` → `7.9.15` y endpoint `/health`.
+- UI: `apps/web/config.js` → `TP_APP_VERSION = "7.9.16"`
+- API: `apps/api/package.json` → `7.9.16` y endpoint `/health`.
 
 ## Administración de candidatos y empresas
 - El contador administrativo toma todas las cuentas registradas como candidato, incluso si todavía no completaron el CV laboral.

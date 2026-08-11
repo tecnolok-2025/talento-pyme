@@ -1,0 +1,16 @@
+Talento PyME v7.9.16 — Clasificación neutral y evidencia profesional
+Build: 20260811_02
+
+Cambios principales
+1. Primer empleo / Pasante / Aprendiz sólo se asigna cuando existe evidencia profesional explícita de esa condición y no hay antecedentes que la contradigan.
+2. Se agrega el grupo administrativo “Perfil profesional / Trayectoria no determinada” para perfiles con información laboral pero sin evidencia suficiente para definir seniority.
+3. El expertise GENERAL deja de llamarse “Primer empleo / Perfil general” y pasa a “Perfil general / Expertise no determinado”.
+4. Roles empresariales explícitos (empresario/a, fundador/a, socio/a gerente, titular de empresa) se consideran evidencia profesional de conducción. Cuando están respaldados por información profesional, pueden sostener una estimación Semi-senior o superior aunque no haya años declarados.
+5. Roles directivos explícitos (gerencia, dirección, presidencia, etc.) mantienen peso alto en la clasificación.
+6. DNI, edad, fecha de nacimiento, nacionalidad y condición migratoria NO se usan como proxy de experiencia o seniority.
+7. Un DNI alto no modifica la clasificación: dos candidatos con idéntica evidencia profesional obtienen el mismo resultado.
+
+Base de datos
+- Sin cambios de schema.prisma.
+- Sin migraciones destructivas.
+- No se modifican registros existentes; la clasificación se recalcula al leer los perfiles.
