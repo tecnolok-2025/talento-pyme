@@ -106,23 +106,37 @@
         return;
       }
       const especialidad = item.especialidad === 'Otros' ? (item.especialidad_otro || 'Otros') : (item.especialidad || '');
+      const lp = item.lectura_profesional || {};
+      const evidencias = Array.isArray(lp.evidencias) ? lp.evidencias.filter(Boolean) : [];
+      const confirmar = Array.isArray(lp.informacion_a_confirmar) ? lp.informacion_a_confirmar.filter(Boolean) : [];
+      const fuentes = Array.isArray(lp.fuentes_profesionales) ? lp.fuentes_profesionales.filter(Boolean) : [];
+      const experienciaRelevante = lp.experiencia_relevante_anios == null ? 'No determinada' : `${Number(lp.experiencia_relevante_anios).toLocaleString('es-AR',{maximumFractionDigits:1})} años`;
       els.detailBody.innerHTML = `
         <div class="candidateLineDetail">${avatar(item.photoDataUrl, `${item.nombre || ''} ${item.apellido || ''}`)}<div><div style="font-size:22px;font-weight:900">${esc(item.apellido)}, ${esc(item.nombre)}</div>
         <div class="muted" style="margin-top:4px">${esc(item.area_trabajo || '')}${item.nivel ? ` • ${esc(item.nivel)}` : ''}</div></div></div>
-        <div class="sectionMini"><b>DNI:</b> ${esc(item.dni || 's/d')}</div>
-        <div><b>Nacionalidad:</b> ${esc(item.nacionalidad || 's/d')} • <b>Estado civil:</b> ${esc(item.estado_civil || 's/d')} • <b>Hijos:</b> ${esc(item.hijos || 's/d')}</div>
-        <div><b>Contacto:</b> ${esc(item.telefono || 's/d')} • ${esc(item.correo || 's/d')}</div>
-        <div><b>Ubicación:</b> ${esc(item.localidad || 's/d')}${item.direccion ? ` • ${esc(item.direccion)}` : ''}</div>
-        <div><b>Especialidad:</b> ${esc(especialidad || 's/d')}</div>
-        ${item.soldador_categoria ? `<div><b>Soldador (cat.):</b> ${esc(item.soldador_categoria)}</div>` : ''}
-        ${Array.isArray(item.herramientas_mecanica) && item.herramientas_mecanica.length ? `<div><b>Máquinas herramienta:</b> ${esc(item.herramientas_mecanica.join(', '))}</div>` : ''}
-        ${Array.isArray(item.instrumentos_electrica) && item.instrumentos_electrica.length ? `<div><b>Instrumentos:</b> ${esc(item.instrumentos_electrica.join(', '))}</div>` : ''}
-        <div><b>Experiencia:</b> ${esc(item.rango_experiencia || 's/d')} • <b>Educación:</b> ${esc(item.nivel_educativo || 's/d')}</div>
-        <div><b>Capacitación:</b> ${item.tiene_capacitacion ? 'Sí' : 'No'} • <b>Trabaja:</b> ${item.trabaja_actualmente ? 'Sí' : 'No'}</div>
-        <div><b>Última actualización:</b> ${esc(formatDate(item.updated_at || item.created_at) || 's/d')}</div>
-        ${item.sueldo_pretendido ? `<div><b>Sueldo:</b> ${esc(item.sueldo_pretendido)}</div>` : ''}
-        ${item.ultimo_trabajo ? `<div><b>Último trabajo:</b> ${esc(item.ultimo_trabajo)}</div>` : ''}
-        ${item.observaciones ? `<div style="margin-top:8px"><b>Observaciones:</b><br>${esc(item.observaciones)}</div>` : ''}
+        <div class="sectionMini"><b>Perfil propuesto:</b> ${esc(item.perfil_propuesto || '')}</div>
+        <div><b>Nivel:</b> ${esc(item.nivel_propuesto || '')}</div>
+        <div><b>Teléfono:</b> ${esc(item.quickFacts?.phone || item.telefono || '')}</div>
+        <div><b>Teléfono adicional:</b> ${esc(item.quickFacts?.additionalPhone || '')}</div>
+        <div><b>Correo:</b> ${esc(item.correo || '')}</div>
+        <div><b>Ciudad:</b> ${esc(item.quickFacts?.city || item.localidad || '')}</div>
+        <div><b>Dirección:</b> ${esc(item.quickFacts?.address || item.direccion || '')}</div>
+        <div><b>Edad:</b> ${item.quickFacts?.age == null ? 'No informada' : esc(item.quickFacts.age+' años · '+item.quickFacts.ageSource)}</div>
+        <div><b>Estado civil:</b> ${esc(item.quickFacts?.maritalStatus || '')}</div>
+        <div><b>Último trabajo:</b> ${esc(item.ultimo_trabajo || '')}</div>
+        <div class="professionalReading" style="margin-top:14px;padding:14px;border:1px solid rgba(15,23,42,.12);border-radius:14px;background:#f8fafc">
+          <div style="font-weight:900;font-size:16px;margin-bottom:8px">Lectura profesional Talento PyME</div>
+          <div><b>Perfil:</b> ${esc(lp.perfil || item.perfil_propuesto || '')}</div>
+          <div><b>Nivel estimado:</b> ${esc(lp.nivel || item.nivel_propuesto || '')}</div>
+          <div><b>Experiencia relevante:</b> ${esc(experienciaRelevante)}</div>
+          <div><b>Último rol detectado:</b> ${esc(lp.ultimo_rol_detectado || item.ultimo_trabajo || '')}</div>
+          ${lp.fundamento ? `<p><b>Fundamento:</b> ${esc(lp.fundamento)}</p>` : ''}
+          ${evidencias.length ? `<div><b>Evidencias principales:</b><ul>${evidencias.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+          ${confirmar.length ? `<div><b>Información a confirmar en entrevista:</b><ul>${confirmar.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+          ${fuentes.length ? `<div class="muted small"><b>Fuentes consideradas:</b> ${fuentes.map(esc).join(' · ')}</div>` : ''}
+        </div>
+        <p><b>Análisis Talento PyME:</b> ${esc(item.evaluacion_profesional || '')}</p>
+        <details><summary>Ver información declarada por el candidato</summary><p>${esc(item.observaciones || '')}</p><p>${esc(item.presentacion_profesional || '')}</p><p>Formación: ${esc(item.nivel_educativo || '')}</p></details>
         ${item.__consumedMessage ? `<div class="talentHint" style="margin-top:12px">${esc(item.__consumedMessage)}</div>` : ''}
         <div class="row" style="margin-top:14px"><button class="btn btn-primary" id="btnSaveCandidate" type="button">Guardar en Mis Candidatos</button><span class="muted" id="saveCandidateMsg"></span></div>
       `;
@@ -140,7 +154,7 @@
         const especialidad = it.especialidad === 'Otros' ? (it.especialidad_otro || 'Otros') : (it.especialidad || '');
         const isActive = jobsSelected && jobsSelected.id === it.id;
         const isOpen = jobsOpenId && jobsOpenId === it.id;
-        const resumenBase = it.observaciones || it.ultimo_trabajo || 'Perfil sin observaciones cargadas.';
+        const resumenBase = it.nivel_propuesto || 'Perfil por verificar';
         const sueldoVisible = (it.sueldo_pretendido || '').trim();
         return `
           <div class="talentCard ${isActive?'active':''} ${isOpen?'is-open':''}" data-id="${it.id}">
@@ -171,7 +185,7 @@
             <div class="talentInlineBody">
               <div class="talentInlineGrid">
                 <div class="talentMini"><b>Estado del panel</b>${isOpen ? 'Detalle completo abierto a la derecha.' : 'Toque “Ver detalle” para abrir la ficha completa.'}</div>
-                <div class="talentMini"><b>Lectura rápida</b>${esc(especialidad || it.area_trabajo || 'Perfil general')} • ${esc(it.rango_experiencia || 'Experiencia s/d')}</div>
+                <div class="talentMini"><b>Lectura rápida</b>${esc(it.perfil_propuesto || especialidad || 'Perfil general')} • ${esc(it.nivel_propuesto || 'Nivel por verificar')}</div>
               </div>
               <div class="talentHint">Este resultado quedó hermanado con el panel derecho. Si volvés a tocar la flecha, se cierra en ambos lados.</div>
             </div>

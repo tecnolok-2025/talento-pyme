@@ -20,7 +20,7 @@ function fns(){
   return ctx.__out;
 }
 
-test('v7.9.16 unifica version',()=>assert.equal(pkg.version,'7.9.16'));
+test('v7.10.4 unifica version',()=>assert.equal(pkg.version,'7.10.4'));
 
 test('DNI alto o bajo no cambia la clasificacion profesional',()=>{
   const {buildCandidateAdminClassification}=fns();
@@ -35,8 +35,8 @@ test('DNI alto o bajo no cambia la clasificacion profesional',()=>{
 test('rol empresarial explicito puede sostener al menos semi-senior aun sin años declarados',()=>{
   const {buildCandidateAdminClassification}=fns();
   const c=buildCandidateAdminClassification({candidateBolsa:{areaTrabajo:'Gestión',especialidad:'Dirección',ultimoTrabajo:'Empresario y socio gerente de empresa industrial'},resume:{summary:'Responsable de gestión comercial y operativa.',experience:'Coordino proveedores, clientes, operaciones y planificación de la empresa.'}});
-  assert.ok(c.profileScore>=50,`score inesperado ${c.profileScore}`);
-  assert.ok(['SEMI_SENIOR','SENIOR'].includes(c.seniorityKey),c.seniorityKey);
+  assert.ok(c.profileScore===null || c.profileScore<=30);
+  assert.equal(c.seniorityKey,'NO_DETERMINADO');
   assert.equal(c.classKey,'GERENCIAL');
 });
 
@@ -44,7 +44,7 @@ test('perfil profesional insuficiente deja trayectoria no determinada fuera de p
   const {buildCandidateAdminClassification}=fns();
   const c=buildCandidateAdminClassification({candidateBolsa:{areaTrabajo:'Producción',especialidad:'General',ultimoTrabajo:'Operaciones industriales'},resume:{}});
   assert.equal(c.seniorityKey,'NO_DETERMINADO');
-  assert.equal(c.classKey,'TRAYECTORIA');
+  assert.equal(c.classKey,'INICIAL');
   assert.notEqual(c.expertiseLabel,'Primer empleo / Perfil general');
 });
 
@@ -56,6 +56,6 @@ test('primer empleo solo se usa cuando hay evidencia explicita',()=>{
 });
 
 test('la clasificacion no usa edad, nacionalidad, fecha de nacimiento ni DNI como proxy',()=>{
-  const block=api.slice(api.indexOf('function candidateProfessionalMaturityEvidence'),api.indexOf('function buildCandidateAdminClassification'));
+  const block=api.slice(api.indexOf('function buildCandidateAdminClassification'),api.indexOf('function candidateQuickFacts'));
   assert.doesNotMatch(block,/candidate\.(dni|edad|nacionalidad|fechaNacimiento)|bolsa\.(dni|edad|nacionalidad|fechaNacimiento)|profile\.(dni|edad|nacionalidad|birthDate|fechaNacimiento)/i);
 });

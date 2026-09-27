@@ -15,7 +15,7 @@ const cv = fs.readFileSync(path.join(root, 'apps/api/src/services/candidate-cv.j
 const config = fs.readFileSync(path.join(root, 'apps/web/config.js'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'apps/api/package.json'), 'utf8'));
 
-test('v7.9.16 agrega residencia y presentación por voz/texto al perfil candidato', () => {
+test('v7.10.4 agrega residencia y presentación por voz/texto al perfil candidato', () => {
   assert.match(schema, /paisResidencia\s+String\?/);
   assert.match(schema, /voiceNarrativeRaw\s+String\?/);
   assert.match(schema, /voiceNarrativeSummary\s+String\?/);
@@ -62,15 +62,11 @@ test('candidato puede descargar un CV PDF profesional regenerado con datos vigen
   assert.match(cv, /CV generado con Talento PyME/);
 });
 
-test('presentación aprobada enriquece búsqueda profesional sin exponer transcripción cruda a empresa', () => {
-  assert.match(api, /voiceNarrativeSummary:true/);
-  assert.match(api, /presentacion_profesional: it\.voiceNarrativeSummary/);
-  // La transcripción original está reservada al candidato/admin y no forma parte del payload público de búsqueda.
-  const jobsBlock = api.slice(api.indexOf("app.get('/jobs/search'"), api.indexOf("app.get('/jobs/candidate/:id/detail'"));
-  assert.doesNotMatch(jobsBlock, /voiceNarrativeRaw/);
+test('búsqueda empresarial usa evidencia sin publicar texto libre previo a apertura',()=>{
+const block=api.slice(api.indexOf("app.get('/jobs/search'"),api.indexOf("app.get('/jobs/candidate/:id/detail'"));assert.match(block,/candidateProfessionalSearchText/);assert.match(block,/observaciones: ''/);
 });
 
-test('versión unificada 7.9.16', () => {
-  assert.equal(pkg.version, '7.9.16');
-  assert.match(config, /TP_APP_VERSION = "7\.9\.16"/);
+test('versión unificada 7.10.4', () => {
+  assert.equal(pkg.version, '7.10.4');
+  assert.match(config, /TP_APP_VERSION = "7\.10\.4"/);
 });

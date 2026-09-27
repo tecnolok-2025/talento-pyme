@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Talento PyME</title>
   <meta name="theme-color" content="#0B1220" />
-  <link rel="manifest" href="/manifest.webmanifest?v=7.9.16" />
+  <link rel="manifest" href="/manifest.webmanifest?v=7.10.4" />
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.9.16" />
+  <link rel="stylesheet" href="/styles.css?v=7.10.4" />
 </head>
 <body class="authBody">
   <div class="authTop">
@@ -53,20 +53,21 @@
           <div class="authForm">
             <!-- LOGIN -->
             <div id="loginForm">
-              <label id="loginIdLabel">Nombre y apellido</label>
-              <input class="input" id="loginName" placeholder="Ej: Fulano Pérez" />
+              <label id="loginIdLabel">DNI, correo o nombre y apellido</label>
+              <input class="input" id="loginName" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="DNI, correo o nombre y apellido" />
               
 
               <label>Contraseña</label>
-              <div class="pw"><input class="input" id="loginPassword" type="password" placeholder="Tu clave" /><button type="button" class="pwToggle" data-target="loginPassword" aria-label="Ver contraseña">👁</button></div>
+              <div class="pw"><input class="input" id="loginPassword" autocomplete="current-password" autocapitalize="none" spellcheck="false" type="password" placeholder="Tu clave" /><button type="button" class="pwToggle" data-target="loginPassword" aria-label="Ver contraseña">👁</button></div>
 
+              <div id="capsLockHint" class="muted small" aria-live="polite"></div>
               <div class="authActions">
                 <button class="btn btn-primary" id="btnLogin" type="button">Ingresar</button>
               </div>
 
               <div class="authFoot">
                 <a class="authLink" id="forgotLink" href="/forgot.html?role=CANDIDATE">Olvidé mi contraseña</a>
-                <span class="muted small">Se valida con tus datos de registro.</span>
+                <span class="muted small">Podés ingresar con DNI o correo. Si olvidaste la clave, recibí un código en tu correo.</span>
               </div>
             </div>
 
@@ -74,7 +75,7 @@
             <div id="registerForm" style="display:none">
               <div id="candFields">
                 <label>Nombre y apellido</label>
-                <input class="input" id="regFullName" placeholder="Ej: Fulano Pérez" />
+                <input class="input" id="regFullName" placeholder="DNI, correo o nombre y apellido" />
 
                 <label>Email</label>
                 <input class="input" id="regEmail" placeholder="tu@email.com" />
@@ -190,8 +191,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=7.9.16"></script>
-  <script src="/auth.js?v=7.9.16"></script>
+  <script src="/config.js?v=7.10.4"></script>
+  <script src="/auth.js?v=7.10.4"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));
@@ -214,9 +215,9 @@
 
       // Ajustar etiqueta y placeholder de ingreso según rol (sin confusión)
       const lab = $("loginIdLabel");
-      if(lab) lab.textContent = (r === "COMPANY") ? "Empresa (nombre)" : "Nombre y apellido";
+      if(lab) lab.textContent = (r === "COMPANY") ? "Empresa o correo" : "DNI, correo o nombre y apellido";
       const inp = $("loginName");
-      if(inp) inp.placeholder = (r === "COMPANY") ? "Ej: MiPyme S.A." : "Ej: Fulano Pérez";
+      if(inp) inp.placeholder = (r === "COMPANY") ? "Nombre de empresa o correo" : "DNI, correo o nombre y apellido";
       const forgotLink = $("forgotLink");
       if(forgotLink) forgotLink.href = `/forgot.html?role=${r}`;
 
@@ -384,5 +385,6 @@ $("btnRegister").onclick = async () => {
     setRole("CANDIDATE");
     setMode("LOGIN");
   </script>
+<script>document.getElementById('loginPassword').addEventListener('keyup',e=>{document.getElementById('capsLockHint').textContent=e.getModifierState?.('CapsLock')?'Bloq Mayús está activado.':'';});</script>
 </body>
 </html>

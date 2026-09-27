@@ -106,7 +106,7 @@ function firstPersonTitle(title=''){
 function buildSidebarAbout(data={}, presentation=''){
   const b=data.bolsa||{}, c=data.classification||{};
   const title=titleFromData(data);
-  const years=Number.isFinite(Number(b.voiceNarrativeYears)) ? Number(b.voiceNarrativeYears) : null;
+  const years=b.voiceNarrativeYears != null && Number.isFinite(Number(b.voiceNarrativeYears)) ? Number(b.voiceNarrativeYears) : null;
   const expertise=clean(c.expertiseLabel || b.especialidadOtro || b.especialidad || b.areaTrabajo);
   let text=firstPersonTitle(title);
   if(years!==null) text += years>=30 ? ', con más de 30 años de trayectoria' : years>=1 ? `, con ${years} años de experiencia` : '';

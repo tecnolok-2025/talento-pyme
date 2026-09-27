@@ -16,7 +16,7 @@ const register=fs.readFileSync(path.join(repo,'web/index.html'),'utf8');
 const admin=fs.readFileSync(path.join(repo,'web/admin.html'),'utf8');
 const pkg=JSON.parse(fs.readFileSync(path.join(apiRoot,'package.json'),'utf8'));
 
-test('v7.9.16 unifica versión',()=>assert.equal(pkg.version,'7.9.16'));
+test('v7.10.4 unifica versión',()=>assert.equal(pkg.version,'7.10.4'));
 test('comunicación segura queda por defecto sólo para no informados',()=>{
   assert.match(admin,/communicationOnlyUnsent[^>]+checked/);
   assert.match(admin,/onlyUnsent:true/);
@@ -55,13 +55,8 @@ test('trazabilidad informa país provincia y ciudad',()=>{
   assert.match(report,/Candidatos con provincia \/ región identificada/);
   assert.match(api,/candidatesWithResidenceProvince/);
 });
-test('Corrección IA fusiona presentación y CV completo sin duplicarlos',()=>{
-  assert.match(api,/AI_V7_7\.9\.11_VOICE_CV_FUSION/);
-  assert.match(api,/cv_education/);
-  assert.match(api,/cv_certifications/);
-  assert.match(api,/cv_observations/);
-  assert.match(api,/No pegues ni repitas las dos fuentes una detrás de otra/);
-  assert.match(api,/combinedSource=\[source,context\?\.resumeSummary,context\?\.resumeExperience/);
+test('corrección IA lee CV completo pero no rellena aptitudes',()=>{
+assert.match(api,/cv_experience:/);assert.match(api,/cv_education:/);assert.match(api,/No atribuyas tareas típicas/);assert.match(api,/No inventes empleos/);
 });
 test('cargar un CV invalida sólo el análisis y obliga a corrección IA explícita',()=>{
   assert.match(api,/CV_UPDATED_REQUIRES_REFINEMENT/);

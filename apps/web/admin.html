@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.9.16" />
+  <link rel="stylesheet" href="/styles.css?v=7.10.4" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -410,6 +410,19 @@
       <div class="opsMiniCard"><span class="muted small">Mes vivo en seguimiento</span><b id="opsCurrentMonth" style="display:block;font-size:24px;margin-top:6px">—</b><div class="muted">Este mes se sigue actualizando en tiempo real a medida que crece la plataforma.</div></div>
       <div class="opsMiniCard"><span class="muted small">Interpretación ejecutiva</span><div id="opsExecutiveNote" class="muted" style="margin-top:8px">Este tablero te ayuda a decidir cuándo reforzar infraestructura, revisar backups y seguir la salud de la base.</div></div><div class="opsMiniCard"><span class="muted small">Política de resguardo</span><b id="opsBackupPolicyTitle" style="display:block;font-size:20px;margin-top:6px">—</b><div class="muted" id="opsBackupPolicyNote" style="margin-top:8px">Todavía no se informó la política de backup.</div></div>
     </div>
+    <div class="card" style="margin-top:18px">
+      <div class="toolbarCard"><div><h2 style="margin:0">Clasificación automática de candidatos</h2><div class="muted">El motor procesa altas nuevas, cambios de CV e importaciones externas sin depender de una auditoría manual. Si ingresan cientos de registros juntos, se trabajan por lotes y se conserva la misma versión de clasificación para todos.</div></div></div>
+      <div class="backupSummaryGrid">
+        <div class="backupStat"><span class="muted small">Motor activo</span><b id="classAutoVersion">—</b><div class="muted" id="classAutoEnabled">Sin lectura todavía.</div></div>
+        <div class="backupStat"><span class="muted small">Clasificados con versión actual</span><b id="classAutoCurrent">—</b><div class="muted" id="classAutoTotal">—</div></div>
+        <div class="backupStat"><span class="muted small">Pendientes de versión</span><b id="classAutoPending">—</b><div class="muted" id="classAutoQueue">—</div></div>
+        <div class="backupStat"><span class="muted small">Última ejecución</span><b id="classAutoLastRun">—</b><div class="muted" id="classAutoLastResult">—</div></div>
+      </div>
+      <div class="backupActions">
+        <button class="btn btn-primary" id="btnRunClassification" type="button">Procesar padrón ahora</button>
+        <span class="muted" id="classAutoActionMsg">El procesamiento normal es automático; este botón queda sólo como recuperación manual.</span>
+      </div>
+    </div>
     <div class="backupCenter">
       <div class="backupHero">
         <div class="card">
@@ -512,8 +525,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.9.16"></script>
-<script src="/auth.js?v=7.9.16"></script>
+<script src="/config.js?v=7.10.4"></script>
+<script src="/auth.js?v=7.10.4"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -621,8 +634,8 @@ function candidateDirectoryRowHtml(it){
   const score = hasScore ? Math.max(0, Math.min(100, Number(it.profileScore))) : null;
   const scoreClass = !hasScore ? 'neutral' : (score >= 75 ? 'high' : (score >= 50 ? 'mid' : 'low'));
   const seniority = it.seniorityLabel || 'Trayectoria no determinada';
-  const scoreLabel = hasScore ? `${score}% · ${seniority}` : `N/D · ${seniority}`;
-  return `<article class="candidateAccordion" data-user-id="${esc(it.userId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(name)}</span><span class="candidateScoreBadge ${scoreClass}" title="Indicador orientativo de trayectoria profesional; no reemplaza la evaluación humana">${esc(scoreLabel)}</span>${it.recentRole ? `<span class="muted" style="display:block;margin-top:6px"><b>Actividad/rol más reciente:</b> ${esc(it.recentRole)}</span>` : ''}<span class="muted" style="display:block;margin-top:4px">${esc(it.areaTrabajo || 'Perfil todavía incompleto')} ${it.localidad ? '· ' + esc(it.localidad) : ''} · DNI ${esc(it.dni || 'sin dato')}</span><span class="candidateProfileBadge" style="margin-top:8px">${esc(it.classLabel || it.profileStatus || 'Registro')}</span>${it.expertiseLabel ? `<span class="adminCategorySource">${esc(it.expertiseLabel)}</span>` : ''}</span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button><div><label class="candidateRetention"><input class="candidateRetentionInput" type="checkbox" ${checked}> Mantener indefinidamente</label><div class="candidateSaveMsg" aria-live="polite"></div></div></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
+  const scoreLabel = hasScore ? `${score}/100 · ${seniority}` : `N/D · ${seniority}`;
+  return `<article class="candidateAccordion" data-user-id="${esc(it.userId || it.id)}"><div class="candidateAccordionTop"><button class="candidateAccordionTrigger" type="button" aria-expanded="false"><span><span class="candidateAccordionName">${esc(name)}</span><span class="candidateScoreBadge ${scoreClass}" title="Evidencia declarada en la especialidad; requiere validación en entrevista">${esc(scoreLabel)}</span><span class="candidateProfileBadge" style="display:block;margin-top:8px">${esc(it.profileTitle || 'Perfil por completar')}</span><span class="muted" style="display:block;margin-top:4px">${esc(it.residenceCity || it.localidad || '')}</span></span><span class="candidateAccordionIcon" aria-hidden="true">+</span></button><div><label class="candidateRetention"><input class="candidateRetentionInput" type="checkbox" ${checked}> Mantener indefinidamente</label><div class="candidateSaveMsg" aria-live="polite"></div></div></div><div class="candidateAccordionBody"><div class="muted">Cargando perfil completo…</div></div></article>`;
 }
 function renderCandidateDirectoryClassification(directory){
   const groups = Array.isArray(directory?.groups) ? directory.groups : [];
@@ -638,6 +651,19 @@ function renderCandidateDirectoryClassification(directory){
   }).join('')}</div>`;
 }
 function renderCandidateDetail(it){
+  const c=it.adminClassification || {}, f=it.quickFacts || {};
+  const field=(label,value)=>`<div><b>${esc(label)}:</b> ${esc(value == null ? '' : String(value))}</div>`;
+  return `<div class="candidateDetailHero"><div><h2>${esc(candidateName(it))}</h2><b>${esc(c.profileTitle || 'Perfil por completar')}</b></div></div>
+    <div class="candidateDetailGrid"><section class="candidateDetailSection">
+    ${field('Teléfono',f.phone)}${field('Teléfono adicional',f.additionalPhone)}${field('Correo',f.email)}
+    ${field('Ciudad',f.city)}${field('Dirección',f.address)}${field('Estado civil',f.maritalStatus)}
+    ${field('Edad',f.age == null ? 'No informada' : f.age+' años · '+f.ageSource)}${field('Último trabajo declarado',f.latestJob)}
+    </section><section class="candidateDetailSection">${field('Especialidad propuesta',c.expertiseLabel)}${field('Nivel',c.seniorityLabel)}
+    ${field('Evidencia en la especialidad',c.profileScore == null ? 'Sin información suficiente' : c.profileScore+'/100 · provisional')}
+    <p>${esc(c.assessment || '')}</p></section></div>
+    <details style="margin-top:16px"><summary>Ver antecedentes originales y gestión de la cuenta</summary>${renderCandidateSourceDetail(it)}</details>`;
+}
+function renderCandidateSourceDetail(it){
   const profile = it?.candidateProfile || {};
   const bolsa = it?.candidateBolsa || {};
   const resume = it?.resume || {};
@@ -661,7 +687,7 @@ function renderCandidateDetail(it){
       candidateField('Actividad / rol más reciente utilizado', adminClass.recentRole),
       candidateField('Nivel estimado', adminClass.seniorityLabel),
       candidateField('Índice de trayectoria', adminClass.profileScore !== null && adminClass.profileScore !== undefined && Number.isFinite(Number(adminClass.profileScore)) ? `${Number(adminClass.profileScore)}%` : 'No determinado por falta de evidencia suficiente'),
-      candidateField('Años de experiencia detectados', Number.isFinite(Number(adminClass.explicitYearsExperience)) ? `${Number(adminClass.explicitYearsExperience)} año(s)` : 'No se pudo determinar con precisión'),
+      candidateField('Años de experiencia detectados', adminClass.explicitYearsExperience != null && Number.isFinite(Number(adminClass.explicitYearsExperience)) ? `${Number(adminClass.explicitYearsExperience)} año(s)` : 'No se pudo determinar con precisión'),
       candidateField('Fuente principal de experiencia', adminClass.experienceEvidenceSource),
       candidateField('Confianza de la clasificación', adminClass.classificationConfidence === 'ALTA' ? 'Alta' : (adminClass.classificationConfidence === 'MEDIA' ? 'Media' : 'Baja')),
       candidateField('Evidencia profesional detectada', adminClass.professionalEvidenceSummary ? `${Number(adminClass.professionalEvidenceSummary.rolesDetected || 0)} rol(es) · ${Number(adminClass.professionalEvidenceSummary.responsibilitySignals || 0)} señal(es) de responsabilidad · ${Number(adminClass.professionalEvidenceSummary.leadershipSignals || 0)} señal(es) de conducción` : ''),
@@ -685,7 +711,7 @@ function renderCandidateDetail(it){
     ]),
     candidateSection('Presentación profesional ampliada por Talento PyME', [
       candidateField('Texto profesional principal', bolsa.voiceNarrativeSummary),
-      candidateField('10 aptitudes / fortalezas profesionales', bolsa.voiceNarrativeStrengths),
+      candidateField('Aptitudes declaradas', bolsa.voiceNarrativeStrengths),
       candidateField('Motivación y objetivo profesional', bolsa.voiceNarrativeMotivation),
       candidateField('Cierre y proyección profesional', bolsa.voiceNarrativeClosing),
       candidateField('Título profesional detectado', bolsa.voiceNarrativeProfessionalTitle),
@@ -1109,6 +1135,28 @@ function shortChecksum(value){
   return s ? `${s.slice(0, 12)}…` : '—';
 }
 
+function renderClassificationAutomation(){
+  const info = state.overview?.classificationAutomation || {};
+  const version = info.engineVersion || '—';
+  const total = Number(info.totalCandidates || 0);
+  const current = Number(info.cachedCurrent || 0);
+  const pending = Number(info.pendingVersion || 0);
+  const queued = Number(info.pendingQueue || 0);
+  document.getElementById('classAutoVersion').textContent = version;
+  document.getElementById('classAutoEnabled').textContent = info.enabled === false ? 'Automatización desactivada por configuración.' : `Automático · revisión cada ${Number(info.scanSeconds || 0)} s · barrido total cada ${Number(info.fullSweepHours || 0)} h · lote ${Number(info.batchSize || 0)}`;
+  document.getElementById('classAutoCurrent').textContent = current.toLocaleString('es-AR');
+  document.getElementById('classAutoTotal').textContent = `de ${total.toLocaleString('es-AR')} candidato(s) registrados`;
+  document.getElementById('classAutoPending').textContent = pending.toLocaleString('es-AR');
+  document.getElementById('classAutoQueue').textContent = queued ? `${queued.toLocaleString('es-AR')} cambio(s) esperando procesamiento inmediato` : 'Sin cola inmediata pendiente';
+  document.getElementById('classAutoLastRun').textContent = formatDateTime(info.lastCompletedAt || info.lastStartedAt);
+  const resultParts = [];
+  if(info.running) resultParts.push('Procesando ahora');
+  if(Number.isFinite(Number(info.lastScanned))) resultParts.push(`${Number(info.lastScanned || 0).toLocaleString('es-AR')} revisados`);
+  if(Number.isFinite(Number(info.lastClassified))) resultParts.push(`${Number(info.lastClassified || 0).toLocaleString('es-AR')} recalculados`);
+  if(Number(info.lastErrors || 0)) resultParts.push(`${Number(info.lastErrors).toLocaleString('es-AR')} error(es)`);
+  document.getElementById('classAutoLastResult').textContent = resultParts.join(' · ') || 'Todavía no hay una ejecución registrada en esta instancia.';
+}
+
 function renderBackupCenter(){
   const backup = state.overview?.backupStatus || {};
   document.getElementById('backupLastAt').textContent = formatDateTime(backup.lastBackupAt);
@@ -1151,6 +1199,24 @@ function renderBackupCenter(){
       <div class="muted">${item.failureReason ? esc(item.failureReason) : 'Sin observaciones. Backup listo para resguardo interno.'}</div>
     </div>
   `).join('') || '<div class="muted">Todavía no hay historial de backups para mostrar.</div>';
+}
+
+async function triggerManualClassification(){
+  const msg=document.getElementById('classAutoActionMsg');
+  const btn=document.getElementById('btnRunClassification');
+  msg.textContent='Revisando el padrón con el motor vigente. Los registros ya actualizados se omiten automáticamente...';
+  btn.disabled=true;
+  try{
+    const data=await apiFetch('/admin/classification/run',{method:'POST',body:JSON.stringify({force:false})});
+    if(state.overview) state.overview.classificationAutomation=data?.classificationAutomation || state.overview.classificationAutomation;
+    renderClassificationAutomation();
+    const r=data?.result || {};
+    msg.textContent=r.busy ? 'El clasificador ya estaba trabajando. La revisión continuará automáticamente.' : `Revisión terminada: ${Number(r.scanned||0).toLocaleString('es-AR')} revisados · ${Number(r.classified||0).toLocaleString('es-AR')} recalculados · ${Number(r.skipped||0).toLocaleString('es-AR')} sin cambios.`;
+  }catch(err){
+    msg.textContent=err?.message || 'No se pudo ejecutar la clasificación del padrón.';
+  }finally{
+    btn.disabled=false;
+  }
 }
 
 async function triggerManualBackup(){
@@ -1378,6 +1444,7 @@ async function loadOverview(){
   document.getElementById('companyTraceList').innerHTML = (te.recentEvents || []).map((ev) => traceEventHtml(ev, 'Empresa')).join('') || '<div class="muted">Sin eventos recientes del lado empresa.</div>';
   renderTraceability();
   renderOperationalStatus();
+  renderClassificationAutomation();
   renderBackupCenter();
   renderTraceabilityReportPanel();
 }
@@ -1749,6 +1816,7 @@ document.getElementById('btnRefreshMail').onclick = () => loadMailInbox(state.ma
 document.getElementById('btnMailPrev').onclick = () => { if((state.mail.page || 1) > 1) loadMailInbox((state.mail.page || 1) - 1); };
 document.getElementById('btnMailNext').onclick = () => { if((state.mail.page || 1) < (state.mail.totalPages || 1)) loadMailInbox((state.mail.page || 1) + 1); };
 document.getElementById('btnRefreshThreads').onclick = () => loadThreads();
+document.getElementById('btnRunClassification').onclick = () => triggerManualClassification();
 document.getElementById('btnRunBackup').onclick = () => triggerManualBackup();
 document.getElementById('btnDownloadBackup').onclick = () => downloadLatestBackup();
 document.getElementById('btnVerifyBackup').onclick = () => verifyLatestBackup();
@@ -1802,7 +1870,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v7.9.16: el estado de la cola se refresca mientras Administración permanece abierto.
+// v7.10.4: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();

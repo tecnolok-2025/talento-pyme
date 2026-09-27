@@ -1,0 +1,20 @@
+{
+  "versionFrom": "7.10.2",
+  "versionTo": "7.10.3",
+  "candidateCount": 513,
+  "errors": 0,
+  "classChanged": 0,
+  "expertiseChanged": 0,
+  "seniorityChanged": 29,
+  "scoreChanged": 31,
+  "explicitYearsChanged": 47,
+  "relevantYearsChanged": 50,
+  "v7102Senior": 3,
+  "v7103Senior": 4,
+  "v7102Semi": 48,
+  "v7103Semi": 56,
+  "v7102Junior": 78,
+  "v7103Junior": 93,
+  "v7102NoLevel": 382,
+  "v7103NoLevel": 358
+}

@@ -13,11 +13,11 @@ const config = fs.readFileSync(path.join(root, 'apps/web/config.js'), 'utf8');
 const sw = fs.readFileSync(path.join(root, 'apps/web/sw.js'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'apps/api/package.json'), 'utf8'));
 
-test('v7.9.16 unifica frontend, API y PWA', () => {
-  assert.equal(pkg.version, '7.9.16');
-  assert.match(config, /TP_APP_VERSION = "7\.9\.16"/);
-  assert.match(config, /TP_BUILD_ID = "20260811_02"/);
-  assert.match(sw, /v=7\.9\.16/);
+test('v7.10.4 unifica frontend, API y PWA', () => {
+  assert.equal(pkg.version, '7.10.4');
+  assert.match(config, /TP_APP_VERSION = "7\.10\.4"/);
+  assert.match(config, /TP_BUILD_ID = "20260927_04"/);
+  assert.match(sw, /v=7\.10\.4/);
 });
 
 test('Perfiles candidatos incorpora desplegable dinámico y palabra clave', () => {
@@ -54,13 +54,8 @@ test('filtro permite familia/categoría y subperfil específico', () => {
   assert.match(admin, /FAMILY::\$\{group\.key\}/);
 });
 
-test('palabra clave candidata busca también CV completo y clasificación calculada', () => {
-  assert.match(api, /it\.resume\?\.experience/);
-  assert.match(api, /it\.resume\?\.education/);
-  assert.match(api, /it\.resume\?\.certifications/);
-  assert.match(api, /classification\.expertiseLabel/);
-  assert.match(api, /classification\.seniorityLabel/);
-  assert.match(api, /adminSearchTextMatch\(item\._searchText, candidateSearch\)/);
+test('búsqueda usa clasificación y evidencia profesional',()=>{
+ assert.match(api,/candidateProfessionalSearchText\(it, classification\)/); assert.match(api,/classification.searchText/); assert.match(api,/adminSearchTextMatch\(item\._searchText, candidateSearch\)/);
 });
 
 test('palabra clave empresa incluye actividad inferida y búsquedas publicadas', () => {

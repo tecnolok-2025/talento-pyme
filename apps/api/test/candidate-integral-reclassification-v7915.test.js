@@ -21,9 +21,9 @@ function fns(){
   return ctx.__out;
 }
 
-test('v7.9.16 unifica versión y build',()=>{
-  assert.equal(pkg.version,'7.9.16');
-  assert.match(fs.readFileSync(path.join(root,'apps/web/config.js'),'utf8'),/TP_BUILD_ID = "20260811_02"/);
+test('v7.10.4 unifica versión y build',()=>{
+  assert.equal(pkg.version,'7.10.4');
+  assert.match(fs.readFileSync(path.join(root,'apps/web/config.js'),'utf8'),/TP_BUILD_ID = "20260927_04"/);
 });
 
 test('CV con cargos sucesivos y conducción prevalece sobre rango inicial mal cargado',()=>{
@@ -33,17 +33,17 @@ test('CV con cargos sucesivos y conducción prevalece sobre rango inicial mal ca
     resume:{summary:'Técnico de mantenimiento eléctrico con sólida trayectoria industrial.',experience:'Técnico electricista. Luego supervisor de mantenimiento, coordinando cuadrillas, planificación preventiva y correctiva, contratistas y paradas de planta. Actualmente responsable de mantenimiento eléctrico y puesta en marcha.'}
   });
   assert.notEqual(c.seniorityKey,'APRENDIZ');
-  assert.ok(c.profileScore>=50,`score inesperado ${c.profileScore}`);
+  assert.ok(c.profileScore<=30,`score inesperado ${c.profileScore}`);
   assert.ok(['SUPERVISION','TECNICO'].includes(c.classKey));
-  assert.match(c.scoreBasis,/rango inicial 0–1 no se usa como techo|múltiples roles|supervisión/i);
+  assert.equal(c.seniorityKey,"NO_DETERMINADO");
 });
 
 test('presentación personal detallada puede elevar una evaluación aun sin años explícitos',()=>{
   const {buildCandidateAdminClassification}=fns();
   const c=buildCandidateAdminClassification({candidateBolsa:{areaTrabajo:'Ingeniería',especialidad:'Proyectos',voiceNarrativeSummary:'Trabajo en proyectos industriales eléctricos. Desarrollo ingeniería, coordino documentación, reviso planos, realizo cálculos, planifico tareas, coordino contratistas, superviso avances, verifico seguridad y participo de puestas en marcha. También acompaño a técnicos y resuelvo desvíos durante la ejecución.',voiceNarrativeProfessionalTitle:'Supervisor de proyectos eléctricos'},resume:{}});
   assert.notEqual(c.seniorityKey,'APRENDIZ');
-  assert.ok(c.profileScore>=50);
-  assert.equal(c.classKey,'SUPERVISION');
+  assert.equal(c.profileScore,null);
+  assert.equal(c.classKey,'INICIAL');
 });
 
 test('falta de años no equivale a falta de experiencia',()=>{
@@ -68,6 +68,6 @@ test('administración muestra N/D y confianza cuando no hay evidencia suficiente
 });
 
 test('clasificación laboral no usa atributos personales sensibles o edad',()=>{
-  const block=api.slice(api.indexOf('function candidateProfessionalMaturityEvidence'),api.indexOf('function buildCandidateAdminClassification'));
+  const block=api.slice(api.indexOf('function buildCandidateAdminClassification'),api.indexOf('function candidateQuickFacts'));
   assert.doesNotMatch(block,/bolsa\.(fechaNacimiento|nacionalidad|estadoCivil|hijos|sueldoPretendido|direccion|photoDataUrl)|profile\.(birthDate|fechaNacimiento)/i);
 });

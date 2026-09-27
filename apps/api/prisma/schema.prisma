@@ -63,6 +63,7 @@ model User {
 
   candidateProfile Profile?
   candidateBolsa   CandidateBolsa?
+  candidateClassification CandidateClassification?
   resume    Resume?
   company   CompanyProfile?
   jobs      Job[]
@@ -164,6 +165,8 @@ model CandidateBolsa {
   nacionalidad      String
   estadoCivil       String
   hijos             String
+  fechaNacimiento   String?
+  telefonoAdicional String?
   telefono          String
   correo            String
   localidad         String
@@ -212,6 +215,48 @@ model CandidateBolsa {
   @@index([localidad])
   @@index([especialidad])
   @@index([nivel])
+}
+
+
+model CandidateClassification {
+  id                       String   @id @default(cuid())
+  userId                   String   @unique
+  classificationVersion    String
+  sourceFingerprint        String
+  classKey                 String
+  classLabel               String
+  expertiseKey             String
+  expertiseLabel           String
+  expertiseSource          String?
+  profileTitle             String
+  recentRole               String?
+  profileScore             Int?
+  seniorityKey             String
+  seniorityLabel           String
+  explicitYearsExperience  Float?
+  relevantYearsExperience  Float?
+  experienceEvidenceSource String?
+  professionalSourcesUsed  Json?
+  cvEvidenceUsed           Boolean  @default(false)
+  classificationConfidence String?
+  reason                   String?
+  scoreBasis               String?
+  evidence                 Json?
+  gaps                     Json?
+  assessment               String?
+  searchText               String?
+  triggerSource            String?
+  sourceUpdatedAt          DateTime?
+  classifiedAt             DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([classificationVersion])
+  @@index([classKey])
+  @@index([expertiseKey])
+  @@index([seniorityKey])
+  @@index([classifiedAt])
 }
 
 model Resume {

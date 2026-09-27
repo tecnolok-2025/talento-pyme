@@ -15,9 +15,9 @@ test('resume/parse persiste el contenido útil del CV', async () => {
   const block = api.slice(parseStart, parseEnd);
   assert.ok(block.includes('prisma.resume.upsert'));
   assert.ok(block.includes('summary: clampText(summaryText'));
-  assert.ok(block.includes('experience: clampText(sections?.experience'));
-  assert.ok(block.includes('education: clampText(sections?.education'));
-  assert.ok(block.includes('certifications: clampText(sections?.certifications'));
+  assert.ok(block.includes('experience: String(sections?.experience'));
+  assert.ok(block.includes('education: String(sections?.education'));
+  assert.ok(block.includes('certifications: String(sections?.certifications'));
 });
 
 test('detalle administrativo usa resumen legado como respaldo', async () => {

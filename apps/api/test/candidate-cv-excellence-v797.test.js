@@ -14,14 +14,8 @@ const schema=fs.readFileSync(path.join(root,'apps/api/prisma/schema.prisma'),'ut
 
 const between=(src,a,b)=>src.slice(src.indexOf(a),src.indexOf(b,src.indexOf(a)+a.length));
 
-test('v7.9.16 genera diez aptitudes profesionales editables, no opiniones de un tercero',()=>{
-  const prompt=between(api,"{ role:'system'","{ role:'user'");
-  assert.match(prompt,/EXACTAMENTE 10 aptitudes\/competencias/);
-  assert.match(prompt,/no opiniones de un tercero/);
-  assert.match(prompt,/primera persona/i);
-  assert.match(api,/minItems:10,maxItems:10/);
-  assert.match(web,/10 aptitudes y fortalezas profesionales sugeridas · editables/);
-  assert.match(web,/c_voice_strengths/);
+test('aptitudes limitadas a evidencia, sin obligación de llenar diez',()=>{
+assert.match(api,/hasta 10 aptitudes/);assert.match(api,/minItems:0,maxItems:10/);
 });
 
 test('la motivación cambia según seniority y contempla candidato que ya trabaja',()=>{
@@ -35,14 +29,8 @@ test('la motivación cambia según seniority y contempla candidato que ya trabaj
   assert.match(api,/Si currently_working es true, no escribir como si estuviera desempleado/);
 });
 
-test('proyectista eléctrico recibe vocabulario técnico útil para expresar su expertise',()=>{
-  const strengths=between(api,'function inferProfessionalStrengthsLocal','function buildProfessionalMotivationLocal');
-  assert.match(strengths,/esquemas unifilares y trifilares/);
-  assert.match(strengths,/canalizaciones, tendidos y distribución eléctrica/);
-  assert.match(strengths,/Cálculo de cargas, demanda y dimensionamiento eléctrico/);
-  assert.match(strengths,/Dimensionamiento de conductores y protecciones/);
-  assert.match(strengths,/Supervisión técnica de trabajos y obras/);
-  assert.match(strengths,/Control de avance, calidad y cumplimiento técnico/);
+test('la redacción IA no atribuye tareas típicas no declaradas',()=>{
+assert.match(api,/No atribuyas tareas típicas del oficio/);
 });
 
 test('CV incorpora fortalezas y un cierre profesional en primera persona',()=>{
@@ -61,13 +49,13 @@ test('campos nuevos se guardan, quedan editables y Administración los puede lee
   assert.match(web,/voiceNarrativeStrengths:/);
   assert.match(web,/voiceNarrativeMotivation:/);
   assert.match(web,/voiceNarrativeClosing:/);
-  assert.match(admin,/10 aptitudes \/ fortalezas profesionales/);
+  assert.match(admin,/Aptitudes declaradas/);
   assert.match(admin,/Motivación y objetivo profesional/);
   assert.match(admin,/Cierre y proyección profesional/);
 });
 
 test('candidatos con versión vieja vuelven a tener pendiente la nueva presentación enriquecida',()=>{
-  assert.match(api,/AI_V7_7\.9\.11_VOICE_CV_FUSION/);
+  assert.match(api,/AI_V710_EVIDENCE_ONLY/);
   assert.match(api,/voiceNarrativeAnalysisVersion[^\n]+PRESENTATION_ANALYSIS_VERSION/);
-  assert.match(api,/String\(candidate\.voiceNarrativeMotivation/);
+  assert.match(api,/AI_V710_EVIDENCE_ONLY/);
 });

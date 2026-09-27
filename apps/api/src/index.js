@@ -24,6 +24,8 @@ import { inferResidence, isArgentinaProvince } from "./services/residence.js";
 
 const prisma = new PrismaClient();
 const app = express();
+// Render termina TLS en su proxy; no confiar cabeceras en instalaciones directas.
+if(process.env.RENDER) app.set('trust proxy', 1);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const UPLOADS_DIR = path.resolve(__dirname, "../uploads");
@@ -57,6 +59,26 @@ const DEFAULT_PROVIDER_CONSOLE_URL = String(process.env.ADMIN_PROVIDER_CONSOLE_U
 let backupRunPromise = null;
 let backupSchedulerStarted = false;
 
+// v7.10.3 · clasificación automática y persistente de candidatos.
+// El motor sigue siendo determinístico y basado en evidencia declarada; esta capa solamente
+// garantiza que altas, importaciones masivas y cambios de CV queden procesados sin auditoría manual.
+const CANDIDATE_CLASSIFICATION_VERSION = '7.10.3';
+const CANDIDATE_CLASSIFICATION_AUTO_ENABLED = String(process.env.CANDIDATE_CLASSIFICATION_AUTO_ENABLED || 'true').trim().toLowerCase() !== 'false';
+const CANDIDATE_CLASSIFICATION_SCAN_SECONDS = Math.max(15, Math.min(3600, Number(process.env.CANDIDATE_CLASSIFICATION_SCAN_SECONDS || 60)));
+const CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS = Math.max(1000, Math.min(120000, Number(process.env.CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS || 12000)));
+const CANDIDATE_CLASSIFICATION_BATCH_SIZE = Math.max(20, Math.min(200, Number(process.env.CANDIDATE_CLASSIFICATION_BATCH_SIZE || 100)));
+const CANDIDATE_CLASSIFICATION_FULL_SWEEP_HOURS = Math.max(1, Math.min(168, Number(process.env.CANDIDATE_CLASSIFICATION_FULL_SWEEP_HOURS || 6)));
+let candidateClassificationSchedulerStarted = false;
+let candidateClassificationWorkerBusy = false;
+let candidateClassificationQueueKickScheduled = false;
+let candidateClassificationLastScanAt = null;
+let candidateClassificationLastFullSweepAt = null;
+const candidateClassificationPending = new Map();
+const candidateClassificationRuntime = {
+  running:false, lastTrigger:null, lastStartedAt:null, lastCompletedAt:null, lastDurationMs:0,
+  lastScanned:0, lastClassified:0, lastSkipped:0, lastErrors:0, totalClassifiedSinceBoot:0, lastError:null,
+};
+
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const FACTORY_SUPERADMIN_KEY = String(process.env.FACTORY_SUPERADMIN_KEY || '').trim();
 const FACTORY_ADMIN_ALIAS = String(process.env.FACTORY_ADMIN_ALIAS || '').trim();
@@ -72,7 +94,7 @@ const GMAIL_REFRESH_TOKEN = String(process.env.GMAIL_REFRESH_TOKEN || '').trim()
 const OPENAI_API_KEY = String(process.env.OPENAI_API_KEY || '').trim();
 const OPENAI_MODEL = String(process.env.OPENAI_MODEL || 'gpt-5-mini').trim() || 'gpt-5-mini';
 const OPENAI_PRESENTATION_TIMEOUT_MS = Math.max(5000, Math.min(30000, Number(process.env.OPENAI_PRESENTATION_TIMEOUT_MS || 18000)));
-const PRESENTATION_ANALYSIS_VERSION = 'AI_V7_7.9.11_VOICE_CV_FUSION';
+const PRESENTATION_ANALYSIS_VERSION = 'AI_V710_EVIDENCE_ONLY';
 const MAIL_FROM_NAME = String(process.env.MAIL_FROM_NAME || 'Talento PyME').trim();
 const WEB_BASE_URL = String(process.env.WEB_BASE_URL || 'https://talento-pyme.onrender.com').replace(/\/$/, '').trim();
 const PASSWORD_RESET_CODE_TTL_MINUTES = Math.max(5, Math.min(30, Number(process.env.PASSWORD_RESET_CODE_TTL_MINUTES || 10)));
@@ -288,13 +310,14 @@ async function pruneOldBackupArtifacts(){
 
 async function collectLogicalBackupPayload(){
   const [
-    users, profiles, skills, candidateBolsa, resumes, companyProfiles, jobCategories, jobs, applications, billingOrders, billingOrderItems, companyJobPublications, companyCandidateAccesses, billingCouponRedemptions, factoryPlanConfigs, factoryCoupons, companyFactoryGrants, paymentWebhookEvents, securityEvents, supportThreads, supportMessages, supportKnowledge, adminMonthlySnapshots, passwordResetChallenges
+    users, profiles, skills, candidateBolsa, resumes, candidateClassifications, companyProfiles, jobCategories, jobs, applications, billingOrders, billingOrderItems, companyJobPublications, companyCandidateAccesses, billingCouponRedemptions, factoryPlanConfigs, factoryCoupons, companyFactoryGrants, paymentWebhookEvents, securityEvents, supportThreads, supportMessages, supportKnowledge, adminMonthlySnapshots, passwordResetChallenges
   ] = await Promise.all([
     prisma.user.findMany().catch(() => []),
     prisma.profile.findMany().catch(() => []),
     prisma.skill.findMany().catch(() => []),
     prisma.candidateBolsa.findMany().catch(() => []),
     prisma.resume.findMany().catch(() => []),
+    prisma.candidateClassification.findMany().catch(() => []),
     prisma.companyProfile.findMany().catch(() => []),
     prisma.jobCategory.findMany().catch(() => []),
     prisma.job.findMany().catch(() => []),
@@ -317,7 +340,7 @@ async function collectLogicalBackupPayload(){
   ]);
 
   const datasets = {
-    users, profiles, skills, candidateBolsa, resumes, companyProfiles, jobCategories, jobs, applications, billingOrders, billingOrderItems, companyJobPublications, companyCandidateAccesses, billingCouponRedemptions, factoryPlanConfigs, factoryCoupons, companyFactoryGrants, paymentWebhookEvents, securityEvents, supportThreads, supportMessages, supportKnowledge, adminMonthlySnapshots, passwordResetChallenges,
+    users, profiles, skills, candidateBolsa, resumes, candidateClassifications, companyProfiles, jobCategories, jobs, applications, billingOrders, billingOrderItems, companyJobPublications, companyCandidateAccesses, billingCouponRedemptions, factoryPlanConfigs, factoryCoupons, companyFactoryGrants, paymentWebhookEvents, securityEvents, supportThreads, supportMessages, supportKnowledge, adminMonthlySnapshots, passwordResetChallenges,
   };
   const recordCount = Object.values(datasets).reduce((acc, rows) => acc + (Array.isArray(rows) ? rows.length : 0), 0);
   return {
@@ -333,6 +356,7 @@ async function collectLogicalBackupPayload(){
       users: users.length,
       candidates: users.filter((item) => String(item?.role || '').toUpperCase() === 'CANDIDATE').length,
       companies: companyProfiles.length,
+      classifications: candidateClassifications.length,
       billingOrders: billingOrders.length,
       snapshots: adminMonthlySnapshots.length,
     },
@@ -1276,8 +1300,8 @@ function levenshtein(a = "", b = ""){
 }
 
 function similarity(a, b){
-  const A = normalizeName(a);
-  const B = normalizeName(b);
+  const A = normalizeName(a).split(" ").sort().join(" ");
+  const B = normalizeName(b).split(" ").sort().join(" ");
   const maxLen = Math.max(A.length, B.length);
   if(maxLen === 0) return 1;
   const dist = levenshtein(A, B);
@@ -2253,6 +2277,7 @@ app.post("/auth/register", async (req, res) => {
           ...(existingUser.resume ? {} : { resume: { create: {} } }),
         },
       });
+      queueCandidateClassification(existingUser.id,'REGISTRATION_UPGRADE');
 
       return res.json({ ok: true, upgraded: true, version: APP_VERSION });
     }
@@ -2320,6 +2345,7 @@ app.post("/auth/register", async (req, res) => {
           resume: { create: {} },
         },
       });
+      queueCandidateClassification(user.id,'REGISTRATION');
 
       return res.json({ ok: true, userId: user.id, version: APP_VERSION });
     }
@@ -2363,7 +2389,30 @@ app.post("/auth/register", async (req, res) => {
   }
 });
 
-app.post("/auth/login", async (req, res) => {
+const loginAttempts710 = new Map();
+function loginThrottle710(req,res,next){
+  const now=Date.now(), key=String(req.ip || req.socket?.remoteAddress || 'unknown');
+  for(const [k,v] of loginAttempts710) if(v.until<=now) loginAttempts710.delete(k);
+  const entry=loginAttempts710.get(key) || {count:0,until:now+15*60*1000};
+  if(entry.count>=20){res.setHeader('Retry-After',String(Math.ceil((entry.until-now)/1000)));return res.status(429).json({error:'Demasiados intentos. Esperá unos minutos o recuperá tu contraseña.'});}
+  if(loginAttempts710.size>=10000 && !loginAttempts710.has(key)) return res.status(429).json({error:'Intentá nuevamente en unos minutos.'});
+  entry.count++;loginAttempts710.set(key,entry);next();
+}
+function passwordVariants710(password){
+  const value=String(password || '');
+  const trimmed=value.trim();
+  // Tolerancia acotada: espacios exteriores y primera letra. No se corrigen caracteres internos.
+  return [...new Set([value,trimmed,trimmed.charAt(0).toLowerCase()+trimmed.slice(1),trimmed.charAt(0).toUpperCase()+trimmed.slice(1)])];
+}
+async function verifyLoginPassword710(password,user,exactIdentity=false){
+  if(!user?.passHash) return false;
+  const variants=exactIdentity && ['CANDIDATE','COMPANY'].includes(user.role)?passwordVariants710(password):[password];
+  for(const value of variants) if(await bcrypt.compare(value,user.passHash)) return true;
+  return false;
+}
+
+app.post("/auth/login", loginThrottle710, async (req, res) => {
+  try {
   const parsed = loginSchema.safeParse(req.body);
   if(!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
@@ -2378,13 +2427,20 @@ app.post("/auth/login", async (req, res) => {
     return res.json({ token: signToken({ id: VIRTUAL_ADMIN_USER_ID, role: VIRTUAL_ADMIN_ROLE }), role: VIRTUAL_ADMIN_ROLE, admin: true });
   }
 
+  if(/^[\d.\s-]+$/.test(identifier) && roleHint !== 'COMPANY'){
+    const dni=normalizeId(identifier);
+    const matches=await prisma.user.findMany({where:{role:'CANDIDATE',OR:[{candidateProfile:{is:{dni}}},{candidateBolsa:{is:{dni}}}]},take:2});
+    if(matches.length!==1 || !await verifyLoginPassword710(password,matches[0],true)) return res.status(401).json({error:'No pudimos validar el acceso. Revisá DNI y clave o usá «Olvidé mi contraseña».'});
+    return res.json({token:signToken(matches[0]),role:matches[0].role});
+  }
+
   // Soporte: si el usuario pega su email, permitimos login directo por email (más robusto).
   if(identifier.includes("@")){
     const emailTry = identifier.toLowerCase();
     const u = await prisma.user.findFirst({ where: { email: { equals: emailTry, mode: "insensitive" } } });
     if(!u) return res.status(401).json({ error: "No encontramos ese email. Verificá cómo te registraste." });
-    const ok = await bcrypt.compare(password, u.passHash);
-    if(!ok) return res.status(401).json({ error: "Clave incorrecta" });
+    const ok = (!roleHint || u.role === roleHint) && await verifyLoginPassword710(password,u,true);
+    if(!ok) return res.status(401).json({ error: "Clave incorrecta. Revisá mayúsculas o usá «Olvidé mi contraseña»." });
     return res.json({ token: signToken(u), role: u.role });
   }
 
@@ -2474,11 +2530,13 @@ app.post("/auth/login", async (req, res) => {
   }
 
   // 3er fallback (especial para registros recientes): buscar en los últimos perfiles por si hay tildes/puntos o no existe fullNameNorm aún
-  if(candidates.length === 0 && nameNorm.length >= 4){
-    const take = 200;
+  if(!candidates.some(item=>item.score>=0.85) && nameNorm.length >= 4){
+    candidates.length=0;
+    const take = 5000;
 
     if(roleHint !== "COMPANY"){
       const recentCand = await prisma.profile.findMany({
+        where: { user: { role: "CANDIDATE" } },
         include: { user: true },
         orderBy: { updatedAt: "desc" },
         take
@@ -2506,6 +2564,8 @@ app.post("/auth/login", async (req, res) => {
     return res.status(401).json({ error: "No encontramos ese nombre. Verificá cómo te registraste." });
   }
 
+  for(let i=candidates.length-1;i>=0;i--) if(!['CANDIDATE','COMPANY'].includes(candidates[i].user?.role)) candidates.splice(i,1);
+  if(!candidates.length) return res.status(401).json({error:'No pudimos validar el acceso.'});
   candidates.sort((a,b) => b.score - a.score);
   const best = candidates[0];
 
@@ -2520,13 +2580,14 @@ app.post("/auth/login", async (req, res) => {
     return res.status(409).json({ error: "Nombre ambiguo. Escribí el nombre completo (incluyendo segundo nombre y apellido) para ingresar." });
   }
 
-  const ok = await bcrypt.compare(password, best.user.passHash);
-  if(!ok) return res.status(401).json({ error: "Clave incorrecta" });
+  const ok = await verifyLoginPassword710(password,best.user,best.score===1);
+  if(!ok) return res.status(401).json({ error: "Clave incorrecta. Revisá mayúsculas o usá «Olvidé mi contraseña»." });
 
   return res.json({ token: signToken(best.user), role: best.user.role });
+  } catch(err) { console.error('login failed',err?.name); return res.status(500).json({error:'No se pudo ingresar. Intentá nuevamente.'}); }
 });
 
-app.post("/auth/password-recovery/start", async (req, res) => {
+app.post("/auth/password-recovery/start", loginThrottle710, async (req, res) => {
   const parsed = passwordRecoveryStartSchema.safeParse(req.body);
   if(!parsed.success) return res.status(400).json({ error: "Datos inválidos para iniciar la recuperación." });
   try {
@@ -2671,6 +2732,12 @@ const profileSchema = z.object({
 });
 
 
+function validBirthDate710(value){
+  if(value==='') return true;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const d=new Date(value+'T00:00:00Z');
+  return Number.isFinite(d.getTime()) && d.toISOString().slice(0,10)===value && value>='1900-01-01' && value<=new Date().toISOString().slice(0,10);
+}
 const bolsaSchema = z.object({
   nombre: z.string().min(1).max(80),
   apellido: z.string().min(1).max(80),
@@ -2679,6 +2746,8 @@ const bolsaSchema = z.object({
   estadoCivil: z.string().max(40),
   hijos: z.string().max(40),
   telefono: z.string().max(40),
+  telefonoAdicional: z.string().max(40).optional().nullable(),
+  fechaNacimiento: z.string().refine(validBirthDate710, "Fecha de nacimiento inválida").optional().nullable(),
   correo: z.string().email().max(160),
   localidad: z.string().max(80),
   provinciaResidencia: z.string().max(80).optional().nullable(),
@@ -2732,12 +2801,12 @@ function parseSkills(skillsText){
   return skills;
 }
 
-app.get("/profile/me", auth, async (req, res) => {
+app.get("/profile/me", auth, requireRole("CANDIDATE"), async (req, res) => {
   const p = await prisma.profile.findUnique({ where: { userId: req.user.id }, include: { skills: true } });
   res.json(p || null);
 });
 
-app.put("/profile/me", auth, async (req, res) => {
+app.put("/profile/me", auth, requireRole("CANDIDATE"), async (req, res) => {
   const parsed = profileSchema.safeParse(req.body);
   if(!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
@@ -2767,6 +2836,7 @@ app.put("/profile/me", auth, async (req, res) => {
   }
 
   const p2 = await prisma.profile.findUnique({ where: { userId: req.user.id }, include: { skills: true } });
+  if(req.user.role === 'CANDIDATE') queueCandidateClassification(req.user.id,'PROFILE_UPDATED');
   res.json(p2);
 });
 
@@ -2915,27 +2985,7 @@ function extractExperienceEntries(text, sections){
 }
 
 function detectProfession(text, sections, entries){
-  const haySummary = normalizeName(pickSectionText(sections, ["summary"]));
-  const hayExp = normalizeName(pickSectionText(sections, ["experience"]));
-  const recent = entries?.[0] || null;
-  const roleText = normalizeName(`${recent?.role || ""} ${recent?.header || ""} ${haySummary}`);
-
-  const profiles = [
-    [/planificacion de mantenimiento|mantenimiento y confiabilidad|lider de planificacion de mantenimiento/i, "Especialista en planificación de mantenimiento y confiabilidad"],
-    [/gestion de activos|confiabilidad operativa|mantenimiento centrado en confiabilidad/i, "Especialista en confiabilidad operativa y gestión de activos"],
-    [/jefe de operaciones|operacion de planta|produccion/i, "Profesional senior en operaciones industriales y mantenimiento"],
-    [/gestion de proyectos de inversion|project manager|proyectos industriales/i, "Profesional senior en proyectos industriales y mantenimiento"],
-    [/mantenimiento industrial|planner de ingenieria y mantenimiento|jefe de mantenimiento/i, "Profesional senior en mantenimiento industrial"],
-    [/tecnico comercial|representante tecnico comercial/i, "Profesional técnico-comercial industrial"],
-    [/instrumentista|automatizacion y control/i, "Técnico senior en automatización, control y mantenimiento"],
-  ];
-
-  for(const [rx, label] of profiles){
-    if(rx.test(roleText) || rx.test(hayExp)) return label;
-  }
-
-  if(/profesional senior/.test(haySummary)) return "Profesional senior en mantenimiento, confiabilidad y gestión de activos";
-  return "Perfil técnico-industrial senior";
+  return buildCandidateAdminClassification({resume:{experience:sections?.experience || '',education:sections?.education || ''}}).profileTitle;
 }
 
 function detectYearsExperience(text, sections, entries){
@@ -3101,7 +3151,7 @@ function optimizeProfessionalSummary(text, sections, analysis){
   const profession = analysis.profession;
   const lines = [];
 
-  let intro = profession || "Perfil técnico-industrial senior";
+  let intro = profession || "Perfil laboral por completar";
   if (years) intro += ` con aproximadamente ${years} años de experiencia acumulada`;
   intro += ".";
   lines.push(intro);
@@ -3143,10 +3193,10 @@ function analyzeResumeText(text, sections){
   const analysis = {
     entries,
     profession: detectProfession(text, sections, entries),
-    yearsExperience: detectYearsExperience(text, sections, entries),
+    yearsExperience: candidateEvidenceYears(candidateEvidenceLines(sections?.experience || "")).years,
     recentRoles: detectRecentRoles(entries),
     skills: detectCoreSkills(text, sections, entries),
-    strengths: detectCareerStrengths(text, sections),
+    strengths: inferProfessionalStrengthsLocal(sections?.experience || ""),
     industries: detectIndustries(entries, text, sections),
     employers: companyData.employers,
     sites: companyData.sites,
@@ -3158,7 +3208,7 @@ function analyzeResumeText(text, sections){
 function buildResumeSummary(text, sections, analysis){
   const a = analysis || analyzeResumeText(text, sections);
   const lines = [];
-  lines.push(`Perfil detectado: ${a.profession || "Perfil técnico-industrial senior"}`);
+  lines.push(`Perfil detectado: ${a.profession || "Perfil laboral por completar"}`);
   if (a.yearsExperience) lines.push(`Experiencia estimada: +${a.yearsExperience} años`);
   if (a.industries?.length) lines.push(`Industrias detectadas: ${a.industries.join(" | ")}`);
   if (a.employers?.length) lines.push(`Empresas detectadas: ${a.employers.join(" | ")}`);
@@ -3191,7 +3241,7 @@ async function extractTextFromUpload(file){
   return cleanTextForAnalysis(collapseSpacedLetters(raw));
 }
 
-app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
+app.post("/resume/parse", auth, requireRole("CANDIDATE"), upload.single("file"), async (req, res) => {
   try{
     if(!req.file) return res.status(400).json({ error: "Falta adjuntar archivo (PDF/DOCX/TXT)." });
     const text = await extractTextFromUpload(req.file);
@@ -3199,6 +3249,8 @@ app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "No pudimos leer texto del archivo. Probá con PDF, DOCX o TXT que contenga texto seleccionable." });
     }
     const sections = splitByHeadings(text);
+    const personalLines=text.split(/\r?\n/).filter(line=>/fecha de nacimiento|nacimiento\s*:|tel[eé]fono|celular|domicilio|direcci[oó]n|estado civil/i.test(line));
+    sections.observations=[...new Set([sections.observations,...personalLines].filter(Boolean))].join('\n');
     const analysis = analyzeResumeText(text, sections);
     const summaryText = buildResumeSummary(text, sections, analysis);
 
@@ -3206,10 +3258,10 @@ app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
     // El archivo original sigue sin persistirse; sólo se guardan texto extraído y resumen.
     const resumeData = {
       summary: clampText(summaryText || analysis?.summary || sections?.summary || "", 12000) || null,
-      experience: clampText(sections?.experience || "", 20000) || null,
-      education: clampText(sections?.education || "", 12000) || null,
-      certifications: clampText(sections?.certifications || "", 12000) || null,
-      observations: clampText(sections?.observations || "", 12000) || null,
+      experience: String(sections?.experience || "").trim().slice(0, 20000) || null,
+      education: String(sections?.education || "").trim().slice(0, 12000) || null,
+      certifications: String(sections?.certifications || "").trim().slice(0, 12000) || null,
+      observations: String(sections?.observations || "").trim().slice(0, 12000) || null,
     };
     const savedResume = await prisma.resume.upsert({
       where: { userId: req.user.id },
@@ -3225,6 +3277,7 @@ app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
       data:{ voiceNarrativeAnalysisVersion:null, voiceNarrativeAnalysisSource:'CV_UPDATED_REQUIRES_REFINEMENT', voiceNarrativeAnalyzedAt:null },
     }).catch(()=>null);
 
+    queueCandidateClassification(req.user.id,'CV_PARSED');
     return res.json({ ok:true, sections, analysis, summaryText, resume: savedResume, presentationNeedsRefinement:true });
   }catch(err){
     if(err?.code === "UNSUPPORTED_RESUME_FORMAT" || err?.message === "UNSUPPORTED_RESUME_FORMAT"){
@@ -3235,12 +3288,12 @@ app.post("/resume/parse", auth, upload.single("file"), async (req, res) => {
   }
 });
 
-app.get("/resume/me", auth, async (req, res) => {
+app.get("/resume/me", auth, requireRole("CANDIDATE"), async (req, res) => {
   const r = await prisma.resume.findUnique({ where: { userId: req.user.id } });
   res.json(r || null);
 });
 
-app.put("/resume/me", auth, async (req, res) => {
+app.put("/resume/me", auth, requireRole("CANDIDATE"), async (req, res) => {
   const parsed = resumeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const data = parsed.data;
@@ -3254,6 +3307,7 @@ app.put("/resume/me", auth, async (req, res) => {
     where:{ userId:req.user.id },
     data:{ voiceNarrativeAnalysisVersion:null, voiceNarrativeAnalysisSource:'CV_UPDATED_REQUIRES_REFINEMENT', voiceNarrativeAnalyzedAt:null },
   }).catch(()=>null);
+  if(req.user.role === 'CANDIDATE') queueCandidateClassification(req.user.id,'CV_UPDATED');
   res.json(r);
 });
 
@@ -3516,33 +3570,8 @@ function uniqProfessionalStrengths(items=[]){
 }
 
 function inferProfessionalStrengthsLocal(text='', context={}, seniority=''){
-  const n=professionalNorm(`${text} ${context?.recentRole || ''} ${context?.expertise || ''}`);
-  const items=[];
-  const add=(...rows)=>items.push(...rows);
-  if(/proyectista|proyecto|ingenieria|oficina tecnica/.test(n) && /electric|electromecan/.test(n)){
-    add('Diseño y desarrollo de ingeniería eléctrica','Elaboración e interpretación de esquemas unifilares y trifilares','Definición de canalizaciones, tendidos y distribución eléctrica','Cálculo de cargas, demanda y dimensionamiento eléctrico','Dimensionamiento de conductores y protecciones','Criterios de puesta a tierra y seguridad eléctrica','Preparación de planos, especificaciones y documentación técnica','Coordinación electromecánica e interfaces con otras disciplinas');
-  } else if(/proyectista|proyecto|ingenieria|oficina tecnica/.test(n)){
-    add('Desarrollo de ingeniería conceptual, básica y de detalle','Cálculos y dimensionamiento técnico','Elaboración e interpretación de planos','Preparación de especificaciones y documentación técnica','Coordinación interdisciplinaria de proyectos','Resolución técnica de interferencias y desvíos');
-  }
-  if(/aire acondicionado|hvac|termomecan/.test(n)) add('Diseño y dimensionamiento de instalaciones termomecánicas','Coordinación técnica de sistemas HVAC con instalaciones electromecánicas');
-  if(/supervis|jefe|coordin/.test(n)) add('Supervisión técnica de trabajos y obras','Coordinación de equipos, contratistas y frentes de trabajo','Control de avance, calidad y cumplimiento técnico','Interpretación de planos y verificación de ejecución','Resolución de desvíos técnicos en campo','Acompañamiento de inspecciones, pruebas y puesta en servicio');
-  if(/instrument|automat|plc|control/.test(n)) add('Interpretación de señales, lazos e instrumentación','Coordinación de interfaces de automatización y control','Pruebas funcionales y diagnóstico técnico');
-  if(/mantenimiento/.test(n)) add('Planificación de mantenimiento preventivo y correctivo','Análisis y resolución de fallas','Coordinación segura de intervenciones','Seguimiento de confiabilidad y documentación técnica');
-  if(/produccion|operaciones|manufactura/.test(n)) add('Seguimiento y coordinación de procesos productivos','Orientación a productividad, calidad y seguridad','Análisis de desvíos y mejora continua','Coordinación operativa de recursos y prioridades');
-  if(/calidad|hse|seguridad|higiene|ambiente/.test(n)) add('Gestión de calidad y seguimiento de procedimientos','Identificación y tratamiento de desvíos','Inspecciones y control documental','Prevención, seguridad y mejora continua');
-  if(/logistica|transporte|comex|deposito|almacen/.test(n)) add('Planificación y seguimiento logístico','Coordinación de entregas y recursos','Trazabilidad documental y control de movimientos','Organización de inventarios, expediciones o transporte');
-  if(/administracion|administrativ|finanzas|rrhh|recursos humanos|comercial/.test(n)) add('Organización y seguimiento administrativo','Gestión documental y control de información','Coordinación con áreas internas y externas','Preparación de reportes y soporte a la toma de decisiones');
-  if(/software|sistemas|it|programacion|datos|data/.test(n)) add('Análisis de requerimientos y resolución de problemas','Organización y análisis de información','Documentación y pruebas de soluciones','Mejora continua de procesos digitales');
-  if(/soldadura|caldereria|montaje/.test(n)) add('Interpretación de planos de fabricación y montaje','Preparación, armado y montaje de componentes','Control dimensional y de terminación','Trabajo seguro y orientación a la calidad');
-  if(/construccion|obra|civil/.test(n)) add('Lectura e interpretación de documentación de obra','Seguimiento de avances y coordinación de frentes','Control de calidad y seguridad en obra','Resolución de interferencias técnicas');
-  if(/planificacion|costos|planner/.test(n)) add('Programación y seguimiento de actividades','Análisis de avances y desvíos','Elaboración de reportes de gestión','Coordinación de información de planificación y costos');
-  if(String(seniority||'').toUpperCase()==='SENIOR') add('Criterio técnico basado en experiencia acumulada','Capacidad para priorizar y resolver situaciones complejas','Transferencia de conocimiento y acompañamiento de equipos');
-  else if(String(seniority||'').toUpperCase()==='SEMI_SENIOR') add('Autonomía creciente en la ejecución de tareas','Capacidad para coordinar prioridades y resolver desvíos','Orientación al aprendizaje y mejora continua');
-  else if(String(seniority||'').toUpperCase()==='JUNIOR') add('Base técnica para continuar desarrollando experiencia práctica','Predisposición al aprendizaje y adaptación','Trabajo colaborativo y seguimiento de procedimientos');
-  else add('Predisposición para aprender y desarrollarme','Responsabilidad y compromiso con las tareas','Trabajo en equipo y apertura a recibir capacitación');
-  const generic=['Comunicación técnica clara','Organización y seguimiento de tareas','Trabajo interdisciplinario','Orientación a la calidad','Compromiso con la seguridad','Resolución de problemas','Aprendizaje continuo','Responsabilidad profesional','Adaptación a nuevos desafíos','Enfoque en resultados'];
-  add(...generic);
-  return uniqProfessionalStrengths(items).slice(0,10);
+  // No completar con aptitudes típicas o adjetivos no declarados.
+  return uniqProfessionalStrengths(String(text || '').split(/[\n.;]+/).map(x=>x.trim()).filter(x=>/\b(realizo|reparo|instalo|calibro|programo|gestiono|superviso|coordino|opero|atiendo)\b/i.test(x))).slice(0,10);
 }
 
 function buildProfessionalMotivationLocal(seniority='', context={}){
@@ -3569,75 +3598,13 @@ function buildProfessionalClosingLocal(seniority='', context={}){
 }
 
 function refineCandidatePresentationLocal(transcript='', context={}){
-  const source=String(transcript || '').replace(/\s+/g,' ').trim();
-  const combinedSource=[source,context?.resumeSummary,context?.resumeExperience,context?.resumeEducation,context?.resumeCertifications,context?.resumeObservations].filter(Boolean).join('\n');
-  const cleaned=source
-    .replace(/^(?:hola|buenas tardes|buenos dias|buen día|buenas noches)[,\s]*/i,'')
-    .replace(/\b(?:bueno|mira|digamos|o sea|viste|eee+|mmm+|este+)\b[,.]?/gi,' ')
-    .replace(/(?:\betc[eé]tera\b[,.]?\s*){1,}/gi,' ')
-    .replace(/\s+/g,' ').trim();
-  const years=extractExplicitYearsFromText(combinedSource);
-  const title=inferLocalProfessionalTitle(combinedSource, context);
-  const expertise=inferLocalExpertise(combinedSource, context);
-  const n=professionalNorm(combinedSource);
-  const paragraphs=[];
-
-  const isElectromech=/electromecan/.test(n);
-  const isElectrical=/electric/.test(n);
-  const isProject=/proyectista|proyecto|oficina tecnica/.test(n);
-  const isSupervisor=/supervis|jefe|coordin/.test(n);
-  const isHvac=/aire acondicionado|hvac|termomecan/.test(n);
-  const isCalc=/calcul|dimension/.test(n);
-
-  let intro='';
-  if(isElectromech && isProject) intro='Soy ingeniero electromecánico y proyectista';
-  else if(/ingenier/.test(n) && isElectrical && isProject) intro='Soy ingeniero del área eléctrica y proyectista';
-  else if(isProject) intro='Me desempeño como proyectista';
-  else if(isSupervisor) intro='Me desempeño en funciones de supervisión técnica';
-  else if(title && title !== 'Perfil profesional') intro=`Mi perfil profesional se desarrolla en ${title}`;
-  else intro='Cuento con experiencia profesional en el área declarada';
-  if(years!==null) intro += years>=30 ? ', con más de tres décadas de experiencia' : `, con aproximadamente ${years} años de experiencia`;
-  if(expertise && !professionalNorm(intro).includes(professionalNorm(expertise))) intro += `, con especialización en ${expertise.toLowerCase()}`;
-  paragraphs.push(`${intro}.`);
-
-  if(isProject && (isElectrical || isElectromech)){
-    paragraphs.push('En mi actividad como proyectista desarrollo y documento soluciones de ingeniería eléctrica, desde la definición técnica hasta el detalle necesario para su ejecución. Según el alcance de cada proyecto, trabajo con esquemas unifilares y trifilares, planos de canalizaciones, tendidos y distribución, ubicación de tableros y equipos, criterios de alimentación, cálculos de carga y demanda, dimensionamiento de conductores y protecciones, verificación de caída de tensión, puesta a tierra, especificaciones y documentación técnica. También coordino las interfaces eléctricas con otras disciplinas para asegurar coherencia entre el diseño y la ejecución.');
-  } else if(isProject){
-    paragraphs.push('Como proyectista, desarrollo documentación e ingeniería de detalle, realizo cálculos y dimensionamientos, preparo planos y especificaciones y coordino técnicamente las interfaces necesarias para llevar una solución desde la definición inicial hasta su ejecución.');
-  }
-
-  const resumeHighlights=String(context?.resumeExperience || '').split(/\r?\n|•/).map((x)=>x.replace(/\s+/g,' ').trim()).filter((x)=>x.length>=12 && x.length<=220).slice(0,3);
-  if(resumeHighlights.length){
-    paragraphs.push(`Entre los antecedentes que ya tengo documentados en mi currículum se destacan ${resumeHighlights.join('; ')}. Esta información complementa lo que expresé en mi presentación personal y forma parte de la misma trayectoria profesional.`);
-  }
-
-  if(isHvac){
-    paragraphs.push('También cuento con experiencia en aire acondicionado e instalaciones termomecánicas, participando en cálculos y dimensionamiento, definición técnica de instalaciones y coordinación electromecánica con los restantes sistemas del proyecto.');
-  } else if(isCalc){
-    paragraphs.push('Los cálculos y el dimensionamiento forman parte de mi trabajo técnico y los utilizo para fundamentar decisiones de diseño y verificar que las soluciones proyectadas sean consistentes con las necesidades de cada instalación.');
-  }
-
-  if(isSupervisor){
-    paragraphs.push('En funciones de supervisión realizo el seguimiento técnico de los trabajos, coordino equipos y contratistas, verifico la ejecución respecto de planos y especificaciones, controlo avances, calidad y condiciones de seguridad, intervengo ante desvíos técnicos y acompaño inspecciones, pruebas y puesta en servicio cuando el alcance del proyecto lo requiere.');
-  }
-
-  if(!paragraphs.length && cleaned) paragraphs.push(`Mi experiencia puede resumirse de la siguiente manera: ${normalizePresentationSentence(cleaned)}`);
-  const summary=clampText(paragraphs.join('\n\n').trim(), 8000);
-  const seniority=years!==null ? (years>=11?'SENIOR':years>=6?'SEMI_SENIOR':years>=2?'JUNIOR':'APRENDIZ') : '';
-  const strengths=inferProfessionalStrengthsLocal(combinedSource,{...context,expertise},seniority);
-  return {
-    summary:summary || clampText(cleaned,8000),
-    yearsExperience:years,
-    suggestedExperienceRange:experienceRangeFromYears(years),
-    professionalTitle:title,
-    expertise,
-    seniority,
-    strengths,
-    motivation:buildProfessionalMotivationLocal(seniority,{...context,expertise}),
-    closing:buildProfessionalClosingLocal(seniority,{...context,expertise}),
-    evidence: years!==null ? `${years} años de experiencia mencionados explícitamente por el candidato` : 'Síntesis basada en el relato profesional disponible',
-    source:'LOCAL_V4_FIRST_PERSON_STRENGTHS',
-  };
+  const source=String(transcript || '').trim();
+  const experience=String(context.resumeExperience || '').trim();
+  const lines=[...new Set([source,experience].filter(Boolean))];
+  const years=extractExplicitYearsFromText(experience || source);
+  return {summary:lines.join('\n\n').slice(0,8000),yearsExperience:years,suggestedExperienceRange:experienceRangeFromYears(years),
+    professionalTitle:'',expertise:'',seniority:'NO_DETERMINADO',strengths:inferProfessionalStrengthsLocal(source),motivation:'',closing:'',
+    evidence:'Texto original conservado sin ampliar competencias no declaradas.',source:'LOCAL_V710_EVIDENCE_ONLY'};
 }
 
 function responseOutputText(payload={}){
@@ -3667,13 +3634,13 @@ async function refineCandidatePresentationWithAI(transcript='', context={}){
       cv_observations:clampText(context?.resumeObservations || '',2200),
       declared_experience_range:clampText(context?.declaredRange || '',80),
       currently_working:!!context?.currentlyWorking,
-      role_reference_hints:candidateRoleKnowledgeHints([transcript,context?.resumeSummary,context?.resumeExperience].filter(Boolean).join('\n'),context),
+
     };
     const payload={
       model:OPENAI_MODEL,
       store:false,
       input:[
-        { role:'system', content:[{type:'input_text',text:'Sos el asistente de redacción profesional de Talento PyME. Estás ayudando AL CANDIDATO A ESCRIBIR SU PROPIO CURRÍCULUM. Todo el contenido que irá al CV debe sonar como escrito por la propia persona, nunca como una opinión de Talento PyME. El campo summary debe quedar EN PRIMERA PERSONA: “Soy…”, “Cuento con…”, “Me especializo…”, “Desarrollo…”, “Superviso…”. Está prohibido redactar como evaluador externo: no usar “el candidato”, “su perfil”, “la experiencia declarada permite identificar”, “el relato evidencia”, “se observa”, “demuestra” ni fórmulas equivalentes. Fusioná el relato personal y, si existe, todo el CV ya leído por Talento PyME en UNA ÚNICA PRESENTACIÓN PROFESIONAL AMPLIADA, clara, convincente y fiel para la parte blanca principal del CV. El relato y el CV son fuentes complementarias: el CV aporta cargos, fechas, formación, certificaciones y antecedentes; la voz/texto aporta contexto, objetivos, fortalezas y detalles que quizá no estaban escritos. No pegues ni repitas las dos fuentes una detrás de otra: integrá, deduplicá y priorizá la información más concreta y reciente. Si hay una aparente contradicción, usá una redacción prudente y no inventes. No debe ser un resumen corto ni repetir la columna lateral. Cuando el material lo permita, desarrollala en 2 a 4 párrafos y aproximadamente 180 a 340 palabras. Traducí profesiones y funciones declaradas a vocabulario técnico propio del oficio para ayudar a la persona a nombrar tareas que realiza pero quizá no sabe expresar. Podés usar role_reference_hints como conocimiento profesional de apoyo sólo cuando sea compatible con el relato; si una tarea es típica del rol pero no fue mencionada expresamente, presentala como alcance habitual o capacidad asociada al rol, nunca como un logro o proyecto específico comprobado. Generá strengths con EXACTAMENTE 10 aptitudes/competencias positivas y concretas, preferentemente técnicas y de gestión, coherentes con la profesión, expertise, seniority y experiencia disponible. Deben ser frases breves utilizables directamente como viñetas de un CV y no opiniones de un tercero. Generá motivation en primera persona explicando qué busca profesionalmente la persona y por qué desea crecer o seguir desarrollándose: para APRENDIZ/primer empleo enfatizar aprender y adquirir experiencia; para JUNIOR consolidar práctica y responsabilidades; para SEMI_SENIOR ampliar autonomía y alcance; para SENIOR aportar experiencia acumulada, asumir desafíos de mayor alcance, transferir conocimiento y seguir evolucionando. Si currently_working es true, no escribir como si estuviera desempleado: hablar de nuevos desafíos y evolución. Generá closing en primera persona como cierre profesional de 2 a 4 frases, integrando expertise, aporte y proyección. No inventes empleos, empresas, títulos, años, certificaciones, resultados, cantidades, marcas, software, normas, tensión, potencia, presupuestos ni tecnologías no mencionadas. Eliminá saludos, muletillas, repeticiones y “etcétera”. Si menciona años de experiencia, supervisión, proyectos, profesión o especialidades, dales el peso correspondiente. El seniority describe trayectoria, no calidad humana ni aptitud de contratación. Respondé únicamente con el JSON solicitado.'}] },
+        { role:'system', content:[{type:'input_text',text:'Sos el asistente de redacción profesional de Talento PyME. Estás ayudando AL CANDIDATO A ESCRIBIR SU PROPIO CURRÍCULUM. Todo el contenido que irá al CV debe sonar como escrito por la propia persona, nunca como una opinión de Talento PyME. El campo summary debe quedar EN PRIMERA PERSONA: “Soy…”, “Cuento con…”, “Me especializo…”, “Desarrollo…”, “Superviso…”. Está prohibido redactar como evaluador externo: no usar “el candidato”, “su perfil”, “la experiencia declarada permite identificar”, “el relato evidencia”, “se observa”, “demuestra” ni fórmulas equivalentes. Fusioná el relato personal y, si existe, todo el CV ya leído por Talento PyME en UNA ÚNICA PRESENTACIÓN PROFESIONAL AMPLIADA, clara, convincente y fiel para la parte blanca principal del CV. El relato y el CV son fuentes complementarias: el CV aporta cargos, fechas, formación, certificaciones y antecedentes; la voz/texto aporta contexto, objetivos, fortalezas y detalles que quizá no estaban escritos. No pegues ni repitas las dos fuentes una detrás de otra: integrá, deduplicá y priorizá la información más concreta y reciente. Si hay una aparente contradicción, usá una redacción prudente y no inventes. No debe ser un resumen corto ni repetir la columna lateral. Cuando el material lo permita, desarrollala en 2 a 4 párrafos y aproximadamente 180 a 340 palabras. Traducí profesiones y funciones declaradas a vocabulario técnico propio del oficio para ayudar a la persona a nombrar tareas que realiza pero quizá no sabe expresar. No atribuyas tareas típicas del oficio ni capacidades que la persona no haya declarado. Si falta evidencia, omití la afirmación. Generá strengths con hasta 10 aptitudes/competencias expresamente respaldadas por el material, preferentemente técnicas y de gestión, coherentes con la profesión, expertise, seniority y experiencia disponible. Deben ser frases breves utilizables directamente como viñetas de un CV y no opiniones de un tercero. Generá motivation en primera persona explicando qué busca profesionalmente la persona y por qué desea crecer o seguir desarrollándose: para APRENDIZ/primer empleo enfatizar aprender y adquirir experiencia; para JUNIOR consolidar práctica y responsabilidades; para SEMI_SENIOR ampliar autonomía y alcance; para SENIOR aportar experiencia acumulada, asumir desafíos de mayor alcance, transferir conocimiento y seguir evolucionando. Si currently_working es true, no escribir como si estuviera desempleado: hablar de nuevos desafíos y evolución. Generá closing en primera persona como cierre profesional de 2 a 4 frases, integrando expertise, aporte y proyección. No inventes empleos, empresas, títulos, años, certificaciones, resultados, cantidades, marcas, software, normas, tensión, potencia, presupuestos ni tecnologías no mencionadas. Eliminá saludos, muletillas, repeticiones y “etcétera”. Si menciona años de experiencia, supervisión, proyectos, profesión o especialidades, dales el peso correspondiente. El seniority describe trayectoria, no calidad humana ni aptitud de contratación. Respondé únicamente con el JSON solicitado.'}] },
         { role:'user', content:[{type:'input_text',text:`Analizá nuevamente TODO el material profesional cada vez, no sólo lo agregado al final.\n\nDatos profesionales (sin identidad ni contacto):\n${JSON.stringify(professionalContext)}`}]}],
       text:{format:{type:'json_schema',name:'candidate_professional_presentation',strict:true,schema:{
         type:'object',additionalProperties:false,
@@ -3683,7 +3650,7 @@ async function refineCandidatePresentationWithAI(transcript='', context={}){
           seniority:{type:'string',enum:['APRENDIZ','JUNIOR','SEMI_SENIOR','SENIOR']},
           professional_title:{type:'string'},
           expertise:{type:'string'},
-          strengths:{type:'array',items:{type:'string'},minItems:10,maxItems:10},
+          strengths:{type:'array',items:{type:'string'},minItems:0,maxItems:10},
           motivation:{type:'string'},
           closing:{type:'string'},
           evidence:{type:'string'},
@@ -3704,7 +3671,7 @@ async function refineCandidatePresentationWithAI(transcript='', context={}){
     const body=await response.json();
     const text=responseOutputText(body);
     const parsed=JSON.parse(text);
-    const years=Number.isFinite(Number(parsed.years_experience)) ? Number(parsed.years_experience) : extractExplicitYearsFromText([transcript,context?.resumeSummary,context?.resumeExperience].filter(Boolean).join('\n'));
+    const years=parsed.years_experience != null && Number.isFinite(Number(parsed.years_experience)) ? Number(parsed.years_experience) : extractExplicitYearsFromText([transcript,context?.resumeSummary,context?.resumeExperience].filter(Boolean).join('\n'));
     return {
       summary:clampText(parsed.summary || '',8000),
       yearsExperience:years,
@@ -3753,7 +3720,7 @@ app.post('/candidate/presentation/refine', auth, requireRole('CANDIDATE'), async
     // v7.9.11: la corrección profesional se ejecuta únicamente a pedido explícito del candidato
     // y pasa a ser inmediatamente la presentación principal por defecto.
     const analyzedAt=new Date();
-    const yearsExperience=Number.isFinite(Number(analysis.yearsExperience)) ? Number(analysis.yearsExperience) : null;
+    const yearsExperience=analysis.yearsExperience != null && Number.isFinite(Number(analysis.yearsExperience)) ? Number(analysis.yearsExperience) : null;
     if(candidate?.candidateBolsa){
       const suggestedRange=String(analysis.suggestedExperienceRange || '').trim();
       const currentRange=String(candidate.candidateBolsa.rangoExperiencia || '').trim();
@@ -3775,6 +3742,7 @@ app.post('/candidate/presentation/refine', auth, requireRole('CANDIDATE'), async
       });
     }
 
+    if(candidate?.candidateBolsa) queueCandidateClassification(req.user.id,'PRESENTATION_REFINED');
     return res.json({
       ok:true,
       persistedAsDefault:!!candidate?.candidateBolsa,
@@ -3869,7 +3837,7 @@ const companySchema = z.object({
 // Bolsa de Trabajo (perfil laboral UIC-style)
 // ============================
 
-app.get("/bolsa/me", authRequired, async (req, res) => {
+app.get("/bolsa/me", authRequired, requireRole("CANDIDATE"), async (req, res) => {
   try{
     let bolsa = await prisma.candidateBolsa.findUnique({ where: { userId: req.user.id } });
     if(bolsa){
@@ -3893,7 +3861,7 @@ app.get("/bolsa/me", authRequired, async (req, res) => {
   }
 });
 
-app.post("/bolsa/me", authRequired, async (req, res) => {
+app.post("/bolsa/me", authRequired, requireRole("CANDIDATE"), async (req, res) => {
   try{
     if(req.user.role !== "CANDIDATE"){
       return res.status(403).json({ ok:false, error:"FORBIDDEN_ROLE" });
@@ -3951,6 +3919,7 @@ app.post("/bolsa/me", authRequired, async (req, res) => {
       }
     });
 
+    queueCandidateClassification(req.user.id,'BOLSA_UPDATED');
     return res.json({ ok:true, bolsa: saved });
   }catch(err){
     if(err?.name === "ZodError"){
@@ -3961,7 +3930,7 @@ app.post("/bolsa/me", authRequired, async (req, res) => {
   }
 });
 
-app.post("/bolsa/photo", authRequired, upload.single("photo"), async (req, res) => {
+app.post("/bolsa/photo", authRequired, requireRole("CANDIDATE"), upload.single("photo"), async (req, res) => {
   try{
     if(req.user.role !== "CANDIDATE"){
       return res.status(403).json({ ok:false, error:"FORBIDDEN_ROLE" });
@@ -4012,7 +3981,7 @@ app.post("/bolsa/photo", authRequired, upload.single("photo"), async (req, res) 
   }
 });
 
-app.delete("/bolsa/photo", authRequired, async (req, res) => {
+app.delete("/bolsa/photo", authRequired, requireRole("CANDIDATE"), async (req, res) => {
   try{
     if(req.user.role !== "CANDIDATE"){
       return res.status(403).json({ ok:false, error:"FORBIDDEN_ROLE" });
@@ -4107,19 +4076,14 @@ function facetStats(items) {
 app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
   try {
     const items = await prisma.candidateBolsa.findMany({
-      select: {
-        areaTrabajo: true,
-        localidad: true,
-        nivel: true,
-        rangoExperiencia: true,
-        nivelEducativo: true,
-        especialidad: true,
-        especialidadOtro: true,
-      },
+      include:{ user:{select:{resume:true,candidateProfile:true}} },
       orderBy: { updatedAt: 'desc' },
-      take: 2000,
     });
-    const rawStats = facetStats(items);
+    const classified=items.map(it=>{
+      const c=buildCandidateAdminClassification({candidateBolsa:it,resume:it.user?.resume,candidateProfile:it.user?.candidateProfile});
+      return {...it,areaTrabajo:c.expertiseLabel,especialidad:c.profileTitle,nivel:c.classLabel};
+    });
+    const rawStats = facetStats(classified);
     const facets = Object.fromEntries(
       Object.entries(rawStats.facets || {}).map(([key, values]) => [key, Object.keys(values || {})])
     );
@@ -4155,28 +4119,27 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
     const all = await prisma.candidateBolsa.findMany({
       select: {
         id:true, nombre:true, apellido:true, dni:true, nacionalidad:true, estadoCivil:true, hijos:true,
-        telefono:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
+        telefono:true, telefonoAdicional:true, fechaNacimiento:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
         especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true,
         tieneCapacitacion:true, trabajaActualmente:true, sueldoPretendido:true, ultimoTrabajo:true,
-        observaciones:true, voiceNarrativeSummary:true, photoDataUrl:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true,
-        user: { select: { resume: { select: { summary: true, experience: true, education: true, observations: true } } } }
+        observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, photoDataUrl:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true,
+        user: { select: { candidateProfile:true, resume:true } }
       },
-      take: 2000,
+
     });
 
+    const classified=all.map(it=>{
+      const candidate={candidateBolsa:it,resume:it.user?.resume,candidateProfile:it.user?.candidateProfile};
+      return {...it,classification:buildCandidateAdminClassification(candidate),candidate};
+    });
     const sinceDate = _registeredSinceDate(ultimaActualizacion);
-    const filtered = all.filter((it) => {
-      const esp = it.especialidad === 'Otros' ? (it.especialidadOtro || 'Otros') : (it.especialidad || '');
-      if (q) {
-        const summary = `${it.user?.resume?.summary || ''} ${it.user?.resume?.experience || ''} ${it.user?.resume?.education || ''} ${it.user?.resume?.observations || ''}`;
-        const hay = normalizeName(`${it.nombre || ''} ${it.apellido || ''} ${it.dni || ''} ${it.localidad || ''} ${it.areaTrabajo || ''} ${it.especialidad || ''} ${it.especialidadOtro || ''} ${it.observaciones || ''} ${it.voiceNarrativeSummary || ''} ${it.ultimoTrabajo || ''} ${summary} ${(toArrayField(it.herramientasMecanica) || []).join(' ')} ${(toArrayField(it.instrumentosElectrica) || []).join(' ')}`);
-        const qTokens = normalizeName(q).split(' ').filter(Boolean);
-        if (!qTokens.every((tok) => hay.includes(tok))) return false;
-      }
-      if (area && String(it.areaTrabajo || '') !== area) return false;
-      if (localidad && !localityMatches(it.localidad, localidad)) return false;
-      if (nivel && String(it.nivel || '') !== nivel) return false;
-      if (especialidad && String(esp || '') !== especialidad) return false;
+    const filtered = classified.filter((it) => {
+      const c=it.classification;
+      if(q && !adminSearchTextMatch(candidateProfessionalSearchText(it.candidate,c),q)) return false;
+      if(area && c.expertiseLabel !== area) return false;
+      if(localidad && !localityMatches(it.localidad,localidad)) return false;
+      if(nivel && c.classLabel !== nivel) return false;
+      if(especialidad && c.profileTitle !== especialidad) return false;
       if (rangoExperiencia && String(it.rangoExperiencia || '') !== rangoExperiencia) return false;
       if (nivelEducativo && String(it.nivelEducativo || '') !== nivelEducativo) return false;
       if (tieneCapacitacion === 'SI' && !it.tieneCapacitacion) return false;
@@ -4193,12 +4156,14 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
       return orden === 'antiguos' ? -diff : diff;
     }).slice(0, 200).map((it) => ({
       id: it.id,
+      perfil_propuesto: it.classification.profileTitle,
+      nivel_propuesto: it.classification.seniorityLabel,
       nombre: it.nombre,
       apellido: it.apellido,
       localidad: it.localidad,
-      area_trabajo: it.areaTrabajo,
-      nivel: it.nivel,
-      especialidad: it.especialidad,
+      area_trabajo: it.classification.expertiseLabel,
+      nivel: it.classification.classLabel,
+      especialidad: it.classification.profileTitle,
       especialidad_otro: it.especialidadOtro,
       soldador_categoria: it.soldadorCategoria || null,
       rango_experiencia: it.rangoExperiencia,
@@ -4206,10 +4171,10 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
       tiene_capacitacion: it.tieneCapacitacion,
       trabaja_actualmente: it.trabajaActualmente,
       sueldo_pretendido: it.sueldoPretendido,
-      ultimo_trabajo: it.ultimoTrabajo,
-      observaciones: it.observaciones || it.user?.resume?.summary || '',
-      presentacion_profesional: it.voiceNarrativeSummary || '',
-      resume_summary: it.user?.resume?.summary || '',
+      ultimo_trabajo: '',
+      observaciones: '',
+      presentacion_profesional: '',
+      resume_summary: '',
       photoDataUrl: it.photoDataUrl,
       herramientas_mecanica: toArrayField(it.herramientasMecanica),
       instrumentos_electrica: toArrayField(it.instrumentosElectrica),
@@ -4240,19 +4205,36 @@ app.get('/jobs/candidate/:id/detail', auth, requireRole('COMPANY'), async (req, 
       where: { id: candidateId },
       select: {
         id:true, nombre:true, apellido:true, dni:true, nacionalidad:true, estadoCivil:true, hijos:true,
-        telefono:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
+        telefono:true, telefonoAdicional:true, fechaNacimiento:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
         especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true,
         tieneCapacitacion:true, trabajaActualmente:true, sueldoPretendido:true, ultimoTrabajo:true,
-        observaciones:true, voiceNarrativeSummary:true, photoDataUrl:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true
+        observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, photoDataUrl:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true, user:{select:{resume:true,candidateProfile:true}}
       }
     });
     if(!it) return res.status(404).json({ error: 'Candidato no encontrado' });
+    const candidate={candidateBolsa:it,resume:it.user?.resume,candidateProfile:it.user?.candidateProfile};
+    const classification=buildCandidateAdminClassification(candidate);
+    const quickFacts=candidateQuickFacts(candidate);
     return res.json({
       ok: true,
       consumed: accessResult.consumed,
       openingUsage: accessResult.usage,
       item: {
         id: it.id,
+        quickFacts,
+        perfil_propuesto: classification.profileTitle,
+        evaluacion_profesional: classification.assessment,
+        nivel_propuesto: classification.seniorityLabel,
+        lectura_profesional: {
+          perfil: classification.profileTitle || '',
+          nivel: classification.seniorityLabel || 'Nivel por verificar',
+          experiencia_relevante_anios: classification.relevantYearsExperience ?? null,
+          ultimo_rol_detectado: classification.recentRole || it.ultimoTrabajo || '',
+          fundamento: classification.reason || '',
+          evidencias: Array.isArray(classification.evidence) ? classification.evidence.slice(0,5) : [],
+          informacion_a_confirmar: Array.isArray(classification.gaps) ? classification.gaps.slice(0,5) : [],
+          fuentes_profesionales: Array.isArray(classification.professionalSourcesUsed) ? classification.professionalSourcesUsed.slice(0,6) : [],
+        },
         nombre: it.nombre,
         apellido: it.apellido,
         dni: it.dni,
@@ -4356,7 +4338,7 @@ async function fetchPublicWebsite(rawUrl){
     const response = await fetch(current, {
       redirect:'manual',
       signal: AbortSignal.timeout(10000),
-      headers:{ 'User-Agent':'TalentoPyME/7.9.16 (+Render)' },
+      headers:{ 'User-Agent':'TalentoPyME/7.10.3 (+Render)' },
     });
     if(response.status >= 300 && response.status < 400){
       const location = response.headers.get('location');
@@ -5062,7 +5044,7 @@ app.get('/company/candidates', auth, requireRole('COMPANY'), async (req, res) =>
       where: { id: { in: ids } },
       select: {
         id:true, nombre:true, apellido:true, dni:true, nacionalidad:true, estadoCivil:true, hijos:true,
-        telefono:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
+        telefono:true, telefonoAdicional:true, fechaNacimiento:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
         especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true,
         tieneCapacitacion:true, trabajaActualmente:true, sueldoPretendido:true, ultimoTrabajo:true,
         observaciones:true, voiceNarrativeSummary:true, photoDataUrl:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true
@@ -5503,7 +5485,7 @@ function buildSupportCandidateCompleteness(candidate){
   if(!candidate) return { done: 0, total: 6, percent: 0, pending: ['datos personales','presentación profesional','perfil laboral','trayectoria y pretensión','resumen curricular','foto'] };
   const blocks = [
     { label: 'datos personales', complete: [candidate.dni, candidate.telefono, candidate.correo, candidate.localidad].every((v)=> String(v || '').trim()) },
-    { label: 'presentación profesional', complete: String(candidate.voiceNarrativeSummary || '').trim() && String(candidate.voiceNarrativeAnalysisVersion || '').trim() === PRESENTATION_ANALYSIS_VERSION && String(candidate.voiceNarrativeMotivation || '').trim() },
+    { label: 'presentación profesional', complete: String(candidate.voiceNarrativeSummary || '').trim() && String(candidate.voiceNarrativeAnalysisVersion || '').trim() === PRESENTATION_ANALYSIS_VERSION },
     { label: 'perfil laboral', complete: String(candidate.areaTrabajo || '').trim() && String(candidate.rangoExperiencia || '').trim() && String(candidate.nivelEducativo || '').trim() && (String(candidate.especialidad || '').trim() || String(candidate.especialidadOtro || '').trim()) },
     { label: 'pretensión económica y trayectoria', complete: String(candidate.sueldoPretendido || '').trim() && String(candidate.ultimoTrabajo || '').trim() },
     { label: 'resumen curricular', complete: String(candidate.observaciones || '').trim() },
@@ -6070,8 +6052,15 @@ const ADMIN_EXPERTISE_LABELS = {
   ADMINISTRACION: 'Administración',
   RRHH: 'Recursos Humanos',
   FINANZAS: 'Finanzas / Contabilidad',
-  COMERCIAL: 'Comercial / Ventas',
+  COMERCIAL: 'Comercial / Ventas / Atención al cliente',
   COMPRAS: 'Compras / Abastecimiento',
+  SEGURIDAD: 'Seguridad / Vigilancia',
+  LIMPIEZA: 'Limpieza / Maestranza',
+  GASTRONOMIA: 'Gastronomía / Catering',
+  SALUD: 'Salud / Emergencias',
+  CUIDADOS: 'Cuidados / Asistencia personal',
+  SERVICIOS_PERSONALES: 'Servicios personales',
+  EDUCACION: 'Educación / Capacitación',
   AMBIENTE: 'Sustentabilidad / Medio ambiente',
   IT: 'IT / Software',
   LABORATORIO: 'Laboratorio / Ensayos',
@@ -6358,7 +6347,7 @@ function inferAdminCandidateExpertise(candidate = {}){
     const cvAllHits = countAdminKeywords(cvAll, words);
     const voiceHits = countAdminKeywords(voice, words);
     const allHits = countAdminKeywords(allText, words);
-    // v7.9.16: el CV completo deja de ser un simple fallback. Cuando existe,
+    // v7.10.3: el CV completo deja de ser un simple fallback. Cuando existe,
     // participa fuertemente de la detección de expertise junto con el rol reciente.
     return { key, words, order, currentHits, cvRecentHits, cvAllHits, voiceHits, allHits,
       score:(currentHits * 14) + (cvRecentHits * 5) + (voiceHits * 4) + cvAllHits };
@@ -6378,218 +6367,372 @@ function inferAdminCandidateExpertise(candidate = {}){
   return { key:'GENERAL', label:ADMIN_EXPERTISE_LABELS.GENERAL, source:'FALLBACK' };
 }
 
-function candidateProfessionalMaturityEvidence(candidate = {}){
-  const bolsa = candidate.candidateBolsa || {};
-  const resume = candidate.resume || {};
-  const profile = candidate.candidateProfile || {};
-  const exp = candidateExperienceEvidence(candidate);
-  const resumeExperience = adminNormText(resume.experience || '');
-  const resumeSummary = adminNormText(resume.summary || '');
-  const voice = adminNormText([bolsa.voiceNarrativeSummary,bolsa.voiceNarrativeRaw,bolsa.voiceNarrativeProfessionalTitle].filter(Boolean).join(' '));
-  const profileText = adminNormText([bolsa.ultimoTrabajo,bolsa.areaTrabajo,bolsa.nivel,bolsa.especialidad,bolsa.especialidadOtro,bolsa.observaciones,profile.headline,profile.sector,profile.subSector].filter(Boolean).join(' '));
-  const all = ` ${[resumeExperience,resumeSummary,voice,profileText].filter(Boolean).join(' ')} `;
+// v7.10.3: clasificación explicable calibrada contra el padrón real.
+// Las presentaciones generadas, listas de habilidades y aspiraciones no son evidencia de experiencia.
+const CANDIDATE_EVIDENCE_RULES = [
+  ['INSTRUMENTACION','Instrumentación / Automatización','Técnico de instrumentación y automatización','TECNICO',/\b(instrumentista|automatista|tecnico (?:en |de )?instrumentacion|tecnico (?:en |de )?automatizacion|operari[oa] (?:en |de )?automatizacion|especialista (?:e )?i c)\b/,/\b(calibr\w*|lazos? de control|plc|scada|dcs|transmisores?|sensores? industriales?|instrumentacion industrial)\b/],
+  ['ELECTRICA','Eléctrica','Electricista de instalaciones y mantenimiento','TECNICO',/\b(electricista|tablerista|bobinador|oficial electricista|tecnico electric\w*)\b/,/\b(tableros? electric\w*|cableado|instalaciones? electricas?|media tension|alta tension|motores? electricos?|protecciones? electricas?|puesta a tierra)\b/],
+  ['MECANICA','Mecánica','Mecánico de equipos y mantenimiento','TECNICO',/\b(mecanico|tornero|fresador|mecanizador|oficial mecanico|tecnico mecanico)\b/,/\b(bombas?|compresores?|hidraulica|neumatica|torno|fresa|mecanizado|rodamientos?|alineacion de equipos)\b/],
+  ['SOLDADURA_MONTAJE','Soldadura / Montaje','Operario de soldadura y montaje','OPERATIVO',/\b(soldador|calderero|montajista|canista|canero|oficial soldador)\b/,/\b(soldadura|mig|tig|electrodo|caldereria|piping|montaje industrial)\b/],
+  ['LOGISTICA','Logística / Depósito','Operario de logística y depósito','OPERATIVO',/\b(chofer|conductor|repartidor|operari[oa] de deposito|operari[oa] logistico|despachante de aduana\w*|ayudante de carga y descarga|preparador de pedidos|picker|clarkista|autoelevadorista)\b/,/\b(picking|autoelevador|clark|inventario|carga y descarga|ruteo|almacenamiento|deposito|despacho|recepcion de mercaderia|preparacion de pedidos|distribucion|paqueteria|recepcion de vehiculos|coordinacion de vehiculos)\b/],
+  ['COMERCIAL','Comercial / Atención al cliente','Atención al cliente y comercio','OPERATIVO',/\b(cajer[oa]|repositor[oa]|vendedor(?:a)?|preventista|promotor(?:a)?|asesor(?:a)? comercial|emplead[oa] de comercio|atencion al cliente|call center|telemarketer|despachante de supermercado)\b/,/\b(caja|cobros?|reposicion|atencion(?: y asesoramiento)? (?:al cliente|a clientes)|ventas?|asesoramiento (?:al publico|al cliente|a clientes)|servicio al cliente|control de stock|pedidos de clientes)\b/],
+  ['ADMINISTRACION','Administración','Administración y gestión documental','ADMINISTRATIVO',/\b(administrativ[oa]|secretari[oa]|recepcionista|asistente administrativ[oa]|responsable de administracion|gestor(?:a)?|gestoria|data entry)\b/,/\b(facturacion|archivo|carga de datos|gestion documental|documentacion|remitos?|conciliaciones?|agenda|turnos|tramites|gestoria)\b/],
+  ['FINANZAS','Finanzas / Contabilidad','Contabilidad, tesorería y finanzas','ADMINISTRATIVO',/\b(contador(?:a)?|analista contable|tesorer[oa]|analista financier[oa]|cuentas? a pagar|cuentas? por pagar|analista de cobranzas?|analista de creditos?|pasantia (?:en |del )?(?:el )?area de tesoreria)\b/,/\b(contabilidad|balances?|impuestos?|tesoreria|liquidacion de sueldos|pagos?|operaciones bancarias|posicion financiera|registracion contable|cobranzas?|riesgo crediticio|creditos?)\b/],
+  ['RRHH','Recursos Humanos','Recursos humanos y selección','ADMINISTRATIVO',/\b(analista de recursos humanos|reclutador(?:a)?|selector(?:a)? de personal|asistente de recursos humanos|administrativ[oa] de rrhh)\b/,/\b(seleccion de personal|legajos|recursos humanos|rrhh|liquidacion de haberes|altas y bajas de personal)\b/],
+  ['COMPRAS','Compras / Abastecimiento','Compras y abastecimiento','ADMINISTRATIVO',/\b(comprador(?:a)?|analista de compras|buyer|procurement)\b/,/\b(ordenes? de compra|abastecimiento|negociacion con proveedores|proveedores|sourcing|cotizaciones?)\b/],
+  ['IT','IT / Software','Desarrollo o soporte de sistemas','TECNICO',/\b(programador(?:a)?|desarrollador(?:a)?|devops|tecnico informatico|soporte tecnico|analista de sistemas)\b/,/\b(software|python|javascript|sql|redes informaticas|soporte informatico|base de datos|desarrollo web|mantenimiento de computadoras?|reparacion de (?:pc|computadoras?)|soporte a usuarios)\b/],
+  ['CALIDAD_HSE','Calidad / Seguridad e higiene','Calidad, inspección y seguridad e higiene','TECNICO',/\b(inspector(?:a)? de calidad|tecnico en seguridad|tecnico en higiene|analista de calidad|controlador(?:a)? de calidad|brigadista)\b/,/\b(iso 9001|auditorias?|ensayos no destructivos|seguridad e higiene|higiene y seguridad|control de calidad|inspeccion de calidad|aseguramiento de calidad)\b/],
+  ['SEGURIDAD','Seguridad / Vigilancia','Seguridad y vigilancia','OPERATIVO',/\b(vigilador(?:a)?|guardia de seguridad|seguridad privada|custodio|vigilancia)\b/,/\b(control de acceso|rondas?|vigilancia|control de ingreso|seguridad patrimonial)\b/],
+  ['CONSTRUCCION','Construcción / Obra','Construcción y obra','OPERATIVO',/\b(albanil|andamiero|encofrador|fierrero|gruista|oficial de obra|ayudante de obra|inspector(?:a)? de obras?)\b/,/\b(hormigon|mamposteria|encofrado|obra civil|construccion|albanileria)\b/],
+  ['PRODUCCION','Producción / Operaciones','Operación de producción y procesos','OPERATIVO',/\b(operari[oa] de produccion|operador(?:a)? de planta|operador(?:a)? de proceso|operari[oa] industrial|operari[oa] de linea|supervisor(?:a)? de produccion|jef[ea] de produccion|coordinador(?:a)? de produccion)\b/,/\b(linea de produccion|manufactura|envasado|sala de control|proceso productivo|produccion industrial|operacion de planta)\b/],
+  ['MANTENIMIENTO','Mantenimiento','Mantenimiento de equipos e instalaciones','TECNICO',/\b(tecnico de mantenimiento|operari[oa] de mantenimiento|mantenedor|mecanico de mantenimiento|electricista de mantenimiento|oficial de mantenimiento)\b/,/\b(mantenimiento preventivo|mantenimiento correctivo|mantenimiento predictivo|reparacion de equipos|lubricacion|mantenimiento industrial|mantenimiento de planta)\b/],
+  ['INGENIERIA','Ingeniería / Oficina técnica','Ingeniería y oficina técnica','PROFESIONAL',/\b(ingeniero|ingeniera|proyectista|calculista|dibujante tecnico)\b/,/\b(calculo estructural|planos|ingenieria de detalle|autocad|solidworks|oficina tecnica|documentacion tecnica)\b/],
+  ['PROYECTOS','Proyectos / Project Management','Gestión de proyectos','PROFESIONAL',/\b(project manager|gerente de proyecto|jefe de proyecto|coordinador(?:a)? de proyecto|responsable de proyectos?)\b/,/\b(gestion de proyectos|proyectos industriales|project management|seguimiento de proyectos|planificacion de proyectos)\b/],
+  ['PLANIFICACION','Planificación / Costos','Planificación y control','TECNICO',/\b(planificador(?:a)?|analista de costos|planner)\b/,/\b(primavera p6|ms project|cronogramas|control de costos|planificacion de mantenimiento|programacion de tareas)\b/],
+  ['LABORATORIO','Laboratorio / Ensayos','Laboratorio y ensayos','TECNICO',/\b(laboratorista|tecnico de laboratorio|analista de laboratorio)\b/,/\b(analisis quimicos|ensayos de laboratorio|muestreo|microbiologia|control de muestras)\b/],
+  ['LIMPIEZA','Limpieza / Maestranza','Limpieza y maestranza','OPERATIVO',/\b(personal de limpieza|operari[oa] de limpieza|maestranza|limpiador(?:a)?|mucam[oa])\b/,/\b(limpieza|higiene de espacios|orden de los espacios|mantenimiento de espacios|sanitizacion)\b/],
+  ['GASTRONOMIA','Gastronomía / Catering','Gastronomía y atención de salón','OPERATIVO',/\b(moz[oa]|bachero|bachera|ayudante de cocina|cociner[oa]|catering|camarer[oa])\b/,/\b(toma de pedidos|servicio en salon|cocina|preparacion de alimentos|catering|lavado de vajilla|atencion en salon)\b/],
+  ['EDUCACION','Educación / Capacitación','Docencia y capacitación','PROFESIONAL',/\b(profesor(?:a)?|docente|instructor(?:a)?|capacitador(?:a)?)\b/,/\b(dictado de clases|ensenanza|capacitacion de alumnos|formacion de alumnos|docencia|clases de informatica)\b/],
+  ['SALUD','Salud / Emergencias','Atención sanitaria y emergencias','TECNICO',/\b(tecnic[oa] en emergencias sanitarias|paramedic[oa]|enfermer[oa]|tecnic[oa] en enfermeria|socorrista)\b/,/\b(atencion prehospitalaria|emergencias sanitarias|triage|utim|same|sistema 107|primeros auxilios|atencion hospitalaria)\b/],
+  ['CUIDADOS','Cuidados / Asistencia personal','Cuidados y asistencia personal','OPERATIVO',/\b(niner[oa]|cuidador(?:a)?|acompanante de personas|asistente domiciliari[oa])\b/,/\b(cuidado infantil|cuidado de personas|rutinas diarias|asistencia personal)\b/],
+  ['SERVICIOS_PERSONALES','Servicios personales','Servicios personales','OPERATIVO',/\b(barbero|peluquer[oa]|manicur[oa]|esteticista)\b/,/\b(corte de cabello|barberia|manicuria|unas|tratamientos capilares)\b/],
+];
 
-  const countRx=(rx)=> (all.match(rx) || []).length;
-  const roleHits=countRx(/\b(gerente|director|jefe|supervisor|coordinador|responsable|lider|capataz|encargado|ingeniero|tecnico|analista|especialista|proyectista|operador|oficial|electricista|mecanico|instrumentista|planificador|administrativo|vendedor|chofer)\b/g);
-  const leadershipHits=countRx(/\b(supervisor|supervision|jefe|jefatura|coordinador|coordinacion|lider|liderazgo|capataz|encargado|responsable de turno|responsable de equipo)\b/g);
-  const executiveHits=countRx(/\b(gerente|gerencia|director|direccion|plant manager|country manager|head of|presidente|presidenta)\b/g);
-  const businessLeadershipHits=countRx(/\b(empresario|empresaria|fundador|fundadora|socio gerente|socia gerente|titular de empresa|dueno de empresa|dueño de empresa)\b/g);
-  const responsibilityHits=countRx(/\b(supervis|coordina|lider|planific|programa|gestiona|gestion|dirig|controla|control|presupuest|proyect|disen|calculo|mantenim|confiabilidad|inspeccion|auditoria|calibracion|puesta en marcha|comisionamiento|produccion|operacion|mejora continua|seguridad|calidad|capacita)\w*/g);
-  const technicalTaskHits=countRx(/\b(mantenimiento|preventivo|correctivo|predictivo|electricidad|electrica|mecanica|instrumentacion|automatizacion|plc|scada|tableros|subestacion|soldadura|montaje|piping|ingenieria|proyectos|oficina tecnica|produccion|logistica|calidad|hse|compras|ventas|administracion)\b/g);
-  const firstEmploymentExplicit=/\b(primer empleo|busco mi primer empleo|sin experiencia laboral|sin experiencia previa|pasantia|pasante|aprendiz|trainee|practica profesional)\b/.test(all);
-  const explicitSeniority={
-    senior:/\b(senior|sr)\b/.test(all),
-    semi:/\b(semi senior|semisenior|semi-senior|ssr)\b/.test(all),
-    junior:/\b(junior|jr)\b/.test(all),
-  };
-  const maturityNarrative=/\b(amplia experiencia|extensa trayectoria|solida trayectoria|larga trayectoria|vasta experiencia|experiencia comprobable|trayectoria comprobable)\b/.test(all);
-  const richResume=String(resume.experience || '').trim().length >= 220 || (String(resume.experience || '').trim().length >= 100 && String(resume.summary || '').trim().length >= 120);
-  const richVoice=String(bolsa.voiceNarrativeSummary || bolsa.voiceNarrativeRaw || '').trim().length >= 260;
-  const hasWorkText=!!String(resume.experience || bolsa.ultimoTrabajo || bolsa.voiceNarrativeSummary || bolsa.voiceNarrativeRaw || '').trim();
-  const leadershipHit=leadershipHits>0;
-  const executiveHit=executiveHits>0;
-  const businessLeadershipHit=businessLeadershipHits>0;
-  const contradictoryExperience=exp.years!==null || exp.cvIntervalsCount>0 || leadershipHit || executiveHit || businessLeadershipHit || (richResume && roleHits>=2) || responsibilityHits>=4 || maturityNarrative;
-  const sufficientForEstimate=exp.years!==null || executiveHit || businessLeadershipHit || leadershipHit || explicitSeniority.senior || explicitSeniority.semi || (richResume && roleHits>=2 && responsibilityHits>=2) || (richVoice && responsibilityHits>=3) || (roleHits>=3 && responsibilityHits>=3);
-  let confidence='BAJA';
-  if(exp.years!==null || exp.cvIntervalsCount>=1) confidence='ALTA';
-  else if(sufficientForEstimate || richResume || richVoice) confidence='MEDIA';
-  return { exp, roleHits, leadershipHits, executiveHits, businessLeadershipHits, responsibilityHits, technicalTaskHits, firstEmploymentExplicit, explicitSeniority, maturityNarrative, richResume, richVoice, hasWorkText, leadershipHit, executiveHit, businessLeadershipHit, contradictoryExperience, sufficientForEstimate, confidence };
+const CANDIDATE_ACTION_SIGNAL=/\b(trabaj\w*|me desempen\w*|desempen\w*|realiz\w*|oper\w*|repar\w*|instal\w*|calibr\w*|supervis\w*|coordin\w*|gestion\w*|administr\w*|atiendo|atendi|atencion|manten\w*|control\w*|carg\w*|descarg\w*|analiz\w*|condu\w*|encarg\w*|responsable|prepar\w*|vend\w*|cobr\w*|factur\w*|limpi\w*|cocin\w*|asisti\w*|inspeccion\w*)\b/;
+const CANDIDATE_GENERIC_ROLE_SIGNAL=/\b(emplead[oa]|operari[oa]|operador(?:a)?|tecnic[oa]|oficial|ayudante|auxiliar|asistente|responsable de [a-z]+|encargad[oa]|supervisor(?:a)?|jef[ea]|coordinador(?:a)?|gerente|director(?:a)?|vigilador(?:a)?|moz[oa]|bachero|bachera|niner[oa]|cajer[oa]|repositor(?:a)?|vendedor(?:a)?|chofer|conductor|repartidor|inspector(?:a)?|analista|project manager|pasante|practicas? profesionales?)\b/;
+const CANDIDATE_WORK_TASK_SIGNAL=/\b(atencion al cliente|caja|cobros?|ventas?|limpieza|carga y descarga|deposito|inventario|facturacion|tesoreria|cuentas? a pagar|control de calidad|inspeccion de calidad|mantenimiento (?:preventivo|correctivo|industrial|de equipos)|produccion|cocina|catering|seguridad privada|control de acceso|atencion prehospitalaria)\b/;
+const CANDIDATE_DATE_SIGNAL=/\b(?:(?:19|20)\d{2}\s*(?:[-–—]|a|hasta)\s*(?:(?:19|20)\d{2}|actualidad|presente|actual)|(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(?:19|20)\d{2})\b/;
+
+function candidateWorkEvidenceStrength(line=''){
+  const t=adminNormText(line);
+  if(!t || /\b(sin experiencia laboral|sin experiencia previa|sin experiencia formal|no tengo experiencia laboral)\b/.test(t)) return 0;
+  let score=0;
+  if(CANDIDATE_GENERIC_ROLE_SIGNAL.test(t)) score+=3;
+  if(CANDIDATE_ACTION_SIGNAL.test(t)) score+=2;
+  if(CANDIDATE_WORK_TASK_SIGNAL.test(t)) score+=2;
+  if(CANDIDATE_DATE_SIGNAL.test(String(line || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase())) score+=3;
+  if(/\b(experiencia laboral|experiencia profesional|empleador|empresa|trabajo|puesto)\b/.test(t)) score+=1;
+  if(/\b(habilidades|competencias|aptitudes|objetivo|sobre mi|perfil profesional|educacion|formacion|curso|cursando|estudiante)\b/.test(t) && score<3) score=Math.max(0,score-2);
+  if(/\b(cv generado con talento pyme|trayectoria no determinada|pendiente)\b/.test(t) && !CANDIDATE_GENERIC_ROLE_SIGNAL.test(t) && !CANDIDATE_WORK_TASK_SIGNAL.test(t) && !CANDIDATE_DATE_SIGNAL.test(t)) score=0;
+  return score;
 }
 
-function scoreCandidateProfessionalProfile(candidate = {}){
-  // Indicador exclusivamente profesional: NO usa edad, fecha de nacimiento, foto, género,
-  // nacionalidad, estado civil, hijos, dirección, salario ni ningún otro atributo personal sensible.
-  // v7.9.16: la ausencia de años NO se interpreta como poca experiencia. Se relee de punta a punta
-  // perfil + presentación + CV + períodos + cargos + tareas + responsabilidades + formación.
-  const bolsa = candidate.candidateBolsa || {};
-  const resume = candidate.resume || {};
-  const allText = candidateAllProfessionalText(candidate);
-  const range = String(bolsa.rangoExperiencia || '').trim().replace(/\s/g,'');
-  const experienceBase = {
-    '0–1':28, '0-1':28,
-    '2–5':42, '2-5':42,
-    '6–10':62, '6-10':62,
-    '11–20':78, '11-20':78,
-    '21–30':89, '21-30':89,
-    '31+':95,
-  };
-  const maturity=candidateProfessionalMaturityEvidence(candidate);
-  const exp=maturity.exp;
-  const explicitYears=exp.years;
-  const declaredScore=experienceBase[range] ?? null;
-  const lowDeclaredRange=['0–1','0-1'].includes(range);
-  const ignoreLowDeclaredRange=lowDeclaredRange && maturity.contradictoryExperience;
-  let score=explicitYears!==null ? experienceBase[experienceRangeFromYears(explicitYears)] : (!ignoreLowDeclaredRange ? declaredScore : null);
-  const evidence=[];
-
-  if(explicitYears!==null) evidence.push(`${explicitYears} años de experiencia detectados · ${exp.source}`);
-  else if(declaredScore!==null && !ignoreLowDeclaredRange) evidence.push(`Experiencia declarada ${String(bolsa.rangoExperiencia || '').trim()} años`);
-  else if(ignoreLowDeclaredRange) evidence.push('El rango inicial 0–1 no se usa como techo porque existen antecedentes profesionales que lo contradicen');
-  if(exp.sources.length) evidence.push(`Fuentes leídas: ${exp.sources.join(' + ')}`);
-
-  // Sólo se usa una categoría inicial cuando la propia información profesional lo dice de forma expresa.
-  if(score===null){
-    if(maturity.explicitSeniority.senior || maturity.executiveHit) score=82;
-    else if(maturity.businessLeadershipHit && (maturity.richResume || maturity.richVoice || maturity.responsibilityHits>=2)) score=68;
-    else if(maturity.businessLeadershipHit) score=58;
-    else if(maturity.leadershipHit && (maturity.richResume || maturity.maturityNarrative)) score=76;
-    else if(maturity.leadershipHit) score=65;
-    else if(maturity.explicitSeniority.semi) score=60;
-    else if(maturity.richResume && maturity.roleHits>=3 && maturity.responsibilityHits>=3) score=64;
-    else if(maturity.maturityNarrative && maturity.richResume && maturity.roleHits>=2) score=62;
-    else if(maturity.richResume && maturity.roleHits>=2 && maturity.responsibilityHits>=2) score=55;
-    else if(maturity.richVoice && maturity.responsibilityHits>=3) score=52;
-    else if(maturity.explicitSeniority.junior) score=34;
-    else if(maturity.firstEmploymentExplicit && !maturity.contradictoryExperience) score=15;
-    else score=null;
-  }
-
-  if(score!==null){
-    if(maturity.executiveHit){ score=Math.max(score,82); evidence.push('Responsabilidad gerencial/directiva detectada'); }
-    else if(maturity.businessLeadershipHit){ score=Math.max(score,(maturity.richResume || maturity.richVoice || maturity.responsibilityHits>=2)?68:58); evidence.push('Rol empresarial, fundador o socio gerente detectado en la información profesional'); }
-    else if(maturity.leadershipHit){ score=Math.max(score,maturity.richResume?70:62); evidence.push('Responsabilidad de supervisión, coordinación o conducción detectada'); }
-    if(maturity.richResume && maturity.roleHits>=2){ score=Math.max(score,52); evidence.push('CV desarrollado con múltiples roles/tareas profesionales'); }
-    if(maturity.maturityNarrative && maturity.richResume){ score=Math.max(score,60); evidence.push('Trayectoria extensa/comprobable descripta en antecedentes profesionales'); }
-
-    // La experiencia explícita tiene prioridad sobre palabras sueltas. La cronología del CV también prevalece sobre etiquetas aisladas.
-    if(explicitYears!==null){
-      if(explicitYears>=31) score=Math.max(score,95);
-      else if(explicitYears>=21) score=Math.max(score,89);
-      else if(explicitYears>=11) score=Math.max(score,78);
-      else if(explicitYears>=6) score=Math.max(score,62);
-      else if(explicitYears>=2) score=Math.max(score,42);
-    }
-    if(maturity.explicitSeniority.senior){ score=Math.max(score,80); evidence.push('Señal explícita de seniority senior en la información profesional'); }
-    if(maturity.explicitSeniority.semi && explicitYears===null){ score=Math.max(score,58); evidence.push('Señal explícita de seniority semi-senior'); }
-    if(maturity.explicitSeniority.junior && !maturity.contradictoryExperience && (explicitYears===null || explicitYears<=5)){ score=Math.min(score,44); evidence.push('Señal explícita de seniority junior'); }
-    if(maturity.firstEmploymentExplicit && !maturity.contradictoryExperience && !maturity.leadershipHit && !maturity.executiveHit && !maturity.businessLeadershipHit && (explicitYears===null || explicitYears<=1)){ score=Math.min(score,24); evidence.push('Primer empleo, pasantía o aprendizaje expresamente informado'); }
-
-    if(bolsa.trabajaActualmente){ score += 2; evidence.push('Actividad laboral actual informada'); }
-    if(['terciaria','universitaria'].includes(adminNormText(bolsa.nivelEducativo))) score += 2;
-    if(bolsa.tieneCapacitacion || String(resume.certifications || '').trim()) score += 2;
-    if(String(resume.experience || '').trim().length >= 300){ score += 2; evidence.push('Antecedentes laborales desarrollados en el CV'); }
-    if(String(resume.summary || '').trim().length >= 180) score += 1;
-    if(String(bolsa.voiceNarrativeSummary || '').trim().length >= 120){ score += 2; evidence.push('Presentación profesional procesada disponible'); }
-    if(maturity.firstEmploymentExplicit && !maturity.contradictoryExperience && !maturity.leadershipHit && !maturity.executiveHit && !maturity.businessLeadershipHit && (explicitYears===null || explicitYears<=1)) score=Math.min(score,24);
-    score=Math.max(0,Math.min(100,Math.round(score)));
-  }
-
-  let seniorityKey='NO_DETERMINADO';
-  let seniorityLabel='Trayectoria no determinada';
-  if(score!==null){
-    if(maturity.firstEmploymentExplicit && !maturity.contradictoryExperience && score<=24){ seniorityKey='APRENDIZ'; seniorityLabel='Aprendiz / Pasante / Primer empleo'; }
-    else if(score>=75){ seniorityKey='SENIOR'; seniorityLabel='Senior'; }
-    else if(score>=50){ seniorityKey='SEMI_SENIOR'; seniorityLabel='Semi-senior'; }
-    else { seniorityKey='JUNIOR'; seniorityLabel='Junior'; }
-  }
-
-  const source=exp.source || (maturity.richResume ? 'Antecedentes curriculares completos' : (maturity.richVoice ? 'Presentación profesional completa' : (maturity.hasWorkText ? 'Información profesional disponible sin duración precisa' : 'Información profesional insuficiente')));
-  if(score===null) evidence.push('No se asigna un nivel bajo por falta de años: la trayectoria queda sin determinar hasta contar con evidencia profesional suficiente');
-  return {
-    profileScore:score,
-    seniorityKey,
-    seniorityLabel,
-    explicitYearsExperience:explicitYears,
-    experienceEvidenceSource:source,
-    professionalSourcesUsed:exp.sources,
-    cvEvidenceUsed:exp.sources.includes('CV / antecedentes curriculares'),
-    classificationConfidence:maturity.confidence,
-    firstEmploymentExplicit:maturity.firstEmploymentExplicit,
-    professionalEvidenceSummary:{
-      rolesDetected:maturity.roleHits,
-      responsibilitySignals:maturity.responsibilityHits,
-      leadershipSignals:maturity.leadershipHits + maturity.executiveHits + maturity.businessLeadershipHits,
-      richResume:maturity.richResume,
-      richPresentation:maturity.richVoice,
-    },
-    scoreBasis:evidence.slice(0, 9).join(' · ') || 'Estimación por evidencia profesional disponible',
-  };
+function candidateEvidenceLines(value){
+  return [...new Set(String(value || '').split(/[\n.;!?•]+|\s+\|\s+/).map(x=>x.trim()).filter(Boolean))].filter(line => {
+    const t=adminNormText(line);
+    if(!t || /^(experiencia laboral|experiencia profesional|experiencia|historial laboral|habilidades|competencias|aptitudes|educacion|formacion|contacto|datos personales)$/.test(t)) return false;
+    const workStrength=candidateWorkEvidenceStrength(line);
+    const aspirational=/\b(busco|buscando|me gustaria|quisiera|deseo|objetivo|aspir\w*|adquirir experiencia|ganas de aprender|dispuesto a aprender)\b/.test(t);
+    const educationMarker=/\b(curso|cursando|estudiante|estudio|escuela|colegio|secundario|formacion|capacitacion|universidad|terciario)\b/.test(t);
+    const clearEmployment=/\b(empleador|empresa|trabaje|trabajo en|operari[oa]|emplead[oa]|vigilador(?:a)?|moz[oa]|bachero|bachera|cajer[oa]|repositor(?:a)?|vendedor(?:a)?|chofer|conductor|supervisor(?:a)?|jef[ea]|gerente|project manager|responsable de area|asistente administrativ[oa]|analista|inspector(?:a)?)\b/.test(t) || CANDIDATE_WORK_TASK_SIGNAL.test(t);
+    const educationOnly=educationMarker && !clearEmployment;
+    const skillsOnly=/\b(habilidades|competencias|aptitudes|fortalezas)\b/.test(t) && !clearEmployment;
+    if(educationOnly || skillsOnly || (aspirational && workStrength<4)) return false;
+    return !/\b(no realic\w* trabajos?|no trabaje|no cuento con experiencia)\b/.test(t);
+  });
 }
 
-function inferAdminCandidateClass(candidate = {}, scoring = {}){
-  const bolsa = candidate.candidateBolsa || {};
-  const resume = candidate.resume || {};
-  const level = adminNormText(bolsa.nivel);
-  const area = adminNormText(bolsa.areaTrabajo);
-  const education = adminNormText(bolsa.nivelEducativo);
-  const current = candidateCurrentProfessionalText(candidate);
-  const recent = candidateRecentProfessionalText(candidate);
-  const text = candidateAllProfessionalText(candidate);
-  const cvRoleText = adminNormText([resume.summary,resume.experience].filter(Boolean).join(' '));
-  const roleText = [current,recent].filter(Boolean).join(' ').trim();
-  const strongEvidenceText = `${roleText} ${scoring.cvEvidenceUsed ? cvRoleText : ''}`.trim();
-  const apprenticeWords = ['pasante','pasantia','aprendiz','trainee','primer empleo','sin experiencia','practica profesional'];
-  if(scoring.seniorityKey === 'APRENDIZ' && scoring.firstEmploymentExplicit && apprenticeWords.some((word) => text.includes(adminNormText(word))) && !/(supervisor|jefe|gerente|senior)/.test(strongEvidenceText)){
-    return { key:'APRENDIZ', label:ADMIN_CANDIDATE_CLASS_LABELS.APRENDIZ, reason:'Pasantía, aprendizaje o primer empleo expresamente informado y sin antecedentes profesionales que indiquen una trayectoria superior' };
+function candidateWorkPeriodPrefix(line=''){
+  const t=String(line || '').replace(/[‐‑‒–—]/g,'-');
+  const present='(?:actualidad|presente|actual|hoy|current|present)';
+  const monthName='(?:ene(?:ro)?|feb(?:rero)?|mar(?:zo)?|abr(?:il)?|may(?:o)?|jun(?:io)?|jul(?:io)?|ago(?:sto)?|sep(?:t(?:iembre)?)?|set(?:iembre)?|oct(?:ubre)?|nov(?:iembre)?|dic(?:iembre)?)\\.?';
+  const patterns=[
+    // Fecha completa: 10/01/2025 - 05/06/2025
+    new RegExp(`\\b\\d{1,2}[\\/.\\-]\\d{1,2}[\\/.\\-](?:19|20)\\d{2}\\s*(?:-|a|hasta)\\s*(?:\\d{1,2}[\\/.\\-]\\d{1,2}[\\/.\\-](?:19|20)\\d{2}|${present})\\b`,'i'),
+    // Mes/año: 01/2024 - 06/2026 / 04-24 - actualidad
+    new RegExp(`\\b(?:0?[1-9]|1[0-2])[\\/.\\-]\\d{2,4}\\s*(?:-|a|hasta)\\s*(?:(?:0?[1-9]|1[0-2])[\\/.\\-]\\d{2,4}|${present})\\b`,'i'),
+    // Mes escrito: Mar 2025 - Jul 2026 / noviembre 2022 - actualidad
+    new RegExp(`\\b${monthName}\\s+(?:de\\s+)?(?:19|20)\\d{2}\\s*(?:-|a|hasta)\\s*(?:${monthName}\\s+(?:de\\s+)?(?:19|20)\\d{2}|${present})\\b`,'i'),
+    // Sólo años: 2022 - 2025
+    new RegExp(`\\b(?:19|20)\\d{2}\\s*(?:-|a|hasta)\\s*(?:(?:19|20)\\d{2}|${present})\\b`,'i'),
+  ];
+  for(const rx of patterns){
+    const m=t.match(rx);
+    if(m?.[0]) return m[0];
   }
-  const executiveWords = ['gerente','gerencia','director','direccion','head of','country manager','plant manager','manager general','presidente','presidenta','empresario','empresaria','fundador','fundadora','socio gerente','socia gerente','titular de empresa'];
-  if(executiveWords.some((word) => strongEvidenceText.includes(adminNormText(word)))){
-    return { key:'GERENCIAL', label:ADMIN_CANDIDATE_CLASS_LABELS.GERENCIAL, reason:'Responsabilidad gerencial o de dirección detectada en perfil, presentación o antecedentes curriculares' };
-  }
-  const supervisorWords = ['supervisor','supervision','jefe','jefatura','capataz','encargado','coordinador','responsable de turno','lider de equipo','lider de cuadrilla'];
-  if(level === 'supervisor' || area.includes('supervision') || supervisorWords.some((word) => strongEvidenceText.includes(adminNormText(word)))){
-    return { key:'SUPERVISION', label:ADMIN_CANDIDATE_CLASS_LABELS.SUPERVISION, reason:'Conducción, supervisión o coordinación detectada en la información profesional completa' };
-  }
-  const professionalWords = ['ingeniero','ingeniera','licenciado','licenciada','arquitecto','arquitecta','project manager','analista senior','profesional'];
-  if(professionalWords.some((word) => strongEvidenceText.includes(adminNormText(word)))){
-    return { key:'PROFESIONAL', label:ADMIN_CANDIDATE_CLASS_LABELS.PROFESIONAL, reason:'Función profesional detectada en perfil, presentación o CV' };
-  }
-  if(/administrativ|recursos humanos|rrhh|finanzas|contabilidad|tesoreria|facturacion|comercial|ventas|compras|abastecimiento/.test(strongEvidenceText) || area.includes('administrativo')){
-    return { key:'ADMINISTRATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.ADMINISTRATIVO, reason:'Área administrativa, comercial o de gestión detectada en la información profesional completa' };
-  }
-  const technicalWords = ['tecnico','tecnica','instrumentista','automatista','proyectista','inspector qa qc','seguridad e higiene','planificador','programador','analista comex','administrador de sistemas','desarrollador','devops','especialista'];
-  if(level === 'tecnico' || education === 'terciaria' || technicalWords.some((word) => strongEvidenceText.includes(adminNormText(word)))){
-    return { key:'TECNICO', label:ADMIN_CANDIDATE_CLASS_LABELS.TECNICO, reason:'Nivel técnico o especialidad técnica detectada en perfil, presentación o antecedentes curriculares' };
-  }
-  if(education === 'universitaria' && text.length > 0){
-    return { key:'PROFESIONAL', label:ADMIN_CANDIDATE_CLASS_LABELS.PROFESIONAL, reason:'Formación universitaria detectada sin otra función más específica' };
-  }
-  const hasLaboralData = !!String(bolsa.areaTrabajo || bolsa.especialidad || bolsa.ultimoTrabajo || bolsa.voiceNarrativeSummary || bolsa.voiceNarrativeRaw || resume.summary || resume.experience || '').trim();
-  if(hasLaboralData){
-    if(scoring.seniorityKey === 'NO_DETERMINADO'){
-      return { key:'TRAYECTORIA', label:ADMIN_CANDIDATE_CLASS_LABELS.TRAYECTORIA, reason:'Existe información profesional, pero no hay evidencia suficiente para determinar la trayectoria. No se lo ubica en Primer empleo/Pasante por falta de datos.' };
+  return '';
+}
+
+function candidateVerifiedProfessionalEvidence(candidate={}){
+  const b=candidate.candidateBolsa || {}, r=candidate.resume || {};
+  const recent=candidateEvidenceLines(b.ultimoTrabajo);
+  let period='',carry=0;
+  const rawParts=String(r.experience || '').split(/[\n.;!?•]+|\s+\|\s+/).map(x=>String(x||'').trim()).filter(Boolean);
+  const decorated=[...rawParts];
+
+  // Algunos CV ubican el período antes de las tareas y otros al final del bloque.
+  // Primera pasada: hereda hacia adelante un período detectado.
+  for(let i=0;i<rawParts.length;i++){
+    const line=rawParts[i];
+    const found=candidateWorkPeriodPrefix(line);
+    if(found){
+      period=found;
+      const idx=line.indexOf(found);
+      const after=idx>=0 ? line.slice(idx+found.length) : '';
+      // Si después del rango ya aparece un nuevo cargo, el rango queda asociado
+      // a la línea actual y no se hereda a las tareas del puesto siguiente.
+      carry=CANDIDATE_GENERIC_ROLE_SIGNAL.test(adminNormText(after)) ? 0 : 5;
+      continue;
     }
-    return { key:'OPERATIVO', label:ADMIN_CANDIDATE_CLASS_LABELS.OPERATIVO, reason:'Existe información laboral u oficio y evidencia suficiente para estimar trayectoria; se conserva el expertise detectado' };
+    if(period && carry>0 && candidateWorkEvidenceStrength(line)>=2) decorated[i]=`${period} ${line}`;
+    if(carry>0) carry-=1;
+    if(/\b(educacion|formacion|habilidades|competencias|datos personales|contacto)\b/i.test(line)) {period='';carry=0;}
   }
-  return { key:'INICIAL', label:ADMIN_CANDIDATE_CLASS_LABELS.INICIAL, reason:'Información profesional todavía insuficiente. No se presume que sea aprendiz, pasante ni primer empleo por falta de datos' };
+
+  // Las fechas posteriores al bloque se resuelven más abajo con una asociación
+  // de proximidad acotada. No se propagan hacia atrás en forma general para evitar
+  // transferir antigüedad entre trabajos de especialidades distintas.
+
+  const datedWork=decorated.join('\n');
+  const work=candidateEvidenceLines(datedWork);
+  // Relato original únicamente cuando describe una acción laboral, nunca el texto ampliado por IA.
+  const voice=candidateEvidenceLines(b.voiceNarrativeRaw).filter(x=>CANDIDATE_ACTION_SIGNAL.test(adminNormText(x)) || candidateWorkEvidenceStrength(x)>=4);
+  const lines=[...new Set([...recent,...work,...voice])];
+  const sourceMap=new Map();
+  for(const line of lines) sourceMap.set(line,{recent:recent.includes(line),work:work.includes(line),voice:voice.includes(line)});
+  const recentText=adminNormText(recent.join(' '));
+  const ranked=CANDIDATE_EVIDENCE_RULES.map(rule=>{
+    const hits=[];
+    let role=false,task=false,weight=0;
+    for(const line of lines){
+      const t=adminNormText(line), src=sourceMap.get(line)||{};
+      const roleHit=rule[4].test(t), taskHit=rule[5].test(t);
+      const taskAccepted=taskHit && (CANDIDATE_ACTION_SIGNAL.test(t) || src.recent || (src.work && candidateWorkEvidenceStrength(line)>=3) || src.voice);
+      if(!roleHit && !taskAccepted) continue;
+      hits.push(line); role ||= roleHit; task ||= taskHit;
+      if(src.recent) weight += roleHit?10:5;
+      else if(src.work) weight += roleHit?5:3;
+      else if(src.voice) weight += roleHit?4:2;
+      if(roleHit && taskHit) weight += 2;
+    }
+    if(rule[4].test(recentText)) weight+=4;
+    if(rule[5].test(recentText)) weight+=2;
+    return {rule,hits:[...new Set(hits)],role,task,weight};
+  }).filter(x=>x.role || x.task).sort((a,b)=>b.weight-a.weight || b.hits.length-a.hits.length);
+  const credibleWork=[...new Set([...recent,...work,...voice].filter(x=>candidateWorkEvidenceStrength(x)>=4 || (recent.includes(x) && CANDIDATE_GENERIC_ROLE_SIGNAL.test(adminNormText(x)))))];
+  return {lines,recent,work,voice,credibleWork,ranked};
+}
+
+function candidateMonthNumber(name=''){
+  const key=adminNormText(name);
+  return {enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12}[key] || null;
+}
+function candidateEvidenceYears(lines, now=new Date()){
+  // Duraciones de empleo verificables. Se descartan fechas de educación/otros bloques
+  // cuando el extractor dejó varias secciones del CV en una misma línea.
+  const prepared=(lines || []).map(value=>{
+    let line=String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[‐‑‒–—]/g,'-');
+    const workMarker=line.search(/\b(experiencia laboral|experiencia profesional|experiencia de trabajo|historial laboral)\b/);
+    // Si la línea fue enriquecida con un período laboral al comienzo, conservarlo.
+    // Una fecha escolar anterior al marcador de experiencia no debe sobrevivir.
+    const prefixedPeriod=candidateWorkPeriodPrefix(line);
+    const periodAtStart=!!prefixedPeriod && line.indexOf(prefixedPeriod)===0;
+    if(workMarker>=0 && !periodAtStart) line=line.slice(workMarker);
+    const stop=line.search(/\b(educacion|formacion academica|formacion profesional|habilidades|competencias|datos personales|contacto)\b/);
+    if(stop>0) line=line.slice(0,stop);
+    return line;
+  }).filter(Boolean);
+  const raw=prepared.join('\n');
+  const explicit=[...raw.matchAll(/\b(\d{1,2})\s*a(?:n|ñ)os\s+(?:de\s+)?(?:experiencia|trabajando|en el puesto|como\s+\w+)/gi)].map(x=>Number(x[1])).filter(x=>x<=65);
+  const intervals=[];
+  const nowMonth=now.getFullYear()*12+now.getMonth();
+
+  const normalizeYear=(value)=>{
+    const token=String(value ?? '').trim().toLowerCase();
+    if(/actualidad|presente|actual|hoy|current|present/.test(token)) return now.getFullYear();
+    const n=Number(token);
+    if(!Number.isFinite(n)) return null;
+    if(n>=1900 && n<=now.getFullYear()+1) return n;
+    if(n>=0 && n<=99){
+      const pivot=(now.getFullYear()%100)+1;
+      return n<=pivot?2000+n:1900+n;
+    }
+    return null;
+  };
+  const add=(sy,sm,ey,em)=>{
+    const startYear=normalizeYear(sy), endYear=normalizeYear(ey);
+    if(!startYear || !endYear) return;
+    const start=startYear*12+(Number(sm)-1), end=endYear*12+(Number(em)-1);
+    if(Number.isFinite(start)&&Number.isFinite(end)&&start<=end&&end<=nowMonth&&end-start<=65*12) intervals.push([start,end]);
+  };
+
+  // Fecha completa: 10/01/2025 - 05/06/2025
+  const fullDateMatches=[...raw.matchAll(/\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-]((?:19|20)\d{2})\s*(?:-|a|hasta)\s*(?:(\d{1,2})[\/.\-](\d{1,2})[\/.\-]((?:19|20)\d{2})|(actualidad|presente|actual|hoy|current|present))\b/gi)];
+  for(const m of fullDateMatches){
+    const sy=m[3], sm=Number(m[2]);
+    if(m[7]) add(sy,sm,now.getFullYear(),now.getMonth()+1);
+    else add(sy,sm,m[6],Number(m[5]));
+  }
+
+  // Mes/año numérico: 01/2024 - 06/2026, 10/23 - 01/24, 03-2024 - actualidad.
+  const numericMonthMatches=[...raw.matchAll(/\b(0?[1-9]|1[0-2])[\/.\-](\d{2,4})\s*(?:-|a|hasta)\s*(?:(0?[1-9]|1[0-2])[\/.\-](\d{2,4})|(actualidad|presente|actual|hoy|current|present))\b/gi)];
+  for(const m of numericMonthMatches){
+    const sy=m[2], sm=Number(m[1]);
+    if(m[5]) add(sy,sm,now.getFullYear(),now.getMonth()+1);
+    else add(sy,sm,m[4],Number(m[3]));
+  }
+
+  const monthMap={ene:1,enero:1,feb:2,febrero:2,mar:3,marzo:3,abr:4,abril:4,may:5,mayo:5,jun:6,junio:6,jul:7,julio:7,ago:8,agosto:8,sep:9,sept:9,septiembre:9,set:9,setiembre:9,oct:10,octubre:10,nov:11,noviembre:11,dic:12,diciembre:12};
+  const month='(ene(?:ro)?|feb(?:rero)?|mar(?:zo)?|abr(?:il)?|may(?:o)?|jun(?:io)?|jul(?:io)?|ago(?:sto)?|sep(?:t(?:iembre)?)?|set(?:iembre)?|oct(?:ubre)?|nov(?:iembre)?|dic(?:iembre)?)\\.?';
+  const re=new RegExp(`\\b${month}\\s+(?:de\\s+)?((?:19|20)\\d{2})\\s*(?:-|a|hasta)\\s*(?:${month}\\s+(?:de\\s+)?((?:19|20)\\d{2})|(actualidad|presente|actual|hoy|current|present))\\b`,'gi');
+  const monthMatches=[...raw.matchAll(re)];
+  for(const m of monthMatches){
+    const sy=m[2], sm=monthMap[String(m[1]||'').replace(/\.$/,'')];
+    if(!sm) continue;
+    if(m[5]) add(sy,sm,now.getFullYear(),now.getMonth()+1);
+    else {const em=monthMap[String(m[3]||'').replace(/\.$/,'')]; if(em) add(sy,sm,m[4],em);}
+  }
+
+  // Evita contar otra vez años ya contenidos en rangos más específicos.
+  let yearOnlyRaw=raw;
+  const specificMatches=[...fullDateMatches,...numericMonthMatches,...monthMatches].sort((a,b)=>(b.index??0)-(a.index??0));
+  for(const m of specificMatches){
+    const idx=m.index??-1;
+    if(idx>=0) yearOnlyRaw=yearOnlyRaw.slice(0,idx)+' '.repeat(m[0].length)+yearOnlyRaw.slice(idx+m[0].length);
+  }
+
+  // Sólo años: 2016 - 2023
+  for(const m of yearOnlyRaw.matchAll(/\b((?:19|20)\d{2})\s*(?:-|a|hasta)\s*((?:19|20)\d{2}|actualidad|presente|actual|hoy|current|present)\b/gi)){
+    const sy=m[1];
+    if(/^\d/.test(m[2])) add(sy,1,m[2],1); else add(sy,1,now.getFullYear(),now.getMonth()+1);
+  }
+
+  intervals.sort((a,b)=>a[0]-b[0]);
+  const merged=[];
+  for(const x of intervals){
+    const prev=merged.at(-1);
+    if(prev && x[0]<=prev[1]) prev[1]=Math.max(prev[1],x[1]);
+    else merged.push([...x]);
+  }
+  const months=merged.length?merged.reduce((n,x)=>n+Math.max(0,x[1]-x[0]),0):null;
+  const dated=months!==null;
+  const datedYears=dated?Math.round((months/12)*10)/10:null;
+  return {years:datedYears!==null?datedYears:(explicit.length?Math.max(...explicit):null),dated};
+}
+function candidateIsPreciseWorkPeriod(period=''){
+  const p=adminNormText(period);
+  if(!p) return false;
+  if(/\b(?:ene|enero|feb|febrero|mar|marzo|abr|abril|may|mayo|jun|junio|jul|julio|ago|agosto|sep|sept|septiembre|set|setiembre|oct|octubre|nov|noviembre|dic|diciembre)\b/.test(p)) return true;
+  if(/\b(?:0?[1-9]|1[0-2])[\/.\-]\d{2,4}\b/.test(p)) return true;
+  if(/\b\d{1,2}[\/.\-]\d{1,2}[\/.\-](?:19|20)\d{2}\b/.test(p)) return true;
+  return false;
+}
+
+function candidateNearbyRelevantPeriodLines(best=null, workLines=[]){
+  if(!best?.hits?.length || !workLines?.length) return [];
+  const hitSet=new Set(best.hits);
+  const found=[];
+  for(let i=0;i<workLines.length;i++){
+    if(!hitSet.has(workLines[i])) continue;
+    for(let j=i+1;j<workLines.length && j<=i+12;j++){
+      const line=workLines[j];
+      const period=candidateWorkPeriodPrefix(line);
+      const strength=candidateWorkEvidenceStrength(line);
+      if(period && candidateIsPreciseWorkPeriod(period) && strength<=3){
+        found.push(period);
+        break;
+      }
+      // Un nuevo puesto fuerte antes de encontrar la fecha corta la asociación.
+      if(j>i+1 && strength>=4 && CANDIDATE_GENERIC_ROLE_SIGNAL.test(adminNormText(line))) break;
+    }
+  }
+  return [...new Set(found)];
 }
 
 function buildCandidateAdminClassification(candidate = {}){
-  // Nunca se persiste una calificación vieja: cada llamada relee toda la información vigente.
-  const scoring = scoreCandidateProfessionalProfile(candidate);
-  const primary = inferAdminCandidateClass(candidate, scoring);
-  const expertise = inferAdminCandidateExpertise(candidate);
-  return {
-    classKey:primary.key,
-    classLabel:primary.label,
-    expertiseKey:expertise.key,
-    expertiseLabel:expertise.label,
-    expertiseSource:expertise.source,
-    reason:primary.reason,
-    recentRole:candidateRecentRoleLabel(candidate),
-    ...scoring,
-  };
+  const b=candidate.candidateBolsa || {}, r=candidate.resume || {};
+  const ev=candidateVerifiedProfessionalEvidence(candidate), best=ev.ranked[0];
+  const education=adminNormText(r.education || '');
+  const technicalSchool=/\b(escuela tecnica|secundari\w* tecnic\w*|tecnico electromecanico|tecnico electric\w*|tecnico mecanico|tecnico electronico)\b/.test(education);
+  const allOriginal=adminNormText([b.ultimoTrabajo,b.voiceNarrativeRaw,r.experience].join(' '));
+  const explicitFirst=/\b(primer empleo|sin experiencia laboral|sin experiencia previa|sin experiencia formal|no tengo experiencia laboral|(?:busco|buscando)\w*(?: \w+){0,4} pasantia)\b/.test(allOriginal);
+  const first=explicitFirst && !best && !ev.credibleWork.length;
+  let classKey=best?best.rule[3]:(first?'APRENDIZ':(ev.credibleWork.length?'TRAYECTORIA':'INICIAL'));
+  let profileTitle=best?best.rule[2]:(first?(technicalSchool?'Primer empleo con orientación técnica':'Primer empleo / aprendizaje'):(ev.credibleWork.length?(technicalSchool?'Trayectoria laboral con orientación técnica por validar':'Trayectoria laboral con especialidad por definir'):(technicalSchool?'Orientación inicial a pasantía técnica':'Perfil inicial con orientación por definir')));
+  const recentRoleText=adminNormText(ev.recent.join(' '));
+  if(!best && /\b(gerente|director|directora|socio gerente)\b/.test(recentRoleText)){classKey='GERENCIAL';profileTitle=ev.recent[0] || 'Gestión / Dirección';}
+  else if(!best && /\b(supervisor|supervisora|jefe|jefa|capataz|coordinador|coordinadora|responsable de area)\b/.test(recentRoleText)){classKey='SUPERVISION';profileTitle=ev.recent[0] || 'Supervisión / Jefatura';}
+  const responsibilities=ev.lines.filter(x=>/\b(personal a cargo|equipo a cargo|equipo de|cuadrilla|presupuesto|supervis\w*|dirigi\w*|lider\w*|coordino|coordinaba|coordinacion de equipo|responsable de area)\b/.test(adminNormText(x)));
+  const roleText=adminNormText(ev.lines.join(' '));
+  if(responsibilities.length && /\b(gerente|director|directora|socio gerente)\b/.test(roleText)){classKey='GERENCIAL';profileTitle='Gestión de equipos y operaciones';}
+  else if(responsibilities.length && /\b(supervisor|supervisora|jefe|jefa|capataz|coordinador|coordinadora|responsable de area)\b/.test(roleText)){classKey='SUPERVISION';profileTitle=`Supervisión de ${best?best.rule[1].toLowerCase():'equipos y operaciones'}`;}
+  let duration=candidateEvidenceYears(ev.credibleWork.length?ev.credibleWork:ev.lines);
+  const nearbyPeriods=best?candidateNearbyRelevantPeriodLines(best,ev.work):[];
+  let relevantDuration=candidateEvidenceYears(best?[...best.hits,...nearbyPeriods]:[]);
+  // La experiencia relevante es también parte de la experiencia total. Si la
+  // asociación temporal de la especialidad recupera un período que el barrido
+  // general no pudo unir al bloque, el total nunca puede quedar por debajo.
+  if(relevantDuration.years!==null && (duration.years===null || relevantDuration.years>duration.years)){
+    duration={years:relevantDuration.years,dated:duration.dated || relevantDuration.dated};
+  }
+  const tasks=best?best.hits.filter(x=>best.rule[5].test(adminNormText(x))):[];
+  let profileScore=null, seniorityKey='NO_DETERMINADO',seniorityLabel='Nivel por verificar';
+  if(first){profileScore=10;seniorityKey='APRENDIZ';seniorityLabel='Inicial / aprendizaje';}
+  else if(best){
+    profileScore=best.role && best.task?30:20;
+    // Años en otros trabajos no transfieren automáticamente expertise al oficio elegido.
+    if((best.role || tasks.length) && relevantDuration.years!==null){
+      profileScore=relevantDuration.years>=8?60:relevantDuration.years>=3?45:25;
+      if(relevantDuration.years>=8 && best.role && tasks.length>=1 && best.hits.length>=2 && responsibilities.length) profileScore=75;
+      seniorityKey=profileScore>=75?'SENIOR':profileScore>=45?'SEMI_SENIOR':'JUNIOR';
+      seniorityLabel=profileScore>=75?'Senior provisional':profileScore>=45?'Intermedio provisional':'Junior provisional';
+    }
+  }
+  if(best && /\b(ayudante|auxiliar|aprendiz|asistente)\b/.test(adminNormText(ev.recent.join(' ') || best.hits.join(' ')))){
+    profileTitle=`Auxiliar de ${best.rule[1].toLowerCase()}`;
+    if(classKey!=='ADMINISTRATIVO') classKey='OPERATIVO';
+    profileScore=Math.min(profileScore ?? 20,25);seniorityKey='JUNIOR';seniorityLabel='Junior / asistencia';
+  }
+  const expertiseKey=best?best.rule[0]:'GENERAL';
+  const expertiseLabel=best?best.rule[1]:(technicalSchool?'Orientación técnica inicial':'Orientación laboral por definir');
+  const evidence=best?best.hits.slice(0,3):ev.credibleWork.slice(0,3);
+  const gaps=[];
+  if(!best && ev.credibleWork.length) gaps.push('Hay trayectoria laboral, pero faltan tareas específicas para asignar una especialidad con seguridad.');
+  else if(!best) gaps.push('Faltan tareas y puestos concretos para asignar una especialidad.');
+  if(best && relevantDuration.years===null) gaps.push('Falta duración verificable en la especialidad.');
+  if(best && !best.task) gaps.push('El cargo está declarado, pero faltan tareas que demuestren el dominio.');
+  const reason=best?`Se propone ${profileTitle.toLowerCase()} por estos antecedentes declarados: ${evidence.map(x=>x.slice(0,180)).join(' / ')}.`:(ev.credibleWork.length?`Se detecta trayectoria laboral declarada: ${evidence.map(x=>x.slice(0,180)).join(' / ')}. No se fuerza una especialidad sin tareas suficientes.`:(technicalSchool?'La formación técnica permite proponer una pasantía técnica como orientación; no acredita experiencia laboral.':'La información disponible no permite atribuir un oficio ni experiencia administrativa. Se requiere completar antecedentes.'));
+  const confidence=best && best.role && best.task && relevantDuration.dated?'MEDIA':(best && (best.role || best.task)?'BAJA':'BAJA');
+  return {classKey,classLabel:ADMIN_CANDIDATE_CLASS_LABELS[classKey],expertiseKey,expertiseLabel,expertiseSource:'EVIDENCIA_DECLARADA_V7103',profileTitle,
+    recentRole:ev.recent[0] || ev.credibleWork[0] || '',profileScore,seniorityKey,seniorityLabel,explicitYearsExperience:duration.years,
+    relevantYearsExperience:relevantDuration.years,experienceEvidenceSource:duration.years===null?'Sin duración verificable':(duration.dated?'Períodos laborales declarados (aproximación temporal)':'Duración explícita en antecedentes laborales'),
+    professionalSourcesUsed:[...(ev.recent.length?['Último trabajo declarado']:[]),...(ev.work.length?['CV / antecedentes curriculares']:[]),...(ev.voice.length?['Relato original']:[])],cvEvidenceUsed:ev.work.length>0,
+    classificationConfidence:confidence,firstEmploymentExplicit:first,
+    professionalEvidenceSummary:{rolesDetected:best?.role?1:0,responsibilitySignals:responsibilities.length,leadershipSignals:responsibilities.length,credibleWorkSignals:ev.credibleWork.length,richResume:false,richPresentation:false},
+    reason,scoreBasis:profileScore===null?'Sin evidencia suficiente para puntuar.':`${profileScore}/100: indicador provisional de evidencia en la especialidad; no mide empleabilidad.`,
+    evidence,gaps,assessment:`${reason} ${gaps.join(' ')} Confirmar funciones y autonomía en entrevista.`,
+    searchText:[profileTitle,expertiseLabel,seniorityLabel,...ev.ranked.map(x=>x.rule[1]),...ev.credibleWork,...ev.lines].join(' '),classificationVersion:'7.10.3'};
+}
+
+
+function candidateQuickFacts(candidate={}, now=new Date()){
+  const b=candidate.candidateBolsa || {},p=candidate.candidateProfile || {},r=candidate.resume || {};
+  const clean=v=>/^(pendiente|s\/d|sin dato|no informado)$/i.test(String(v||'').trim())?'':String(v||'').trim();
+  let birth=clean(b.fechaNacimiento),source=birth?'Fecha declarada':'';
+  if(!birth){const m=[r.observations,r.summary,r.experience].filter(Boolean).join('\n').match(/(?:fecha de nacimiento|nacimiento|naci[oó])\s*[:\-]?\s*(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/i);if(m){birth=`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;source='Fecha extraída del CV; confirmar';}}
+  let age=null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(birth)){
+    const date=new Date(birth+'T12:00:00Z');
+    if(Number.isFinite(date.getTime()) && date.toISOString().slice(0,10)===birth){
+      age=now.getUTCFullYear()-date.getUTCFullYear()-((now.getUTCMonth()<date.getUTCMonth() || (now.getUTCMonth()===date.getUTCMonth() && now.getUTCDate()<date.getUTCDate()))?1:0);
+      if(age<0 || age>110) age=null;
+    }
+  }
+  const originalPersonalText=[r.observations,r.experience].filter(Boolean).join('\n');
+  if(age===null && !birth){
+    const declared=originalPersonalText.match(/\bedad\s*[:\-]?\s*(\d{1,3})\s*(?:a[ñn]os)?\b/i);
+    if(declared && Number(declared[1])<=110){age=Number(declared[1]);source='Edad declarada en CV; confirmar vigencia';}
+  }
+  const extraPhone=originalPersonalText.match(/(?:tel[eé]fono adicional|tel[eé]fono alternativo|celular alternativo)\s*[:\-]?\s*([+()\d][()\d +.-]{5,35})/i)?.[1]?.trim() || '';
+  const city=clean(b.localidad || p.city);
+  const cityMap={campana:'Campana',zarate:'Zárate',escobar:'Escobar',tigre:'Tigre',pilar:'Pilar',baradero:'Baradero','san pedro':'San Pedro','san nicolas':'San Nicolás','exaltacion de la cruz':'Exaltación de la Cruz','malvinas argentinas':'Malvinas Argentinas'};
+  const phone=clean(b.telefono || p.phone);
+  return {phone,additionalPhone:clean(b.telefonoAdicional)||extraPhone|| (clean(p.phone)!==phone?clean(p.phone):''),address:clean(b.direccion || p.address),city:cityMap[adminNormText(city)] || city,
+    maritalStatus:clean(b.estadoCivil),age,birthDate:age!==null?birth:'',ageSource:age!==null?source:'No informada',latestJob:clean(b.ultimoTrabajo),email:clean(b.correo || candidate.email)};
+}
+function candidateProfessionalSearchText(candidate={}, classification=buildCandidateAdminClassification(candidate)){
+  const b=candidate.candidateBolsa || {},p=candidate.candidateProfile || {};
+  return [candidate.email,b.nombre,b.apellido,b.dni,b.correo,b.localidad,b.provinciaResidencia,b.paisResidencia,p.fullName,p.dni,p.city,p.province,classification.searchText].filter(Boolean).join(' ');
 }
 
 function buildAdminComposition(candidateItems = [], companyItems = []){
@@ -6816,6 +6959,297 @@ async function buildTraceabilityReportSnapshot(){
 
 const adminCompanyCategorySchema = z.object({
   category: z.enum(['FABRICACION','LOGISTICA','SERVICIO']).nullable().optional(),
+});
+
+// ============================
+// Clasificación automática persistente de candidatos · v7.10.3
+// ============================
+// Objetivo operativo: cualquier candidato que ingrese por registro, carga de CV,
+// actualización del perfil o importación externa (por ejemplo Ecoempleo) debe pasar
+// por el mismo motor calibrado, sin depender de una auditoría manual posterior.
+
+const CANDIDATE_CLASSIFICATION_ROW_SELECT = {
+  id:true, email:true, role:true, createdAt:true,
+  candidateProfile:{ select:{
+    fullName:true, dni:true, city:true, province:true, country:true,
+    headline:true, sector:true, subSector:true, updatedAt:true,
+  } },
+  candidateBolsa:{ select:{
+    areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true,
+    rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true,
+    trabajaActualmente:true, ultimoTrabajo:true, observaciones:true,
+    voiceNarrativeRaw:true, voiceNarrativeSummary:true,
+    voiceNarrativeAnalysisVersion:true, voiceNarrativeAnalysisSource:true,
+    voiceNarrativeYears:true, voiceNarrativeProfessionalTitle:true,
+    voiceNarrativeStrengths:true, voiceNarrativeMotivation:true,
+    voiceNarrativeClosing:true, voiceNarrativeAnalyzedAt:true,
+    updatedAt:true,
+  } },
+  resume:{ select:{
+    summary:true, experience:true, education:true, certifications:true,
+    observations:true, updatedAt:true,
+  } },
+  candidateClassification:{ select:{
+    classificationVersion:true, sourceFingerprint:true, classifiedAt:true,
+  } },
+};
+
+function candidateClassificationSourcePayload(candidate={}){
+  const b=candidate.candidateBolsa || {};
+  const p=candidate.candidateProfile || {};
+  const r=candidate.resume || {};
+  // No se incluyen contraseña, seguridad, foto, facturación ni campos ajenos a la
+  // clasificación. El fingerprint cambia sólo cuando cambia material profesional.
+  return {
+    profile:{ headline:p.headline || '', sector:p.sector || '', subSector:p.subSector || '' },
+    bolsa:{
+      areaTrabajo:b.areaTrabajo || '', nivel:b.nivel || '', especialidad:b.especialidad || '',
+      especialidadOtro:b.especialidadOtro || '', rangoExperiencia:b.rangoExperiencia || '',
+      nivelEducativo:b.nivelEducativo || '', tieneCapacitacion:!!b.tieneCapacitacion,
+      trabajaActualmente:!!b.trabajaActualmente, ultimoTrabajo:b.ultimoTrabajo || '',
+      observaciones:b.observaciones || '', voiceNarrativeRaw:b.voiceNarrativeRaw || '',
+      // Los campos derivados/generados (summary, title, strengths, etc.) no forman parte
+      // del fingerprint: una reescritura de IA no debe aparentar nueva experiencia.
+    },
+    resume:{
+      summary:r.summary || '', experience:r.experience || '', education:r.education || '',
+      certifications:r.certifications || '', observations:r.observations || '',
+    },
+  };
+}
+
+function candidateClassificationFingerprint(candidate={}){
+  return crypto.createHash('sha256')
+    .update(JSON.stringify(candidateClassificationSourcePayload(candidate)))
+    .digest('hex');
+}
+
+function candidateClassificationSourceUpdatedAt(candidate={}){
+  const values=[candidate.createdAt,candidate.candidateProfile?.updatedAt,candidate.candidateBolsa?.updatedAt,candidate.resume?.updatedAt]
+    .filter(Boolean).map((v)=>new Date(v).getTime()).filter(Number.isFinite);
+  return values.length ? new Date(Math.max(...values)) : null;
+}
+
+function candidateClassificationPersistenceData(candidate, classification, triggerSource, fingerprint){
+  return {
+    classificationVersion:CANDIDATE_CLASSIFICATION_VERSION,
+    sourceFingerprint:fingerprint,
+    classKey:String(classification.classKey || 'INICIAL'),
+    classLabel:String(classification.classLabel || 'Información profesional por completar'),
+    expertiseKey:String(classification.expertiseKey || 'GENERAL'),
+    expertiseLabel:String(classification.expertiseLabel || 'Orientación laboral por definir'),
+    expertiseSource:String(classification.expertiseSource || 'EVIDENCIA_DECLARADA').slice(0,120),
+    profileTitle:String(classification.profileTitle || 'Perfil inicial con orientación por definir').slice(0,240),
+    recentRole:String(classification.recentRole || '').slice(0,500) || null,
+    profileScore:classification.profileScore != null && Number.isFinite(Number(classification.profileScore)) ? Math.round(Number(classification.profileScore)) : null,
+    seniorityKey:String(classification.seniorityKey || 'NO_DETERMINADO'),
+    seniorityLabel:String(classification.seniorityLabel || 'Nivel por verificar'),
+    explicitYearsExperience:classification.explicitYearsExperience != null && Number.isFinite(Number(classification.explicitYearsExperience)) ? Number(classification.explicitYearsExperience) : null,
+    relevantYearsExperience:classification.relevantYearsExperience != null && Number.isFinite(Number(classification.relevantYearsExperience)) ? Number(classification.relevantYearsExperience) : null,
+    experienceEvidenceSource:String(classification.experienceEvidenceSource || '').slice(0,500) || null,
+    professionalSourcesUsed:Array.isArray(classification.professionalSourcesUsed) ? classification.professionalSourcesUsed.slice(0,12) : [],
+    cvEvidenceUsed:!!classification.cvEvidenceUsed,
+    classificationConfidence:String(classification.classificationConfidence || 'BAJA').slice(0,40),
+    reason:String(classification.reason || '').slice(0,8000) || null,
+    scoreBasis:String(classification.scoreBasis || '').slice(0,1200) || null,
+    evidence:Array.isArray(classification.evidence) ? classification.evidence.slice(0,8).map((x)=>String(x).slice(0,1200)) : [],
+    gaps:Array.isArray(classification.gaps) ? classification.gaps.slice(0,8).map((x)=>String(x).slice(0,1200)) : [],
+    assessment:String(classification.assessment || '').slice(0,10000) || null,
+    // No duplicamos todo el CV en esta tabla: el texto completo sigue en Resume.
+    searchText:null,
+    triggerSource:String(triggerSource || 'AUTO').slice(0,80),
+    sourceUpdatedAt:candidateClassificationSourceUpdatedAt(candidate),
+    classifiedAt:new Date(),
+  };
+}
+
+async function persistCandidateClassificationRows(rows=[], {trigger='AUTO', force=false}={}){
+  const pending=[];
+  let skipped=0, errors=0;
+  for(const candidate of rows || []){
+    if(!candidate?.id || String(candidate.role || '').toUpperCase()!=='CANDIDATE') continue;
+    const fingerprint=candidateClassificationFingerprint(candidate);
+    const cached=candidate.candidateClassification || null;
+    const fresh=!force && cached?.classificationVersion===CANDIDATE_CLASSIFICATION_VERSION && cached?.sourceFingerprint===fingerprint;
+    if(fresh){ skipped++; continue; }
+    try{
+      const classification=buildCandidateAdminClassification(candidate);
+      pending.push({
+        userId:candidate.id,
+        data:candidateClassificationPersistenceData(candidate, classification, trigger, fingerprint),
+      });
+    }catch(err){
+      errors++;
+      console.error('CANDIDATE_CLASSIFICATION_BUILD', candidate.id, err?.message || err);
+    }
+  }
+
+  let classified=0;
+  for(let offset=0; offset<pending.length; offset+=CANDIDATE_CLASSIFICATION_BATCH_SIZE){
+    const chunk=pending.slice(offset,offset+CANDIDATE_CLASSIFICATION_BATCH_SIZE);
+    const operations=chunk.map((item)=>prisma.candidateClassification.upsert({
+      where:{ userId:item.userId },
+      update:item.data,
+      create:{ userId:item.userId, ...item.data },
+    }));
+    try{
+      await prisma.$transaction(operations);
+      classified += chunk.length;
+    }catch(batchErr){
+      // Un registro defectuoso no debe frenar los otros 499 de una importación.
+      console.error('CANDIDATE_CLASSIFICATION_BATCH', batchErr?.message || batchErr);
+      for(const item of chunk){
+        try{
+          await prisma.candidateClassification.upsert({
+            where:{ userId:item.userId }, update:item.data, create:{ userId:item.userId, ...item.data },
+          });
+          classified++;
+        }catch(err){
+          errors++;
+          console.error('CANDIDATE_CLASSIFICATION_ROW', item.userId, err?.message || err);
+        }
+      }
+    }
+  }
+  return { scanned:(rows || []).length, classified, skipped, errors };
+}
+
+function queueCandidateClassification(userId, trigger='EVENT'){
+  const id=String(userId || '').trim();
+  if(!id || !CANDIDATE_CLASSIFICATION_AUTO_ENABLED) return;
+  candidateClassificationPending.set(id,String(trigger || 'EVENT').slice(0,80));
+  if(candidateClassificationQueueKickScheduled) return;
+  candidateClassificationQueueKickScheduled=true;
+  const timer=setTimeout(()=>{
+    candidateClassificationQueueKickScheduled=false;
+    processAutomaticCandidateClassificationsOnce('EVENT_QUEUE',{queueOnly:true}).catch((err)=>{
+      console.error('CANDIDATE_CLASSIFICATION_QUEUE',err?.message || err);
+    });
+  },250);
+  if(typeof timer.unref==='function') timer.unref();
+}
+
+async function processAutomaticCandidateClassificationsOnce(trigger='AUTO_INTERVAL', options={}){
+  if(candidateClassificationWorkerBusy) return {ok:true,busy:true,...candidateClassificationRuntime};
+  if(!CANDIDATE_CLASSIFICATION_AUTO_ENABLED && !options.manual) return {ok:true,disabled:true,...candidateClassificationRuntime};
+  candidateClassificationWorkerBusy=true;
+  candidateClassificationRuntime.running=true;
+  candidateClassificationRuntime.lastTrigger=trigger;
+  candidateClassificationRuntime.lastStartedAt=new Date().toISOString();
+  candidateClassificationRuntime.lastError=null;
+  const startedMs=Date.now();
+  const scanStartedAt=new Date();
+  try{
+    const queued=[...candidateClassificationPending.keys()];
+    const fullSweepIntervalMs=CANDIDATE_CLASSIFICATION_FULL_SWEEP_HOURS*60*60*1000;
+    const periodicFullSweepDue=!options.queueOnly && (!candidateClassificationLastFullSweepAt || (Date.now()-candidateClassificationLastFullSweepAt.getTime())>=fullSweepIntervalMs);
+    // El barrido periódico completo es la red de seguridad para importaciones externas
+    // (por ejemplo Ecoempleo) que preserven fechas antiguas y no pasen por los hooks API.
+    const fullSweep=!!options.fullSweep || (!candidateClassificationLastScanAt && !options.queueOnly) || periodicFullSweepDue;
+    let rows=[];
+    if(fullSweep){
+      rows=await prisma.user.findMany({
+        where:{ role:'CANDIDATE' }, select:CANDIDATE_CLASSIFICATION_ROW_SELECT, orderBy:{ createdAt:'asc' },
+      });
+    }else{
+      const OR=[];
+      if(queued.length) OR.push({ id:{ in:queued } });
+      if(!options.queueOnly){
+        const overlapMs=Math.max(120000,CANDIDATE_CLASSIFICATION_SCAN_SECONDS*2000);
+        const since=new Date(candidateClassificationLastScanAt.getTime()-overlapMs);
+        OR.push(
+          { createdAt:{ gte:since } },
+          { candidateProfile:{ is:{ updatedAt:{ gte:since } } } },
+          { candidateBolsa:{ is:{ updatedAt:{ gte:since } } } },
+          { resume:{ is:{ updatedAt:{ gte:since } } } },
+        );
+      }
+      if(OR.length){
+        rows=await prisma.user.findMany({
+          where:{ role:'CANDIDATE', OR }, select:CANDIDATE_CLASSIFICATION_ROW_SELECT, orderBy:{ createdAt:'asc' },
+        });
+      }
+    }
+
+    const result=await persistCandidateClassificationRows(rows,{trigger,force:!!options.force});
+    for(const id of queued) candidateClassificationPending.delete(id);
+    if(!options.queueOnly) candidateClassificationLastScanAt=scanStartedAt;
+    if(fullSweep) candidateClassificationLastFullSweepAt=scanStartedAt;
+    candidateClassificationRuntime.lastScanned=result.scanned;
+    candidateClassificationRuntime.lastClassified=result.classified;
+    candidateClassificationRuntime.lastSkipped=result.skipped;
+    candidateClassificationRuntime.lastErrors=result.errors;
+    candidateClassificationRuntime.totalClassifiedSinceBoot += result.classified;
+    candidateClassificationRuntime.lastCompletedAt=new Date().toISOString();
+    candidateClassificationRuntime.lastDurationMs=Date.now()-startedMs;
+    return {ok:result.errors===0, ...result, pendingQueue:candidateClassificationPending.size};
+  }catch(err){
+    candidateClassificationRuntime.lastErrors=1;
+    candidateClassificationRuntime.lastError=String(err?.message || err).slice(0,1000);
+    candidateClassificationRuntime.lastCompletedAt=new Date().toISOString();
+    candidateClassificationRuntime.lastDurationMs=Date.now()-startedMs;
+    console.error('CANDIDATE_CLASSIFICATION_WORKER',err?.message || err);
+    return {ok:false,error:candidateClassificationRuntime.lastError,pendingQueue:candidateClassificationPending.size};
+  }finally{
+    candidateClassificationWorkerBusy=false;
+    candidateClassificationRuntime.running=false;
+  }
+}
+
+async function candidateClassificationStatusSummary(){
+  const [totalCandidates,cachedAny,cachedCurrent]=await Promise.all([
+    prisma.user.count({where:{role:'CANDIDATE'}}).catch(()=>0),
+    prisma.candidateClassification.count().catch(()=>0),
+    prisma.candidateClassification.count({where:{classificationVersion:CANDIDATE_CLASSIFICATION_VERSION}}).catch(()=>0),
+  ]);
+  return {
+    enabled:CANDIDATE_CLASSIFICATION_AUTO_ENABLED,
+    engineVersion:CANDIDATE_CLASSIFICATION_VERSION,
+    scanSeconds:CANDIDATE_CLASSIFICATION_SCAN_SECONDS,
+    batchSize:CANDIDATE_CLASSIFICATION_BATCH_SIZE,
+    fullSweepHours:CANDIDATE_CLASSIFICATION_FULL_SWEEP_HOURS,
+    totalCandidates,cachedAny,cachedCurrent,
+    pendingVersion:Math.max(0,totalCandidates-cachedCurrent),
+    pendingQueue:candidateClassificationPending.size,
+    lastScanAt:candidateClassificationLastScanAt?.toISOString?.() || null,
+    lastFullSweepAt:candidateClassificationLastFullSweepAt?.toISOString?.() || null,
+    ...candidateClassificationRuntime,
+  };
+}
+
+function startCandidateClassificationScheduler(){
+  if(candidateClassificationSchedulerStarted || !CANDIDATE_CLASSIFICATION_AUTO_ENABLED) return;
+  candidateClassificationSchedulerStarted=true;
+  const bootTimer=setTimeout(()=>{
+    processAutomaticCandidateClassificationsOnce('AUTO_BOOT',{fullSweep:true}).catch((err)=>console.error('AUTO_BOOT classification',err));
+  },CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS);
+  if(typeof bootTimer.unref==='function') bootTimer.unref();
+  const timer=setInterval(()=>{
+    processAutomaticCandidateClassificationsOnce('AUTO_INTERVAL').catch((err)=>console.error('AUTO_INTERVAL classification',err));
+  },CANDIDATE_CLASSIFICATION_SCAN_SECONDS*1000);
+  if(typeof timer.unref==='function') timer.unref();
+  console.log(`Clasificación automática activa · motor ${CANDIDATE_CLASSIFICATION_VERSION} · revisión cada ${CANDIDATE_CLASSIFICATION_SCAN_SECONDS}s · barrido completo cada ${CANDIDATE_CLASSIFICATION_FULL_SWEEP_HOURS}h · lote ${CANDIDATE_CLASSIFICATION_BATCH_SIZE}`);
+}
+
+
+app.get('/admin/classification/status', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req,res)=>{
+  try{
+    return res.json({ok:true,classificationAutomation:await candidateClassificationStatusSummary()});
+  }catch(err){
+    console.error('GET /admin/classification/status',err);
+    return res.status(500).json({ok:false,error:'No se pudo leer el estado de clasificación automática.'});
+  }
+});
+
+app.post('/admin/classification/run', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req,res)=>{
+  try{
+    const force=!!req.body?.force;
+    const result=await processAutomaticCandidateClassificationsOnce('ADMIN_MANUAL',{manual:true,fullSweep:true,force});
+    return res.json({ok:result?.ok!==false,result,classificationAutomation:await candidateClassificationStatusSummary()});
+  }catch(err){
+    console.error('POST /admin/classification/run',err);
+    return res.status(500).json({ok:false,error:'No se pudo ejecutar la clasificación del padrón.'});
+  }
 });
 
 const adminCandidateRetentionSchema = z.object({
@@ -7158,6 +7592,8 @@ app.get('/admin/candidates/:userId/detail', auth, requireAnyRole(['ADMIN','SUPER
             estadoCivil: true,
             hijos: true,
             telefono: true,
+            telefonoAdicional: true,
+            fechaNacimiento: true,
             correo: true,
             localidad: true,
             provinciaResidencia: true,
@@ -7248,6 +7684,7 @@ app.get('/admin/candidates/:userId/detail', auth, requireAnyRole(['ADMIN','SUPER
         ...candidate,
         resume: resumeForAdmin,
         adminClassification: buildCandidateAdminClassification({ ...candidate, resume: resumeForAdmin }),
+        quickFacts: candidateQuickFacts(candidate),
         cvContentAvailable,
         cvContentOrigin: resumeHasContent ? 'RESUME' : (legacyCvSummary ? 'LEGACY_SUMMARY' : 'NONE'),
         keepIndefinitely: candidate.candidateKeepIndefinitely !== false,
@@ -7650,14 +8087,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         updatedAt:bolsa.updatedAt || profile.updatedAt || it.resume?.updatedAt || it.createdAt,
         profileStatus:String(it.resume?.summary || bolsa.observaciones || '').trim() ? 'CV / resumen cargado' : (it.candidateBolsa ? 'Perfil laboral cargado' : (it.candidateProfile ? 'Registro inicial' : 'Registro pendiente')),
         ...classification,
-        _searchText:[
-          it.email, bolsa.nombre, bolsa.apellido, bolsa.dni, bolsa.correo, bolsa.localidad, bolsa.provinciaResidencia, bolsa.paisResidencia,
-          bolsa.areaTrabajo, bolsa.nivel, bolsa.especialidad, bolsa.especialidadOtro, bolsa.ultimoTrabajo, bolsa.observaciones,
-          bolsa.voiceNarrativeProfessionalTitle, bolsa.voiceNarrativeSummary, bolsa.voiceNarrativeRaw,
-          profile.fullName, profile.dni, profile.city, profile.province, profile.country, profile.headline, profile.sector, profile.subSector,
-          it.resume?.summary, it.resume?.experience, it.resume?.education, it.resume?.certifications, it.resume?.observations,
-          classification.classLabel, classification.expertiseLabel, classification.seniorityLabel, classification.recentRole, classification.scoreBasis,
-        ].filter(Boolean).join(' '),
+        _searchText:candidateProfessionalSearchText(it, classification),
       };
     });
 
@@ -8001,6 +8431,7 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         lastBlockedBackupReason: operationalStatus.lastBlockedBackupReason || null,
         lastBlockedBackupGuardIssues: operationalStatus.lastBlockedBackupGuardIssues || [],
       },
+      classificationAutomation: await candidateClassificationStatusSummary(),
       classificationComposition: buildAdminComposition(candidateDirectoryItems, companyDirectoryItems),
       candidateDirectory: {
         total:candidateDirectoryItems.length,
@@ -8289,6 +8720,7 @@ const IS_MAIN = process.argv[1] && path.resolve(process.argv[1]) === __filename;
 if (IS_MAIN) {
   startAutomaticBackupScheduler();
   startCommunicationQueueScheduler();
+  startCandidateClassificationScheduler();
   app.listen(PORT, "0.0.0.0", () => console.log("Talento PyME API escuchando en", PORT, "(v"+APP_VERSION+")"));
 }
 

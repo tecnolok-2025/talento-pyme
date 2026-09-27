@@ -12,7 +12,7 @@ const candidate=fs.readFileSync(path.join(root,'apps/web/bolsa-candidato.js'),'u
 
 const between=(src,a,b)=>src.slice(src.indexOf(a),src.indexOf(b,src.indexOf(a)+a.length));
 
-test('v7.9.16 obliga a redactar el CV en primera persona y prohíbe voz de evaluador',()=>{
+test('v7.10.4 obliga a redactar el CV en primera persona y prohíbe voz de evaluador',()=>{
   assert.match(api,/AL CANDIDATO A ESCRIBIR SU PROPIO CURRÍCULUM/);
   assert.match(api,/EN PRIMERA PERSONA/);
   assert.match(api,/Está prohibido redactar como evaluador externo/);
@@ -30,13 +30,8 @@ test('enriquecimiento técnico contempla proyectista eléctrico y supervisión s
   assert.match(hints,/No atribuir cantidad de personas, presupuesto, obras ni resultados no declarados/);
 });
 
-test('respaldo local también redacta en primera persona',()=>{
-  const local=between(api,'function refineCandidatePresentationLocal','function responseOutputText');
-  assert.match(local,/Soy ingeniero electromecánico y proyectista/);
-  assert.match(local,/En mi actividad como proyectista desarrollo/);
-  assert.match(local,/En funciones de supervisión realizo/);
-  assert.doesNotMatch(local,/La experiencia declarada permite identificar/);
-  assert.doesNotMatch(local,/Su experiencia se concentra/);
+test('respaldo local conserva original sin ampliar competencias',()=>{
+const local=between(api,'function refineCandidatePresentationLocal','function responseOutputText');assert.match(local,/LOCAL_V710_EVIDENCE_ONLY/);assert.match(local,/Texto original conservado/);assert.doesNotMatch(local,/Soy ingeniero electromecánico y proyectista/);
 });
 
 test('CV lateral también habla desde la voz del candidato',()=>{

@@ -1,4 +1,4 @@
-/* Talento PyME - v7.9.16 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF directo */
+/* Talento PyME - v7.10.4 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF directo */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -421,6 +421,8 @@ async function initBolsaCandidato(){
     estadoCivil:"",
     hijos:"",
     telefono:"",
+    telefonoAdicional:"",
+    fechaNacimiento:"",
     correo:"",
     localidad:"",
     provinciaResidencia:"",
@@ -666,6 +668,8 @@ async function initBolsaCandidato(){
               </label>
               <label>Teléfono
                 <input id="c_telefono" value="${esc(cand.telefono)}" placeholder="Ej: 11..." ${ro()} />
+                <label>Teléfono adicional (opcional)</label><input id="c_telefonoAdicional" value="${esc(cand.telefonoAdicional || '')}" ${ro()} />
+                <label>Fecha de nacimiento (opcional)</label><input id="c_fechaNacimiento" type="date" max="${new Date().toISOString().slice(0,10)}" value="${esc(cand.fechaNacimiento || '')}" ${ro()} />
               </label>
               <label>Email
                 <input id="c_correo" value="${esc(cand.correo)}" placeholder="Ej: correo@..." ${ro()} />
@@ -706,7 +710,7 @@ async function initBolsaCandidato(){
               <label style="display:block;margin-top:10px">Presentación profesional desarrollada por IA · editable
                 <textarea id="c_voice_summary" rows="11" placeholder="Cuando pulses “Corrección IA profesional” aparecerá acá una versión más amplia y profesional de todo lo que contaste. Esta será la presentación principal por defecto para tu CV y tu perfil." ${ro()}>${esc(cand.voiceNarrativeSummary)}</textarea>
               </label>
-              <label style="display:block;margin-top:10px">10 aptitudes y fortalezas profesionales sugeridas · editables
+              <label style="display:block;margin-top:10px">Aptitudes declaradas y fortalezas profesionales sugeridas · editables
                 <textarea id="c_voice_strengths" rows="10" placeholder="Una por línea. La IA propone hasta 10 capacidades coherentes con tu profesión, experiencia y expertise; podés borrar, reemplazar o corregir cualquiera." ${ro()}>${esc((cand.voiceNarrativeStrengths||[]).join("\n"))}</textarea>
               </label>
               <label style="display:block;margin-top:10px">Motivación y objetivo profesional · editable
@@ -975,6 +979,8 @@ async function initBolsaCandidato(){
     cand.estadoCivil = el("c_estadoCivil").value;
     cand.hijos = el("c_hijos").value.trim();
     cand.telefono = el("c_telefono").value.trim();
+    cand.telefonoAdicional = el("c_telefonoAdicional").value.trim();
+    cand.fechaNacimiento = el("c_fechaNacimiento").value;
     cand.correo = el("c_correo").value.trim();
     cand.localidad = el("c_localidad").value;
     cand.provinciaResidencia = el("c_provinciaResidencia")?.value?.trim() || cand.provinciaResidencia || "";
@@ -1043,7 +1049,7 @@ async function initBolsaCandidato(){
       if(analysis.suggestedExperienceRange && (!cand.rangoExperiencia || cand.rangoExperiencia==='Pendiente')) cand.rangoExperiencia=analysis.suggestedExperienceRange;
       voiceRawLastRefined=transcript;
       voiceMessage=analysis.source==='OPENAI'
-        ? 'Listo. La IA leyó el relato completo y preparó tu presentación en primera persona, 10 aptitudes profesionales, una motivación acorde a tu trayectoria y un cierre. Todo queda como propuesta por defecto y podés borrar, corregir, acortar, ampliar o reemplazar cualquier parte antes de guardar.'
+        ? 'Listo. La IA leyó el relato completo y preparó tu presentación en primera persona, Aptitudes declaradas profesionales, una motivación acorde a tu trayectoria y un cierre. Todo queda como propuesta por defecto y podés borrar, corregir, acortar, ampliar o reemplazar cualquier parte antes de guardar.'
         : 'Listo. El analizador profesional leyó el relato completo y preparó tu presentación, aptitudes, motivación y cierre en primera persona. Todo queda como propuesta por defecto y podés editar cualquier parte antes de guardar.';
       if(analysis.diagnostic) voiceMessage += ` ${analysis.diagnostic}`;
     }catch(err){
@@ -1186,7 +1192,7 @@ async function initBolsaCandidato(){
     });
 
     // update state on inputs without rerender
-    ["c_nombre","c_apellido","c_dni","c_nacionalidad","c_estadoCivil","c_hijos","c_telefono","c_correo","c_localidad","c_provinciaResidencia","c_paisResidencia","c_direccion","c_nivel","c_especialidadOtro","c_rangoExp","c_nivelEdu","c_cap","c_trabaja","c_sueldo","c_ultimo","c_obs","c_voice_raw","c_voice_summary","c_voice_strengths","c_voice_motivation","c_voice_closing"].forEach(id=>{
+    ["c_telefonoAdicional","c_fechaNacimiento","c_nombre","c_apellido","c_dni","c_nacionalidad","c_estadoCivil","c_hijos","c_telefono","c_correo","c_localidad","c_provinciaResidencia","c_paisResidencia","c_direccion","c_nivel","c_especialidadOtro","c_rangoExp","c_nivelEdu","c_cap","c_trabaja","c_sueldo","c_ultimo","c_obs","c_voice_raw","c_voice_summary","c_voice_strengths","c_voice_motivation","c_voice_closing"].forEach(id=>{
       const e=el(id);
       if(e) e.addEventListener("input", ()=>{ readAltaFromDom(); });
       if(e) e.addEventListener("change", ()=>{ readAltaFromDom(); });
@@ -1567,7 +1573,7 @@ async function initBolsaCandidato(){
       return;
     }
 
-    // v7.9.16: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
+    // v7.10.4: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
     // cuando el candidato pulsa expresamente “Corrección IA profesional”.
 
     busy = true; render();
@@ -1580,6 +1586,8 @@ async function initBolsaCandidato(){
         estadoCivil: cand.estadoCivil || "",
         hijos: cand.hijos || "",
         telefono: cand.telefono || "",
+        telefonoAdicional: cand.telefonoAdicional || null,
+        fechaNacimiento: cand.fechaNacimiento || null,
         correo: cand.correo || "",
         localidad: cand.localidad || "",
         provinciaResidencia: cand.provinciaResidencia || null,
