@@ -1,3 +1,12 @@
+# Revisión actual: 7.10.4 FINAL
+
+Ver **RELEASE_FINAL_v7.10.4.md**, **LEER_PRIMERO_v7.10.4.md**, **MIGRACION_ROLLBACK_v7.10.4.md** y **VALIDACION_POST_DEPLOY_v7.10.4.md** antes de desplegar.
+
+> **Estado de v7.10.4:** versión definitiva de código para despliegue controlado. El código funcional es idéntico a la candidata preinstalación auditada; durante este cierre sólo se agregaron documentos de release, checksums y control post-deploy.
+> La recuperación por correo permanece funcionalmente idéntica a v7.10.3.
+> No introducir cambios adicionales antes del deploy salvo que una prueba real revele un defecto concreto.
+
+
 # Talento PyME — v7.9.16
 
 > **Versión de despliegue confirmada:** 7.9.16 · **Build:** 20260811_02 · Frontend, API y caché PWA alineados.

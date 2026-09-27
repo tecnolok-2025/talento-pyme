@@ -1,0 +1,16 @@
+{
+  "engineVersion": "7.10.2",
+  "generatedAt": "2026-09-27T17:17:18.697Z",
+  "testKind": "SIMULACION_TECNICA_VOLUMEN_NO_VALIDACION_CONTENIDO_FUTURO",
+  "sourceRealCandidates": 509,
+  "simulatedAdditionalCandidates": 500,
+  "totalProcessed": 1009,
+  "classified": 1009,
+  "errors": 0,
+  "scored": 566,
+  "batchSize": 100,
+  "expectedTransactionBatches": 11,
+  "durationMs": 1287,
+  "note": "Los 500 adicionales son duplicados anonimizados/renombrados de perfiles reales sólo para probar volumen y estabilidad. No representan los futuros CV de Ecoempleo.",
+  "errorDetails": []
+}

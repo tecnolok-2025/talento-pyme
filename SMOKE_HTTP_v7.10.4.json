@@ -1,0 +1,10 @@
+{
+  "http_instance_running": true,
+  "index_version_reference": true,
+  "forgot_recovery_ui": true,
+  "company_professional_reading": true,
+  "admin_page_served": true,
+  "company_page_served": true,
+  "candidate_page_served": true,
+  "recovery_mock_response": true
+}

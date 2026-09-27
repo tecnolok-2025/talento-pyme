@@ -1,0 +1,10 @@
+{
+  "candidates": 513,
+  "profiles": 513,
+  "resumes": 513,
+  "candidateBolsa": 324,
+  "candidateBolsa_required_field_violations": 0,
+  "legacy_candidate_identifiers_11plus": 1,
+  "new_optional_fields_missing_is_compatible": true,
+  "new_classification_table_can_start_empty": true
+}

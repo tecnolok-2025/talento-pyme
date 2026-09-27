@@ -1,0 +1,21 @@
+{
+  "engineVersion": "7.10.2",
+  "testKind": "SIMULACION_PIPELINE_PERSISTENCIA_1009",
+  "sourceRealCandidates": 509,
+  "simulatedAdditionalCandidates": 500,
+  "totalRows": 1009,
+  "result": {
+    "scanned": 1009,
+    "classified": 1009,
+    "skipped": 0,
+    "errors": 0
+  },
+  "storedRows": 1009,
+  "transactionCalls": 11,
+  "upsertCalls": 1009,
+  "batchSize": 100,
+  "expectedTransactionCalls": 11,
+  "durationMs": 1804,
+  "success": true,
+  "note": "Prueba local con Prisma simulado: ejecuta las funciones exactas de clasificación, fingerprint, persistencia y batching del código v7.10.2. No modifica Neon."
+}

@@ -1,0 +1,14 @@
+{
+  "recovery_identical": true,
+  "classifier_identical": true,
+  "classifier_sha256": "bae74ab86149666ddc8c29d6fc5d3e80da6285ec4f497b8edd598e7d0fad2daa",
+  "old_routes": 79,
+  "new_routes": 79,
+  "missing_routes": [],
+  "added_routes": [],
+  "candidates": 513,
+  "profiles_present": 513,
+  "resumes_present": 513,
+  "bolsa_present": 324,
+  "classification_dataset_in_old_backup": false
+}

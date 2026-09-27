@@ -1,0 +1,39 @@
+Talento PyME v7.10.1 — resultados de auditoría
+Fecha: 2026-09-27
+Build: 20260927_02
+Estado: NO DESPLEGADA
+
+PADRÓN REAL (COPIA SANEADA)
+- Candidatos: 509
+- Procesados por v7.9.16: 509
+- Procesados por v7.10.1: 509
+- Errores del motor: 0
+
+CALIBRACIÓN v7.10.1
+- Información profesional por completar: 215 (v7.10.0: 273)
+- Con puntaje: 286 (v7.10.0: 234)
+- Sin puntaje: 223 (v7.10.0: 275)
+- Senior provisional: 3 (v7.9.16 marcaba 306 Senior)
+- Mediana de puntaje disponible: 25 (v7.10.0: 20; v7.9.16: 83)
+
+PRUEBAS AUTOMÁTICAS
+- Suite no-auth: 214/214 OK
+- Subconjunto focalizado de clasificación/búsqueda: 94/94 OK
+- Comparación 509: 509/509 OK
+
+AUTENTICACIÓN
+- test/auth-v7100.test.js no pudo iniciarse en el entorno local porque node_modules/bcryptjs no contiene index.js.
+- Error previo a las aserciones: ERR_MODULE_NOT_FOUND.
+- No se reemplazó bcrypt con mocks ni código ficticio.
+- Repetir con instalación completa de dependencias (npm ci) antes de producción.
+
+PRODUCCIÓN
+- Neon: NO MODIFICADO
+- v7.9.16 en Render: NO MODIFICADA
+- v7.10.1: NO DESPLEGADA
+
+PENDIENTES
+- Prueba gráfica/funcional navegador escritorio y móvil.
+- Login candidato/empresa/admin con dependencias completas.
+- Recuperación de contraseña y correo.
+- Ficha breve, perfiles, búsquedas y trazabilidad en UI.

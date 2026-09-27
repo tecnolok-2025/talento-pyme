@@ -1,0 +1,146 @@
+[
+  {
+    "file": "empresa.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "mis-busquedas.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "unsubscribe.html",
+    "block": 1,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "admin.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "forgot.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "buscar.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "dashboard.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "cv.html",
+    "block": 0,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "mis-candidatos.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "index.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "index.html",
+    "block": 3,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "mis-oportunidades.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "mis-postulaciones.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "factory.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "perfil.html",
+    "block": 3,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "publicar.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "asistencia.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "empleos.html",
+    "block": 2,
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "bolsa-candidato.js",
+    "block": "external",
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "buscar-extracted.js",
+    "block": "external",
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "config.js",
+    "block": "external",
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "auth.js",
+    "block": "external",
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "app.js",
+    "block": "external",
+    "ok": true,
+    "err": ""
+  },
+  {
+    "file": "sw.js",
+    "block": "external",
+    "ok": true,
+    "err": ""
+  }
+]

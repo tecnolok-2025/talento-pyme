@@ -1,0 +1,9 @@
+Talento PyME v7.10.3 — prueba de autenticación local
+Fecha: 27/09/2026
+
+La suite completa detecta 228 pruebas: 227 pasan y 1 no puede iniciarse en este entorno local.
+La prueba afectada es test/auth-v7100.test.js.
+Causa: ERR_MODULE_NOT_FOUND al cargar el paquete bcryptjs desde el node_modules local de esta copia.
+
+No se alteró la autenticación ni se sustituyó bcryptjs para forzar una aprobación artificial.
+La dependencia bcryptjs permanece declarada en apps/api/package.json y debe instalarse normalmente durante npm install en Render/entorno de despliegue.

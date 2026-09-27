@@ -1,0 +1,10 @@
+{
+  "candidateCount": 509,
+  "errors": 0,
+  "substantiveChanges": 0,
+  "changes": [],
+  "expectedMetadataChanges": [
+    "classificationVersion 7.10.1 → 7.10.2",
+    "expertiseSource EVIDENCIA_DECLARADA_V7101 → EVIDENCIA_DECLARADA_V7102"
+  ]
+}

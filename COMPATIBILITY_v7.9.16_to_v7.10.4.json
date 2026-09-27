@@ -1,0 +1,14 @@
+{
+  "v7916_routes": 77,
+  "v7104_routes": 79,
+  "missing_routes_from_v7916": [],
+  "added_routes_since_v7916": [
+    "/admin/classification/run",
+    "/admin/classification/status"
+  ],
+  "old_models": 27,
+  "new_models": 28,
+  "missing_models": [],
+  "missing_old_fields": {},
+  "old_field_type_changes": {}
+}

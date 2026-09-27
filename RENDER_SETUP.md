@@ -19,7 +19,7 @@ Corre Node/Express y se conecta a Neon.
 - Build Command: `npm install && npx prisma generate`
 - Start Command: `npm start`
 
-> Desde v7.8.6, `npm start` ejecuta primero `prisma db push`. Esto agrega en forma automática y no destructiva el estado de permanencia indefinida de cada candidato antes de iniciar la API.
+> **Desde v7.10.4:** `npm start` ya no ejecuta `prisma db push`. El `prestart` genera Prisma Client y aplica únicamente el SQL aditivo e idempotente `prisma/migrations/20260927_v7104_additive/migration.sql`. Ver `MIGRACION_ROLLBACK_v7.10.4.md`.
 
 ### Environment Variables (OBLIGATORIAS)
 - DATABASE_URL: pegar el connection string de Neon (pooler ON)

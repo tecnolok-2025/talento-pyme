@@ -1,0 +1,19 @@
+{
+  "engineVersion": "7.10.3",
+  "population": 513,
+  "firstRun": {
+    "scanned": 513,
+    "classified": 513,
+    "skipped": 0,
+    "errors": 0
+  },
+  "batchesFirstRun": 6,
+  "semanticMismatches": 0,
+  "secondRun": {
+    "scanned": 513,
+    "classified": 0,
+    "skipped": 513,
+    "errors": 0
+  },
+  "note": "Prueba local con persistencia Prisma simulada. No modifica Neon. No incluye datos personales."
+}
