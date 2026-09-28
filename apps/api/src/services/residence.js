@@ -105,7 +105,7 @@ export function isArgentinaProvince(value=''){
 }
 
 
-// v7.10.6 · normalización no destructiva para agrupaciones y reportes.
+// v7.10.7 · normalización no destructiva para agrupaciones y reportes.
 // Conserva los datos originales del candidato: esta función sólo construye una
 // residencia canónica para lectura agregada, búsquedas y PDF de trazabilidad.
 const GROUPING_CITY_ROWS = [
@@ -113,7 +113,7 @@ const GROUPING_CITY_ROWS = [
   { city:'Los Cardales', province:'Buenos Aires', country:'Argentina', aliases:['los cardales','cardales'].map(norm) },
   { city:'Grand Bourg', province:'Buenos Aires', country:'Argentina', aliases:['grand bourg','grand boug'].map(norm) },
   { city:'San Miguel', province:'Buenos Aires', country:'Argentina', aliases:['san miguel buenos aires','san miguel'].map(norm) },
-  { city:'San Cayetano', province:'Buenos Aires', country:'Argentina', aliases:['san cayetano'].map(norm) },
+  { city:'Campana', province:'Buenos Aires', country:'Argentina', aliases:['san cayetano','barrio san cayetano'].map(norm) },
 ];
 
 const GROUPING_PROVINCE_ALIASES = new Map(PROVINCE_ALIASES);
@@ -126,10 +126,7 @@ const GROUPING_PROVINCE_ALIASES = new Map(PROVINCE_ALIASES);
   ['gba','Buenos Aires'],
 ].forEach(([k,v])=>GROUPING_PROVINCE_ALIASES.set(norm(k),v));
 
-const GROUPING_POSTAL_CITY = new Map([
-  ['2804',{ city:'Campana', province:'Buenos Aires', country:'Argentina' }],
-  ['2800',{ city:'Zárate', province:'Buenos Aires', country:'Argentina' }],
-]);
+
 
 const GROUPING_EMPTY_VALUES = new Set([
   '', 'otra', 'otro', 'pendiente', 'sin dato', 'no informado', 'no informada',
@@ -228,11 +225,16 @@ function addressCityMatch(value=''){
   return null;
 }
 
+function isNumericOnlyCityValue(value=''){
+  const n=norm(value);
+  return !!n && /\d/.test(n) && !/[a-z]/.test(n);
+}
+
 function cleanGroupingCity(value=''){
   const raw=String(value || '').trim();
   const n=norm(raw);
   if(GROUPING_EMPTY_VALUES.has(n)) return '';
-  if(/^\d{2,6}$/.test(n)) return '';
+  if(/\d/.test(n) && !/[a-z]/.test(n)) return ''; // sólo números/separadores => ciudad no informada
   return raw;
 }
 
@@ -245,6 +247,22 @@ export function normalizeResidenceForGrouping({
   const secondaryLocality=String(alternateLocality || '').trim();
   const primaryProvince=String(province || '').trim();
   const secondaryProvince=String(alternateProvince || '').trim();
+
+  // Si el campo principal de localidad contiene sólo números/separadores (teléfono,
+  // código u otro dato desplazado), v7.10.7 lo trata explícitamente como no informado.
+  if(isNumericOnlyCityValue(primaryLocality)){
+    const resolvedProvince=canonicalGroupingProvince(primaryProvince) || canonicalGroupingProvince(secondaryProvince);
+    let resolvedCountry=canonicalGroupingCountry(country) || canonicalGroupingCountry(alternateCountry);
+    if(!resolvedCountry && resolvedProvince && GROUPING_PROVINCE_ALIASES.has(norm(resolvedProvince))) resolvedCountry='Argentina';
+    return {
+      city:'Ciudad no informada',
+      province:resolvedProvince || 'Provincia / región no informada',
+      country:resolvedCountry || 'País no informado',
+      inferred:false,
+      normalized:true,
+      source:'numeric-locality',
+    };
+  }
 
   // Algunos registros históricos tienen ciudad y provincia desplazadas una columna.
   // Si la supuesta provincia no es una provincia válida pero sí es una ciudad inequívoca
@@ -268,11 +286,8 @@ export function normalizeResidenceForGrouping({
     if(match) source='locality';
   }
 
-  // Códigos postales inequívocos del corredor, usados sólo para agrupación.
-  if(!match){
-    const postal=GROUPING_POSTAL_CITY.get(norm(primaryLocality)) || GROUPING_POSTAL_CITY.get(norm(secondaryLocality));
-    if(postal){ match={...postal,aliases:[]}; source='postal-code'; }
-  }
+  // v7.10.7: un valor compuesto sólo por números/separadores nunca se interpreta como ciudad.
+  // Puede ser teléfono, código postal u otro dato desplazado; se agrupa como Ciudad no informada.
 
   // Como último respaldo, se mira únicamente un segmento explícito de ciudad al final de una dirección.
   if(!match){

@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: v7.10.7 unifica variantes evidentes de Campana sin tocar el dato almacenado
+ok 1 - v7.10.7 unifica variantes evidentes de Campana sin tocar el dato almacenado
+  ---
+  duration_ms: 5.341734
+  type: 'test'
+  ...
+# Subtest: v7.10.7 corrige campos desplazados y provincias no territoriales cuando la ciudad es inequívoca
+ok 2 - v7.10.7 corrige campos desplazados y provincias no territoriales cuando la ciudad es inequívoca
+  ---
+  duration_ms: 3.533345
+  type: 'test'
+  ...
+# Subtest: v7.10.7 unifica variantes evidentes de Zárate, Escobar y Tigre
+ok 3 - v7.10.7 unifica variantes evidentes de Zárate, Escobar y Tigre
+  ---
+  duration_ms: 1.202382
+  type: 'test'
+  ...
+# Subtest: v7.10.7 usa sólo señales territoriales de alta confianza para completar
+ok 4 - v7.10.7 usa sólo señales territoriales de alta confianza para completar
+  ---
+  duration_ms: 1.2882
+  type: 'test'
+  ...
+# Subtest: v7.10.7 preserva localidades válidas y canoniza sólo presentación
+ok 5 - v7.10.7 preserva localidades válidas y canoniza sólo presentación
+  ---
+  duration_ms: 1.495239
+  type: 'test'
+  ...
+# Subtest: v7.10.7 aplica la localidad normalizada también a filtros y búsqueda Empresa
+ok 6 - v7.10.7 aplica la localidad normalizada también a filtros y búsqueda Empresa
+  ---
+  duration_ms: 0.858903
+  type: 'test'
+  ...
+# Subtest: v7.10.7 aplica la normalización sólo en lectura agregada y reportes
+ok 7 - v7.10.7 aplica la normalización sólo en lectura agregada y reportes
+  ---
+  duration_ms: 0.533156
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 103.398436

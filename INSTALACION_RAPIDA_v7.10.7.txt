@@ -1,0 +1,15 @@
+Talento PyME v7.10.7 — instalación rápida
+
+BASE REQUERIDA: v7.10.6 actualmente desplegada.
+
+Opción recomendada: PARCHE v7.10.6 -> v7.10.7
+1. Descomprimir el ZIP del parche respetando carpetas.
+2. Subir/reemplazar los archivos en el repositorio.
+3. Commit + deploy en Render.
+4. No ejecutar migraciones nuevas: v7.10.7 no cambia la base.
+5. Verificar en Panel General:
+   - versión 7.10.7
+   - localidades numéricas => Ciudad no informada
+   - San Cayetano => Campana
+
+El historial de bajas, login, recuperación por correo y clasificación profesional no cambian.
