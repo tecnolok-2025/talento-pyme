@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.10.4" />
+  <link rel="stylesheet" href="/styles.css?v=7.10.6" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -276,7 +276,7 @@
         <div class="traceChartHeader"><div><h2>Composición actual del padrón</h2><div class="muted">Lectura general por expertise de candidatos y por familia/actividad principal de empresas. El nivel individual (Aprendiz, Junior, Semi-senior o Senior) queda fuera de esta trazabilidad para que la foto general muestre qué perfiles y actividades estamos incorporando.</div></div></div>
         <div class="compositionGrid">
           <div class="traceSummaryBox"><span class="muted small">Candidatos por expertise</span><div id="traceCandidateComposition" class="compositionList"><span class="muted">Sin datos.</span></div></div>
-          <div class="traceSummaryBox"><span class="muted small">Candidatos por país de residencia y ciudad</span><div id="traceCandidateResidenceComposition" class="compositionList"><span class="muted">Sin datos.</span></div></div>
+          <div class="traceSummaryBox"><span class="muted small">Candidatos por residencia normalizada</span><div id="traceCandidateResidenceComposition" class="compositionList"><span class="muted">Sin datos.</span></div></div>
           <div class="traceSummaryBox"><span class="muted small">Empresas por familia</span><div id="traceCompanyFamilyComposition" class="compositionList"><span class="muted">Sin datos.</span></div></div>
           <div class="traceSummaryBox"><span class="muted small">Empresas por actividad principal</span><div id="traceCompanyComposition" class="compositionList"><span class="muted">Sin datos.</span></div></div>
         </div>
@@ -476,7 +476,7 @@
       </div>
       <div class="communicationGrid">
         <div>
-          <div class="communicationStatRow"><div class="communicationStat"><span class="muted small">Cuentas</span><b id="commTotal">—</b></div><div class="communicationStat"><span class="muted small">Recibirán el correo</span><b id="commEligible">—</b></div><div class="communicationStat"><span class="muted small">No enviar / baja</span><b id="commOptOut">—</b></div></div>
+          <div class="communicationStatRow"><div class="communicationStat"><span class="muted small">Cuentas</span><b id="commTotal">—</b></div><div class="communicationStat"><span class="muted small">Recibirán el correo</span><b id="commEligible">—</b></div><button class="communicationStat" id="commOptOutCard" type="button" style="text-align:left;cursor:pointer;border:1px solid #dbe4ef;background:#fff"><span class="muted small">No enviar / baja</span><b id="commOptOut">—</b><span class="muted small" style="display:block;margin-top:3px">Ver quiénes y desde cuándo</span></button></div><div id="communicationOptOutPanel" class="adminRow" style="display:none;margin-top:12px"><div class="toolbarCard"><div><b id="communicationOptOutTitle">Bajas de comunicaciones</b><div class="muted small">Historial auditable de bajas y rehabilitaciones. La baja no elimina la cuenta ni el CV.</div></div><button class="btn btn-ghost" id="btnCloseOptOutPanel" type="button">Cerrar</button></div><div id="communicationOptOutList" class="adminList" style="margin-top:12px"></div></div>
           <div style="margin-top:14px"><label>Asunto</label><input class="input" id="communicationSubject" maxlength="180" /></div>
           <div style="margin-top:12px"><label>Cuerpo de la comunicación</label><textarea class="input" id="communicationBody" rows="11" placeholder="Pegá acá el contenido que querés informar."></textarea></div>
           <label style="display:flex;gap:9px;align-items:flex-start;margin-top:12px;padding:11px 12px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;cursor:pointer"><input id="communicationOnlyUnsent" type="checkbox" checked style="margin-top:3px" /><span><b>Enviar sólo a quienes todavía no recibieron esta misma comunicación</b><br><span class="muted small">Queda tildado por defecto para evitar repeticiones. Si lo destildás, se programará para todo el padrón habilitado.</span></span></label>
@@ -514,7 +514,7 @@
         <div class="muted" id="mailDetailFrom"></div>
         <div class="mailBody" id="mailDetailBody" style="margin-top:14px">El contenido aparecerá acá.</div>
         <div class="muted small" id="mailAttachments" style="margin-top:12px"></div>
-        <div id="mailCommunicationPreference" class="adminRow" style="display:none;margin-top:14px"><b>Preferencia de comunicaciones</b><div class="muted small" id="mailPreferenceText" style="margin-top:5px"></div><div class="row" style="margin-top:10px"><button class="btn btn-ghost" id="btnMailOptOut" type="button">No enviar más comunicaciones</button><button class="btn btn-ghost" id="btnMailOptIn" type="button">Volver a habilitar comunicaciones</button></div></div>
+        <div id="mailCommunicationPreference" class="adminRow" style="display:none;margin-top:14px"><b>Preferencia de comunicaciones</b><div class="muted small" id="mailPreferenceText" style="margin-top:5px"></div><div class="row" style="margin-top:10px"><button class="btn btn-ghost" id="btnMailOptOut" type="button">No enviar más comunicaciones</button><button class="btn btn-ghost" id="btnMailOptIn" type="button">Volver a habilitar comunicaciones</button></div><div id="mailPreferenceHistory" style="margin-top:12px"></div></div>
       </div>
     </div>
   </section>
@@ -525,8 +525,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.10.4"></script>
-<script src="/auth.js?v=7.10.4"></script>
+<script src="/config.js?v=7.10.6"></script>
+<script src="/auth.js?v=7.10.6"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -548,7 +548,7 @@ const state = {
   threads: [],
   selectedThreadId: null,
   mail: { page:1, totalPages:1, total:0, unread:0, items:[], selectedUid:null, loaded:false, selectedFromAddress:'' },
-  communications: { loaded:false, audience:'CANDIDATE', candidates:null, companies:null, history:[], drafts:{} },
+  communications: { loaded:false, audience:'CANDIDATE', candidates:null, companies:null, history:[], drafts:{}, optOutItems:[] },
   filters: {
     candidateDays: 'ALL', candidateSearch: '', candidateProfile: 'ALL', candidatePage: 1, candidatePerPage: 50,
     companyDays: 'ALL', companySearch: '', companyProfile: 'ALL', companyPage: 1, companyPerPage: 50,
@@ -1587,6 +1587,43 @@ function renderCommunications(){
   const history = c.history || [];
   document.getElementById('communicationHistory').innerHTML = history.map((it) => `<div class="adminRow"><b>${esc(it.subject || 'Comunicación')}</b><div class="muted small">${String(it.audience || '').toUpperCase() === 'COMPANY' ? 'Empresas' : 'Candidatos'} · ${fd(it.createdAt)} · ${esc(communicationStatusLabel(it.status))}</div><div class="muted small">Enviados: ${Number(it.sentCount || 0)} · Fallidos: ${Number(it.failedCount || 0)} · Excluidos por baja: ${Number(it.skippedOptOutCount || 0)}${Number(it.skippedPreviouslySentCount || 0) ? ` · Ya informados: ${Number(it.skippedPreviouslySentCount || 0)}` : ''}</div></div>`).join('') || '<div class="muted">Todavía no hay comunicaciones registradas.</div>';
 }
+function communicationPreferenceHistoryHtml(history=[]){
+  return (history || []).map((ev) => {
+    const actor = ev.actorName ? ` · ${esc(ev.actorName)}` : '';
+    const reason = ev.reasonText ? `<div class="muted small" style="margin-top:4px">Motivo: ${esc(ev.reasonText)}</div>` : '';
+    const legacy = ev.historicalReconstruction ? `<div class="muted small" style="margin-top:4px">Registro reconstruido desde el estado anterior${ev.legacyReasonLabel ? ` · dato histórico disponible: ${esc(ev.legacyReasonLabel)}` : ''}. No se inventó administrador ni campaña.</div>` : '';
+    return `<div style="padding:9px 0;border-top:1px solid #e5e7eb"><b>${esc(ev.actionLabel || 'Cambio')}</b><div class="muted small">${fd(ev.createdAt)} · ${esc(ev.sourceLabel || 'Origen no determinado')}${actor}</div>${reason}${legacy}</div>`;
+  }).join('') || '<div class="muted small">Sin eventos históricos registrados.</div>';
+}
+
+function renderCommunicationOptOuts(){
+  const c=state.communications || {};
+  const audience=c.audience || 'CANDIDATE';
+  const panel=document.getElementById('communicationOptOutPanel');
+  const list=document.getElementById('communicationOptOutList');
+  const title=document.getElementById('communicationOptOutTitle');
+  if(!panel || !list) return;
+  title.textContent = audience==='COMPANY' ? 'Empresas que no reciben comunicaciones' : 'Candidatos que no reciben comunicaciones';
+  const items=c.optOutItems || [];
+  list.innerHTML=items.map((it)=>`<div class="adminRow"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><b>${esc(it.name || (audience==='COMPANY'?'Empresa':'Candidato'))}</b><div class="muted small">${esc(it.email || '')}</div></div><span class="traceBadge">No enviar</span></div><div class="muted small" style="margin-top:7px">Baja vigente desde: ${it.optOutAt ? fd(it.optOutAt) : 'fecha no disponible'} · ${esc(it.currentSourceLabel || 'Origen no determinado')}</div><details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700">Ver historial</summary><div style="margin-top:6px">${communicationPreferenceHistoryHtml(it.history || [])}</div></details></div>`).join('') || '<div class="muted">No hay cuentas dadas de baja en este padrón.</div>';
+}
+
+async function loadCommunicationOptOuts(){
+  const panel=document.getElementById('communicationOptOutPanel');
+  const list=document.getElementById('communicationOptOutList');
+  if(!panel || !list) return;
+  panel.style.display='block';
+  list.innerHTML='<div class="muted">Leyendo bajas…</div>';
+  try{
+    const audience=state.communications.audience || 'CANDIDATE';
+    const data=await apiFetch(`/admin/communications/opt-outs?audience=${encodeURIComponent(audience)}`);
+    state.communications.optOutItems=data.items || [];
+    renderCommunicationOptOuts();
+  }catch(err){
+    list.innerHTML=`<div class="muted">${esc(err?.message || 'No se pudo leer el historial de bajas.')}</div>`;
+  }
+}
+
 async function loadCommunications(){
   try {
     const data = await apiFetch('/admin/communications/summary');
@@ -1600,8 +1637,10 @@ async function loadCommunications(){
 function setCommunicationAudience(audience){
   saveCommunicationDraft();
   state.communications.audience = audience;
+  state.communications.optOutItems = [];
   if(!state.communications.drafts[audience]) state.communications.drafts[audience] = defaultCommunicationDraft(audience);
   document.getElementById('communicationMsg').textContent = '';
+  const panel=document.getElementById('communicationOptOutPanel'); if(panel) panel.style.display='none';
   renderCommunications();
 }
 async function sendCommunication(){
@@ -1629,6 +1668,7 @@ async function sendCommunication(){
 async function loadMailCommunicationPreference(email){
   const box = document.getElementById('mailCommunicationPreference');
   const txt = document.getElementById('mailPreferenceText');
+  const hist = document.getElementById('mailPreferenceHistory');
   const outBtn = document.getElementById('btnMailOptOut');
   const inBtn = document.getElementById('btnMailOptIn');
   if(!email){ box.style.display='none'; return; }
@@ -1637,6 +1677,7 @@ async function loadMailCommunicationPreference(email){
     if(!data.found){ box.style.display='none'; return; }
     box.style.display='block';
     txt.textContent = data.optOut ? `Este correo pidió no recibir comunicaciones informativas${data.optOutAt ? ' · ' + fd(data.optOutAt) : ''}.` : 'Este correo está habilitado para recibir comunicaciones informativas.';
+    if(hist) hist.innerHTML = `<div class="muted small" style="font-weight:700;margin-bottom:3px">Historial de preferencia</div>${communicationPreferenceHistoryHtml(data.history || [])}`;
     outBtn.style.display = data.optOut ? 'none' : '';
     inBtn.style.display = data.optOut ? '' : 'none';
   } catch { box.style.display='none'; }
@@ -1644,10 +1685,17 @@ async function loadMailCommunicationPreference(email){
 async function setMailCommunicationPreference(optOut){
   const email = state.mail.selectedFromAddress || '';
   if(!email) return;
+  const promptText=optOut
+    ? 'Indicá brevemente por qué Administración registra esta baja (por ejemplo: “El candidato lo solicitó en el correo recibido”).'
+    : 'Indicá brevemente por qué se rehabilitan las comunicaciones (por ejemplo: “El candidato pidió volver a recibirlas”).';
+  const reason=prompt(promptText,'');
+  if(reason===null) return;
+  if(String(reason || '').trim().length<5){ alert('Ingresá un motivo breve para dejar trazabilidad.'); return; }
   try {
-    await apiFetch('/admin/communications/preference', { method:'POST', body:JSON.stringify({ email, optOut }) });
+    await apiFetch('/admin/communications/preference', { method:'POST', body:JSON.stringify({ email, optOut, reason:String(reason).trim() }) });
     await loadMailCommunicationPreference(email);
     await loadCommunications();
+    if(document.getElementById('communicationOptOutPanel')?.style.display !== 'none') await loadCommunicationOptOuts();
   } catch (err) { alert(err?.message || 'No se pudo actualizar la preferencia.'); }
 }
 
@@ -1795,6 +1843,8 @@ document.getElementById('btnTraceYearNext').onclick = () => { const years = (sta
 document.getElementById('btnAudienceCandidate').onclick = () => setCommunicationAudience('CANDIDATE');
 document.getElementById('btnAudienceCompany').onclick = () => setCommunicationAudience('COMPANY');
 document.getElementById('btnRefreshCommunications').onclick = () => loadCommunications();
+document.getElementById('commOptOutCard').onclick = () => loadCommunicationOptOuts();
+document.getElementById('btnCloseOptOutPanel').onclick = () => { document.getElementById('communicationOptOutPanel').style.display='none'; };
 document.getElementById('btnSendCommunication').onclick = () => sendCommunication();
 document.getElementById('communicationSubject').oninput = () => saveCommunicationDraft();
 document.getElementById('communicationBody').oninput = () => saveCommunicationDraft();
@@ -1870,7 +1920,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v7.10.4: el estado de la cola se refresca mientras Administración permanece abierto.
+// v7.10.6: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();

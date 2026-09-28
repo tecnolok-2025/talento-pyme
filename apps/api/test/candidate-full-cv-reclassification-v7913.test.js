@@ -24,12 +24,12 @@ function classificationFns(){
   return ctx.__out;
 }
 
-test('v7.10.4 unifica versión y recalcula sin persistir una nota vieja',()=>{
-  assert.equal(pkg.version,'7.10.4');
+test('v7.10.6 unifica versión y recalcula sin persistir una nota vieja',()=>{
+  assert.equal(pkg.version,'7.10.6');
   assert.match(api,/function buildCandidateAdminClassification/);
 });
 
-test('v7.10.4 estima trayectoria desde períodos laborales fechados del CV',()=>{
+test('v7.10.6 estima trayectoria desde períodos laborales fechados del CV',()=>{
   const {estimateExperienceYearsFromResumeDates}=classificationFns();
   const r=estimateExperienceYearsFromResumeDates('1994-2004 Técnico eléctrico. 2004-2014 Supervisor. 2014-Presente Jefe de mantenimiento.');
   assert.ok(r.years>=30,`esperado >=30 años, recibido ${r.years}`);

@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: v7.10.6 agrega historial append-only sin reemplazar el estado vigente de User
+ok 1 - v7.10.6 agrega historial append-only sin reemplazar el estado vigente de User
+  ---
+  duration_ms: 1.389574
+  type: 'test'
+  ...
+# Subtest: migración histórica conserva sólo datos comprobables y es idempotente
+ok 2 - migración histórica conserva sólo datos comprobables y es idempotente
+  ---
+  duration_ms: 0.387552
+  type: 'test'
+  ...
+# Subtest: simulación es sólo lectura y rollback no toca User
+ok 3 - simulación es sólo lectura y rollback no toca User
+  ---
+  duration_ms: 0.451029
+  type: 'test'
+  ...
+# Subtest: nuevas bajas y rehabilitaciones se registran en una misma transacción
+ok 4 - nuevas bajas y rehabilitaciones se registran en una misma transacción
+  ---
+  duration_ms: 0.343619
+  type: 'test'
+  ...
+# Subtest: Administración puede ver quién está de baja, desde cuándo y su historial
+ok 5 - Administración puede ver quién está de baja, desde cuándo y su historial
+  ---
+  duration_ms: 0.725304
+  type: 'test'
+  ...
+# Subtest: rehabilitación administrativa exige motivo y conserva administrador
+ok 6 - rehabilitación administrativa exige motivo y conserva administrador
+  ---
+  duration_ms: 0.695281
+  type: 'test'
+  ...
+# Subtest: v7.10.6 unifica variantes evidentes de Campana sin tocar el dato almacenado
+ok 7 - v7.10.6 unifica variantes evidentes de Campana sin tocar el dato almacenado
+  ---
+  duration_ms: 4.817301
+  type: 'test'
+  ...
+# Subtest: v7.10.6 corrige campos desplazados y provincias no territoriales cuando la ciudad es inequívoca
+ok 8 - v7.10.6 corrige campos desplazados y provincias no territoriales cuando la ciudad es inequívoca
+  ---
+  duration_ms: 6.146704
+  type: 'test'
+  ...
+# Subtest: v7.10.6 unifica variantes evidentes de Zárate, Escobar y Tigre
+ok 9 - v7.10.6 unifica variantes evidentes de Zárate, Escobar y Tigre
+  ---
+  duration_ms: 1.837437
+  type: 'test'
+  ...
+# Subtest: v7.10.6 usa sólo señales territoriales de alta confianza para completar
+ok 10 - v7.10.6 usa sólo señales territoriales de alta confianza para completar
+  ---
+  duration_ms: 2.263004
+  type: 'test'
+  ...
+# Subtest: v7.10.6 preserva localidades válidas y canoniza sólo presentación
+ok 11 - v7.10.6 preserva localidades válidas y canoniza sólo presentación
+  ---
+  duration_ms: 1.988311
+  type: 'test'
+  ...
+# Subtest: v7.10.6 aplica la localidad normalizada también a filtros y búsqueda Empresa
+ok 12 - v7.10.6 aplica la localidad normalizada también a filtros y búsqueda Empresa
+  ---
+  duration_ms: 0.685901
+  type: 'test'
+  ...
+# Subtest: v7.10.6 aplica la normalización sólo en lectura agregada y reportes
+ok 13 - v7.10.6 aplica la normalización sólo en lectura agregada y reportes
+  ---
+  duration_ms: 0.603972
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 119.738051

@@ -1,0 +1,10 @@
+Talento PyME v7.10.6 · PARCHE DIRECTO DESDE v7.10.4
+
+1. Hacer copia del repositorio actual.
+2. Extraer TODO el contenido de este ZIP sobre la raíz del repositorio v7.10.4, aceptando reemplazos.
+3. Subir/commitear los cambios al mismo repositorio usado por Render.
+4. Render ejecutará npm start y aplicará automáticamente la migración aditiva v7.10.6.
+5. Confirmar en el log: Talento PyME API escuchando ... (v7.10.6).
+
+NO instalar v7.10.5 antes. Este parche ya la incorpora.
+No incluye .env, claves, backups ni datos de producción.

@@ -15,7 +15,7 @@ const cv = fs.readFileSync(path.join(root, 'apps/api/src/services/candidate-cv.j
 const config = fs.readFileSync(path.join(root, 'apps/web/config.js'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'apps/api/package.json'), 'utf8'));
 
-test('v7.10.4 agrega residencia y presentación por voz/texto al perfil candidato', () => {
+test('v7.10.6 agrega residencia y presentación por voz/texto al perfil candidato', () => {
   assert.match(schema, /paisResidencia\s+String\?/);
   assert.match(schema, /voiceNarrativeRaw\s+String\?/);
   assert.match(schema, /voiceNarrativeSummary\s+String\?/);
@@ -37,7 +37,7 @@ test('registro rápido permite guardar datos base y presentación para continuar
 test('administración muestra presentación personal y trazabilidad geográfica', () => {
   assert.match(admin, /Presentación profesional ampliada por Talento PyME/);
   assert.match(admin, /Texto profesional principal/);
-  assert.match(admin, /Candidatos por país de residencia y ciudad/);
+  assert.match(admin, /Candidatos por residencia normalizada/);
   assert.match(admin, /traceCandidateResidenceComposition/);
   assert.match(api, /candidatesByResidence/);
 });
@@ -66,7 +66,7 @@ test('búsqueda empresarial usa evidencia sin publicar texto libre previo a aper
 const block=api.slice(api.indexOf("app.get('/jobs/search'"),api.indexOf("app.get('/jobs/candidate/:id/detail'"));assert.match(block,/candidateProfessionalSearchText/);assert.match(block,/observaciones: ''/);
 });
 
-test('versión unificada 7.10.4', () => {
-  assert.equal(pkg.version, '7.10.4');
-  assert.match(config, /TP_APP_VERSION = "7\.10\.4"/);
+test('versión unificada 7.10.6', () => {
+  assert.equal(pkg.version, '7.10.6');
+  assert.match(config, /TP_APP_VERSION = "7\.10\.6"/);
 });

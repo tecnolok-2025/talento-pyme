@@ -46,6 +46,27 @@ enum SupportActor {
   SYSTEM
 }
 
+enum CommunicationPreferenceAction {
+  OPT_OUT
+  OPT_IN
+  LEGACY_OPT_OUT_SNAPSHOT
+}
+
+enum CommunicationPreferenceSource {
+  SELF_SERVICE_LINK
+  EMAIL_PROVIDER_ONE_CLICK
+  ADMIN_PANEL
+  ADMIN_MAIL_REPLY
+  SYSTEM_MIGRATION
+}
+
+enum CommunicationPreferenceActorType {
+  USER
+  ADMIN
+  EMAIL_PROVIDER
+  SYSTEM
+}
+
 model User {
   id                        String   @id @default(cuid())
   email                     String   @unique
@@ -70,6 +91,8 @@ model User {
   applications Application[]
   supportThreads SupportThread[]
   passwordResetChallenges PasswordResetChallenge[]
+  communicationPreferenceEvents CommunicationPreferenceEvent[] @relation("PreferenceSubject")
+  communicationPreferenceActions CommunicationPreferenceEvent[] @relation("PreferenceActor")
 }
 
 
@@ -93,6 +116,7 @@ model AdminCommunication {
   createdAt           DateTime @default(now())
 
   recipients          AdminCommunicationRecipient[]
+  preferenceEvents    CommunicationPreferenceEvent[]
 
   @@index([audience, createdAt])
   @@index([status, createdAt])
@@ -112,10 +136,44 @@ model AdminCommunicationRecipient {
   updatedAt        DateTime @updatedAt
 
   communication    AdminCommunication @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+  preferenceEvents CommunicationPreferenceEvent[]
 
   @@unique([communicationId, userId])
   @@index([communicationId, status, createdAt])
   @@index([sentDayKey, status])
+}
+
+model CommunicationPreferenceEvent {
+  id                 String   @id @default(cuid())
+  userId             String
+  emailSnapshot      String
+  action             CommunicationPreferenceAction
+  previousOptOut     Boolean?
+  newOptOut          Boolean
+  source             CommunicationPreferenceSource
+  actorType          CommunicationPreferenceActorType
+  actorUserId        String?
+  actorNameSnapshot  String?
+  actorEmailSnapshot String?
+  reasonCode         String
+  reasonText         String?
+  communicationId    String?
+  recipientId        String?
+  idempotencyKey     String?  @unique
+  metadata           Json?
+  createdAt          DateTime @default(now())
+
+  user          User                         @relation("PreferenceSubject", fields: [userId], references: [id], onDelete: Restrict)
+  actorUser     User?                        @relation("PreferenceActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  communication AdminCommunication?          @relation(fields: [communicationId], references: [id], onDelete: SetNull)
+  recipient     AdminCommunicationRecipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([emailSnapshot, createdAt])
+  @@index([action, createdAt])
+  @@index([source, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([communicationId, createdAt])
 }
 
 model Profile {

@@ -321,7 +321,7 @@ export async function buildTraceabilityPdfBuffer(data){
   table(doc,['Tipo de perfil','Cantidad','Participación'],(comp.candidatesByClass || []).map(x=>[x.label,fmtNum(x.count),fmtPct(pct(x.count,s.candidateCount))]),{widths:[285,100,110]});
   table(doc,['Expertise principal','Cantidad','Participación'],(comp.candidatesByExpertise || []).map(x=>[x.label,fmtNum(x.count),fmtPct(pct(x.count,s.candidateCount))]),{widths:[285,100,110]});
 
-  sectionTitle(doc,'4.1 País, provincia / región y ciudad de residencia','Distribución geográfica agregada de candidatos. No se cruza con expertise para mantener una lectura simple y compacta.');
+  sectionTitle(doc,'4.1 País, provincia / región y ciudad de residencia','Distribución geográfica agregada y normalizada para unificar variantes de escritura y campos desplazados, sin modificar los datos originales del candidato.');
   table(doc,['País','Provincia / región','Ciudad','Cantidad','Participación'],(comp.candidatesByResidence || []).map(x=>[x.country || 'País no informado',x.province || 'Provincia / región no informada',x.city || 'Ciudad no informada',fmtNum(x.count),fmtPct(pct(x.count,s.candidateCount))]),{widths:[105,140,135,55,60]});
 
   sectionTitle(doc,'5. Composición de empresas','Clasificación por familia y actividad principal declarada o inferida administrativamente.');

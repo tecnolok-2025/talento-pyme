@@ -20,7 +20,7 @@ import { createPaymentProvider, getPaymentConfigFromEnv } from "./services/payme
 import { assertNoCardData, listForbiddenPaymentFields, sanitizeCheckoutPayloadForLog, sha256Hex, PaymentProviderError, PaymentSecurityError } from "./services/payments/provider.js";
 import { buildTraceabilityPdfBuffer, buildTraceabilityReportFilename, buildTraceabilityEmailSubject, buildTraceabilityNarrative } from "./services/traceability-report.js";
 import { buildCandidateCvPdfBuffer, buildCandidateCvFilename, buildCandidateSampleCvData } from "./services/candidate-cv.js";
-import { inferResidence, isArgentinaProvince } from "./services/residence.js";
+import { inferResidence, isArgentinaProvince, normalizeResidenceForGrouping } from "./services/residence.js";
 
 const prisma = new PrismaClient();
 const app = express();
@@ -843,14 +843,124 @@ function communicationDefaultSubject(audience){
     : 'Talento PyME · Información para candidatos';
 }
 
-function buildBulkEmailUnsubscribeToken(userId){
-  return jwt.sign({ sub:String(userId || ''), purpose:'BULK_EMAIL_UNSUBSCRIBE' }, JWT_SECRET);
+function buildBulkEmailUnsubscribeToken(userId, context={}){
+  const payload={ sub:String(userId || ''), purpose:'BULK_EMAIL_UNSUBSCRIBE' };
+  if(context.communicationId) payload.communicationId=String(context.communicationId);
+  if(context.recipientId) payload.recipientId=String(context.recipientId);
+  return jwt.sign(payload, JWT_SECRET);
 }
 
 function verifyBulkEmailUnsubscribeToken(token){
   const decoded = jwt.verify(String(token || ''), JWT_SECRET);
   if(decoded?.purpose !== 'BULK_EMAIL_UNSUBSCRIBE' || !decoded?.sub) throw new Error('INVALID_UNSUBSCRIBE_TOKEN');
   return decoded;
+}
+
+function communicationPreferenceSourceLabel(source){
+  return ({
+    SELF_SERVICE_LINK:'Enlace de baja del correo',
+    EMAIL_PROVIDER_ONE_CLICK:'Baja desde el proveedor de correo',
+    ADMIN_PANEL:'Administración',
+    ADMIN_MAIL_REPLY:'Administración · solicitud recibida por correo',
+    SYSTEM_MIGRATION:'Registro histórico migrado',
+  })[String(source || '').toUpperCase()] || 'Origen no determinado';
+}
+
+function communicationPreferenceActionLabel(action){
+  return ({
+    OPT_OUT:'Baja de comunicaciones',
+    OPT_IN:'Rehabilitación de comunicaciones',
+    LEGACY_OPT_OUT_SNAPSHOT:'Baja histórica registrada',
+  })[String(action || '').toUpperCase()] || 'Cambio de preferencia';
+}
+
+async function communicationPreferenceActorSnapshot(tx, actorUserId){
+  const actorId=String(actorUserId || '').trim();
+  if(!actorId) return { actorUserId:null, actorNameSnapshot:null, actorEmailSnapshot:null };
+  if(actorId===VIRTUAL_ADMIN_USER_ID){
+    return { actorUserId:null, actorNameSnapshot:'Administración Talento PyME', actorEmailSnapshot:FACTORY_SUPPORT_EMAIL || null };
+  }
+  const actor=await tx.user.findUnique({
+    where:{id:actorId},
+    select:{id:true,email:true,candidateProfile:{select:{fullName:true}},company:{select:{companyName:true}}},
+  }).catch(()=>null);
+  if(!actor) return { actorUserId:null, actorNameSnapshot:'Administración Talento PyME', actorEmailSnapshot:null };
+  return {
+    actorUserId:actor.id,
+    actorNameSnapshot:clampText(actor.candidateProfile?.fullName || actor.company?.companyName || actor.email || 'Administración Talento PyME',180),
+    actorEmailSnapshot:normalizeEmail(actor.email) || null,
+  };
+}
+
+async function changeCommunicationPreference({
+  userId, optOut, source, actorType, actorUserId=null, reasonCode, reasonText=null,
+  communicationId=null, recipientId=null, metadata=null, legacyOptOutReason=null,
+}){
+  return prisma.$transaction(async (tx)=>{
+    const user=await tx.user.findUnique({
+      where:{id:String(userId || '')},
+      select:{id:true,email:true,role:true,bulkEmailOptOutAt:true,company:{select:{contactEmail:true}}},
+    });
+    if(!user || !['CANDIDATE','COMPANY'].includes(String(user.role || '').toUpperCase())) throw new Error('INVALID_COMMUNICATION_PREFERENCE_USER');
+    const previousOptOut=Boolean(user.bulkEmailOptOutAt);
+    const nextOptOut=Boolean(optOut);
+    if(previousOptOut===nextOptOut){
+      return { changed:false, userId:user.id, role:user.role, optOut:previousOptOut, optOutAt:user.bulkEmailOptOutAt || null };
+    }
+    const now=new Date();
+    const actor=actorType==='ADMIN' ? await communicationPreferenceActorSnapshot(tx,actorUserId) : {actorUserId:null,actorNameSnapshot:null,actorEmailSnapshot:null};
+    const emailSnapshot=normalizeEmail(user.role==='COMPANY' ? (user.company?.contactEmail || user.email) : user.email) || normalizeEmail(user.email);
+    await tx.communicationPreferenceEvent.create({
+      data:{
+        userId:user.id,
+        emailSnapshot,
+        action:nextOptOut ? 'OPT_OUT' : 'OPT_IN',
+        previousOptOut,
+        newOptOut:nextOptOut,
+        source,
+        actorType,
+        actorUserId:actor.actorUserId,
+        actorNameSnapshot:actor.actorNameSnapshot,
+        actorEmailSnapshot:actor.actorEmailSnapshot,
+        reasonCode:clampText(reasonCode || (nextOptOut ? 'OPT_OUT' : 'OPT_IN'),120),
+        reasonText:clampMultilineText(reasonText || '',1000) || null,
+        communicationId:communicationId || null,
+        recipientId:recipientId || null,
+        metadata:metadata && typeof metadata==='object' ? metadata : undefined,
+        createdAt:now,
+      },
+    });
+    await tx.user.update({
+      where:{id:user.id},
+      data:{
+        bulkEmailOptOutAt:nextOptOut ? now : null,
+        bulkEmailOptOutReason:nextOptOut ? clampText(legacyOptOutReason || source,120) : null,
+      },
+    });
+    return { changed:true, userId:user.id, role:user.role, optOut:nextOptOut, optOutAt:nextOptOut ? now : null };
+  });
+}
+
+function shapeCommunicationPreferenceEvent(event){
+  if(!event) return null;
+  const metadata=event.metadata && typeof event.metadata==='object' ? event.metadata : null;
+  return {
+    id:event.id,
+    action:event.action,
+    actionLabel:communicationPreferenceActionLabel(event.action),
+    previousOptOut:event.previousOptOut,
+    newOptOut:event.newOptOut,
+    source:event.source,
+    sourceLabel:communicationPreferenceSourceLabel(event.source),
+    reasonCode:event.reasonCode,
+    reasonText:event.reasonText || null,
+    createdAt:event.createdAt,
+    actorName:event.actorNameSnapshot || null,
+    actorEmail:event.actorEmailSnapshot || null,
+    historicalReconstruction:Boolean(metadata?.reconstructedFromCurrentState),
+    legacyReason:metadata?.legacyBulkEmailOptOutReason || null,
+    legacyReasonLabel:metadata?.legacyBulkEmailOptOutReason ? communicationPreferenceSourceLabel(metadata.legacyBulkEmailOptOutReason) : null,
+  };
 }
 
 function bulkCommunicationFooterText(unsubscribeUrl){
@@ -1116,7 +1226,7 @@ async function processCommunicationQueueOnce(){
       return;
     }
 
-    const token = buildBulkEmailUnsubscribeToken(recipient.userId);
+    const token = buildBulkEmailUnsubscribeToken(recipient.userId,{ communicationId:communication.id, recipientId:recipient.id });
     const apiBaseUrl = String(process.env.PUBLIC_API_URL || 'https://talento-pyme-api.onrender.com').replace(/\/$/, '');
     const unsubscribeApiUrl = `${apiBaseUrl}/communications/unsubscribe?token=${encodeURIComponent(token)}`;
     const unsubscribePageUrl = `${WEB_BASE_URL}/unsubscribe.html?token=${encodeURIComponent(token)}`;
@@ -4055,7 +4165,7 @@ function facetStats(items) {
   const especialidad_by_area = {};
   for (const it of items || []) {
     const area = String(it.areaTrabajo || '').trim();
-    const localidad = String(it.localidad || '').trim();
+    const localidad = String(it.localidadNormalizada || it.localidad || '').trim();
     const nivel = String(it.nivel || '').trim();
     const exp = String(it.rangoExperiencia || '').trim();
     const edu = String(it.nivelEducativo || '').trim();
@@ -4080,8 +4190,10 @@ app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
       orderBy: { updatedAt: 'desc' },
     });
     const classified=items.map(it=>{
-      const c=buildCandidateAdminClassification({candidateBolsa:it,resume:it.user?.resume,candidateProfile:it.user?.candidateProfile});
-      return {...it,areaTrabajo:c.expertiseLabel,especialidad:c.profileTitle,nivel:c.classLabel};
+      const candidate={candidateBolsa:it,resume:it.user?.resume,candidateProfile:it.user?.candidateProfile};
+      const c=buildCandidateAdminClassification(candidate);
+      const residence=candidateResidence(candidate);
+      return {...it,localidadNormalizada:residence.city,areaTrabajo:c.expertiseLabel,especialidad:c.profileTitle,nivel:c.classLabel};
     });
     const rawStats = facetStats(classified);
     const facets = Object.fromEntries(
@@ -4130,14 +4242,15 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
 
     const classified=all.map(it=>{
       const candidate={candidateBolsa:it,resume:it.user?.resume,candidateProfile:it.user?.candidateProfile};
-      return {...it,classification:buildCandidateAdminClassification(candidate),candidate};
+      const residence=candidateResidence(candidate);
+      return {...it,localidadNormalizada:residence.city,classification:buildCandidateAdminClassification(candidate),candidate};
     });
     const sinceDate = _registeredSinceDate(ultimaActualizacion);
     const filtered = classified.filter((it) => {
       const c=it.classification;
-      if(q && !adminSearchTextMatch(candidateProfessionalSearchText(it.candidate,c),q)) return false;
+      if(q && !adminSearchTextMatch(`${candidateProfessionalSearchText(it.candidate,c)} ${it.localidadNormalizada || ''}`,q)) return false;
       if(area && c.expertiseLabel !== area) return false;
-      if(localidad && !localityMatches(it.localidad,localidad)) return false;
+      if(localidad && !localityMatches(it.localidadNormalizada || it.localidad,localidad)) return false;
       if(nivel && c.classLabel !== nivel) return false;
       if(especialidad && c.profileTitle !== especialidad) return false;
       if (rangoExperiencia && String(it.rangoExperiencia || '') !== rangoExperiencia) return false;
@@ -4160,7 +4273,7 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
       nivel_propuesto: it.classification.seniorityLabel,
       nombre: it.nombre,
       apellido: it.apellido,
-      localidad: it.localidad,
+      localidad: it.localidadNormalizada || it.localidad,
       area_trabajo: it.classification.expertiseLabel,
       nivel: it.classification.classLabel,
       especialidad: it.classification.profileTitle,
@@ -6782,10 +6895,15 @@ function traceabilityCountBy(items = [], keyField, labelField){
 function candidateResidence(candidate = {}){
   const bolsa=candidate.candidateBolsa || {};
   const profile=candidate.candidateProfile || {};
-  return inferResidence({
+  return normalizeResidenceForGrouping({
     locality:bolsa.localidad || profile.city || '',
     province:bolsa.provinciaResidencia || profile.province || '',
     country:bolsa.paisResidencia || profile.country || '',
+    alternateLocality:profile.city || bolsa.localidad || '',
+    alternateProvince:profile.province || bolsa.provinciaResidencia || '',
+    alternateCountry:profile.country || bolsa.paisResidencia || '',
+    address:bolsa.direccion || profile.address || '',
+    alternateAddress:profile.address || bolsa.direccion || '',
   });
 }
 
@@ -6889,8 +7007,8 @@ async function buildTraceabilityReportSnapshot(){
       where:{ role:'CANDIDATE' },
       select:{
         id:true, createdAt:true,
-        candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, country:true, headline:true, sector:true, subSector:true, updatedAt:true } },
-        candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, provinciaResidencia:true, paisResidencia:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, voiceNarrativeAnalysisVersion:true, voiceNarrativeAnalysisSource:true, voiceNarrativeYears:true, voiceNarrativeProfessionalTitle:true, voiceNarrativeStrengths:true, voiceNarrativeMotivation:true, voiceNarrativeClosing:true, voiceNarrativeAnalyzedAt:true, updatedAt:true } },
+        candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, country:true, address:true, headline:true, sector:true, subSector:true, updatedAt:true } },
+        candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, provinciaResidencia:true, paisResidencia:true, direccion:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, voiceNarrativeAnalysisVersion:true, voiceNarrativeAnalysisSource:true, voiceNarrativeYears:true, voiceNarrativeProfessionalTitle:true, voiceNarrativeStrengths:true, voiceNarrativeMotivation:true, voiceNarrativeClosing:true, voiceNarrativeAnalyzedAt:true, updatedAt:true } },
         resume:{ select:{ summary:true, experience:true, education:true, certifications:true, observations:true, updatedAt:true } },
       },
     }).catch(()=>[]),
@@ -7384,6 +7502,45 @@ app.post('/admin/communications/:communicationId/cancel', auth, requireAnyRole([
   }
 });
 
+app.get('/admin/communications/opt-outs', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  const audience=String(req.query?.audience || 'CANDIDATE').trim().toUpperCase();
+  if(!['CANDIDATE','COMPANY'].includes(audience)) return res.status(400).json({ error:'Padrón inválido.' });
+  try{
+    const users=await prisma.user.findMany({
+      where:{ role:audience, bulkEmailOptOutAt:{not:null} },
+      select:{
+        id:true,email:true,role:true,bulkEmailOptOutAt:true,bulkEmailOptOutReason:true,
+        candidateProfile:{select:{fullName:true}},
+        company:{select:{contactEmail:true,companyName:true}},
+        communicationPreferenceEvents:{orderBy:{createdAt:'desc'},take:50},
+      },
+      orderBy:{bulkEmailOptOutAt:'desc'},
+    });
+    const items=users.map((user)=>{
+      const history=(user.communicationPreferenceEvents || []).map(shapeCommunicationPreferenceEvent);
+      const latest=history[0] || null;
+      return {
+        userId:user.id,
+        role:user.role,
+        name:user.role==='COMPANY' ? (user.company?.companyName || 'Empresa') : (user.candidateProfile?.fullName || 'Candidato'),
+        email:normalizeEmail(user.role==='COMPANY' ? (user.company?.contactEmail || user.email) : user.email),
+        optOut:true,
+        optOutAt:user.bulkEmailOptOutAt,
+        legacyReason:user.bulkEmailOptOutReason || null,
+        currentSource:latest?.source || null,
+        currentSourceLabel:latest?.historicalReconstruction && latest?.legacyReason
+          ? `Registro histórico · dato disponible: ${communicationPreferenceSourceLabel(latest.legacyReason)}`
+          : (latest?.sourceLabel || 'Registro histórico sin origen verificable'),
+        history,
+      };
+    });
+    return res.json({ok:true,audience,total:items.length,items});
+  }catch(err){
+    console.error('GET /admin/communications/opt-outs',err?.message || err);
+    return res.status(500).json({error:'No se pudo leer el historial de bajas.'});
+  }
+});
+
 app.get('/admin/communications/preference', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   const email = normalizeEmail(req.query?.email || '');
   if(!email) return res.status(400).json({ error:'Falta el correo a consultar.' });
@@ -7392,20 +7549,33 @@ app.get('/admin/communications/preference', auth, requireAnyRole(['ADMIN','SUPER
       { email:{ equals:email, mode:'insensitive' } },
       { company:{ is:{ contactEmail:{ equals:email, mode:'insensitive' } } } },
     ]},
-    select:{ id:true, email:true, role:true, bulkEmailOptOutAt:true, company:{ select:{ contactEmail:true, companyName:true } } },
+    select:{
+      id:true,email:true,role:true,bulkEmailOptOutAt:true,bulkEmailOptOutReason:true,
+      company:{select:{contactEmail:true,companyName:true}},candidateProfile:{select:{fullName:true}},
+      communicationPreferenceEvents:{orderBy:{createdAt:'desc'},take:50},
+    },
   }).catch(() => null);
   if(!user) return res.json({ ok:true, found:false });
-  return res.json({ ok:true, found:true, userId:user.id, role:user.role, email:normalizeEmail(user.company?.contactEmail || user.email), optOut:Boolean(user.bulkEmailOptOutAt), optOutAt:user.bulkEmailOptOutAt || null });
+  const history=(user.communicationPreferenceEvents || []).map(shapeCommunicationPreferenceEvent);
+  return res.json({
+    ok:true,found:true,userId:user.id,role:user.role,
+    name:user.role==='COMPANY' ? (user.company?.companyName || 'Empresa') : (user.candidateProfile?.fullName || 'Candidato'),
+    email:normalizeEmail(user.company?.contactEmail || user.email),
+    optOut:Boolean(user.bulkEmailOptOutAt),optOutAt:user.bulkEmailOptOutAt || null,
+    optOutReason:user.bulkEmailOptOutReason || null,
+    history,
+  });
 });
 
 const adminCommunicationPreferenceSchema = z.object({
   email:z.string().trim().email(),
   optOut:z.boolean(),
+  reason:z.string().trim().min(5).max(1000),
 });
 
 app.post('/admin/communications/preference', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   const parsed = adminCommunicationPreferenceSchema.safeParse(req.body || {});
-  if(!parsed.success) return res.status(400).json({ error:'Preferencia inválida.' });
+  if(!parsed.success) return res.status(400).json({ error:'Indicá el correo, la preferencia y un motivo breve para dejar trazabilidad.' });
   const email = normalizeEmail(parsed.data.email);
   const user = await prisma.user.findFirst({
     where:{ role:{ in:['CANDIDATE','COMPANY'] }, OR:[
@@ -7415,8 +7585,23 @@ app.post('/admin/communications/preference', auth, requireAnyRole(['ADMIN','SUPE
     select:{ id:true, role:true },
   });
   if(!user) return res.status(404).json({ error:'No encontramos una cuenta candidata o empresa asociada a ese correo.' });
-  await prisma.user.update({ where:{ id:user.id }, data:{ bulkEmailOptOutAt:parsed.data.optOut ? new Date() : null, bulkEmailOptOutReason:parsed.data.optOut ? 'ADMIN_MAIL_REPLY' : null } });
-  return res.json({ ok:true, role:user.role, optOut:parsed.data.optOut });
+  try{
+    const result=await changeCommunicationPreference({
+      userId:user.id,
+      optOut:parsed.data.optOut,
+      source:'ADMIN_MAIL_REPLY',
+      actorType:'ADMIN',
+      actorUserId:req.user?.id || null,
+      reasonCode:parsed.data.optOut ? 'ADMIN_REQUESTED_OPT_OUT' : 'ADMIN_REQUESTED_OPT_IN',
+      reasonText:parsed.data.reason,
+      legacyOptOutReason:'ADMIN_MAIL_REPLY',
+      metadata:{ channel:'ADMIN_MAIL_PANEL' },
+    });
+    return res.json({ ok:true, role:user.role, optOut:result.optOut, changed:result.changed, optOutAt:result.optOutAt || null });
+  }catch(err){
+    console.error('POST /admin/communications/preference',err?.message || err);
+    return res.status(500).json({error:'No se pudo actualizar la preferencia con trazabilidad.'});
+  }
 });
 
 app.post('/communications/unsubscribe', async (req, res) => {
@@ -7425,8 +7610,39 @@ app.post('/communications/unsubscribe', async (req, res) => {
     const decoded = verifyBulkEmailUnsubscribeToken(token);
     const user = await prisma.user.findUnique({ where:{ id:String(decoded.sub) }, select:{ id:true, role:true } });
     if(!user || !['CANDIDATE','COMPANY'].includes(user.role)) throw new Error('INVALID_UNSUBSCRIBE_USER');
-    await prisma.user.update({ where:{ id:user.id }, data:{ bulkEmailOptOutAt:new Date(), bulkEmailOptOutReason:'SELF_SERVICE_LINK' } });
-    return res.json({ ok:true, message:'Tu preferencia fue actualizada. No recibirás futuras comunicaciones informativas generales de Talento PyME.' });
+
+    let communicationId=null, recipientId=null;
+    if(decoded?.recipientId){
+      const recipient=await prisma.adminCommunicationRecipient.findUnique({
+        where:{id:String(decoded.recipientId)},
+        select:{id:true,userId:true,communicationId:true},
+      }).catch(()=>null);
+      if(recipient && recipient.userId===user.id && (!decoded.communicationId || recipient.communicationId===String(decoded.communicationId))){
+        communicationId=recipient.communicationId;
+        recipientId=recipient.id;
+      }
+    }
+    const contentType=String(req.headers['content-type'] || '').toLowerCase();
+    const oneClickProvider=contentType.includes('application/x-www-form-urlencoded');
+    const source=oneClickProvider ? 'EMAIL_PROVIDER_ONE_CLICK' : 'SELF_SERVICE_LINK';
+    const actorType=oneClickProvider ? 'EMAIL_PROVIDER' : 'USER';
+    const result=await changeCommunicationPreference({
+      userId:user.id,
+      optOut:true,
+      source,
+      actorType,
+      reasonCode:oneClickProvider ? 'EMAIL_PROVIDER_ONE_CLICK' : 'USER_UNSUBSCRIBE_EMAIL_LINK',
+      reasonText:null,
+      communicationId,
+      recipientId,
+      legacyOptOutReason:source,
+      metadata:{ unsubscribeTokenContext:Boolean(decoded?.communicationId || decoded?.recipientId) },
+    });
+    return res.json({
+      ok:true,
+      changed:result.changed,
+      message:'Tu preferencia fue actualizada. No recibirás futuras comunicaciones informativas generales de Talento PyME.'
+    });
   } catch (err) {
     return res.status(400).json({ error:'El enlace de baja no es válido o ya no puede utilizarse.' });
   }
@@ -8045,8 +8261,8 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
         orderBy: { createdAt:'desc' },
         select: {
           id:true, email:true, candidateKeepIndefinitely:true, createdAt:true,
-          candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, country:true, headline:true, sector:true, subSector:true, updatedAt:true } },
-          candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, provinciaResidencia:true, paisResidencia:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, voiceNarrativeAnalysisVersion:true, voiceNarrativeAnalysisSource:true, voiceNarrativeYears:true, voiceNarrativeProfessionalTitle:true, voiceNarrativeStrengths:true, voiceNarrativeMotivation:true, voiceNarrativeClosing:true, voiceNarrativeAnalyzedAt:true, sueldoPretendido:true, updatedAt:true } },
+          candidateProfile:{ select:{ fullName:true, dni:true, city:true, province:true, country:true, address:true, headline:true, sector:true, subSector:true, updatedAt:true } },
+          candidateBolsa:{ select:{ nombre:true, apellido:true, dni:true, correo:true, localidad:true, provinciaResidencia:true, paisResidencia:true, direccion:true, nacionalidad:true, areaTrabajo:true, nivel:true, especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true, tieneCapacitacion:true, trabajaActualmente:true, ultimoTrabajo:true, observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, voiceNarrativeAnalysisVersion:true, voiceNarrativeAnalysisSource:true, voiceNarrativeYears:true, voiceNarrativeProfessionalTitle:true, voiceNarrativeStrengths:true, voiceNarrativeMotivation:true, voiceNarrativeClosing:true, voiceNarrativeAnalyzedAt:true, sueldoPretendido:true, updatedAt:true } },
           resume:{ select:{ summary:true, experience:true, education:true, certifications:true, observations:true, updatedAt:true } },
         },
       }).catch(() => []),

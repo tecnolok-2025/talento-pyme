@@ -14,8 +14,8 @@ function block(start,end){
   return api.slice(a,b);
 }
 
-test('v7.10.4 incorpora cache persistente versionada sin tocar datos fuente',()=>{
-  assert.equal(pkg.version,'7.10.4');
+test('v7.10.6 incorpora cache persistente versionada sin tocar datos fuente',()=>{
+  assert.equal(pkg.version,'7.10.6');
   assert.match(schema,/model CandidateClassification\s*\{/);
   assert.match(schema,/userId\s+String\s+@unique/);
   assert.match(schema,/classificationVersion\s+String/);

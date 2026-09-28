@@ -1,11 +1,11 @@
-# Revisión actual: 7.10.4 FINAL
+# Revisión actual: 7.10.6 · residencia normalizada + historial de bajas de correo
 
-Ver **RELEASE_FINAL_v7.10.4.md**, **LEER_PRIMERO_v7.10.4.md**, **MIGRACION_ROLLBACK_v7.10.4.md** y **VALIDACION_POST_DEPLOY_v7.10.4.md** antes de desplegar.
+Ver **LEER_PRIMERO_v7.10.6.md**, **AUDITORIA_v7.10.6.md** y **RELEASE_FINAL_v7.10.6.md** antes de desplegar.
 
-> **Estado de v7.10.4:** versión definitiva de código para despliegue controlado. El código funcional es idéntico a la candidata preinstalación auditada; durante este cierre sólo se agregaron documentos de release, checksums y control post-deploy.
-> La recuperación por correo permanece funcionalmente idéntica a v7.10.3.
-> No introducir cambios adicionales antes del deploy salvo que una prueba real revele un defecto concreto.
-
+> **v7.10.6 reemplaza directamente a v7.10.4.** No hace falta instalar v7.10.5 antes.
+> Incluye la normalización territorial de v7.10.5 y agrega trazabilidad de bajas/rehabilitaciones de comunicaciones.
+> La migración es aditiva e idempotente: no elimina candidatos, CV, cuentas ni estados actuales de baja.
+> El clasificador profesional continúa usando motor **7.10.3**; login y recuperación por correo mantienen el comportamiento validado de v7.10.4.
 
 # Talento PyME — v7.9.16
 
