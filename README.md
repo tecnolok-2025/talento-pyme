@@ -1,12 +1,13 @@
-# Revisión actual: 7.10.7 · ajuste fino de residencia normalizada
+# Revisión actual: 7.10.8 · corrección Campana cargada como provincia
 
-Ver **LEER_PRIMERO_v7.10.7.md**, **AUDITORIA_v7.10.7.md** y **RELEASE_FINAL_v7.10.7.md** antes de desplegar.
+Ver **LEER_PRIMERO_v7.10.8.md**, **AUDITORIA_v7.10.8.md** y **RELEASE_FINAL_v7.10.8.md** antes de desplegar.
 
-> **v7.10.7 actualiza directamente v7.10.6.** No agrega cambios de esquema ni nuevas migraciones.
-> Todo valor de localidad compuesto sólo por números/separadores se muestra como **Ciudad no informada**.
-> **San Cayetano** se agrupa como **Campana** por criterio territorial definido para Talento PyME.
+> **v7.10.8 actualiza directamente v7.10.7.** No agrega cambios de esquema ni nuevas migraciones.
+> Si `Campana` fue cargada también en Provincia, se interpreta correctamente como **Campana, Buenos Aires**.
+> Se mantienen las reglas v7.10.7: valores numéricos como **Ciudad no informada** y **San Cayetano** agrupado en **Campana**.
 > No se modifican datos originales de candidatos; el cambio afecta sólo agrupación, búsqueda y reportes.
 > El historial de bajas de v7.10.6, el clasificador profesional 7.10.3, login y recuperación por correo permanecen sin cambios.
+
 
 # Talento PyME — v7.9.16
 

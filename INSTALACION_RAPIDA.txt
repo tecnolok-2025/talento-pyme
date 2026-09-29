@@ -1,10 +1,10 @@
-PARCHE Talento PyME v7.10.6 -> v7.10.7
+TALENTO PYME v7.10.7 -> v7.10.8
 
-Copiar el contenido respetando las carpetas sobre el repositorio v7.10.6.
-Hacer commit y desplegar en Render.
-No hay migración nueva ni cambios de base de datos.
-
-Validar luego:
-- versión visible 7.10.7
-- valores numéricos en localidad => Ciudad no informada
-- San Cayetano => Campana
+1. Extraer este ZIP sobre el repositorio actualmente en v7.10.7, reemplazando los archivos incluidos.
+2. Subir/commit a GitHub como se viene haciendo.
+3. Render desplegará automáticamente o usar Manual Deploy.
+4. No hay migración nueva de Neon/Prisma en v7.10.8.
+5. Verificar en Administración que figure v7.10.8 y que:
+   - Campana / Campana se muestre Argentina · Buenos Aires · Campana.
+   - valores sólo numéricos sigan como Ciudad no informada.
+   - San Cayetano siga agrupado dentro de Campana.

@@ -105,7 +105,7 @@ export function isArgentinaProvince(value=''){
 }
 
 
-// v7.10.7 · normalización no destructiva para agrupaciones y reportes.
+// v7.10.8 · normalización no destructiva para agrupaciones y reportes.
 // Conserva los datos originales del candidato: esta función sólo construye una
 // residencia canónica para lectura agregada, búsquedas y PDF de trazabilidad.
 const GROUPING_CITY_ROWS = [
@@ -249,7 +249,7 @@ export function normalizeResidenceForGrouping({
   const secondaryProvince=String(alternateProvince || '').trim();
 
   // Si el campo principal de localidad contiene sólo números/separadores (teléfono,
-  // código u otro dato desplazado), v7.10.7 lo trata explícitamente como no informado.
+  // código u otro dato desplazado), v7.10.8 lo trata explícitamente como no informado.
   if(isNumericOnlyCityValue(primaryLocality)){
     const resolvedProvince=canonicalGroupingProvince(primaryProvince) || canonicalGroupingProvince(secondaryProvince);
     let resolvedCountry=canonicalGroupingCountry(country) || canonicalGroupingCountry(alternateCountry);
@@ -261,6 +261,25 @@ export function normalizeResidenceForGrouping({
       inferred:false,
       normalized:true,
       source:'numeric-locality',
+    };
+  }
+
+  // v7.10.8: autorreparación explícita cuando una ciudad fue cargada también en Provincia.
+  // Campana no es una provincia: si aparece allí, se interpreta como ciudad Campana / Buenos Aires.
+  // Esto también cubre el caso localidad=Campana + provincia=Campana sin tocar el dato original.
+  const primaryLocalityMatch=cityMatch(primaryLocality);
+  const secondaryLocalityMatch=cityMatch(secondaryLocality);
+  const primaryProvinceAsCity=cityMatch(primaryProvince);
+  const secondaryProvinceAsCity=cityMatch(secondaryProvince);
+  const explicitCity=primaryLocalityMatch || secondaryLocalityMatch || primaryProvinceAsCity || secondaryProvinceAsCity;
+  if(explicitCity && (primaryProvinceAsCity || secondaryProvinceAsCity)){
+    return {
+      city:explicitCity.city,
+      province:explicitCity.province,
+      country:explicitCity.country,
+      inferred:true,
+      normalized:true,
+      source:'misplaced-field',
     };
   }
 
@@ -286,7 +305,7 @@ export function normalizeResidenceForGrouping({
     if(match) source='locality';
   }
 
-  // v7.10.7: un valor compuesto sólo por números/separadores nunca se interpreta como ciudad.
+  // v7.10.8: un valor compuesto sólo por números/separadores nunca se interpreta como ciudad.
   // Puede ser teléfono, código postal u otro dato desplazado; se agrupa como Ciudad no informada.
 
   // Como último respaldo, se mira únicamente un segmento explícito de ciudad al final de una dirección.
