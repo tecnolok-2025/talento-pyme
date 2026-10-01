@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Talento PyME</title>
   <meta name="theme-color" content="#0B1220" />
-  <link rel="manifest" href="/manifest.webmanifest?v=7.10.8" />
+  <link rel="manifest" href="/manifest.webmanifest?v=7.10.9" />
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.10.8" />
+  <link rel="stylesheet" href="/styles.css?v=7.10.9" />
 </head>
 <body class="authBody">
   <div class="authTop">
@@ -53,8 +53,9 @@
           <div class="authForm">
             <!-- LOGIN -->
             <div id="loginForm">
-              <label id="loginIdLabel">DNI, correo o nombre y apellido</label>
-              <input class="input" id="loginName" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="DNI, correo o nombre y apellido" />
+              <label id="loginIdLabel">Nombre y apellido</label>
+              <input class="input" id="loginName" autocomplete="username" spellcheck="false" placeholder="Ej.: Juan Pérez" />
+              <div class="muted small" id="loginNameHint">Ingresá tu nombre completo tal como fue registrado. No distingue entre mayúsculas, minúsculas ni acentos.</div>
               
 
               <label>Contraseña</label>
@@ -67,7 +68,7 @@
 
               <div class="authFoot">
                 <a class="authLink" id="forgotLink" href="/forgot.html?role=CANDIDATE">Olvidé mi contraseña</a>
-                <span class="muted small">Podés ingresar con DNI o correo. Si olvidaste la clave, recibí un código en tu correo.</span>
+                <span class="muted small">Si olvidaste la clave, recibí un código en tu correo registrado.</span>
               </div>
             </div>
 
@@ -75,7 +76,7 @@
             <div id="registerForm" style="display:none">
               <div id="candFields">
                 <label>Nombre y apellido</label>
-                <input class="input" id="regFullName" placeholder="DNI, correo o nombre y apellido" />
+                <input class="input" id="regFullName" placeholder="Ej.: Juan Pérez" />
 
                 <label>Email</label>
                 <input class="input" id="regEmail" placeholder="tu@email.com" />
@@ -153,7 +154,6 @@
             <p><b>1)</b> Elegí <b>Candidato</b> o <b>Empresa</b>.</p>
             <p><b>2)</b> Si es tu primera vez, tocá <b>Registrarme</b> y completá el formulario.</p>
             <p><b>3)</b> Luego volvé a <b>Ingresar</b> y entrá con tu usuario y tu clave.</p>
-            <p class="muted small">Si ingresás con el alias general de administración y la clave de Render, accedés al Panel General de Talento PyME desde cualquiera de los dos lados.</p>
           </div>
 <div class="authHint" style="margin-top:12px">
             <h3>Modo gratuito</h3>
@@ -191,8 +191,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=7.10.8"></script>
-  <script src="/auth.js?v=7.10.8"></script>
+  <script src="/config.js?v=7.10.9"></script>
+  <script src="/auth.js?v=7.10.9"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));
@@ -213,11 +213,15 @@
       $("candFields").style.display = (r === "CANDIDATE") ? "block" : "none";
       $("compFields").style.display = (r === "COMPANY") ? "block" : "none";
 
-      // Ajustar etiqueta y placeholder de ingreso según rol (sin confusión)
+      // Ajustar etiqueta, ayuda y placeholder según rol.
       const lab = $("loginIdLabel");
-      if(lab) lab.textContent = (r === "COMPANY") ? "Empresa o correo" : "DNI, correo o nombre y apellido";
+      if(lab) lab.textContent = (r === "COMPANY") ? "Empresa o correo" : "Nombre y apellido";
       const inp = $("loginName");
-      if(inp) inp.placeholder = (r === "COMPANY") ? "Nombre de empresa o correo" : "DNI, correo o nombre y apellido";
+      if(inp) inp.placeholder = (r === "COMPANY") ? "Nombre de empresa o correo" : "Ej.: Juan Pérez";
+      const hint = $("loginNameHint");
+      if(hint) hint.textContent = (r === "COMPANY")
+        ? "Ingresá el nombre de la empresa o el correo registrado."
+        : "Ingresá tu nombre completo tal como fue registrado. No distingue entre mayúsculas, minúsculas ni acentos.";
       const forgotLink = $("forgotLink");
       if(forgotLink) forgotLink.href = `/forgot.html?role=${r}`;
 

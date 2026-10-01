@@ -1,0 +1,14 @@
+PARCHE TALENTO PyME v7.10.8 -> v7.10.9
+
+Aplicar sobre una copia completa de la v7.10.8.
+Reemplazar los archivos del parche respetando exactamente la estructura de carpetas.
+No hay migraciones nuevas de base de datos.
+
+Cambios funcionales principales:
+- Acceso candidato solo por Nombre y apellido + Contraseña.
+- Nombre tolerante a mayúsculas/minúsculas, acentos y espacios extremos.
+- Texto de ayuda del ingreso actualizado.
+- Eliminadas de la pantalla pública las instrucciones/credenciales visibles de administración.
+- Se mantiene el acceso administrativo interno existente.
+
+Luego de aplicar: redeploy/reiniciar servicio y limpiar cache del navegador si fuera necesario.

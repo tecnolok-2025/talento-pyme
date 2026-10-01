@@ -2537,14 +2537,13 @@ app.post("/auth/login", loginThrottle710, async (req, res) => {
     return res.json({ token: signToken({ id: VIRTUAL_ADMIN_USER_ID, role: VIRTUAL_ADMIN_ROLE }), role: VIRTUAL_ADMIN_ROLE, admin: true });
   }
 
-  if(/^[\d.\s-]+$/.test(identifier) && roleHint !== 'COMPANY'){
-    const dni=normalizeId(identifier);
-    const matches=await prisma.user.findMany({where:{role:'CANDIDATE',OR:[{candidateProfile:{is:{dni}}},{candidateBolsa:{is:{dni}}}]},take:2});
-    if(matches.length!==1 || !await verifyLoginPassword710(password,matches[0],true)) return res.status(401).json({error:'No pudimos validar el acceso. Revisá DNI y clave o usá «Olvidé mi contraseña».'});
-    return res.json({token:signToken(matches[0]),role:matches[0].role});
+  // v7.10.9: para candidatos el acceso se identifica únicamente por nombre y apellido.
+  // Se conserva la normalización del nombre (mayúsculas/minúsculas, acentos y espacios).
+  if(roleHint === 'CANDIDATE' && (/^[\d.\s-]+$/.test(identifier) || identifier.includes("@"))){
+    return res.status(401).json({ error: "Ingresá tu nombre y apellido tal como fueron registrados." });
   }
 
-  // Soporte: si el usuario pega su email, permitimos login directo por email (más robusto).
+  // Empresas conservan el acceso por correo cuando seleccionan el rol Empresa.
   if(identifier.includes("@")){
     const emailTry = identifier.toLowerCase();
     const u = await prisma.user.findFirst({ where: { email: { equals: emailTry, mode: "insensitive" } } });

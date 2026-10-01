@@ -68,8 +68,8 @@ test('clasificación avanzada permanece sólo en administración', () => {
   }
 });
 
-test('frontend declara v7.10.8', () => {
-  assert.match(config, /TP_APP_VERSION = "7\.10\.8"/);
+test('frontend declara v7.10.9', () => {
+  assert.match(config, /TP_APP_VERSION = "7\.10\.9"/);
 });
 
 import vm from 'node:vm';
