@@ -13,11 +13,11 @@ const config = fs.readFileSync(path.join(root, 'apps/web/config.js'), 'utf8');
 const sw = fs.readFileSync(path.join(root, 'apps/web/sw.js'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'apps/api/package.json'), 'utf8'));
 
-test('v7.10.9 unifica frontend, API y PWA', () => {
-  assert.equal(pkg.version, '7.10.9');
-  assert.match(config, /TP_APP_VERSION = "7\.10\.9"/);
+test('v7.10.10 unifica frontend, API y PWA', () => {
+  assert.equal(pkg.version, '7.10.10');
+  assert.match(config, /TP_APP_VERSION = "7\.10\.10"/);
   assert.match(config, /TP_BUILD_ID = "20260928_08"/);
-  assert.match(sw, /v=7\.10\.9/);
+  assert.match(sw, /v=7\.10\.10/);
 });
 
 test('Perfiles candidatos incorpora desplegable dinámico y palabra clave', () => {

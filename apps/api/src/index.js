@@ -2537,7 +2537,7 @@ app.post("/auth/login", loginThrottle710, async (req, res) => {
     return res.json({ token: signToken({ id: VIRTUAL_ADMIN_USER_ID, role: VIRTUAL_ADMIN_ROLE }), role: VIRTUAL_ADMIN_ROLE, admin: true });
   }
 
-  // v7.10.9: para candidatos el acceso se identifica únicamente por nombre y apellido.
+  // v7.10.10: para candidatos el acceso se identifica únicamente por nombre y apellido.
   // Se conserva la normalización del nombre (mayúsculas/minúsculas, acentos y espacios).
   if(roleHint === 'CANDIDATE' && (/^[\d.\s-]+$/.test(identifier) || identifier.includes("@"))){
     return res.status(401).json({ error: "Ingresá tu nombre y apellido tal como fueron registrados." });
@@ -7413,6 +7413,39 @@ app.get('/admin/communications/summary', auth, requireAnyRole(['ADMIN','SUPERADM
   } catch (err) {
     console.error('GET /admin/communications/summary', err?.message || err);
     return res.status(500).json({ error:'No se pudo leer el padrón de comunicaciones.' });
+  }
+});
+
+// v7.10.10 · recupera exactamente la última comunicación que efectivamente tuvo envíos.
+// Administración puede cargar asunto + cuerpo y volver a programarla sólo para quienes aún no la recibieron.
+app.get('/admin/communications/latest-template', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
+  const audience=String(req.query?.audience || '').trim().toUpperCase();
+  if(!['CANDIDATE','COMPANY'].includes(audience)) return res.status(400).json({ error:'Destinatario inválido.' });
+  try {
+    const latest=await prisma.adminCommunication.findFirst({
+      where:{ audience, sentCount:{ gt:0 } },
+      orderBy:{ createdAt:'desc' },
+      select:{ id:true, audience:true, subject:true, body:true, createdAt:true, completedAt:true, sentCount:true, recipientCount:true, status:true },
+    });
+    if(!latest) return res.status(404).json({ error:'Todavía no hay una comunicación enviada para este padrón.' });
+    const audienceData=await listBulkCommunicationRecipients(audience);
+    const pending=await filterCommunicationRecipientsByHistory({
+      audience,
+      subject:latest.subject,
+      body:latest.body,
+      recipients:audienceData.recipients,
+      onlyNotPreviouslySent:true,
+    });
+    return res.json({
+      ok:true,
+      communication:latest,
+      eligibleNow:audienceData.recipients.length,
+      pendingRecipients:pending.recipients.length,
+      alreadyReceivedOrQueued:pending.skippedPreviouslySent,
+    });
+  } catch (err) {
+    console.error('GET /admin/communications/latest-template', err?.message || err);
+    return res.status(500).json({ error:'No se pudo recuperar la última comunicación enviada.' });
   }
 });
 

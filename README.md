@@ -196,3 +196,7 @@ El límite de 450 se reserva específicamente para comunicaciones generales, dej
 - Administración muestra años detectados, fuente principal y fuentes profesionales utilizadas para entender por qué se asignó una calificación.
 - No se persisten notas antiguas: al abrir Administración o el detalle de un candidato se vuelve a calcular la clasificación con los datos actuales.
 - No hay cambios de schema respecto de v7.9.12.
+
+
+## Revisión v7.10.10
+Ver `LEER_PRIMERO_v7.10.10.md` para el cambio de reutilización segura del último correo enviado.

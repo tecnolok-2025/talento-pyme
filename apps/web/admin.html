@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.10.9" />
+  <link rel="stylesheet" href="/styles.css?v=7.10.10" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -474,6 +474,10 @@
         <button class="btn btn-ghost active" id="btnAudienceCandidate" type="button">Comunicación a candidatos</button>
         <button class="btn btn-ghost" id="btnAudienceCompany" type="button">Comunicación a empresas</button>
       </div>
+      <div class="row" style="margin:10px 0 2px;align-items:center">
+        <button class="btn btn-ghost" id="btnLoadLastCommunication" type="button">Cargar último correo enviado</button>
+        <span class="muted small" id="lastCommunicationMsg">Recupera exactamente el asunto y el cuerpo del último envío para programarlo sólo a quienes todavía no lo recibieron.</span>
+      </div>
       <div class="communicationGrid">
         <div>
           <div class="communicationStatRow"><div class="communicationStat"><span class="muted small">Cuentas</span><b id="commTotal">—</b></div><div class="communicationStat"><span class="muted small">Recibirán el correo</span><b id="commEligible">—</b></div><button class="communicationStat" id="commOptOutCard" type="button" style="text-align:left;cursor:pointer;border:1px solid #dbe4ef;background:#fff"><span class="muted small">No enviar / baja</span><b id="commOptOut">—</b><span class="muted small" style="display:block;margin-top:3px">Ver quiénes y desde cuándo</span></button></div><div id="communicationOptOutPanel" class="adminRow" style="display:none;margin-top:12px"><div class="toolbarCard"><div><b id="communicationOptOutTitle">Bajas de comunicaciones</b><div class="muted small">Historial auditable de bajas y rehabilitaciones. La baja no elimina la cuenta ni el CV.</div></div><button class="btn btn-ghost" id="btnCloseOptOutPanel" type="button">Cerrar</button></div><div id="communicationOptOutList" class="adminList" style="margin-top:12px"></div></div>
@@ -525,8 +529,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.10.9"></script>
-<script src="/auth.js?v=7.10.9"></script>
+<script src="/config.js?v=7.10.10"></script>
+<script src="/auth.js?v=7.10.10"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -1643,6 +1647,34 @@ function setCommunicationAudience(audience){
   const panel=document.getElementById('communicationOptOutPanel'); if(panel) panel.style.display='none';
   renderCommunications();
 }
+async function loadLastCommunication(){
+  const audience = state.communications.audience || 'CANDIDATE';
+  const btn = document.getElementById('btnLoadLastCommunication');
+  const msg = document.getElementById('lastCommunicationMsg');
+  const mainMsg = document.getElementById('communicationMsg');
+  if(btn) btn.disabled = true;
+  if(msg) msg.textContent = 'Buscando el último correo enviado…';
+  if(mainMsg) mainMsg.textContent = '';
+  try {
+    const data = await apiFetch(`/admin/communications/latest-template?audience=${encodeURIComponent(audience)}`);
+    const item = data.communication || {};
+    document.getElementById('communicationSubject').value = item.subject || '';
+    document.getElementById('communicationBody').value = item.body || '';
+    const onlyUnsent = document.getElementById('communicationOnlyUnsent');
+    if(onlyUnsent) onlyUnsent.checked = true;
+    saveCommunicationDraft();
+    const pending = Number(data.pendingRecipients || 0);
+    const label = audience === 'COMPANY' ? 'empresas' : 'personas';
+    if(msg) msg.textContent = pending
+      ? `Último correo cargado sin modificaciones. ${pending} ${label} todavía no lo recibieron y podrán incorporarse a la cola.`
+      : 'Último correo cargado sin modificaciones. Actualmente todos los destinatarios habilitados ya lo recibieron o lo tienen programado.';
+  } catch (err) {
+    if(msg) msg.textContent = err?.message || 'No se pudo recuperar el último correo enviado.';
+  } finally {
+    if(btn) btn.disabled = false;
+  }
+}
+
 async function sendCommunication(){
   saveCommunicationDraft();
   const audience = state.communications.audience || 'CANDIDATE';
@@ -1845,6 +1877,7 @@ document.getElementById('btnAudienceCompany').onclick = () => setCommunicationAu
 document.getElementById('btnRefreshCommunications').onclick = () => loadCommunications();
 document.getElementById('commOptOutCard').onclick = () => loadCommunicationOptOuts();
 document.getElementById('btnCloseOptOutPanel').onclick = () => { document.getElementById('communicationOptOutPanel').style.display='none'; };
+document.getElementById('btnLoadLastCommunication').onclick = () => loadLastCommunication();
 document.getElementById('btnSendCommunication').onclick = () => sendCommunication();
 document.getElementById('communicationSubject').oninput = () => saveCommunicationDraft();
 document.getElementById('communicationBody').oninput = () => saveCommunicationDraft();
@@ -1920,7 +1953,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v7.10.9: el estado de la cola se refresca mientras Administración permanece abierto.
+// v7.10.10: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();
