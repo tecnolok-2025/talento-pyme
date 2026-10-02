@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.npm_package_version || "dev";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "7.10.11";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -7427,7 +7427,7 @@ app.get('/admin/communications/latest-template', auth, requireAnyRole(['ADMIN','
       orderBy:{ createdAt:'desc' },
       select:{ id:true, audience:true, subject:true, body:true, createdAt:true, completedAt:true, sentCount:true, recipientCount:true, status:true },
     });
-    if(!latest) return res.status(404).json({ error:'Todavía no hay una comunicación enviada para este padrón.' });
+    if(!latest) return res.status(404).json({ error: audience === 'COMPANY' ? 'Todavía no hay una comunicación enviada a empresas.' : 'Todavía no hay una comunicación enviada a candidatos.' });
     const audienceData=await listBulkCommunicationRecipients(audience);
     const pending=await filterCommunicationRecipientsByHistory({
       audience,

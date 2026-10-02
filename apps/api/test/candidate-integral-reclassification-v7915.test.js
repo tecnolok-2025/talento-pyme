@@ -21,8 +21,8 @@ function fns(){
   return ctx.__out;
 }
 
-test('v7.10.10 unifica versión y build',()=>{
-  assert.equal(pkg.version,'7.10.10');
+test('v7.10.11 unifica versión y build',()=>{
+  assert.equal(pkg.version,'7.10.11');
   assert.match(fs.readFileSync(path.join(root,'apps/web/config.js'),'utf8'),/TP_BUILD_ID = "20260928_08"/);
 });
 

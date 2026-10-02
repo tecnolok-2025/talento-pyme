@@ -15,7 +15,7 @@ const cv = fs.readFileSync(path.join(root, 'apps/api/src/services/candidate-cv.j
 const config = fs.readFileSync(path.join(root, 'apps/web/config.js'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'apps/api/package.json'), 'utf8'));
 
-test('v7.10.10 agrega residencia y presentación por voz/texto al perfil candidato', () => {
+test('v7.10.11 agrega residencia y presentación por voz/texto al perfil candidato', () => {
   assert.match(schema, /paisResidencia\s+String\?/);
   assert.match(schema, /voiceNarrativeRaw\s+String\?/);
   assert.match(schema, /voiceNarrativeSummary\s+String\?/);
@@ -66,7 +66,7 @@ test('búsqueda empresarial usa evidencia sin publicar texto libre previo a aper
 const block=api.slice(api.indexOf("app.get('/jobs/search'"),api.indexOf("app.get('/jobs/candidate/:id/detail'"));assert.match(block,/candidateProfessionalSearchText/);assert.match(block,/observaciones: ''/);
 });
 
-test('versión unificada 7.10.10', () => {
-  assert.equal(pkg.version, '7.10.10');
+test('versión unificada 7.10.11', () => {
+  assert.equal(pkg.version, '7.10.11');
   assert.match(config, /TP_APP_VERSION = "7\.10\.10"/);
 });

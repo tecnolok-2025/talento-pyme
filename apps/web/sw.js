@@ -1,13 +1,13 @@
-// Talento PyME service worker (v7.10.10)
+// Talento PyME service worker (v7.10.11)
 // Objetivo: evitar "versiones pegadas" por cache. 
 // Estrategia:
 // - HTML (navegación): network-first (si hay red, siempre busca lo último).
 // - Assets (css/js/img): stale-while-revalidate.
 // - Al cambiar VERSION, se crea un cache nuevo y se limpian caches viejos.
 
-importScripts("/config.js?v=7.10.10");
+importScripts("/config.js?v=7.10.11");
 
-const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "7.10.10";
+const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "7.10.11";
 const CACHE_NAME = `tp-cache-${VERSION}`;
 
 const PRECACHE = [
@@ -19,11 +19,11 @@ const PRECACHE = [
   "/factory.html",
   "/admin.html",
   "/asistencia.html",
-  "/styles.css?v=7.10.10",
-  "/auth.js?v=7.10.10",
-  "/app.js?v=7.10.10",
-  "/bolsa-candidato.js?v=7.10.10",
-  "/config.js?v=7.10.10",
+  "/styles.css?v=7.10.11",
+  "/auth.js?v=7.10.11",
+  "/app.js?v=7.10.11",
+  "/bolsa-candidato.js?v=7.10.11",
+  "/config.js?v=7.10.11",
   "/manifest.webmanifest",
   "/icon-192.png",
   "/icon-512.png"
@@ -63,6 +63,21 @@ self.addEventListener("fetch", (event) => {
 
   if (sensitivePath) {
     event.respondWith(fetch(req, { cache: 'no-store' }));
+    return;
+  }
+
+  // Archivos críticos de versión: nunca confiar primero en una copia vieja.
+  if (["/config.js", "/auth.js", "/app.js", "/bolsa-candidato.js"].includes(url.pathname)) {
+    event.respondWith((async () => {
+      try {
+        const fresh = await fetch(req, { cache: "no-store" });
+        const cache = await caches.open(CACHE_NAME);
+        cache.put(req, fresh.clone());
+        return fresh;
+      } catch (e) {
+        return (await caches.match(req)) || Response.error();
+      }
+    })());
     return;
   }
 

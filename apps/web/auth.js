@@ -75,7 +75,24 @@ function applyGlobalBranding(){
     }
   } catch(_){}
 }
+
+async function syncVersionFromApi(){
+  try {
+    if(!window.TP_API_URL) return;
+    const sep = window.TP_API_URL.includes('?') ? '&' : '?';
+    const res = await fetch(`${window.TP_API_URL}/health${sep}_=${Date.now()}`, { method:'GET', cache:'no-store', headers:{ 'Cache-Control':'no-cache' } });
+    if(!res.ok) return;
+    const data = await res.json().catch(()=>({}));
+    const apiVersion = String(data?.version || '').trim();
+    if(apiVersion){
+      window.TP_APP_VERSION = apiVersion;
+      applyVersionBadges();
+      document.documentElement.setAttribute('data-tp-api-version', apiVersion);
+    }
+  } catch(_) {}
+}
 document.addEventListener("DOMContentLoaded", applyVersionBadges);
+document.addEventListener("DOMContentLoaded", syncVersionFromApi);
 document.addEventListener("DOMContentLoaded", applyGlobalBranding);
 
 function applyRoleVisibility(){
