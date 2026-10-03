@@ -1,0 +1,38 @@
+{
+  "baseCandidates": 593,
+  "primaryExpertiseChanged": 71,
+  "profilesWithSecondaryEvidence": 62,
+  "confidenceDistribution": {
+    "BAJA": 366,
+    "MEDIA": 187,
+    "ALTA": 40
+  },
+  "topExpertiseV71013": {
+    "Orientación laboral por definir": 260,
+    "Comercial / Atención al cliente": 122,
+    "Administración": 36,
+    "Logística / Depósito": 33,
+    "Mantenimiento": 20,
+    "Limpieza / Maestranza": 16,
+    "Producción / Operaciones": 15,
+    "Gastronomía / Catering": 13,
+    "Calidad / Seguridad e higiene": 12,
+    "Mecánica": 9,
+    "IT / Software": 9,
+    "Finanzas / Contabilidad": 7,
+    "Seguridad / Vigilancia": 7,
+    "Construcción / Obra": 5,
+    "Ingeniería / Oficina técnica": 4,
+    "Cuidados / Asistencia personal": 4,
+    "Instrumentación / Automatización": 3,
+    "Eléctrica": 3,
+    "Orientación técnica inicial": 3,
+    "Planificación / Costos": 2
+  },
+  "validation": {
+    "testsTotal": 263,
+    "testsPassed": 262,
+    "testsNotExecutedSuccessfully": 1,
+    "note": "auth-v7100 requiere bcryptjs en node_modules; dependencia declarada en package.json"
+  }
+}

@@ -1,11 +1,11 @@
-# Talento PyME — versión actual v7.10.12
+# Talento PyME — versión actual v7.10.13
 
-> **VERSIÓN ACTIVA: v7.10.12 · 03/10/2026**
+> **VERSIÓN ACTIVA: v7.10.13 · 03/10/2026**
 >
 > La versión operativa de la aplicación se obtiene de `apps/api/package.json`, `apps/web/config.js` y `/health`.
 > Los archivos que llevan números anteriores son **documentación histórica de revisiones**, no versiones que estén ejecutándose.
 
-Ver **LEER_PRIMERO_v7.10.12.md**, **AUDITORIA_v7.10.12.md** y **RELEASE_FINAL_v7.10.12.md** antes de desplegar.
+Ver **LEER_PRIMERO_v7.10.13.md**, **AUDITORIA_PRECISION_CANDIDATOS_v7.10.13.md** y **RELEASE_FINAL_v7.10.13.md** antes de desplegar.
 
 
 > **Versión de despliegue confirmada:** 7.9.16 · **Build:** 20260811_02 · Frontend, API y caché PWA alineados.

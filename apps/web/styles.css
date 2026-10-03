@@ -525,7 +525,7 @@ body:not(.appShell):not(.authBody) .globalBrandFooter{border-top:1px solid rgba(
 .statusPill.EXPIRED{background:rgba(100,116,139,.16);color:#334155}
 
 
-/* ===== v7.10.12 · feedback táctil global y prevención visual de doble acción ===== */
+/* ===== v7.10.13 · feedback táctil global y prevención visual de doble acción ===== */
 button,
 .btn,
 .nav a,

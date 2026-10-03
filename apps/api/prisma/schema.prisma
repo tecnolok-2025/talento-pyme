@@ -297,6 +297,7 @@ model CandidateClassification {
   professionalSourcesUsed  Json?
   cvEvidenceUsed           Boolean  @default(false)
   classificationConfidence String?
+  secondaryProfiles         Json?
   reason                   String?
   scoreBasis               String?
   evidence                 Json?

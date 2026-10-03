@@ -1,3 +1,1 @@
-Talento PyME v7.10.12
-Fecha: 03/10/2026
-Estado: versión actual para despliegue
+7.10.13
