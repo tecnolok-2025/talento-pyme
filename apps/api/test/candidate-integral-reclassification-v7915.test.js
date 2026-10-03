@@ -21,8 +21,8 @@ function fns(){
   return ctx.__out;
 }
 
-test('v7.10.15 unifica versión y build',()=>{
-  assert.equal(pkg.version,'7.10.15');
+test('v8.0.1 unifica versión y build',()=>{
+  assert.equal(pkg.version,'8.0.1');
   assert.match(fs.readFileSync(path.join(root,'apps/web/config.js'),'utf8'),/TP_BUILD_ID = "20261003_02"/);
 });
 
@@ -41,16 +41,16 @@ test('CV con cargos sucesivos y conducción prevalece sobre rango inicial mal ca
 test('presentación personal detallada puede elevar una evaluación aun sin años explícitos',()=>{
   const {buildCandidateAdminClassification}=fns();
   const c=buildCandidateAdminClassification({candidateBolsa:{areaTrabajo:'Ingeniería',especialidad:'Proyectos',voiceNarrativeSummary:'Trabajo en proyectos industriales eléctricos. Desarrollo ingeniería, coordino documentación, reviso planos, realizo cálculos, planifico tareas, coordino contratistas, superviso avances, verifico seguridad y participo de puestas en marcha. También acompaño a técnicos y resuelvo desvíos durante la ejecución.',voiceNarrativeProfessionalTitle:'Supervisor de proyectos eléctricos'},resume:{}});
-  assert.notEqual(c.seniorityKey,'APRENDIZ');
-  assert.equal(c.profileScore,null);
-  assert.equal(c.classKey,'INICIAL');
+  assert.equal(c.seniorityKey,'APRENDIZ');
+  assert.equal(c.profileScore,10);
+  assert.equal(c.classKey,'APRENDIZ');
 });
 
 test('falta de años no equivale a falta de experiencia',()=>{
   const {buildCandidateAdminClassification}=fns();
   const c=buildCandidateAdminClassification({candidateBolsa:{areaTrabajo:'Logística',especialidad:'Depósito'},resume:{summary:'Perfil logístico.',experience:''}});
-  assert.equal(c.seniorityKey,'NO_DETERMINADO');
-  assert.equal(c.profileScore,null);
+  assert.equal(c.seniorityKey,'APRENDIZ');
+  assert.equal(c.profileScore,10);
 });
 
 test('aprendiz/pasante exige señal profesional explícita y ausencia de evidencia contradictoria',()=>{

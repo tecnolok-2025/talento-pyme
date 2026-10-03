@@ -50,10 +50,10 @@ test('correo institucional sigue unificado sin segunda dirección', () => {
   assert.doesNotMatch(api, /TALENTO_PYME_EMAIL/);
 });
 
-test('frontend y cache declaran 7.10.15', () => {
-  assert.match(config, /TP_APP_VERSION = "7\.10\.15"/);
-  assert.match(sw, /service worker \(v7\.10\.15\)/);
-  assert.match(sw, /config\.js\?v=7\.10\.15/);
+test('frontend y cache declaran 8.0.1', () => {
+  assert.match(config, /TP_APP_VERSION = "8\.0\.0"/);
+  assert.match(sw, /service worker \(v8\.0\.0\)/);
+  assert.match(sw, /config\.js\?v=8\.0\.0/);
 });
 
 

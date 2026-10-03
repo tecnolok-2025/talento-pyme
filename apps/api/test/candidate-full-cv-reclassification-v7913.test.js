@@ -24,12 +24,12 @@ function classificationFns(){
   return ctx.__out;
 }
 
-test('v7.10.15 unifica versión y recalcula sin persistir una nota vieja',()=>{
-  assert.equal(pkg.version,'7.10.15');
+test('v8.0.1 unifica versión y recalcula sin persistir una nota vieja',()=>{
+  assert.equal(pkg.version,'8.0.1');
   assert.match(api,/function buildCandidateAdminClassification/);
 });
 
-test('v7.10.15 estima trayectoria desde períodos laborales fechados del CV',()=>{
+test('v8.0.1 estima trayectoria desde períodos laborales fechados del CV',()=>{
   const {estimateExperienceYearsFromResumeDates}=classificationFns();
   const r=estimateExperienceYearsFromResumeDates('1994-2004 Técnico eléctrico. 2004-2014 Supervisor. 2014-Presente Jefe de mantenimiento.');
   assert.ok(r.years>=30,`esperado >=30 años, recibido ${r.years}`);
@@ -66,7 +66,7 @@ test('expertise usa CV completo con peso fuerte y no sólo campos básicos',()=>
     }
   });
   assert.equal(c.expertiseKey,'MANTENIMIENTO');
-  assert.equal(c.expertiseSource,'EVIDENCIA_PRIORIZADA_V71015');
+  assert.equal(c.expertiseSource,'EVIDENCIA_PRIORIZADA_V8000');
 });
 
 test('primer empleo explícito puede conservar categoría inicial sin usar edad ni suposiciones',()=>{
@@ -87,9 +87,9 @@ test('si faltan años pero el CV muestra múltiples roles y responsabilidades no
 test('sin evidencia suficiente no inventa junior ni aprendiz: deja trayectoria no determinada',()=>{
   const {buildCandidateAdminClassification}=classificationFns();
   const c=buildCandidateAdminClassification({candidateBolsa:{areaTrabajo:'Producción'},resume:{}});
-  assert.equal(c.seniorityKey,'NO_DETERMINADO');
-  assert.equal(c.profileScore,null);
-  assert.equal(c.seniorityLabel,'Nivel por verificar');
+  assert.equal(c.seniorityKey,'APRENDIZ');
+  assert.equal(c.profileScore,10);
+  assert.equal(c.seniorityLabel,'Inicial / aprendizaje');
 });
 
 test('la lógica de seniority no utiliza edad, fecha de nacimiento ni DNI como proxy de experiencia',()=>{

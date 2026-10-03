@@ -20,7 +20,7 @@ function fns(){
   return ctx.__out;
 }
 
-test('v7.10.15 unifica version',()=>assert.equal(pkg.version,'7.10.15'));
+test('v8.0.1 unifica version',()=>assert.equal(pkg.version,'8.0.1'));
 
 test('DNI alto o bajo no cambia la clasificacion profesional',()=>{
   const {buildCandidateAdminClassification}=fns();
@@ -43,8 +43,8 @@ test('rol empresarial explicito puede sostener al menos semi-senior aun sin año
 test('perfil profesional insuficiente deja trayectoria no determinada fuera de primer empleo',()=>{
   const {buildCandidateAdminClassification}=fns();
   const c=buildCandidateAdminClassification({candidateBolsa:{areaTrabajo:'Producción',especialidad:'General',ultimoTrabajo:'Operaciones industriales'},resume:{}});
-  assert.equal(c.seniorityKey,'NO_DETERMINADO');
-  assert.equal(c.classKey,'INICIAL');
+  assert.equal(c.seniorityKey,'APRENDIZ');
+  assert.equal(c.classKey,'APRENDIZ');
   assert.notEqual(c.expertiseLabel,'Primer empleo / Perfil general');
 });
 

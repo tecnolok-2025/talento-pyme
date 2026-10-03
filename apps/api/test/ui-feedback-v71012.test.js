@@ -9,24 +9,24 @@ const auth = readFileSync(resolve(web,'auth.js'),'utf8');
 const admin = readFileSync(resolve(web,'admin.html'),'utf8');
 const api = readFileSync(resolve(process.cwd(),'src/index.js'),'utf8');
 
-test('v7.10.15 todos los controles tienen feedback de presión', ()=>{
+test('v8.0.1 todos los controles tienen feedback de presión', ()=>{
   assert.match(css, /button\.tp-pressed/);
   assert.match(css, /transform:\s*translateY\(2px\) scale\(\.985\)/);
   assert.match(css, /:focus-visible/);
 });
 
-test('v7.10.15 bloquea clics repetidos accidentales', ()=>{
+test('v8.0.1 bloquea clics repetidos accidentales', ()=>{
   assert.match(auth, /RAPID_REPEAT_MS\s*=\s*900/);
   assert.match(auth, /stopImmediatePropagation/);
   assert.match(auth, /tpSetButtonBusy/);
 });
 
-test('v7.10.15 comunicación administrativa queda bloqueada durante programación', ()=>{
+test('v8.0.1 comunicación administrativa queda bloqueada durante programación', ()=>{
   assert.match(admin, /tpSetButtonBusy\(btn, true, 'Programando…'\)/);
   assert.match(admin, /finally \{ tpSetButtonBusy\(btn, false\); \}/);
 });
 
-test('v7.10.15 no borra una búsqueda con postulaciones y preserva trazabilidad', ()=>{
+test('v8.0.1 no borra una búsqueda con postulaciones y preserva trazabilidad', ()=>{
   assert.match(api, /_count:\s*\{\s*select:\s*\{\s*applications:\s*true/);
   assert.match(api, /status:\s*"CLOSED",\s*visibleToCandidates:\s*false/);
   assert.match(api, /Application_jobId_fkey/);

@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "8.0.0";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "8.0.1";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -62,7 +62,7 @@ let backupSchedulerStarted = false;
 // v7.10.3 · clasificación automática y persistente de candidatos.
 // El motor sigue siendo determinístico y basado en evidencia declarada; esta capa solamente
 // garantiza que altas, importaciones masivas y cambios de CV queden procesados sin auditoría manual.
-const CANDIDATE_CLASSIFICATION_VERSION = '8.0.0';
+const CANDIDATE_CLASSIFICATION_VERSION = '8.0.1';
 const CANDIDATE_CLASSIFICATION_AUTO_ENABLED = String(process.env.CANDIDATE_CLASSIFICATION_AUTO_ENABLED || 'true').trim().toLowerCase() !== 'false';
 const CANDIDATE_CLASSIFICATION_SCAN_SECONDS = Math.max(15, Math.min(3600, Number(process.env.CANDIDATE_CLASSIFICATION_SCAN_SECONDS || 60)));
 const CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS = Math.max(1000, Math.min(120000, Number(process.env.CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS || 12000)));
@@ -5425,7 +5425,7 @@ app.delete("/jobs/:id", auth, requireRole("COMPANY"), async (req, res) => {
     });
     if(!job || job.company?.userId !== req.user.id) return res.status(404).json({ error: "Búsqueda no encontrada" });
 
-    // v8.0.0: si ya existen postulaciones, preservamos la trazabilidad y evitamos
+    // v8.0.1: si ya existen postulaciones, preservamos la trazabilidad y evitamos
     // la violación Application_jobId_fkey. Para el usuario la búsqueda desaparece
     // de las oportunidades activas, pero las postulaciones históricas siguen íntegras.
     if(Number(job._count?.applications || 0) > 0){
@@ -6153,9 +6153,7 @@ const ADMIN_COMPANY_CATEGORY_LABELS = {
 };
 
 const ADMIN_CANDIDATE_CLASS_LABELS = {
-  INICIAL: 'Información profesional por completar',
-  TRAYECTORIA: 'Perfil profesional / Trayectoria no determinada',
-  APRENDIZ: 'Aprendices / Primer empleo',
+  APRENDIZ: 'Aprendices',
   PASANTE: 'Pasantes / Formación superior',
   OPERATIVO: 'Operativos / Oficios',
   TECNICO: 'Técnicos / Especialistas',
@@ -6590,7 +6588,7 @@ function candidateEvidenceHitAccepted(rule,line,{roleHit=false,taskHit=false,src
   const key=rule?.[0] || '';
   const t=adminNormText(line);
   if(!t) return false;
-  // v8.0.0: palabras instrumentales no crean profesiones por sí solas.
+  // v8.0.1: palabras instrumentales no crean profesiones por sí solas.
   if(key==='IT' && taskHit){
     if(/\b(base de datos de (?:mantenimiento|equipos|activos|akz|aca)|software (?:de|para) (?:gestion|administracion|diseno)|sistema documental)\b/.test(t) && !/\b(programacion|desarrollo|soporte informatico|redes informaticas|sql|helpdesk|reparacion de (?:pc|computadoras?))\b/.test(t)) return false;
   }
@@ -6814,7 +6812,7 @@ function candidateRankedWithRecency(ev={}, now=new Date()){
   const recentSet=new Set(ev.recent || []);
   return (ev.ranked || []).map((item)=>{
     const recentHits=(item.hits || []).filter((line)=>recentSet.has(line));
-    // v8.0.0: algunos CV separan el cargo de su período en la línea siguiente.
+    // v8.0.1: algunos CV separan el cargo de su período en la línea siguiente.
     // Asociamos sólo períodos cercanos sin transferir antigüedad a otros puestos.
     const nearbyPeriods=candidateNearbyRelevantPeriodLines(item,ev.work||[]);
     const directLatestYear=candidateEvidenceLatestYear(item.hits||[],now);
@@ -6853,7 +6851,7 @@ function candidateSecondaryProfiles(ranked=[], primary=null, now=new Date()){
     const withinTenYears=secondaryLatestYear!=null && (currentYear-secondaryLatestYear)<=10;
     const strong=!!item.role && !!item.task && (item.hits?.length||0)>=2 && (item.weight||0)>=8;
     if(!strong || (!recent && !withinTenYears)) continue;
-    // v8.0.0: sólo una especialidad complementaria vigente y con evidencia fuerte
+    // v8.0.1: sólo una especialidad complementaria vigente y con evidencia fuerte
     // puede participar del buscador. Lo demás se conserva como antecedente visible.
     const searchable=recent && (item.weight||0)>=10;
     out.push({
@@ -6874,7 +6872,7 @@ function candidateSecondaryProfiles(ranked=[], primary=null, now=new Date()){
 }
 
 
-// v8.0.0: cuando no existe experiencia laboral verificable, la formación deja de
+// v8.0.1: cuando no existe experiencia laboral verificable, la formación deja de
 // quedar escondida bajo "información profesional por completar". Se utiliza para
 // construir una categoría de Aprendiz o Pasante que sea útil y buscable.
 function candidateEducationOrientation(candidate={}){
@@ -6962,11 +6960,16 @@ function buildCandidateAdminClassification(candidate = {}){
   const educationProfile=candidateEducationOrientation(candidate);
   const allOriginal=adminNormText([b.ultimoTrabajo,b.voiceNarrativeRaw,r.experience].join(' '));
   const explicitFirst=/\b(primer empleo|sin experiencia laboral|sin experiencia previa|sin experiencia formal|no tengo experiencia laboral|(?:busco|buscando)\w*(?: \w+){0,4} pasantia)\b/.test(allOriginal);
-  // v8.0.0: la ausencia de experiencia verificable es suficiente para entrar en
+  // v8.0.1: la ausencia de experiencia verificable es suficiente para entrar en
   // Aprendiz/Pasante; no exigimos que el candidato haya escrito literalmente "primer empleo".
   const first=!best && (explicitFirst || !ev.credibleWork.length);
-  let classKey=best?best.rule[3]:(first?educationProfile.kind:'TRAYECTORIA');
-  let profileTitle=best?best.rule[2]:(first?educationProfile.displayLabel:(educationProfile.expertiseKey!=='GENERAL'?`Trayectoria laboral con orientación ${educationProfile.orientation} por validar`:'Trayectoria laboral con especialidad por definir'));
+  // v8.0.1: si no existe una actividad profesional suficientemente demostrada,
+  // no dejamos al candidato en categorías ambiguas. La formación define una
+  // situación de entrada: APRENDIZ para secundaria/no superior y PASANTE para
+  // terciaria/universitaria, sin convertir estudios en experiencia laboral.
+  const entryProfile=!best;
+  let classKey=best?best.rule[3]:educationProfile.kind;
+  let profileTitle=best?best.rule[2]:educationProfile.displayLabel;
   const recentRoleText=adminNormText(ev.recent.join(' '));
   if(!best && /\b(gerente|director|directora|socio gerente)\b/.test(recentRoleText)){classKey='GERENCIAL';profileTitle=ev.recent[0] || 'Gestión / Dirección';}
   else if(!best && /\b(supervisor|supervisora|jefe|jefa|capataz|coordinador|coordinadora|responsable de area)\b/.test(recentRoleText)){classKey='SUPERVISION';profileTitle=ev.recent[0] || 'Supervisión / Jefatura';}
@@ -6986,9 +6989,9 @@ function buildCandidateAdminClassification(candidate = {}){
   }
   const tasks=best?best.hits.filter(x=>best.rule[5].test(adminNormText(x))):[];
   let profileScore=null, seniorityKey='NO_DETERMINADO',seniorityLabel='Nivel por verificar';
-  if(first){profileScore=educationProfile.kind==='PASANTE'?15:10;seniorityKey=educationProfile.kind;seniorityLabel=educationProfile.kind==='PASANTE'?'Pasante / formación superior':'Inicial / aprendizaje';}
+  if(entryProfile){profileScore=educationProfile.kind==='PASANTE'?15:10;seniorityKey=educationProfile.kind;seniorityLabel=educationProfile.kind==='PASANTE'?'Pasante / formación superior':'Inicial / aprendizaje';}
   else if(best){
-    // v8.0.0: indicador deliberadamente conservador. La actividad actual/reciente
+    // v8.0.1: indicador deliberadamente conservador. La actividad actual/reciente
     // Años en otros trabajos no transfieren automáticamente expertise a la actividad principal.
     // pesa más y la experiencia histórica nunca infla por sí sola el expertise principal.
     profileScore=best.role && best.task?25:15;
@@ -7008,21 +7011,21 @@ function buildCandidateAdminClassification(candidate = {}){
     profileScore=Math.min(profileScore ?? 20,25);seniorityKey='JUNIOR';seniorityLabel='Junior / asistencia';
   }
   const expertiseKey=best?best.rule[0]:educationProfile.expertiseKey;
-  const expertiseLabel=best?best.rule[1]:(first?educationProfile.displayLabel:(educationProfile.expertiseKey!=='GENERAL'?`Orientación ${educationProfile.orientation} por validar`:'Orientación laboral por definir'));
+  const expertiseLabel=best?best.rule[1]:educationProfile.displayLabel;
   const evidence=best?best.hits.slice(0,3):ev.credibleWork.slice(0,3);
   const secondaryProfiles=candidateSecondaryProfiles(ranked,best);
   const gaps=[];
-  if(!best && ev.credibleWork.length) gaps.push('Hay trayectoria laboral, pero faltan tareas específicas para asignar una especialidad con seguridad.');
+  if(!best && ev.credibleWork.length) gaps.push('Hay antecedentes laborales declarados, pero no alcanzan para definir un expertise profesional; el perfil se clasifica por su nivel y orientación formativa.');
   else if(!best && educationProfile.orientation==='estudios secundarios no declarados') gaps.push('No se declararon estudios secundarios ni experiencia laboral verificable.');
-  else if(!best) gaps.push('Sin experiencia laboral verificable; la clasificación se apoya exclusivamente en la formación declarada.');
+  else if(!best) gaps.push('Sin experiencia profesional verificable; la clasificación se apoya exclusivamente en la formación declarada.');
   if(best && relevantDuration.years===null) gaps.push('Falta duración verificable en la especialidad.');
   if(best && !best.task) gaps.push('El cargo está declarado, pero faltan tareas que demuestren el dominio.');
   const primaryOrigin=primaryFromRecent?'actividad actual o último trabajo declarado':'antecedentes curriculares disponibles';
-  const reason=best?`Actividad principal propuesta: ${expertiseLabel}. Se prioriza ${primaryOrigin}. Evidencia utilizada: ${evidence.map(x=>x.slice(0,180)).join(' / ')}.`:(first?(educationProfile.kind==='PASANTE'?`Sin experiencia laboral verificable. La formación superior declarada permite clasificar el perfil como ${educationProfile.displayLabel}.`:(educationProfile.orientation==='estudios secundarios no declarados'?`Sin experiencia laboral verificable y sin estudios secundarios declarados. Se clasifica como ${educationProfile.displayLabel} para evitar dejar el perfil sin categoría.`:`Sin experiencia laboral verificable. La formación u orientación declarada permite clasificar el perfil como ${educationProfile.displayLabel}.`)):(ev.credibleWork.length?`Se detecta trayectoria laboral declarada: ${evidence.map(x=>x.slice(0,180)).join(' / ')}. ${educationProfile.expertiseKey!=='GENERAL'?`La formación aporta una orientación ${educationProfile.orientation}, pero no se fuerza como expertise sin tareas suficientes.`:'No se fuerza una especialidad sin tareas suficientes.'}`:'La información disponible no permite determinar trayectoria laboral.'));
+  const reason=best?`Actividad principal propuesta: ${expertiseLabel}. Se prioriza ${primaryOrigin}. Evidencia utilizada: ${evidence.map(x=>x.slice(0,180)).join(' / ')}.`:(educationProfile.kind==='PASANTE'?`No hay una actividad profesional suficientemente demostrada. La formación superior declarada permite clasificar el perfil como ${educationProfile.displayLabel}.`:(educationProfile.orientation==='estudios secundarios no declarados'?`No hay una actividad profesional suficientemente demostrada ni estudios secundarios declarados. Se clasifica como ${educationProfile.displayLabel} para mantenerlo encontrable sin inventar experiencia.`:`No hay una actividad profesional suficientemente demostrada. La formación u orientación declarada permite clasificar el perfil como ${educationProfile.displayLabel}.`));
 
-  const confidence=best && primaryFromRecent && best.role && best.task && relevantDuration.dated?'ALTA':(best && (primaryFromRecent || (best.role && best.task))?'MEDIA':(first && educationProfile.orientationSource==='FORMACION_ACADEMICA'?'MEDIA':'BAJA'));
+  const confidence=best && primaryFromRecent && best.role && best.task && relevantDuration.dated?'ALTA':(best && (primaryFromRecent || (best.role && best.task))?'MEDIA':(entryProfile && educationProfile.orientationSource==='FORMACION_ACADEMICA'?'MEDIA':'BAJA'));
   const searchableSecondary=(confidence==='BAJA'?[]:secondaryProfiles.filter((item)=>item.searchable));
-  return {classKey,classLabel:ADMIN_CANDIDATE_CLASS_LABELS[classKey],expertiseKey,expertiseLabel,expertiseSource:'EVIDENCIA_PRIORIZADA_V8000',profileTitle,
+  return {classKey,classLabel:ADMIN_CANDIDATE_CLASS_LABELS[classKey],expertiseKey,expertiseLabel,expertiseSource:'EVIDENCIA_PRIORIZADA_V801',profileTitle,
     recentRole:ev.recent[0] || ev.credibleWork[0] || '',profileScore,seniorityKey,seniorityLabel,explicitYearsExperience:duration.years,
     relevantYearsExperience:relevantDuration.years,experienceEvidenceSource:duration.years===null?'Sin duración verificable':(duration.dated?'Períodos laborales declarados (aproximación temporal)':'Duración explícita en antecedentes laborales'),
     professionalSourcesUsed:[...(ev.recent.length?['Último trabajo declarado']:[]),...(ev.work.length?['CV / antecedentes curriculares']:[]),...(ev.voice.length?['Relato original']:[]),...(!best && educationProfile.rawEducation?['Formación académica declarada']:[])],cvEvidenceUsed:ev.work.length>0,
@@ -7030,7 +7033,7 @@ function buildCandidateAdminClassification(candidate = {}){
     professionalEvidenceSummary:{rolesDetected:best?.role?1:0,responsibilitySignals:responsibilities.length,leadershipSignals:responsibilities.length,credibleWorkSignals:ev.credibleWork.length,richResume:false,richPresentation:false},
     reason,scoreBasis:profileScore===null?'Sin evidencia suficiente para puntuar.':`${profileScore}/100: indicador conservador de evidencia en la actividad principal; no mide empleabilidad.`,
     evidence,gaps,assessment:`${reason} ${secondaryProfiles.length?`Perfil(es) complementario(s): ${secondaryProfiles.map(x=>x.label).join(' / ')}. `:''}${gaps.join(' ')} Confirmar funciones y autonomía en entrevista.`,
-    searchText:[profileTitle,expertiseLabel,seniorityLabel,...(first?educationProfile.aliases:[]),ev.recent?.[0]||'',...evidence,...searchableSecondary.flatMap(x=>[x.label,x.profileTitle,...(x.evidence||[])])].join(' '),classificationVersion:'8.0.0'};
+    searchText:[profileTitle,expertiseLabel,seniorityLabel,...(entryProfile?educationProfile.aliases:[]),ev.recent?.[0]||'',...evidence,...searchableSecondary.flatMap(x=>[x.label,x.profileTitle,...(x.evidence||[])])].join(' '),classificationVersion:'8.0.1'};
 }
 
 
@@ -7368,12 +7371,12 @@ function candidateClassificationPersistenceData(candidate, classification, trigg
   return {
     classificationVersion:CANDIDATE_CLASSIFICATION_VERSION,
     sourceFingerprint:fingerprint,
-    classKey:String(classification.classKey || 'INICIAL'),
-    classLabel:String(classification.classLabel || 'Información profesional por completar'),
+    classKey:String(classification.classKey || 'APRENDIZ'),
+    classLabel:String(classification.classLabel || 'Aprendices'),
     expertiseKey:String(classification.expertiseKey || 'GENERAL'),
-    expertiseLabel:String(classification.expertiseLabel || 'Orientación laboral por definir'),
+    expertiseLabel:String(classification.expertiseLabel || 'Aprendiz general'),
     expertiseSource:String(classification.expertiseSource || 'EVIDENCIA_DECLARADA').slice(0,120),
-    profileTitle:String(classification.profileTitle || 'Perfil inicial con orientación por definir').slice(0,240),
+    profileTitle:String(classification.profileTitle || 'Aprendiz general').slice(0,240),
     recentRole:String(classification.recentRole || '').slice(0,500) || null,
     profileScore:classification.profileScore != null && Number.isFinite(Number(classification.profileScore)) ? Math.round(Number(classification.profileScore)) : null,
     seniorityKey:String(classification.seniorityKey || 'NO_DETERMINADO'),

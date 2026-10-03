@@ -16,13 +16,13 @@ vm.runInContext(api.slice(s,e)+';globalThis.f={buildCandidateAdminClassification
 const classify=ctx.f.buildCandidateAdminClassification;
 const c=(ultimoTrabajo,experience='',summary='',education='',certifications='')=>({candidateBolsa:{ultimoTrabajo},resume:{experience,summary,education,certifications}});
 
-test('v7.10.15 peón de cocina reciente prevalece sobre atención al cliente histórica',()=>{
+test('v8.0.1 peón de cocina reciente prevalece sobre atención al cliente histórica',()=>{
   const a=classify(c('', 'Enero 2021 - Diciembre 2021 Peón de logística. Carga y descarga, picking y packing. Enero 2022 - Diciembre 2022 Operario. Atención al cliente. Enero 2026 - Junio 2026 Peón de Cocina. Producción y preparación de alimentos, limpieza y orden del sector.'));
   assert.equal(a.expertiseKey,'GASTRONOMIA');
   assert.match(a.reason,/Pe[oó]n de Cocina/i);
 });
 
-test('v7.10.15 versión activa sincronizada',()=>{
-  assert.equal(pkg.version,'7.10.15');
-  assert.match(api,/CANDIDATE_CLASSIFICATION_VERSION = '7\.10\.15'/);
+test('v8.0.1 versión activa sincronizada',()=>{
+  assert.equal(pkg.version,'8.0.1');
+  assert.match(api,/CANDIDATE_CLASSIFICATION_VERSION = '8\.0\.0'/);
 });

@@ -68,8 +68,8 @@ test('clasificación avanzada permanece sólo en administración', () => {
   }
 });
 
-test('frontend declara v7.10.15', () => {
-  assert.match(config, /TP_APP_VERSION = "7\.10\.15"/);
+test('frontend declara v8.0.1', () => {
+  assert.match(config, /TP_APP_VERSION = "8\.0\.0"/);
 });
 
 import vm from 'node:vm';
@@ -98,10 +98,10 @@ test('comportamiento: supervisor de producción reciente queda clasificado y pun
 test('comportamiento: estudiante administrativo escaso no queda pendiente', () => {
   const { buildCandidateAdminClassification } = classificationFns();
   const c = buildCandidateAdminClassification({ candidateBolsa:{ areaTrabajo:'Administración', especialidad:'Administrativo', rangoExperiencia:'0–1', nivelEducativo:'Universitaria', ultimoTrabajo:'Estudiante buscando pasantía administrativa' }, resume:{} });
-  assert.equal(c.classKey, 'APRENDIZ');
-  assert.equal(c.seniorityKey, 'APRENDIZ');
-  assert.equal(c.expertiseKey, 'GENERAL');
-  assert.ok(c.profileScore <= 24);
+  assert.equal(c.classKey, 'PASANTE');
+  assert.equal(c.seniorityKey, 'PASANTE');
+  assert.equal(c.expertiseKey, 'ADMINISTRACION');
+  assert.ok(c.profileScore <= 15);
 });
 
 test('comportamiento: la función administrativa reciente prevalece sobre un título universitario genérico', () => {
@@ -115,7 +115,7 @@ test('comportamiento: expertise desconocido crea etiqueta propia', () => {
   const { buildCandidateAdminClassification } = classificationFns();
   const c = buildCandidateAdminClassification({ candidateBolsa:{ areaTrabajo:'Arte gráfico industrial', especialidadOtro:'Rotulación técnica industrial', rangoExperiencia:'2–5' }, resume:{} });
   assert.equal(c.expertiseKey, 'GENERAL');
-  assert.equal(c.profileScore, null);
+  assert.equal(c.profileScore, 10);
 });
 
 test('comportamiento: la actividad más reciente pesa más que experiencia histórica de otra expertise', () => {

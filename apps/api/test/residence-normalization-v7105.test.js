@@ -13,7 +13,7 @@ const report=fs.readFileSync(path.join(root,'apps/api/src/services/traceability-
 
 const r=(args)=>normalizeResidenceForGrouping(args);
 
-test('v7.10.15 unifica variantes evidentes de Campana sin tocar el dato almacenado',()=>{
+test('v8.0.1 unifica variantes evidentes de Campana sin tocar el dato almacenado',()=>{
   for(const locality of ['Campana','Canpana','Campna','Csmpsna','GBA - Campana','Otamendi, Campana','(AR) CAMPANA (BUENOS AIRES)']){
     const out=r({locality,province:'Buenos Aires',country:'Argentina'});
     assert.equal(out.city,'Campana',locality);
@@ -22,7 +22,7 @@ test('v7.10.15 unifica variantes evidentes de Campana sin tocar el dato almacena
   }
 });
 
-test('v7.10.15 corrige campos desplazados y provincias no territoriales cuando la ciudad es inequívoca',()=>{
+test('v8.0.1 corrige campos desplazados y provincias no territoriales cuando la ciudad es inequívoca',()=>{
   for(const province of ['Soltero','SOLTERO/A','federal','Campana','Bueno aires','Buenos Aires (Provincia)']){
     const out=r({locality:'Campana',province,country:'Argentina'});
     assert.equal(out.city,'Campana',province);
@@ -33,7 +33,7 @@ test('v7.10.15 corrige campos desplazados y provincias no territoriales cuando l
   });
 });
 
-test('v7.10.15 unifica variantes evidentes de Zárate, Escobar y Tigre',()=>{
+test('v8.0.1 unifica variantes evidentes de Zárate, Escobar y Tigre',()=>{
   for(const province of ['GBA Zona Norte','Buenos Aires Aires','Buenos Aires (provincia)','Buenos Aires/ Zarate / Zona norte']){
     const out=r({locality:'Zárate',province,country:'Argentina'});
     assert.equal(out.city,'Zárate',province);
@@ -44,7 +44,7 @@ test('v7.10.15 unifica variantes evidentes de Zárate, Escobar y Tigre',()=>{
   assert.equal(r({locality:'Benavides tigre',province:'Buenos Aires',country:'Argentina'}).city,'Tigre');
 });
 
-test('v7.10.15 usa sólo señales territoriales de alta confianza para completar',()=>{
+test('v8.0.1 usa sólo señales territoriales de alta confianza para completar',()=>{
   assert.equal(r({locality:'2804',province:'Buenos Aires',country:'Argentina'}).city,'Ciudad no informada');
   assert.equal(r({locality:'1_2814',province:'Buenos Aires',country:'Argentina'}).city,'Ciudad no informada');
   assert.equal(r({locality:'+54 3489 123456',province:'Buenos Aires',country:'Argentina'}).city,'Ciudad no informada');
@@ -54,7 +54,7 @@ test('v7.10.15 usa sólo señales territoriales de alta confianza para completar
   assert.equal(r({locality:'Buenos Aires',province:'Buenos Aires',country:'Argentina'}).city,'Ciudad no informada');
 });
 
-test('v7.10.15 preserva localidades válidas y canoniza sólo presentación',()=>{
+test('v8.0.1 preserva localidades válidas y canoniza sólo presentación',()=>{
   assert.equal(r({locality:'Rosario',province:'Santa Fe',country:'Argentina'}).city,'Rosario');
   assert.equal(r({locality:'Los cardales',province:'Buenos Aires',country:'Argentina'}).city,'Los Cardales');
   assert.equal(r({locality:'Grand boug',province:'Buenos Aires',country:'Argentina'}).city,'Grand Bourg');
@@ -64,14 +64,14 @@ test('v7.10.15 preserva localidades válidas y canoniza sólo presentación',()=
 });
 
 
-test('v7.10.15 aplica la localidad normalizada también a filtros y búsqueda Empresa',()=>{
+test('v8.0.1 aplica la localidad normalizada también a filtros y búsqueda Empresa',()=>{
   assert.match(api,/localidadNormalizada:residence\.city/);
   assert.match(api,/localityMatches\(it\.localidadNormalizada \|\| it\.localidad,localidad\)/);
   assert.match(api,/localidad: it\.localidadNormalizada \|\| it\.localidad/);
   assert.match(api,/candidateProfessionalSearchText\(it\.candidate,c\)\} \${it\.localidadNormalizada/);
 });
 
-test('v7.10.15 aplica la normalización sólo en lectura agregada y reportes',()=>{
+test('v8.0.1 aplica la normalización sólo en lectura agregada y reportes',()=>{
   assert.match(api,/normalizeResidenceForGrouping/);
   assert.match(api,/function candidateResidence\(candidate = \{\}\)/);
   assert.match(admin,/Candidatos por residencia normalizada/);
@@ -80,7 +80,7 @@ test('v7.10.15 aplica la normalización sólo en lectura agregada y reportes',()
 });
 
 
-test('v7.10.15 corrige Campana cargada simultáneamente como ciudad y provincia',()=>{
+test('v8.0.1 corrige Campana cargada simultáneamente como ciudad y provincia',()=>{
   assert.deepEqual(r({locality:'Campana',province:'Campana',country:'Argentina'}),{
     city:'Campana',province:'Buenos Aires',country:'Argentina',inferred:true,normalized:true,source:'misplaced-field'
   });

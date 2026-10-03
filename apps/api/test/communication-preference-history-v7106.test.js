@@ -14,8 +14,8 @@ const simulate=fs.readFileSync(path.join(root,'scripts/simulate_communication_hi
 const rollback=fs.readFileSync(path.join(root,'scripts/rollback_communication_history_v7106.sql'),'utf8');
 const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 
-test('v7.10.15 agrega historial append-only sin reemplazar el estado vigente de User',()=>{
-  assert.equal(pkg.version,'7.10.15');
+test('v8.0.1 agrega historial append-only sin reemplazar el estado vigente de User',()=>{
+  assert.equal(pkg.version,'8.0.1');
   assert.match(schema,/model CommunicationPreferenceEvent/);
   assert.match(schema,/bulkEmailOptOutAt\s+DateTime\?/);
   assert.match(schema,/LEGACY_OPT_OUT_SNAPSHOT/);

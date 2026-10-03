@@ -1,11 +1,17 @@
-# Talento PyME — versión actual v8.0.0
+# Talento PyME — versión actual v8.0.1
 
-> **VERSIÓN ACTIVA v8.0.0**  
+## Etapa 8.0.1 — clasificación de entrada profesional
+- Trazabilidad deja de mostrar **Información profesional por completar** y **Perfil profesional / Trayectoria no determinada** como grupos operativos.
+- Sin expertise laboral demostrable: **Aprendiz** (secundaria/técnica/bachillerato) o **Pasante** (terciaria/universitaria).
+- Las orientaciones como **Aprendiz eléctrico** o **Pasante mecánico** son buscables por palabra clave.
+
+
+> **VERSIÓN ACTIVA v8.0.1**  
 > Inicio de una nueva etapa del motor de clasificación de candidatos.
 
 La versión operativa se obtiene de `apps/api/package.json`, `apps/web/config.js`, `CURRENT_VERSION.txt` y `/health`. Los archivos con números anteriores se conservan como **documentación histórica** y no representan la versión ejecutándose.
 
-## v8.0.0 — Aprendices, Pasantes y búsqueda por formación
+## v8.0.1 — Aprendices, Pasantes y búsqueda por formación
 
 - Los perfiles sin experiencia verificable dejan de quedar agrupados como “Información profesional por completar”.
 - **Aprendiz**: candidato sin experiencia laboral verificable y sin formación superior. La orientación se obtiene de la formación secundaria/técnica cuando existe.
@@ -17,7 +23,7 @@ La versión operativa se obtiene de `apps/api/package.json`, `apps/web/config.js
 - La experiencia laboral real conserva prioridad sobre la formación: un trabajador con trayectoria no se degrada a Aprendiz/Pasante.
 - No se usan edad, DNI ni otros atributos personales como sustituto de experiencia.
 
-Ver `LEER_PRIMERO_v8.0.0.md`, `AUDITORIA_CLASIFICACION_v8.0.0.md` y `RELEASE_FINAL_v8.0.0.md` antes de desplegar.
+Ver `LEER_PRIMERO_v8.0.1.md`, `AUDITORIA_CLASIFICACION_v8.0.1.md` y `RELEASE_FINAL_v8.0.1.md` antes de desplegar.
 
 ## v7.9.16 — recalificación integral de candidatos
 
