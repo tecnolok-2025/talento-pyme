@@ -24,12 +24,12 @@ function classificationFns(){
   return ctx.__out;
 }
 
-test('v7.10.13 unifica versión y recalcula sin persistir una nota vieja',()=>{
-  assert.equal(pkg.version,'7.10.13');
+test('v7.10.14 unifica versión y recalcula sin persistir una nota vieja',()=>{
+  assert.equal(pkg.version,'7.10.14');
   assert.match(api,/function buildCandidateAdminClassification/);
 });
 
-test('v7.10.13 estima trayectoria desde períodos laborales fechados del CV',()=>{
+test('v7.10.14 estima trayectoria desde períodos laborales fechados del CV',()=>{
   const {estimateExperienceYearsFromResumeDates}=classificationFns();
   const r=estimateExperienceYearsFromResumeDates('1994-2004 Técnico eléctrico. 2004-2014 Supervisor. 2014-Presente Jefe de mantenimiento.');
   assert.ok(r.years>=30,`esperado >=30 años, recibido ${r.years}`);
@@ -66,7 +66,7 @@ test('expertise usa CV completo con peso fuerte y no sólo campos básicos',()=>
     }
   });
   assert.equal(c.expertiseKey,'MANTENIMIENTO');
-  assert.equal(c.expertiseSource,'EVIDENCIA_PRIORIZADA_V71013');
+  assert.equal(c.expertiseSource,'EVIDENCIA_PRIORIZADA_V71014');
 });
 
 test('primer empleo explícito puede conservar categoría inicial sin usar edad ni suposiciones',()=>{

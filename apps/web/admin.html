@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.10.13" />
+  <link rel="stylesheet" href="/styles.css?v=7.10.14" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -529,8 +529,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.10.13"></script>
-<script src="/auth.js?v=7.10.13"></script>
+<script src="/config.js?v=7.10.14"></script>
+<script src="/auth.js?v=7.10.14"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -662,7 +662,7 @@ function renderCandidateDetail(it){
     ${field('Teléfono',f.phone)}${field('Teléfono adicional',f.additionalPhone)}${field('Correo',f.email)}
     ${field('Ciudad',f.city)}${field('Dirección',f.address)}${field('Estado civil',f.maritalStatus)}
     ${field('Edad',f.age == null ? 'No informada' : f.age+' años · '+f.ageSource)}${field('Último trabajo declarado',f.latestJob)}
-    </section><section class="candidateDetailSection">${field('Actividad principal',c.expertiseLabel)}${field('Actividad / rol más reciente',c.recentRole)}${field('Perfiles complementarios',Array.isArray(c.secondaryProfiles)&&c.secondaryProfiles.length?c.secondaryProfiles.map(x=>x.label).join(' · '):'No se detectaron con evidencia suficiente')}${field('Nivel',c.seniorityLabel)}
+    </section><section class="candidateDetailSection">${field('Actividad principal',c.expertiseLabel)}${field('Actividad / rol más reciente',c.recentRole)}${field('Perfiles complementarios / antecedentes',Array.isArray(c.secondaryProfiles)&&c.secondaryProfiles.length?c.secondaryProfiles.map(x=>`${x.label}${x.searchable?' · buscable':' · antecedente'}`).join(' · '):'No se detectaron con evidencia suficiente')}${field('Nivel',c.seniorityLabel)}
     ${field('Evidencia en la especialidad',c.profileScore == null ? 'Sin información suficiente' : c.profileScore+'/100 · provisional')}
     <p>${esc(c.assessment || '')}</p></section></div>
     <details style="margin-top:16px"><summary>Ver antecedentes originales y gestión de la cuenta</summary>${renderCandidateSourceDetail(it)}</details>`;
@@ -688,7 +688,7 @@ function renderCandidateSourceDetail(it){
     candidateSection('Clasificación administrativa', [
       candidateField('Tipo de perfil', adminClass.classLabel),
       candidateField('Actividad principal / expertise', adminClass.expertiseLabel),
-      candidateField('Perfiles complementarios', Array.isArray(adminClass.secondaryProfiles) && adminClass.secondaryProfiles.length ? adminClass.secondaryProfiles.map((x)=>`${x.label}${x.latestYear ? ` · evidencia hasta ${x.latestYear}` : ''}`).join(' | ') : 'No se detectaron con evidencia suficiente'),
+      candidateField('Perfiles complementarios / antecedentes', Array.isArray(adminClass.secondaryProfiles) && adminClass.secondaryProfiles.length ? adminClass.secondaryProfiles.map((x)=>`${x.label}${x.searchable ? ' · buscable' : ' · antecedente'}${x.latestYear ? ` · evidencia hasta ${x.latestYear}` : ''}`).join(' | ') : 'No se detectaron con evidencia suficiente'),
       candidateField('Actividad / rol más reciente utilizado', adminClass.recentRole),
       candidateField('Nivel estimado', adminClass.seniorityLabel),
       candidateField('Índice de trayectoria', adminClass.profileScore !== null && adminClass.profileScore !== undefined && Number.isFinite(Number(adminClass.profileScore)) ? `${Number(adminClass.profileScore)}%` : 'No determinado por falta de evidencia suficiente'),
@@ -1958,7 +1958,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v7.10.13: el estado de la cola se refresca mientras Administración permanece abierto.
+// v7.10.14: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();

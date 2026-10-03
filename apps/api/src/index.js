@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "7.10.13";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "7.10.14";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -62,7 +62,7 @@ let backupSchedulerStarted = false;
 // v7.10.3 · clasificación automática y persistente de candidatos.
 // El motor sigue siendo determinístico y basado en evidencia declarada; esta capa solamente
 // garantiza que altas, importaciones masivas y cambios de CV queden procesados sin auditoría manual.
-const CANDIDATE_CLASSIFICATION_VERSION = '7.10.13';
+const CANDIDATE_CLASSIFICATION_VERSION = '7.10.14';
 const CANDIDATE_CLASSIFICATION_AUTO_ENABLED = String(process.env.CANDIDATE_CLASSIFICATION_AUTO_ENABLED || 'true').trim().toLowerCase() !== 'false';
 const CANDIDATE_CLASSIFICATION_SCAN_SECONDS = Math.max(15, Math.min(3600, Number(process.env.CANDIDATE_CLASSIFICATION_SCAN_SECONDS || 60)));
 const CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS = Math.max(1000, Math.min(120000, Number(process.env.CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS || 12000)));
@@ -5425,7 +5425,7 @@ app.delete("/jobs/:id", auth, requireRole("COMPANY"), async (req, res) => {
     });
     if(!job || job.company?.userId !== req.user.id) return res.status(404).json({ error: "Búsqueda no encontrada" });
 
-    // v7.10.13: si ya existen postulaciones, preservamos la trazabilidad y evitamos
+    // v7.10.14: si ya existen postulaciones, preservamos la trazabilidad y evitamos
     // la violación Application_jobId_fkey. Para el usuario la búsqueda desaparece
     // de las oportunidades activas, pero las postulaciones históricas siguen íntegras.
     if(Number(job._count?.applications || 0) > 0){
@@ -6497,22 +6497,22 @@ function inferAdminCandidateExpertise(candidate = {}){
 // v7.10.3: clasificación explicable calibrada contra el padrón real.
 // Las presentaciones generadas, listas de habilidades y aspiraciones no son evidencia de experiencia.
 const CANDIDATE_EVIDENCE_RULES = [
-  ['INSTRUMENTACION','Instrumentación / Automatización','Técnico de instrumentación y automatización','TECNICO',/\b(instrumentista|automatista|tecnico (?:en |de )?instrumentacion|tecnico (?:en |de )?automatizacion|operari[oa] (?:en |de )?automatizacion|especialista (?:e )?i c)\b/,/\b(calibr\w*|lazos? de control|plc|scada|dcs|transmisores?|sensores? industriales?|instrumentacion industrial)\b/],
-  ['ELECTRICA','Eléctrica','Electricista de instalaciones y mantenimiento','TECNICO',/\b(electricista|tablerista|bobinador|oficial electricista|tecnico electric\w*)\b/,/\b(tableros? electric\w*|cableado|instalaciones? electricas?|media tension|alta tension|motores? electricos?|protecciones? electricas?|puesta a tierra)\b/],
+  ['INSTRUMENTACION','Instrumentación / Automatización','Técnico de instrumentación y automatización','TECNICO',/\b(instrumentista|automatista|tecnico (?:en |de )?instrumentacion|tecnico (?:en |de )?automatizacion|operari[oa] (?:en |de )?automatizacion|especialista (?:e )?i c)\b/,/\b(calibr(?:acion|aciones|ar|ado|ada|ados|adas)|lazos? de control|plc|scada|dcs|transmisores?|sensores? industriales?|instrumentacion industrial)\b/],
+  ['ELECTRICA','Eléctrica','Electricista de instalaciones y mantenimiento','TECNICO',/\b(electricista|tablerista|bobinador|oficial electricista|oficial de conexiones(?: electricas?)?|operari[oa] electric[oa]|tecnico electric\w*)\b/,/\b(tableros? electric\w*|cableado|instalaciones? electricas?|conexiones? electricas?|medidores? (?:monofasicos?|trifasicos?)|monofasico|trifasico|media tension|alta tension|motores? electricos?|protecciones? electricas?|puesta a tierra)\b/],
   ['MECANICA','Mecánica','Mecánico de equipos y mantenimiento','TECNICO',/\b(mecanico|tornero|fresador|mecanizador|oficial mecanico|tecnico mecanico)\b/,/\b(bombas?|compresores?|hidraulica|neumatica|torno|fresa|mecanizado|rodamientos?|alineacion de equipos)\b/],
   ['SOLDADURA_MONTAJE','Soldadura / Montaje','Operario de soldadura y montaje','OPERATIVO',/\b(soldador|calderero|montajista|canista|canero|oficial soldador)\b/,/\b(soldadura|mig|tig|electrodo|caldereria|piping|montaje industrial)\b/],
-  ['LOGISTICA','Logística / Depósito','Operario de logística y depósito','OPERATIVO',/\b(chofer|conductor|repartidor|operari[oa] de deposito|operari[oa] logistico|despachante de aduana\w*|ayudante de carga y descarga|preparador de pedidos|picker|clarkista|autoelevadorista|supervisor(?:a)? de logistica|jef[ea] de logistica|team leader de logistica|lider de logistica)\b/,/\b(picking|autoelevador|clark|inventario|carga y descarga|ruteo|almacenamiento|deposito|despacho|recepcion de mercaderia|preparacion de pedidos|distribucion|paqueteria|recepcion de vehiculos|coordinacion de vehiculos|logistica)\b/],
-  ['COMERCIAL','Comercial / Atención al cliente','Atención al cliente y comercio','OPERATIVO',/\b(cajer[oa]|repositor[oa]|vendedor(?:a)?|preventista|promotor(?:a)?|asesor(?:a)? comercial|emplead[oa] de comercio|atencion al cliente|call center|telemarketer|despachante de supermercado)\b/,/\b(caja|cobros?|reposicion|atencion(?: y asesoramiento)? (?:al cliente|a clientes)|ventas?|asesoramiento (?:al publico|al cliente|a clientes)|servicio al cliente|control de stock|pedidos de clientes)\b/],
-  ['ADMINISTRACION','Administración','Administración y gestión documental','ADMINISTRATIVO',/\b(administrativ[oa]|secretari[oa]|recepcionista|asistente administrativ[oa]|responsable de administracion|gestor(?:a)?|gestoria|data entry)\b/,/\b(facturacion|archivo|carga de datos|gestion documental|documentacion|remitos?|conciliaciones?|agenda|turnos|tramites|gestoria)\b/],
+  ['LOGISTICA','Logística / Depósito','Operario de logística y depósito','OPERATIVO',/\b(chofer|conductor|repartidor|operari[oa] de deposito|operari[oa] logistico|representante de envios|inbound representative|despachante de aduana\w*|ayudante de carga y descarga|preparador de pedidos|picker|clarkista|autoelevadorista|supervisor(?:a)? de logistica|jef[ea] de logistica|team leader de logistica|lider de logistica)\b/,/\b(picking|packing|wms|lectoras? de codigos? de barras|autoelevador|clark|inventario|carga y descarga|ruteo|almacenamiento|deposito|despacho|recepcion de mercaderia|preparacion de pedidos|distribucion|paqueteria|recepcion de vehiculos|coordinacion de vehiculos|logistica)\b/],
+  ['COMERCIAL','Comercial / Atención al cliente','Atención al cliente y comercio','OPERATIVO',/\b(cajer[oa]|repositor(?:a)?|vendedor(?:a)?|preventista|promotor(?:a)?|asesor(?:a)? comercial|emplead[oa] de comercio|atencion al cliente|call center|telemarketer|despachante de supermercado)\b/,/\b(caja|cobros?|reposicion|atencion(?: y asesoramiento)? (?:al cliente|a clientes)|ventas?|asesoramiento (?:al publico|al cliente|a clientes)|servicio al cliente|pedidos de clientes)\b/],
+  ['ADMINISTRACION','Administración','Administración y gestión documental','ADMINISTRATIVO',/\b(administrativ[oa]|secretari[oa]|recepcionista|asistente administrativ[oa]|responsable de administracion|gestor(?:a)?|gestoria|mandatari[oa](?: nacional| automotor)?|data entry|practicas? administrativas?)\b/,/\b(facturacion|archivo|expedientes?|carga de datos|gestion documental|documentacion administrativa|registros? administrativos?|remitos?|conciliaciones?|agenda|turnos|tramites|gestoria)\b/],
   ['FINANZAS','Finanzas / Contabilidad','Contabilidad, tesorería y finanzas','ADMINISTRATIVO',/\b(contador(?:a)?|analista contable|tesorer[oa]|analista financier[oa]|cuentas? a pagar|cuentas? por pagar|analista de cobranzas?|analista de creditos?|pasantia (?:en |del )?(?:el )?area de tesoreria)\b/,/\b(contabilidad|balances?|impuestos?|tesoreria|liquidacion de sueldos|pagos?|operaciones bancarias|posicion financiera|registracion contable|cobranzas?|riesgo crediticio|creditos?)\b/],
   ['RRHH','Recursos Humanos','Recursos humanos y selección','ADMINISTRATIVO',/\b(analista de recursos humanos|reclutador(?:a)?|selector(?:a)? de personal|asistente de recursos humanos|administrativ[oa] de rrhh)\b/,/\b(seleccion de personal|legajos|recursos humanos|rrhh|liquidacion de haberes|altas y bajas de personal)\b/],
-  ['COMPRAS','Compras / Abastecimiento','Compras y abastecimiento','ADMINISTRATIVO',/\b(comprador(?:a)?|analista de compras|buyer|procurement)\b/,/\b(ordenes? de compra|abastecimiento|negociacion con proveedores|proveedores|sourcing|cotizaciones?)\b/],
-  ['IT','IT / Software','Desarrollo o soporte de sistemas','TECNICO',/\b(programador(?:a)?|desarrollador(?:a)?|devops|tecnico informatico|soporte tecnico|analista de sistemas)\b/,/\b(software|python|javascript|sql|redes informaticas|soporte informatico|base de datos|desarrollo web|mantenimiento de computadoras?|reparacion de (?:pc|computadoras?)|soporte a usuarios)\b/],
-  ['CALIDAD_HSE','Calidad / Seguridad e higiene','Calidad, inspección y seguridad e higiene','TECNICO',/\b(inspector(?:a)? de calidad|tecnico en seguridad|tecnico en higiene|analista de calidad|controlador(?:a)? de calidad|brigadista)\b/,/\b(iso 9001|auditorias?|ensayos no destructivos|seguridad e higiene|higiene y seguridad|control de calidad|inspeccion de calidad|aseguramiento de calidad)\b/],
-  ['SEGURIDAD','Seguridad / Vigilancia','Seguridad y vigilancia','OPERATIVO',/\b(vigilador(?:a)?|guardia de seguridad|seguridad privada|custodio|vigilancia|porter[oa]|porteria)\b/,/\b(control de acceso|rondas?|vigilancia|control de ingreso|seguridad patrimonial|porteria)\b/],
+  ['COMPRAS','Compras / Abastecimiento','Compras y abastecimiento','ADMINISTRATIVO',/\b(comprador(?:a)?|analista de compras|buyer|procurement)\b/,/\b(ordenes? de compra|compras? a proveedores|abastecimiento de materiales|negociacion con proveedores|sourcing|gestion de compras)\b/],
+  ['IT','IT / Software','Desarrollo o soporte de sistemas','TECNICO',/\b(programador(?:a)?|desarrollador(?:a)?|devops|tecnico informatico|soporte tecnico informatico|analista de sistemas)\b/,/\b(programacion|python|javascript|sql|administracion de bases? de datos|redes informaticas|soporte informatico|desarrollo web|mantenimiento de computadoras?|reparacion de (?:pc|computadoras?)|soporte a usuarios|hardware|helpdesk)\b/],
+  ['CALIDAD_HSE','Calidad / Seguridad e higiene','Calidad, inspección y seguridad e higiene','TECNICO',/\b(inspector(?:a)? de calidad|pasante (?:en |de )?calidad|tecnico en seguridad|tecnico en higiene|analista de calidad|controlador(?:a)? de calidad|brigadista)\b/,/\b(iso 9001|gmp|bpm|capa|desvios?|causa raiz|auditorias?|sistema de gestion de calidad|ensayos no destructivos|seguridad e higiene|higiene y seguridad|control de calidad|inspeccion de calidad|aseguramiento de calidad)\b/],
+  ['SEGURIDAD','Seguridad / Vigilancia','Seguridad y vigilancia','OPERATIVO',/\b(vigilador(?:a)?|guardia de seguridad|seguridad privada|custodio|vigilancia)\b/,/\b(control de acceso|rondas?|vigilancia|control de ingreso|seguridad patrimonial)\b/],
   ['CONSTRUCCION','Construcción / Obra','Construcción y obra','OPERATIVO',/\b(albanil|andamiero|encofrador|fierrero|gruista|oficial de obra|ayudante de obra|inspector(?:a)? de obras?)\b/,/\b(hormigon|mamposteria|encofrado|obra civil|construccion|albanileria)\b/],
-  ['PRODUCCION','Producción / Operaciones','Operación de producción y procesos','OPERATIVO',/\b(operari[oa](?: especializado)? de produccion|operador(?:a)? de planta|operador(?:a)? de proceso|operari[oa] industrial|operari[oa] de linea|supervisor(?:a)? de produccion|jef[ea] de produccion|coordinador(?:a)? de produccion)\b/,/\b(linea de produccion|manufactura|envasado|sala de control|proceso productivo|produccion industrial|operacion de planta|embalaje)\b/],
-  ['MANTENIMIENTO','Mantenimiento','Mantenimiento de equipos e instalaciones','TECNICO',/\b(tecnico de mantenimiento|operari[oa] de mantenimiento|mantenedor|mecanico de mantenimiento|electricista de mantenimiento|oficial de mantenimiento)\b/,/\b(mantenimiento preventivo|mantenimiento correctivo|mantenimiento predictivo|reparacion de equipos|lubricacion|mantenimiento industrial|mantenimiento de planta|mantenimiento)\b/],
+  ['PRODUCCION','Producción / Operaciones','Operación de producción y procesos','OPERATIVO',/\b(operari[oa](?: especializado)? de produccion|operari[oa] de ensamble|operador(?:a)? de planta|operador(?:a)? de proceso|operari[oa] industrial|operari[oa] de linea|supervisor(?:a)? de (?:produccion|linea(?: de (?:ensamble|produccion))?|ensamble|turno)|jef[ea] de produccion|coordinador(?:a)? de produccion)\b/,/\b(linea de produccion|linea de ensamble|ensamble|manufactura|envasado|packaging|sala de control|proceso productivo|produccion industrial|operacion de planta|embalaje)\b/],
+  ['MANTENIMIENTO','Mantenimiento','Mantenimiento de equipos e instalaciones','TECNICO',/\b(tecnico de mantenimiento|operari[oa] de mantenimiento|mantenedor|mecanico de mantenimiento|electricista de mantenimiento|oficial de mantenimiento|supervisor(?:a)? de mantenimiento|jef[ea] de mantenimiento|responsable de mantenimiento)\b/,/\b(mantenimiento preventivo|mantenimiento correctivo|mantenimiento predictivo|reparacion de equipos|lubricacion|mantenimiento industrial|mantenimiento de planta|mantenimiento de equipos|mantenimiento de instalaciones)\b/],
   ['INGENIERIA','Ingeniería / Oficina técnica','Ingeniería y oficina técnica','PROFESIONAL',/\b(ingeniero|ingeniera|proyectista|calculista|dibujante tecnico)\b/,/\b(calculo estructural|planos|ingenieria de detalle|autocad|solidworks|oficina tecnica|documentacion tecnica)\b/],
   ['PROYECTOS','Proyectos / Project Management','Gestión de proyectos','PROFESIONAL',/\b(project manager|gerente de proyecto|jefe de proyecto|coordinador(?:a)? de proyecto|responsable de proyectos?)\b/,/\b(gestion de proyectos|proyectos industriales|project management|seguimiento de proyectos|planificacion de proyectos)\b/],
   ['PLANIFICACION','Planificación / Costos','Planificación y control','TECNICO',/\b(planificador(?:a)?|analista de costos|planner)\b/,/\b(primavera p6|ms project|cronogramas|control de costos|planificacion de mantenimiento|programacion de tareas)\b/],
@@ -6580,6 +6580,21 @@ function candidateWorkPeriodPrefix(line=''){
   return '';
 }
 
+function candidateEvidenceHitAccepted(rule,line,{roleHit=false,taskHit=false,src={}}={}){
+  const key=rule?.[0] || '';
+  const t=adminNormText(line);
+  if(!t) return false;
+  // v7.10.14: palabras instrumentales no crean profesiones por sí solas.
+  if(key==='IT' && taskHit){
+    if(/\b(base de datos de (?:mantenimiento|equipos|activos|akz|aca)|software (?:de|para) (?:gestion|administracion|diseno)|sistema documental)\b/.test(t) && !/\b(programacion|desarrollo|soporte informatico|redes informaticas|sql|helpdesk|reparacion de (?:pc|computadoras?))\b/.test(t)) return false;
+  }
+  if(key==='MANTENIMIENTO' && taskHit && /\b(mantenimiento (?:del orden|de registros?|de documentacion|de limpieza|de espacios))\b/.test(t)) return false;
+  if(key==='COMPRAS' && taskHit && /\b(cotiz(?:ar|acion|aciones)|proveedores?)\b/.test(t) && !/\b(compras?|ordenes? de compra|abastecimiento de materiales|negociacion|sourcing)\b/.test(t)) return false;
+  if(key==='SEGURIDAD' && /\b(porteria|portero|portera)\b/.test(t) && !/\b(control de acceso|vigilancia|seguridad patrimonial|rondas?|control de ingreso)\b/.test(t)) return false;
+  if(key==='INSTRUMENTACION' && taskHit && /\b(calibre|calibres)\b/.test(t) && !/\b(calibracion|calibrar|lazo de control|plc|scada|dcs|transmisor|sensor industrial)\b/.test(t)) return false;
+  return roleHit || taskHit;
+}
+
 function candidateVerifiedProfessionalEvidence(candidate={}){
   const b=candidate.candidateBolsa || {}, r=candidate.resume || {};
   const recent=candidateEvidenceLines(b.ultimoTrabajo);
@@ -6625,7 +6640,7 @@ function candidateVerifiedProfessionalEvidence(candidate={}){
       const t=adminNormText(line), src=sourceMap.get(line)||{};
       const roleHit=rule[4].test(t), taskHit=rule[5].test(t);
       const taskAccepted=taskHit && (CANDIDATE_ACTION_SIGNAL.test(t) || src.recent || (src.work && candidateWorkEvidenceStrength(line)>=3) || src.voice);
-      if(!roleHit && !taskAccepted) continue;
+      if(!candidateEvidenceHitAccepted(rule,line,{roleHit,taskHit:taskAccepted,src})) continue;
       hits.push(line); role ||= roleHit; task ||= taskHit;
       if(src.recent) weight += roleHit?10:5;
       else if(src.work) weight += roleHit?5:3;
@@ -6737,8 +6752,8 @@ function candidateEvidenceYears(lines, now=new Date()){
   return {years:datedYears!==null?datedYears:(explicit.length?Math.max(...explicit):null),dated};
 }
 function candidateIsPreciseWorkPeriod(period=''){
-  const p=adminNormText(period);
-  if(!p) return false;
+  const p=String(period || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[‐‑‒–—]/g,'-');
+  if(!p.trim()) return false;
   if(/\b(?:ene|enero|feb|febrero|mar|marzo|abr|abril|may|mayo|jun|junio|jul|julio|ago|agosto|sep|sept|septiembre|set|setiembre|oct|octubre|nov|noviembre|dic|diciembre)\b/.test(p)) return true;
   if(/\b(?:0?[1-9]|1[0-2])[\/.\-]\d{2,4}\b/.test(p)) return true;
   if(/\b\d{1,2}[\/.\-]\d{1,2}[\/.\-](?:19|20)\d{2}\b/.test(p)) return true;
@@ -6755,7 +6770,7 @@ function candidateNearbyRelevantPeriodLines(best=null, workLines=[]){
       const line=workLines[j];
       const period=candidateWorkPeriodPrefix(line);
       const strength=candidateWorkEvidenceStrength(line);
-      if(period && candidateIsPreciseWorkPeriod(period) && strength<=3){
+      if(period && (candidateIsPreciseWorkPeriod(period) || j<=i+2) && (strength<=3 || j<=i+3)){
         found.push(period);
         break;
       }
@@ -6788,17 +6803,29 @@ function candidateRankedWithRecency(ev={}, now=new Date()){
   const recentSet=new Set(ev.recent || []);
   return (ev.ranked || []).map((item)=>{
     const recentHits=(item.hits || []).filter((line)=>recentSet.has(line));
-    const latestYear=candidateEvidenceLatestYear(item.hits || [],now);
-    return {...item,recentHits,latestYear};
+    // v7.10.14: algunos CV separan el cargo de su período en la línea siguiente.
+    // Asociamos sólo períodos cercanos sin transferir antigüedad a otros puestos.
+    const nearbyPeriods=candidateNearbyRelevantPeriodLines(item,ev.work||[]);
+    const directLatestYear=candidateEvidenceLatestYear(item.hits||[],now);
+    const latestYear=candidateEvidenceLatestYear([...(item.hits||[]),...nearbyPeriods],now);
+    const evidenceQuality=item.role && item.task ? 3 : (item.role ? 2 : (item.task ? 1 : 0));
+    return {...item,recentHits,directLatestYear,latestYear,evidenceQuality};
   }).sort((a,b)=>{
     const ar=a.recentHits.length?1:0, br=b.recentHits.length?1:0;
     if(ar!==br) return br-ar;
     if(ar && br){
+      if((a.evidenceQuality||0)!==(b.evidenceQuality||0)) return (b.evidenceQuality||0)-(a.evidenceQuality||0);
       const as=candidateExpertiseSpecificity(a.rule?.[0]), bs=candidateExpertiseSpecificity(b.rule?.[0]);
       if(as!==bs) return bs-as;
     }
-    if((a.latestYear||0)!==(b.latestYear||0)) return (b.latestYear||0)-(a.latestYear||0);
-    return (b.weight||0)-(a.weight||0) || (b.hits?.length||0)-(a.hits?.length||0);
+    const ay=a.latestYear||0, by=b.latestYear||0;
+    if(ay && by && Math.abs(ay-by)>=5) return by-ay;
+    if((a.evidenceQuality||0)!==(b.evidenceQuality||0)) return (b.evidenceQuality||0)-(a.evidenceQuality||0);
+    if(ay!==by) return by-ay;
+    const as=candidateExpertiseSpecificity(a.rule?.[0]), bs=candidateExpertiseSpecificity(b.rule?.[0]);
+    if(as!==bs) return bs-as;
+    if((a.weight||0)!==(b.weight||0)) return (b.weight||0)-(a.weight||0);
+    return (b.hits?.length||0)-(a.hits?.length||0);
   });
 }
 
@@ -6810,20 +6837,23 @@ function candidateSecondaryProfiles(ranked=[], primary=null, now=new Date()){
     const key=item?.rule?.[0];
     if(!key || seen.has(key)) continue;
     const recent=Array.isArray(item.recentHits) && item.recentHits.length>0;
-    const recentEnough=item.latestYear!=null && (currentYear-item.latestYear)<=10;
+    const secondaryLatestYear=item.directLatestYear ?? item.latestYear ?? null;
+    const withinFiveYears=secondaryLatestYear!=null && (currentYear-secondaryLatestYear)<=5;
+    const withinTenYears=secondaryLatestYear!=null && (currentYear-secondaryLatestYear)<=10;
     const strong=!!item.role && !!item.task && (item.hits?.length||0)>=2 && (item.weight||0)>=8;
-    if(!strong) continue;
-    // Una experiencia vieja y ajena al presente puede conservarse como antecedente,
-    // pero no debe reaparecer como expertise alternativo ni contaminar búsquedas.
-    if(!recent && !recentEnough) continue;
+    if(!strong || (!recent && !withinTenYears)) continue;
+    // v7.10.14: sólo una especialidad complementaria vigente y con evidencia fuerte
+    // puede participar del buscador. Lo demás se conserva como antecedente visible.
+    const searchable=recent && (item.weight||0)>=10;
     out.push({
       key,
       label:item.rule[1],
       profileTitle:item.rule[2],
-      confidence:recent?'MEDIA':'BAJA',
-      searchable:recent || (item.latestYear!=null && (currentYear-item.latestYear)<=5),
-      latestYear:item.latestYear || null,
-      reason:recent?'También aparece en la actividad actual/reciente.':'Experiencia complementaria respaldada por antecedentes de los últimos 10 años.',
+      type:searchable?'COMPLEMENTARIO':'ANTECEDENTE',
+      confidence:searchable?'MEDIA':'BAJA',
+      searchable,
+      latestYear:secondaryLatestYear || null,
+      reason:searchable?'Actividad complementaria vigente con cargo y tareas verificables.':(withinFiveYears?'Antecedente reciente, visible pero no utilizado para búsquedas automáticas.':'Antecedente histórico, visible pero no utilizado para búsquedas automáticas.'),
       evidence:(item.hits||[]).slice(0,2),
     });
     seen.add(key);
@@ -6838,11 +6868,13 @@ function buildCandidateAdminClassification(candidate = {}){
   const ranked=candidateRankedWithRecency(ev);
   const recentBest=ranked.find((item)=>item.recentHits?.length);
   const currentDatedBest=ranked.find((item)=>item.role && item.task && (item.hits||[]).some((line)=>/\b(actualidad|presente|actual|hoy|current|present)\b/.test(adminNormText(line))));
+  const currentDatedRoleBest=ranked.find((item)=>item.role && (item.hits||[]).some((line)=>/\b(actualidad|presente|actual|hoy|current|present)\b/.test(adminNormText(line))));
+  const currentDatedTaskBest=ranked.find((item)=>item.task && (item.hits||[]).some((line)=>/\b(actualidad|presente|actual|hoy|current|present)\b/.test(adminNormText(line))));
   // Si el campo Último trabajo es genérico (p.ej. "operario industrial") pero el CV
   // declara un cargo actual fechado y con tareas concretas, prevalece este último.
   const recentGenericProduction=!!recentBest && recentBest.rule?.[0]==='PRODUCCION' && (recentBest.recentHits||[]).every((line)=>!/\b(produccion|planta|proceso|linea|manufactura|embalaje|envasado)\b/.test(adminNormText(line)));
   const recentSpecific=!!recentBest && !!recentBest.role && !recentGenericProduction;
-  const best=(recentBest && (recentBest.task || recentSpecific || !currentDatedBest)) ? recentBest : (currentDatedBest || recentBest || ranked[0]);
+  const best=(recentBest && (recentBest.task || recentSpecific || (!currentDatedBest && !currentDatedRoleBest && !currentDatedTaskBest))) ? recentBest : (currentDatedBest || currentDatedRoleBest || currentDatedTaskBest || recentBest || ranked[0]);
   const primaryFromRecent=!!best && (best===recentBest || best===currentDatedBest);
   const education=adminNormText(r.education || '');
   const technicalSchool=/\b(escuela tecnica|secundari\w* tecnic\w*|tecnico electromecanico|tecnico electric\w*|tecnico mecanico|tecnico electronico)\b/.test(education);
@@ -6872,7 +6904,7 @@ function buildCandidateAdminClassification(candidate = {}){
   let profileScore=null, seniorityKey='NO_DETERMINADO',seniorityLabel='Nivel por verificar';
   if(first){profileScore=10;seniorityKey='APRENDIZ';seniorityLabel='Inicial / aprendizaje';}
   else if(best){
-    // v7.10.13: indicador deliberadamente conservador. La actividad actual/reciente
+    // v7.10.14: indicador deliberadamente conservador. La actividad actual/reciente
     // Años en otros trabajos no transfieren automáticamente expertise a la actividad principal.
     // pesa más y la experiencia histórica nunca infla por sí sola el expertise principal.
     profileScore=best.role && best.task?25:15;
@@ -6903,8 +6935,8 @@ function buildCandidateAdminClassification(candidate = {}){
   const primaryOrigin=primaryFromRecent?'actividad actual o último trabajo declarado':'antecedentes curriculares disponibles';
   const reason=best?`Actividad principal propuesta: ${expertiseLabel}. Se prioriza ${primaryOrigin}. Evidencia utilizada: ${evidence.map(x=>x.slice(0,180)).join(' / ')}.`:(ev.credibleWork.length?`Se detecta trayectoria laboral declarada: ${evidence.map(x=>x.slice(0,180)).join(' / ')}. No se fuerza una especialidad sin tareas suficientes.`:(technicalSchool?'La formación técnica permite proponer una pasantía técnica como orientación; no acredita experiencia laboral.':'La información disponible no permite atribuir un oficio ni experiencia administrativa. Se requiere completar antecedentes.'));
   const confidence=best && primaryFromRecent && best.role && best.task && relevantDuration.dated?'ALTA':(best && (primaryFromRecent || (best.role && best.task))?'MEDIA':'BAJA');
-  const searchableSecondary=secondaryProfiles.filter((item)=>item.searchable);
-  return {classKey,classLabel:ADMIN_CANDIDATE_CLASS_LABELS[classKey],expertiseKey,expertiseLabel,expertiseSource:'EVIDENCIA_PRIORIZADA_V71013',profileTitle,
+  const searchableSecondary=(confidence==='BAJA'?[]:secondaryProfiles.filter((item)=>item.searchable));
+  return {classKey,classLabel:ADMIN_CANDIDATE_CLASS_LABELS[classKey],expertiseKey,expertiseLabel,expertiseSource:'EVIDENCIA_PRIORIZADA_V71014',profileTitle,
     recentRole:ev.recent[0] || ev.credibleWork[0] || '',profileScore,seniorityKey,seniorityLabel,explicitYearsExperience:duration.years,
     relevantYearsExperience:relevantDuration.years,experienceEvidenceSource:duration.years===null?'Sin duración verificable':(duration.dated?'Períodos laborales declarados (aproximación temporal)':'Duración explícita en antecedentes laborales'),
     professionalSourcesUsed:[...(ev.recent.length?['Último trabajo declarado']:[]),...(ev.work.length?['CV / antecedentes curriculares']:[]),...(ev.voice.length?['Relato original']:[])],cvEvidenceUsed:ev.work.length>0,
@@ -6912,7 +6944,7 @@ function buildCandidateAdminClassification(candidate = {}){
     professionalEvidenceSummary:{rolesDetected:best?.role?1:0,responsibilitySignals:responsibilities.length,leadershipSignals:responsibilities.length,credibleWorkSignals:ev.credibleWork.length,richResume:false,richPresentation:false},
     reason,scoreBasis:profileScore===null?'Sin evidencia suficiente para puntuar.':`${profileScore}/100: indicador conservador de evidencia en la actividad principal; no mide empleabilidad.`,
     evidence,gaps,assessment:`${reason} ${secondaryProfiles.length?`Perfil(es) complementario(s): ${secondaryProfiles.map(x=>x.label).join(' / ')}. `:''}${gaps.join(' ')} Confirmar funciones y autonomía en entrevista.`,
-    searchText:[profileTitle,expertiseLabel,seniorityLabel,ev.recent?.[0]||'',...evidence,...searchableSecondary.flatMap(x=>[x.label,x.profileTitle,...(x.evidence||[])])].join(' '),classificationVersion:'7.10.13'};
+    searchText:[profileTitle,expertiseLabel,seniorityLabel,ev.recent?.[0]||'',...evidence,...searchableSecondary.flatMap(x=>[x.label,x.profileTitle,...(x.evidence||[])])].join(' '),classificationVersion:'7.10.14'};
 }
 
 
