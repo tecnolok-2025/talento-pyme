@@ -1,0 +1,13 @@
+TALENTO PyME · PARCHE v7.10.15 -> v8.0.0
+
+1. Aplicar sobre el repositorio que actualmente ejecuta v7.10.15.
+2. Subir/reemplazar los archivos respetando exactamente la estructura de carpetas.
+3. Commit en GitHub.
+4. Deploy primero talento-pyme-api.
+5. Verificar en logs: motor de clasificación 8.0.0.
+6. Deploy del sitio estático talento-pyme.
+7. Recarga completa del navegador (Ctrl+F5).
+
+No requiere migración nueva de Neon.
+No incluye ni modifica el resguardo JSON de la base.
+El cambio de versión fuerza la reclasificación automática del padrón con el motor v8.0.0.

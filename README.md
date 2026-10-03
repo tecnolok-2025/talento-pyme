@@ -1,15 +1,23 @@
-# Talento PyME — versión actual v7.10.15
+# Talento PyME — versión actual v8.0.0
 
-> **VERSIÓN ACTIVA v7.10.15**
->
-> La versión operativa de la aplicación se obtiene de `apps/api/package.json`, `apps/web/config.js` y `/health`.
-> Los archivos que llevan números anteriores son **documentación histórica de revisiones**, no versiones que estén ejecutándose.
+> **VERSIÓN ACTIVA v8.0.0**  
+> Inicio de una nueva etapa del motor de clasificación de candidatos.
 
-Ver **LEER_PRIMERO_v7.10.15.md**, **AUDITORIA_POST_DEPLOY_v7.10.14.md** y **RELEASE_FINAL_v7.10.15.md** antes de desplegar.
+La versión operativa se obtiene de `apps/api/package.json`, `apps/web/config.js`, `CURRENT_VERSION.txt` y `/health`. Los archivos con números anteriores se conservan como **documentación histórica** y no representan la versión ejecutándose.
 
+## v8.0.0 — Aprendices, Pasantes y búsqueda por formación
 
-> **Versión de despliegue confirmada:** 7.10.15 · Frontend, API, motor de clasificación y caché PWA alineados.
+- Los perfiles sin experiencia verificable dejan de quedar agrupados como “Información profesional por completar”.
+- **Aprendiz**: candidato sin experiencia laboral verificable y sin formación superior. La orientación se obtiene de la formación secundaria/técnica cuando existe.
+- **Pasante**: candidato sin experiencia laboral verificable con formación terciaria, universitaria o estudios superiores en curso/declarados.
+- Un bachiller sin experiencia se orienta como **Aprendiz administrativo**.
+- Un secundario técnico se orienta por especialidad: eléctrico, mecánico, electromecánico, electrónico, químico, etc.
+- Si no hay estudios secundarios declarados, se muestra **Aprendiz – estudios secundarios no declarados**.
+- Los términos **aprendiz**, **aprendiz eléctrico**, **aprendiz mecánico**, **pasante**, **pasante eléctrico**, etc. forman parte del índice de búsqueda de candidatos.
+- La experiencia laboral real conserva prioridad sobre la formación: un trabajador con trayectoria no se degrada a Aprendiz/Pasante.
+- No se usan edad, DNI ni otros atributos personales como sustituto de experiencia.
 
+Ver `LEER_PRIMERO_v8.0.0.md`, `AUDITORIA_CLASIFICACION_v8.0.0.md` y `RELEASE_FINAL_v8.0.0.md` antes de desplegar.
 
 ## v7.9.16 — recalificación integral de candidatos
 
