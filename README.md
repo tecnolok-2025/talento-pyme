@@ -1,6 +1,6 @@
 # Talento PyME — versión actual v7.10.13
 
-> **VERSIÓN ACTIVA v7.10.14
+> **VERSIÓN ACTIVA v7.10.15
 >
 > La versión operativa de la aplicación se obtiene de `apps/api/package.json`, `apps/web/config.js` y `/health`.
 > Los archivos que llevan números anteriores son **documentación histórica de revisiones**, no versiones que estén ejecutándose.

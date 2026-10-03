@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "7.10.14";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "7.10.15";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -62,7 +62,7 @@ let backupSchedulerStarted = false;
 // v7.10.3 · clasificación automática y persistente de candidatos.
 // El motor sigue siendo determinístico y basado en evidencia declarada; esta capa solamente
 // garantiza que altas, importaciones masivas y cambios de CV queden procesados sin auditoría manual.
-const CANDIDATE_CLASSIFICATION_VERSION = '7.10.14';
+const CANDIDATE_CLASSIFICATION_VERSION = '7.10.15';
 const CANDIDATE_CLASSIFICATION_AUTO_ENABLED = String(process.env.CANDIDATE_CLASSIFICATION_AUTO_ENABLED || 'true').trim().toLowerCase() !== 'false';
 const CANDIDATE_CLASSIFICATION_SCAN_SECONDS = Math.max(15, Math.min(3600, Number(process.env.CANDIDATE_CLASSIFICATION_SCAN_SECONDS || 60)));
 const CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS = Math.max(1000, Math.min(120000, Number(process.env.CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS || 12000)));
@@ -5425,7 +5425,7 @@ app.delete("/jobs/:id", auth, requireRole("COMPANY"), async (req, res) => {
     });
     if(!job || job.company?.userId !== req.user.id) return res.status(404).json({ error: "Búsqueda no encontrada" });
 
-    // v7.10.14: si ya existen postulaciones, preservamos la trazabilidad y evitamos
+    // v7.10.15: si ya existen postulaciones, preservamos la trazabilidad y evitamos
     // la violación Application_jobId_fkey. Para el usuario la búsqueda desaparece
     // de las oportunidades activas, pero las postulaciones históricas siguen íntegras.
     if(Number(job._count?.applications || 0) > 0){
@@ -6518,7 +6518,7 @@ const CANDIDATE_EVIDENCE_RULES = [
   ['PLANIFICACION','Planificación / Costos','Planificación y control','TECNICO',/\b(planificador(?:a)?|analista de costos|planner)\b/,/\b(primavera p6|ms project|cronogramas|control de costos|planificacion de mantenimiento|programacion de tareas)\b/],
   ['LABORATORIO','Laboratorio / Ensayos','Laboratorio y ensayos','TECNICO',/\b(laboratorista|tecnico de laboratorio|analista de laboratorio)\b/,/\b(analisis quimicos|ensayos de laboratorio|muestreo|microbiologia|control de muestras)\b/],
   ['LIMPIEZA','Limpieza / Maestranza','Limpieza y maestranza','OPERATIVO',/\b(personal de limpieza|operari[oa] de limpieza|maestranza|limpiador(?:a)?|mucam[oa])\b/,/\b(limpieza|higiene de espacios|orden de los espacios|mantenimiento de espacios|sanitizacion)\b/],
-  ['GASTRONOMIA','Gastronomía / Catering','Gastronomía y atención de salón','OPERATIVO',/\b(moz[oa]|bachero|bachera|ayudante de cocina|cociner[oa]|catering|camarer[oa])\b/,/\b(toma de pedidos|servicio en salon|cocina|preparacion de alimentos|catering|lavado de vajilla|atencion en salon)\b/],
+  ['GASTRONOMIA','Gastronomía / Catering','Gastronomía y atención de salón','OPERATIVO',/\b(moz[oa]|bachero|bachera|ayudante de cocina|peon de cocina|operari[oa] de cocina|cociner[oa]|catering|camarer[oa])\b/,/\b(toma de pedidos|servicio en salon|cocina|preparacion de alimentos|produccion y preparacion de alimentos|catering|lavado de vajilla|atencion en salon)\b/],
   ['EDUCACION','Educación / Capacitación','Docencia y capacitación','PROFESIONAL',/\b(profesor(?:a)?|docente|instructor(?:a)?|capacitador(?:a)?)\b/,/\b(dictado de clases|ensenanza|capacitacion de alumnos|formacion de alumnos|docencia|clases de informatica)\b/],
   ['SALUD','Salud / Emergencias','Atención sanitaria y emergencias','TECNICO',/\b(tecnic[oa] en emergencias sanitarias|paramedic[oa]|enfermer[oa]|tecnic[oa] en enfermeria|socorrista)\b/,/\b(atencion prehospitalaria|emergencias sanitarias|triage|utim|same|sistema 107|primeros auxilios|atencion hospitalaria)\b/],
   ['CUIDADOS','Cuidados / Asistencia personal','Cuidados y asistencia personal','OPERATIVO',/\b(niner[oa]|cuidador(?:a)?|acompanante de personas|asistente domiciliari[oa])\b/,/\b(cuidado infantil|cuidado de personas|rutinas diarias|asistencia personal)\b/],
@@ -6584,7 +6584,7 @@ function candidateEvidenceHitAccepted(rule,line,{roleHit=false,taskHit=false,src
   const key=rule?.[0] || '';
   const t=adminNormText(line);
   if(!t) return false;
-  // v7.10.14: palabras instrumentales no crean profesiones por sí solas.
+  // v7.10.15: palabras instrumentales no crean profesiones por sí solas.
   if(key==='IT' && taskHit){
     if(/\b(base de datos de (?:mantenimiento|equipos|activos|akz|aca)|software (?:de|para) (?:gestion|administracion|diseno)|sistema documental)\b/.test(t) && !/\b(programacion|desarrollo|soporte informatico|redes informaticas|sql|helpdesk|reparacion de (?:pc|computadoras?))\b/.test(t)) return false;
   }
@@ -6803,7 +6803,7 @@ function candidateRankedWithRecency(ev={}, now=new Date()){
   const recentSet=new Set(ev.recent || []);
   return (ev.ranked || []).map((item)=>{
     const recentHits=(item.hits || []).filter((line)=>recentSet.has(line));
-    // v7.10.14: algunos CV separan el cargo de su período en la línea siguiente.
+    // v7.10.15: algunos CV separan el cargo de su período en la línea siguiente.
     // Asociamos sólo períodos cercanos sin transferir antigüedad a otros puestos.
     const nearbyPeriods=candidateNearbyRelevantPeriodLines(item,ev.work||[]);
     const directLatestYear=candidateEvidenceLatestYear(item.hits||[],now);
@@ -6842,7 +6842,7 @@ function candidateSecondaryProfiles(ranked=[], primary=null, now=new Date()){
     const withinTenYears=secondaryLatestYear!=null && (currentYear-secondaryLatestYear)<=10;
     const strong=!!item.role && !!item.task && (item.hits?.length||0)>=2 && (item.weight||0)>=8;
     if(!strong || (!recent && !withinTenYears)) continue;
-    // v7.10.14: sólo una especialidad complementaria vigente y con evidencia fuerte
+    // v7.10.15: sólo una especialidad complementaria vigente y con evidencia fuerte
     // puede participar del buscador. Lo demás se conserva como antecedente visible.
     const searchable=recent && (item.weight||0)>=10;
     out.push({
@@ -6904,7 +6904,7 @@ function buildCandidateAdminClassification(candidate = {}){
   let profileScore=null, seniorityKey='NO_DETERMINADO',seniorityLabel='Nivel por verificar';
   if(first){profileScore=10;seniorityKey='APRENDIZ';seniorityLabel='Inicial / aprendizaje';}
   else if(best){
-    // v7.10.14: indicador deliberadamente conservador. La actividad actual/reciente
+    // v7.10.15: indicador deliberadamente conservador. La actividad actual/reciente
     // Años en otros trabajos no transfieren automáticamente expertise a la actividad principal.
     // pesa más y la experiencia histórica nunca infla por sí sola el expertise principal.
     profileScore=best.role && best.task?25:15;
@@ -6936,7 +6936,7 @@ function buildCandidateAdminClassification(candidate = {}){
   const reason=best?`Actividad principal propuesta: ${expertiseLabel}. Se prioriza ${primaryOrigin}. Evidencia utilizada: ${evidence.map(x=>x.slice(0,180)).join(' / ')}.`:(ev.credibleWork.length?`Se detecta trayectoria laboral declarada: ${evidence.map(x=>x.slice(0,180)).join(' / ')}. No se fuerza una especialidad sin tareas suficientes.`:(technicalSchool?'La formación técnica permite proponer una pasantía técnica como orientación; no acredita experiencia laboral.':'La información disponible no permite atribuir un oficio ni experiencia administrativa. Se requiere completar antecedentes.'));
   const confidence=best && primaryFromRecent && best.role && best.task && relevantDuration.dated?'ALTA':(best && (primaryFromRecent || (best.role && best.task))?'MEDIA':'BAJA');
   const searchableSecondary=(confidence==='BAJA'?[]:secondaryProfiles.filter((item)=>item.searchable));
-  return {classKey,classLabel:ADMIN_CANDIDATE_CLASS_LABELS[classKey],expertiseKey,expertiseLabel,expertiseSource:'EVIDENCIA_PRIORIZADA_V71014',profileTitle,
+  return {classKey,classLabel:ADMIN_CANDIDATE_CLASS_LABELS[classKey],expertiseKey,expertiseLabel,expertiseSource:'EVIDENCIA_PRIORIZADA_V71015',profileTitle,
     recentRole:ev.recent[0] || ev.credibleWork[0] || '',profileScore,seniorityKey,seniorityLabel,explicitYearsExperience:duration.years,
     relevantYearsExperience:relevantDuration.years,experienceEvidenceSource:duration.years===null?'Sin duración verificable':(duration.dated?'Períodos laborales declarados (aproximación temporal)':'Duración explícita en antecedentes laborales'),
     professionalSourcesUsed:[...(ev.recent.length?['Último trabajo declarado']:[]),...(ev.work.length?['CV / antecedentes curriculares']:[]),...(ev.voice.length?['Relato original']:[])],cvEvidenceUsed:ev.work.length>0,
@@ -6944,7 +6944,7 @@ function buildCandidateAdminClassification(candidate = {}){
     professionalEvidenceSummary:{rolesDetected:best?.role?1:0,responsibilitySignals:responsibilities.length,leadershipSignals:responsibilities.length,credibleWorkSignals:ev.credibleWork.length,richResume:false,richPresentation:false},
     reason,scoreBasis:profileScore===null?'Sin evidencia suficiente para puntuar.':`${profileScore}/100: indicador conservador de evidencia en la actividad principal; no mide empleabilidad.`,
     evidence,gaps,assessment:`${reason} ${secondaryProfiles.length?`Perfil(es) complementario(s): ${secondaryProfiles.map(x=>x.label).join(' / ')}. `:''}${gaps.join(' ')} Confirmar funciones y autonomía en entrevista.`,
-    searchText:[profileTitle,expertiseLabel,seniorityLabel,ev.recent?.[0]||'',...evidence,...searchableSecondary.flatMap(x=>[x.label,x.profileTitle,...(x.evidence||[])])].join(' '),classificationVersion:'7.10.14'};
+    searchText:[profileTitle,expertiseLabel,seniorityLabel,ev.recent?.[0]||'',...evidence,...searchableSecondary.flatMap(x=>[x.label,x.profileTitle,...(x.evidence||[])])].join(' '),classificationVersion:'7.10.15'};
 }
 
 

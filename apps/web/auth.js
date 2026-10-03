@@ -214,7 +214,7 @@ function normalizeRole(role) {
 
 
 
-// ===== v7.10.14 · interacción de botones =====
+// ===== v7.10.15 · interacción de botones =====
 // Da respuesta visual inmediata y bloquea clics repetidos accidentales sobre el mismo control.
 (function installTpButtonFeedback(){
   const selector = 'button,.btn,.nav a,.roleBtn,.modeTab,.pillBtn,.chipBtn,.pwToggle,[role="button"]';

@@ -36,7 +36,7 @@ test('Empresa recibe lectura profesional ampliada sin metadatos técnicos',()=>{
   assert.ok(!detailBlock.includes('classificationVersion'));
 });
 
-test('Migración v7.10.14 es aditiva e idempotente',()=>{
+test('Migración v7.10.15 es aditiva e idempotente',()=>{
   const upper=migration.toUpperCase();
   assert.ok(upper.includes('ADD COLUMN IF NOT EXISTS'));
   assert.ok(upper.includes('CREATE TABLE IF NOT EXISTS'));

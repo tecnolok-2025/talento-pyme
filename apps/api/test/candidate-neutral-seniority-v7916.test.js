@@ -20,7 +20,7 @@ function fns(){
   return ctx.__out;
 }
 
-test('v7.10.14 unifica version',()=>assert.equal(pkg.version,'7.10.14'));
+test('v7.10.15 unifica version',()=>assert.equal(pkg.version,'7.10.15'));
 
 test('DNI alto o bajo no cambia la clasificacion profesional',()=>{
   const {buildCandidateAdminClassification}=fns();
