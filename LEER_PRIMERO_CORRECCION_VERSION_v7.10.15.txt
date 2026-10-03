@@ -1,0 +1,14 @@
+CORRECCIÓN DOCUMENTAL DE VERSIÓN — TALENTO PyME v7.10.15
+
+Este parche NO cambia la aplicación ni la base de datos.
+Corrige exclusivamente la información visible en GitHub.
+
+1. Subir README.md a la raíz del repositorio y reemplazar el existente.
+2. Subir CURRENT_VERSION.txt a la raíz del repositorio y reemplazar el existente.
+3. Hacer Commit changes.
+4. No es necesario migrar Neon.
+5. Si Render redeploya por el commit, puede dejarse completar.
+
+Resultado esperado en GitHub:
+# Talento PyME — versión actual v7.10.15
+VERSIÓN ACTIVA v7.10.15
