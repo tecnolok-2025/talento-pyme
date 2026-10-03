@@ -9,21 +9,21 @@ const api = fs.readFileSync(path.resolve(here, '../src/index.js'), 'utf8');
 const admin = fs.readFileSync(path.resolve(here, '../../web/admin.html'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.resolve(here, '../package.json'), 'utf8'));
 
-test('v7.10.11 recupera exactamente el último correo enviado por padrón', () => {
-  assert.equal(pkg.version, '7.10.11');
+test('v7.10.12 recupera exactamente el último correo enviado por padrón', () => {
+  assert.equal(pkg.version, '7.10.12');
   assert.match(api, /\/admin\/communications\/latest-template/);
   assert.match(api, /where:\{ audience, sentCount:\{ gt:0 \} \}/);
   assert.match(api, /subject:latest\.subject/);
   assert.match(api, /body:latest\.body/);
 });
 
-test('v7.10.11 calcula sólo quienes todavía no recibieron el último correo', () => {
+test('v7.10.12 calcula sólo quienes todavía no recibieron el último correo', () => {
   assert.match(api, /filterCommunicationRecipientsByHistory/);
   assert.match(api, /onlyNotPreviouslySent:true/);
   assert.match(api, /pendingRecipients:pending\.recipients\.length/);
 });
 
-test('v7.10.11 agrega botón para cargar último correo sin modificar asunto ni cuerpo', () => {
+test('v7.10.12 agrega botón para cargar último correo sin modificar asunto ni cuerpo', () => {
   assert.match(admin, /Cargar último correo enviado/);
   assert.match(admin, /latest-template\?audience=/);
   assert.match(admin, /communicationSubject'\)\.value = item\.subject/);

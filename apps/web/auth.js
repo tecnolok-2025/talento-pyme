@@ -212,3 +212,59 @@ function normalizeRole(role) {
   return r;
 }
 
+
+
+// ===== v7.10.12 · interacción de botones =====
+// Da respuesta visual inmediata y bloquea clics repetidos accidentales sobre el mismo control.
+(function installTpButtonFeedback(){
+  const selector = 'button,.btn,.nav a,.roleBtn,.modeTab,.pillBtn,.chipBtn,.pwToggle,[role="button"]';
+  const lastClick = new WeakMap();
+  const RAPID_REPEAT_MS = 900;
+
+  function controlFromEvent(e){
+    const node = e.target && e.target.closest ? e.target.closest(selector) : null;
+    return node && document.documentElement.contains(node) ? node : null;
+  }
+  function press(el){ if(el && !el.disabled && el.getAttribute('aria-disabled')!=='true') el.classList.add('tp-pressed'); }
+  function release(el){ if(el) el.classList.remove('tp-pressed'); }
+
+  document.addEventListener('pointerdown', (e)=>press(controlFromEvent(e)), true);
+  document.addEventListener('pointerup', (e)=>release(controlFromEvent(e)), true);
+  document.addEventListener('pointercancel', (e)=>release(controlFromEvent(e)), true);
+  document.addEventListener('pointerleave', (e)=>release(controlFromEvent(e)), true);
+
+  document.addEventListener('click', (e)=>{
+    const el = controlFromEvent(e);
+    if(!el) return;
+    if(el.disabled || el.getAttribute('aria-disabled')==='true'){
+      e.preventDefault(); e.stopImmediatePropagation(); return;
+    }
+    const now = Date.now();
+    const previous = lastClick.get(el) || 0;
+    if(now - previous < RAPID_REPEAT_MS){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+    lastClick.set(el, now);
+  }, true);
+})();
+
+function tpSetButtonBusy(button, busy, busyLabel){
+  if(!button) return;
+  if(busy){
+    if(!button.dataset.tpOriginalText) button.dataset.tpOriginalText = button.textContent;
+    button.disabled = true;
+    button.classList.add('tp-busy');
+    button.setAttribute('aria-busy','true');
+    if(busyLabel) button.textContent = busyLabel;
+  }else{
+    button.disabled = false;
+    button.classList.remove('tp-busy');
+    button.removeAttribute('aria-busy');
+    if(button.dataset.tpOriginalText){
+      button.textContent = button.dataset.tpOriginalText;
+      delete button.dataset.tpOriginalText;
+    }
+  }
+}

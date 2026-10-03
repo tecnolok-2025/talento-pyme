@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "7.10.11";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "7.10.12";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -5419,10 +5419,25 @@ app.patch("/jobs/:id", auth, requireRole("COMPANY"), async (req, res) => {
 
 app.delete("/jobs/:id", auth, requireRole("COMPANY"), async (req, res) => {
   try{
-    const job = await prisma.job.findUnique({ where: { id: req.params.id }, include: { company: true } });
+    const job = await prisma.job.findUnique({
+      where: { id: req.params.id },
+      include: { company: true, _count: { select: { applications: true } } }
+    });
     if(!job || job.company?.userId !== req.user.id) return res.status(404).json({ error: "Búsqueda no encontrada" });
+
+    // v7.10.12: si ya existen postulaciones, preservamos la trazabilidad y evitamos
+    // la violación Application_jobId_fkey. Para el usuario la búsqueda desaparece
+    // de las oportunidades activas, pero las postulaciones históricas siguen íntegras.
+    if(Number(job._count?.applications || 0) > 0){
+      await prisma.job.update({
+        where: { id: job.id },
+        data: { status: "CLOSED", visibleToCandidates: false }
+      });
+      return res.json({ ok:true, deleted:false, archived:true, message:"La búsqueda tenía postulaciones y fue cerrada para conservar el historial." });
+    }
+
     await prisma.job.delete({ where: { id: job.id } });
-    res.json({ ok:true, deleted:true });
+    res.json({ ok:true, deleted:true, archived:false, message:"Búsqueda eliminada." });
   }catch(err){
     console.error('DELETE /jobs/:id', err);
     res.status(500).json({ error: 'No se pudo eliminar la búsqueda' });

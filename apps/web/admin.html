@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=7.10.11" />
+  <link rel="stylesheet" href="/styles.css?v=7.10.12" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -529,8 +529,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=7.10.11"></script>
-<script src="/auth.js?v=7.10.11"></script>
+<script src="/config.js?v=7.10.12"></script>
+<script src="/auth.js?v=7.10.12"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -627,7 +627,7 @@ function wireAdminPasswordReset(host){
         if(msg) msg.textContent = `Código enviado a ${data.maskedEmail || 'el correo registrado'}.`;
       } catch (err) {
         if(msg) msg.textContent = err?.message || 'No se pudo enviar la recuperación.';
-      } finally { btn.disabled = false; }
+      } finally { tpSetButtonBusy(btn, false); }
     };
   });
 }
@@ -867,7 +867,7 @@ function wireCompanyCategory(host){
       await loadOverview();
     } catch (err) {
       if(msg) msg.textContent = err?.message || 'No se pudo guardar la categoría.';
-    } finally { btn.disabled = false; }
+    } finally { tpSetButtonBusy(btn, false); }
   };
 }
 function renderCompanyDetail(it){
@@ -1656,7 +1656,7 @@ async function loadLastCommunication(){
   const btn = document.getElementById('btnLoadLastCommunication');
   const msg = document.getElementById('lastCommunicationMsg');
   const mainMsg = document.getElementById('communicationMsg');
-  if(btn) btn.disabled = true;
+  if(btn) tpSetButtonBusy(btn, true, 'Buscando último correo…');
   if(msg) msg.textContent = 'Buscando el último correo enviado…';
   if(mainMsg) mainMsg.textContent = '';
   try {
@@ -1675,7 +1675,7 @@ async function loadLastCommunication(){
   } catch (err) {
     if(msg) msg.textContent = err?.message || (audience === 'COMPANY' ? 'Todavía no hay un correo enviado a empresas para reutilizar.' : 'Todavía no hay un correo enviado a candidatos para reutilizar.');
   } finally {
-    if(btn) btn.disabled = false;
+    if(btn) tpSetButtonBusy(btn, false);
   }
 }
 
@@ -1693,13 +1693,13 @@ async function sendCommunication(){
   if(!confirm(onlyNotPreviouslySent ? `Talento PyME excluirá automáticamente a quienes ya tengan esta misma comunicación enviada o programada. El resto quedará en la cola protegida. ¿Confirmás?` : `La comunicación se programará para todo el padrón habilitado (${eligible} ${label}), incluso si algunos ya recibieron el mismo mensaje. ¿Confirmás el reenvío general?`)) return;
   const btn = document.getElementById('btnSendCommunication');
   const msg = document.getElementById('communicationMsg');
-  btn.disabled = true; msg.textContent = 'Guardando en la cola automática…';
+  tpSetButtonBusy(btn, true, 'Programando…'); msg.textContent = 'Guardando en la cola automática…';
   try {
     const result = await apiFetch('/admin/communications/send', { method:'POST', body:JSON.stringify({ audience, subject, body, onlyNotPreviouslySent }) });
     msg.textContent = result.message || `Comunicación programada. Posición en cola: ${result.queuePosition || 1}.`;
     await loadCommunications();
   } catch (err) { msg.textContent = err?.message || 'No se pudo programar la comunicación.'; }
-  finally { btn.disabled = false; }
+  finally { tpSetButtonBusy(btn, false); }
 }
 async function loadMailCommunicationPreference(email){
   const box = document.getElementById('mailCommunicationPreference');
@@ -1957,7 +1957,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v7.10.11: el estado de la cola se refresca mientras Administración permanece abierto.
+// v7.10.12: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();

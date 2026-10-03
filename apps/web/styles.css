@@ -523,3 +523,93 @@ body:not(.appShell):not(.authBody) .globalBrandFooter{border-top:1px solid rgba(
 
 .statusPill.FAILED{background:rgba(220,38,38,.12);color:#991b1b}
 .statusPill.EXPIRED{background:rgba(100,116,139,.16);color:#334155}
+
+
+/* ===== v7.10.12 · feedback táctil global y prevención visual de doble acción ===== */
+button,
+.btn,
+.nav a,
+.roleBtn,
+.modeTab,
+.pillBtn,
+.chipBtn,
+.pwToggle,
+[role="button"]{
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform .08s ease, box-shadow .12s ease, filter .12s ease, background-color .12s ease, border-color .12s ease, opacity .12s ease;
+}
+button:not(:disabled):hover,
+.btn:not(.disabled):hover,
+.nav a:hover,
+.roleBtn:hover,
+.modeTab:hover,
+.pillBtn:hover,
+.chipBtn:hover,
+[role="button"]:hover{
+  filter: brightness(.97);
+  box-shadow: 0 5px 12px rgba(15,23,42,.14);
+}
+button:not(:disabled):active,
+button.tp-pressed:not(:disabled),
+.btn:active,
+.btn.tp-pressed,
+.nav a:active,
+.nav a.tp-pressed,
+.roleBtn:active,
+.roleBtn.tp-pressed,
+.modeTab:active,
+.modeTab.tp-pressed,
+.pillBtn:active,
+.pillBtn.tp-pressed,
+.chipBtn:active,
+.chipBtn.tp-pressed,
+[role="button"]:active,
+[role="button"].tp-pressed{
+  transform: translateY(2px) scale(.985);
+  filter: brightness(.90);
+  box-shadow: inset 0 2px 5px rgba(15,23,42,.18), 0 1px 2px rgba(15,23,42,.12);
+}
+button:focus-visible,
+.btn:focus-visible,
+.nav a:focus-visible,
+.roleBtn:focus-visible,
+.modeTab:focus-visible,
+.pillBtn:focus-visible,
+.chipBtn:focus-visible,
+[role="button"]:focus-visible{
+  outline: 3px solid rgba(23,105,224,.30);
+  outline-offset: 2px;
+}
+button:disabled,
+.btn.disabled,
+[aria-disabled="true"]{
+  cursor: not-allowed !important;
+  opacity: .62 !important;
+  transform: none !important;
+  box-shadow: none !important;
+  filter: grayscale(.08);
+}
+button.tp-busy,
+.btn.tp-busy{
+  cursor: wait !important;
+  position: relative;
+}
+button.tp-busy::after,
+.btn.tp-busy::after{
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 8px;
+  vertical-align: -1px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: tpBtnSpin .75s linear infinite;
+}
+@keyframes tpBtnSpin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){
+  button,.btn,.nav a,.roleBtn,.modeTab,.pillBtn,.chipBtn,.pwToggle,[role="button"]{transition:none}
+  button.tp-busy::after,.btn.tp-busy::after{animation:none}
+}
