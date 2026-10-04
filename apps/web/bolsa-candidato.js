@@ -1,4 +1,4 @@
-/* Talento PyME - v8.0.2 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF directo */
+/* Talento PyME - v8.0.3 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF directo */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -1573,7 +1573,7 @@ async function initBolsaCandidato(){
       return;
     }
 
-    // v8.0.2: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
+    // v8.0.3: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
     // cuando el candidato pulsa expresamente “Corrección IA profesional”.
 
     busy = true; render();

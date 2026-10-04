@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "8.0.2";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "8.0.3";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -62,7 +62,7 @@ let backupSchedulerStarted = false;
 // v7.10.3 · clasificación automática y persistente de candidatos.
 // El motor sigue siendo determinístico y basado en evidencia declarada; esta capa solamente
 // garantiza que altas, importaciones masivas y cambios de CV queden procesados sin auditoría manual.
-const CANDIDATE_CLASSIFICATION_VERSION = '8.0.2';
+const CANDIDATE_CLASSIFICATION_VERSION = '8.0.3';
 const CANDIDATE_CLASSIFICATION_AUTO_ENABLED = String(process.env.CANDIDATE_CLASSIFICATION_AUTO_ENABLED || 'true').trim().toLowerCase() !== 'false';
 const CANDIDATE_CLASSIFICATION_SCAN_SECONDS = Math.max(15, Math.min(3600, Number(process.env.CANDIDATE_CLASSIFICATION_SCAN_SECONDS || 60)));
 const CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS = Math.max(1000, Math.min(120000, Number(process.env.CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS || 12000)));
@@ -1002,8 +1002,9 @@ async function sendBulkCommunicationEmail({ to, subject, body, unsubscribePageUr
   });
 }
 
-async function listBulkCommunicationRecipients(audience){
+async function listBulkCommunicationRecipients(audience, {classKey='ALL'}={}){
   const normalized = String(audience || '').toUpperCase();
+  const normalizedClassKey = String(classKey || 'ALL').trim().toUpperCase();
   if(!['CANDIDATE','COMPANY'].includes(normalized)) return { recipients:[], totalAccounts:0, optedOut:0, duplicates:0 };
   const users = normalized === 'COMPANY'
     ? await prisma.user.findMany({
@@ -1012,8 +1013,8 @@ async function listBulkCommunicationRecipients(audience){
         orderBy:{ createdAt:'asc' },
       })
     : await prisma.user.findMany({
-        where:{ role:normalized },
-        select:{ id:true, email:true, bulkEmailOptOutAt:true },
+        where:{ role:normalized, ...(normalizedClassKey !== 'ALL' ? { candidateClassification:{ is:{ classKey:normalizedClassKey } } } : {}) },
+        select:{ id:true, email:true, bulkEmailOptOutAt:true, candidateClassification:{ select:{ classKey:true, classLabel:true } } },
         orderBy:{ createdAt:'asc' },
       });
   const grouped = new Map();
@@ -7121,7 +7122,7 @@ function buildCandidateAdminClassification(candidate = {}){
     professionalEvidenceSummary:{rolesDetected:best?.role?1:0,responsibilitySignals:responsibilities.length,leadershipSignals:responsibilities.length,credibleWorkSignals:ev.credibleWork.length,richResume:false,richPresentation:false},
     reason,scoreBasis:profileScore===null?'Sin evidencia suficiente para puntuar.':`${profileScore}/100: indicador conservador de evidencia en la actividad principal; no mide empleabilidad.`,
     evidence,gaps,assessment:`${reason} ${secondaryProfiles.length?`Perfil(es) complementario(s): ${secondaryProfiles.map(x=>x.label).join(' / ')}. `:''}${gaps.join(' ')} Confirmar funciones y autonomía en entrevista.`,
-    searchText:[profileTitle,expertiseLabel,seniorityLabel,...(entryProfile?educationProfile.aliases:[]),ev.recent?.[0]||'',...evidence,...searchableSecondary.flatMap(x=>[x.label,x.profileTitle,...(x.evidence||[])])].join(' '),classificationVersion:'8.0.2'};
+    searchText:[profileTitle,expertiseLabel,seniorityLabel,...(entryProfile?educationProfile.aliases:[]),ev.recent?.[0]||'',...evidence,...searchableSecondary.flatMap(x=>[x.label,x.profileTitle,...(x.evidence||[])])].join(' '),classificationVersion:'8.0.3'};
 }
 
 
@@ -7704,6 +7705,7 @@ app.post('/admin/users/:userId/reset-password', auth, requireAnyRole(['ADMIN','S
 
 const adminCommunicationSendSchema = z.object({
   audience:z.enum(['CANDIDATE','COMPANY']),
+  classKey:z.string().trim().max(40).optional().default('ALL'),
   subject:z.string().trim().min(4).max(180),
   body:z.string().trim().min(10).max(10000),
   onlyNotPreviouslySent:z.boolean().optional().default(true),
@@ -7711,14 +7713,17 @@ const adminCommunicationSendSchema = z.object({
 
 app.get('/admin/communications/summary', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req, res) => {
   try {
-    const [candidates, companies, history, queue] = await Promise.all([
+    const classKeys=Object.keys(ADMIN_CANDIDATE_CLASS_LABELS);
+    const [candidates, companies, history, queue, ...segmentRows] = await Promise.all([
       listBulkCommunicationRecipients('CANDIDATE'),
       listBulkCommunicationRecipients('COMPANY'),
       prisma.adminCommunication.findMany({ orderBy:{ createdAt:'desc' }, take:12 }),
       communicationQueueSnapshot(),
+      ...classKeys.map((classKey)=>listBulkCommunicationRecipients('CANDIDATE',{classKey})),
     ]);
     const shape = (x) => ({ totalAccounts:x.totalAccounts, reachable:x.reachable, eligible:x.recipients.length, optedOut:x.optedOut, duplicates:x.duplicates });
-    return res.json({ ok:true, configured:gmailConfigured(), candidates:shape(candidates), companies:shape(companies), history, queue });
+    const candidateSegments=classKeys.map((key,idx)=>({ key, label:ADMIN_CANDIDATE_CLASS_LABELS[key], ...shape(segmentRows[idx]) }));
+    return res.json({ ok:true, configured:gmailConfigured(), candidates:shape(candidates), companies:shape(companies), candidateSegments, history, queue });
   } catch (err) {
     console.error('GET /admin/communications/summary', err?.message || err);
     return res.status(500).json({ error:'No se pudo leer el padrón de comunicaciones.' });
@@ -7729,7 +7734,9 @@ app.get('/admin/communications/summary', auth, requireAnyRole(['ADMIN','SUPERADM
 // Administración puede cargar asunto + cuerpo y volver a programarla sólo para quienes aún no la recibieron.
 app.get('/admin/communications/latest-template', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   const audience=String(req.query?.audience || '').trim().toUpperCase();
+  const classKey=String(req.query?.classKey || 'ALL').trim().toUpperCase();
   if(!['CANDIDATE','COMPANY'].includes(audience)) return res.status(400).json({ error:'Destinatario inválido.' });
+  if(audience==='CANDIDATE' && classKey!=='ALL' && !ADMIN_CANDIDATE_CLASS_LABELS[classKey]) return res.status(400).json({ error:'Grupo de candidatos inválido.' });
   try {
     const latest=await prisma.adminCommunication.findFirst({
       where:{ audience, sentCount:{ gt:0 } },
@@ -7737,7 +7744,7 @@ app.get('/admin/communications/latest-template', auth, requireAnyRole(['ADMIN','
       select:{ id:true, audience:true, subject:true, body:true, createdAt:true, completedAt:true, sentCount:true, recipientCount:true, status:true },
     });
     if(!latest) return res.status(404).json({ error: audience === 'COMPANY' ? 'Todavía no hay una comunicación enviada a empresas.' : 'Todavía no hay una comunicación enviada a candidatos.' });
-    const audienceData=await listBulkCommunicationRecipients(audience);
+    const audienceData=await listBulkCommunicationRecipients(audience,{classKey:audience==='CANDIDATE'?classKey:'ALL'});
     const pending=await filterCommunicationRecipientsByHistory({
       audience,
       subject:latest.subject,
@@ -7762,9 +7769,11 @@ app.post('/admin/communications/send', auth, requireAnyRole(['ADMIN','SUPERADMIN
   if(!gmailConfigured()) return res.status(503).json({ error:'El correo institucional todavía no está configurado.' });
   const parsed = adminCommunicationSendSchema.safeParse(req.body || {});
   if(!parsed.success) return res.status(400).json({ error:'Revisá el destinatario, asunto y contenido de la comunicación.' });
-  const { audience, subject, body, onlyNotPreviouslySent } = parsed.data;
+  const { audience, classKey, subject, body, onlyNotPreviouslySent } = parsed.data;
+  const normalizedClassKey=String(classKey || 'ALL').trim().toUpperCase();
+  if(audience==='CANDIDATE' && normalizedClassKey!=='ALL' && !ADMIN_CANDIDATE_CLASS_LABELS[normalizedClassKey]) return res.status(400).json({ error:'Grupo de candidatos inválido.' });
   try {
-    const audienceData = await listBulkCommunicationRecipients(audience);
+    const audienceData = await listBulkCommunicationRecipients(audience,{classKey:audience==='CANDIDATE'?normalizedClassKey:'ALL'});
     const historyFilter = await filterCommunicationRecipientsByHistory({ audience, subject, body, recipients:audienceData.recipients, onlyNotPreviouslySent });
     const targetRecipients = historyFilter.recipients;
     if(!targetRecipients.length) return res.status(400).json({ error: onlyNotPreviouslySent ? 'Todos los destinatarios habilitados ya recibieron esta misma comunicación. Destildá “Sólo quienes todavía no recibieron este mensaje” si querés reenviarla a todos.' : 'No hay destinatarios habilitados para esta comunicación.' });
@@ -7802,6 +7811,8 @@ app.post('/admin/communications/send', auth, requireAnyRole(['ADMIN','SUPERADMIN
       queued:true,
       communicationId:campaign.id,
       audience,
+      classKey:audience==='CANDIDATE'?normalizedClassKey:'ALL',
+      classLabel:audience==='CANDIDATE' && normalizedClassKey!=='ALL' ? ADMIN_CANDIDATE_CLASS_LABELS[normalizedClassKey] : null,
       recipientCount:targetRecipients.length,
       skippedOptOutCount:audienceData.optedOut,
       skippedPreviouslySentCount:historyFilter.skippedPreviouslySent,

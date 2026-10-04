@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=8.0.2" />
+  <link rel="stylesheet" href="/styles.css?v=8.0.3" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -475,6 +475,13 @@
         <button class="btn btn-ghost active" id="btnAudienceCandidate" type="button">Comunicación a candidatos</button>
         <button class="btn btn-ghost" id="btnAudienceCompany" type="button">Comunicación a empresas</button>
       </div>
+      <div id="communicationCandidateSegmentBox" style="margin:12px 0 4px;max-width:560px">
+        <label for="communicationCandidateClass"><b>Grupo general de candidatos</b></label>
+        <select class="input" id="communicationCandidateClass" style="margin-top:6px">
+          <option value="ALL">Todos los candidatos</option>
+        </select>
+        <div class="muted small" id="communicationCandidateClassHint" style="margin-top:6px">Podés enviar el correo nuevo o reutilizar el último correo solamente al grupo seleccionado.</div>
+      </div>
       <div class="row" style="margin:10px 0 2px;align-items:center">
         <button class="btn btn-ghost" id="btnLoadLastCommunication" type="button">Cargar último correo enviado a candidatos</button>
         <span class="muted small" id="lastCommunicationMsg">Recupera exactamente el asunto y el cuerpo del último envío para programarlo sólo a quienes todavía no lo recibieron.</span>
@@ -530,8 +537,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=8.0.2"></script>
-<script src="/auth.js?v=8.0.2"></script>
+<script src="/config.js?v=8.0.3"></script>
+<script src="/auth.js?v=8.0.3"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -553,7 +560,7 @@ const state = {
   threads: [],
   selectedThreadId: null,
   mail: { page:1, totalPages:1, total:0, unread:0, items:[], selectedUid:null, loaded:false, selectedFromAddress:'' },
-  communications: { loaded:false, audience:'CANDIDATE', candidates:null, companies:null, history:[], drafts:{}, optOutItems:[] },
+  communications: { loaded:false, audience:'CANDIDATE', candidateClassKey:'ALL', candidates:null, companies:null, candidateSegments:[], history:[], drafts:{}, optOutItems:[] },
   filters: {
     candidateDays: 'ALL', candidateSearch: '', candidateProfile: 'ALL', candidatePage: 1, candidatePerPage: 50,
     companyDays: 'ALL', companySearch: '', companyProfile: 'ALL', companyPage: 1, companyPerPage: 50,
@@ -1566,9 +1573,20 @@ function communicationStatusLabel(status){
 function renderCommunications(){
   const c = state.communications || {};
   const audience = c.audience || 'CANDIDATE';
-  const data = audience === 'COMPANY' ? c.companies : c.candidates;
+  const segmentKey = c.candidateClassKey || 'ALL';
+  const segment = audience === 'CANDIDATE' && segmentKey !== 'ALL' ? (c.candidateSegments || []).find((x) => x.key === segmentKey) : null;
+  const data = audience === 'COMPANY' ? c.companies : (segment || c.candidates);
   document.getElementById('btnAudienceCandidate').classList.toggle('active', audience === 'CANDIDATE');
   document.getElementById('btnAudienceCompany').classList.toggle('active', audience === 'COMPANY');
+  const segmentBox=document.getElementById('communicationCandidateSegmentBox');
+  const segmentSelect=document.getElementById('communicationCandidateClass');
+  if(segmentBox) segmentBox.style.display = audience === 'CANDIDATE' ? '' : 'none';
+  if(segmentSelect && audience === 'CANDIDATE'){
+    const current=segmentKey;
+    segmentSelect.innerHTML='<option value="ALL">Todos los candidatos</option>' + (c.candidateSegments || []).map((x)=>`<option value="${esc(x.key)}">${esc(x.label)} · ${Number(x.eligible || 0)} habilitados</option>`).join('');
+    segmentSelect.value=(c.candidateSegments || []).some((x)=>x.key===current) ? current : 'ALL';
+    c.candidateClassKey=segmentSelect.value;
+  }
   document.getElementById('commTotal').textContent = data ? String(data.totalAccounts || 0) : '—';
   document.getElementById('commEligible').textContent = data ? String(data.eligible || 0) : '—';
   document.getElementById('commOptOut').textContent = data ? String(data.optedOut || 0) : '—';
@@ -1576,7 +1594,8 @@ function renderCommunications(){
   document.getElementById('communicationSubject').value = draft.subject;
   document.getElementById('communicationBody').value = draft.body;
   const onlyUnsentEl=document.getElementById('communicationOnlyUnsent'); if(onlyUnsentEl) onlyUnsentEl.checked=draft.onlyUnsent !== false;
-  document.getElementById('btnSendCommunication').textContent = audience === 'COMPANY' ? 'Programar comunicación a empresas' : 'Programar comunicación a candidatos';
+  const selectedGroupLabel = audience === 'CANDIDATE' && segmentKey !== 'ALL' ? (segment?.label || 'grupo seleccionado') : '';
+  document.getElementById('btnSendCommunication').textContent = audience === 'COMPANY' ? 'Programar comunicación a empresas' : (selectedGroupLabel ? `Programar comunicación · ${selectedGroupLabel}` : 'Programar comunicación a candidatos');
   const loadLastBtn=document.getElementById('btnLoadLastCommunication');
   if(loadLastBtn) loadLastBtn.textContent = audience === 'COMPANY' ? 'Cargar último correo enviado a empresas' : 'Cargar último correo enviado a candidatos';
   const histTitle=document.getElementById('communicationHistoryTitle');
@@ -1662,7 +1681,8 @@ async function loadLastCommunication(){
   if(msg) msg.textContent = 'Buscando el último correo enviado…';
   if(mainMsg) mainMsg.textContent = '';
   try {
-    const data = await apiFetch(`/admin/communications/latest-template?audience=${encodeURIComponent(audience)}`);
+    const classKey = audience === 'CANDIDATE' ? (state.communications.candidateClassKey || 'ALL') : 'ALL';
+    const data = await apiFetch(`/admin/communications/latest-template?audience=${encodeURIComponent(audience)}&classKey=${encodeURIComponent(classKey)}`);
     const item = data.communication || {};
     document.getElementById('communicationSubject').value = item.subject || '';
     document.getElementById('communicationBody').value = item.body || '';
@@ -1670,7 +1690,8 @@ async function loadLastCommunication(){
     if(onlyUnsent) onlyUnsent.checked = true;
     saveCommunicationDraft();
     const pending = Number(data.pendingRecipients || 0);
-    const label = audience === 'COMPANY' ? 'empresas' : 'personas';
+    const selectedSegment=(state.communications.candidateSegments || []).find((x)=>x.key===(state.communications.candidateClassKey || 'ALL'));
+    const label = audience === 'COMPANY' ? 'empresas' : (selectedSegment ? `candidatos de ${selectedSegment.label}` : 'personas');
     if(msg) msg.textContent = pending
       ? `Último correo cargado sin modificaciones. ${pending} ${label} todavía no lo recibieron y podrán incorporarse a la cola.`
       : 'Último correo cargado sin modificaciones. Actualmente todos los destinatarios habilitados ya lo recibieron o lo tienen programado.';
@@ -1684,9 +1705,11 @@ async function loadLastCommunication(){
 async function sendCommunication(){
   saveCommunicationDraft();
   const audience = state.communications.audience || 'CANDIDATE';
-  const data = audience === 'COMPANY' ? state.communications.companies : state.communications.candidates;
+  const classKey = audience === 'CANDIDATE' ? (state.communications.candidateClassKey || 'ALL') : 'ALL';
+  const selectedSegment = audience === 'CANDIDATE' && classKey !== 'ALL' ? (state.communications.candidateSegments || []).find((x)=>x.key===classKey) : null;
+  const data = audience === 'COMPANY' ? state.communications.companies : (selectedSegment || state.communications.candidates);
   const eligible = Number(data?.eligible || 0);
-  const label = audience === 'COMPANY' ? 'empresas' : 'candidatos';
+  const label = audience === 'COMPANY' ? 'empresas' : (selectedSegment ? `candidatos de ${selectedSegment.label}` : 'candidatos');
   if(!eligible){ document.getElementById('communicationMsg').textContent = 'No hay destinatarios habilitados.'; return; }
   const subject = document.getElementById('communicationSubject').value.trim();
   const body = document.getElementById('communicationBody').value.trim();
@@ -1697,7 +1720,7 @@ async function sendCommunication(){
   const msg = document.getElementById('communicationMsg');
   tpSetButtonBusy(btn, true, 'Programando…'); msg.textContent = 'Guardando en la cola automática…';
   try {
-    const result = await apiFetch('/admin/communications/send', { method:'POST', body:JSON.stringify({ audience, subject, body, onlyNotPreviouslySent }) });
+    const result = await apiFetch('/admin/communications/send', { method:'POST', body:JSON.stringify({ audience, classKey, subject, body, onlyNotPreviouslySent }) });
     msg.textContent = result.message || `Comunicación programada. Posición en cola: ${result.queuePosition || 1}.`;
     await loadCommunications();
   } catch (err) { msg.textContent = err?.message || 'No se pudo programar la comunicación.'; }
@@ -1894,6 +1917,7 @@ document.getElementById('btnTraceYearNext').onclick = () => { const years = (sta
 
 document.getElementById('btnAudienceCandidate').onclick = () => setCommunicationAudience('CANDIDATE');
 document.getElementById('btnAudienceCompany').onclick = () => setCommunicationAudience('COMPANY');
+document.getElementById('communicationCandidateClass').onchange = (e) => { state.communications.candidateClassKey = e.target.value || 'ALL'; document.getElementById('communicationMsg').textContent=''; renderCommunications(); };
 document.getElementById('btnRefreshCommunications').onclick = () => loadCommunications();
 document.getElementById('commOptOutCard').onclick = () => loadCommunicationOptOuts();
 document.getElementById('btnCloseOptOutPanel').onclick = () => { document.getElementById('communicationOptOutPanel').style.display='none'; };
@@ -1973,7 +1997,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v8.0.2: el estado de la cola se refresca mientras Administración permanece abierto.
+// v8.0.3: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();
