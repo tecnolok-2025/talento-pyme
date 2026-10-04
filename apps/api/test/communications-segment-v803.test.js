@@ -9,7 +9,7 @@ const api=fs.readFileSync(path.join(root,'apps/api/src/index.js'),'utf8');
 const admin=fs.readFileSync(path.join(root,'apps/web/admin.html'),'utf8');
 const config=fs.readFileSync(path.join(root,'apps/web/config.js'),'utf8');
 
-test('v8.0.3 expone selector de grupo general en Correo / Consultas',()=>{
+test('v8.0.4 expone selector de grupo general en Correo / Consultas',()=>{
   assert.match(admin,/id="communicationCandidateClass"/);
   assert.match(admin,/Grupo general de candidatos/);
   assert.match(admin,/Todos los candidatos/);
@@ -28,4 +28,4 @@ test('último correo y correo nuevo respetan el grupo elegido',()=>{
   assert.match(api,/listBulkCommunicationRecipients\(audience,\{classKey:audience==='CANDIDATE'\?normalizedClassKey:'ALL'\}\)/);
 });
 
-test('versión web v8.0.3',()=>assert.match(config,/TP_APP_VERSION = "8\.0\.3"/));
+test('versión web v8.0.4',()=>assert.match(config,/TP_APP_VERSION = "8\.0\.4"/));

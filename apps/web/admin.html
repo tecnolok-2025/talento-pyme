@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=8.0.3" />
+  <link rel="stylesheet" href="/styles.css?v=8.0.4" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -537,8 +537,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=8.0.3"></script>
-<script src="/auth.js?v=8.0.3"></script>
+<script src="/config.js?v=8.0.4"></script>
+<script src="/auth.js?v=8.0.4"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -1552,6 +1552,7 @@ function renderFactoryAdmin(){
 async function loadFactoryAdmin(){ state.factory = await apiFetch('/factory/admin/bootstrap'); renderFactoryAdmin(); }
 
 
+const SUPPORT_DETAIL_SEGMENT_KEY = 'SUPPORT_DETAIL_PENDING';
 function defaultCommunicationDraft(audience){
   const isCompany = String(audience || '').toUpperCase() === 'COMPANY';
   return {
@@ -1596,8 +1597,13 @@ function renderCommunications(){
   const onlyUnsentEl=document.getElementById('communicationOnlyUnsent'); if(onlyUnsentEl) onlyUnsentEl.checked=draft.onlyUnsent !== false;
   const selectedGroupLabel = audience === 'CANDIDATE' && segmentKey !== 'ALL' ? (segment?.label || 'grupo seleccionado') : '';
   document.getElementById('btnSendCommunication').textContent = audience === 'COMPANY' ? 'Programar comunicación a empresas' : (selectedGroupLabel ? `Programar comunicación · ${selectedGroupLabel}` : 'Programar comunicación a candidatos');
+  const specialSupport = audience === 'CANDIDATE' && segmentKey === SUPPORT_DETAIL_SEGMENT_KEY;
+  const hint=document.getElementById('communicationCandidateClassHint');
+  if(hint) hint.textContent = specialSupport
+    ? `Incluye sólo candidatos que hicieron una consulta en Ayuda IA y todavía no recibieron una guía posterior a su última pregunta. Si vuelven a consultar después del envío, reaparecerán automáticamente en este grupo.`
+    : 'Podés enviar el correo nuevo o reutilizar el último correo solamente al grupo seleccionado.';
   const loadLastBtn=document.getElementById('btnLoadLastCommunication');
-  if(loadLastBtn) loadLastBtn.textContent = audience === 'COMPANY' ? 'Cargar último correo enviado a empresas' : 'Cargar último correo enviado a candidatos';
+  if(loadLastBtn) loadLastBtn.textContent = specialSupport ? 'Cargar guía ampliada de respuestas' : (audience === 'COMPANY' ? 'Cargar último correo enviado a empresas' : 'Cargar último correo enviado a candidatos');
   const histTitle=document.getElementById('communicationHistoryTitle');
   if(histTitle) histTitle.textContent = audience === 'COMPANY' ? 'Últimos envíos a empresas' : 'Últimos envíos a candidatos';
 
@@ -1682,6 +1688,16 @@ async function loadLastCommunication(){
   if(mainMsg) mainMsg.textContent = '';
   try {
     const classKey = audience === 'CANDIDATE' ? (state.communications.candidateClassKey || 'ALL') : 'ALL';
+    if(audience === 'CANDIDATE' && classKey === SUPPORT_DETAIL_SEGMENT_KEY){
+      if(msg) msg.textContent='Preparando una guía ampliada con los temas consultados por los candidatos pendientes…';
+      const guide=await apiFetch('/admin/communications/support-detail-template');
+      document.getElementById('communicationSubject').value=guide.subject || '';
+      document.getElementById('communicationBody').value=guide.body || '';
+      const onlyUnsent=document.getElementById('communicationOnlyUnsent'); if(onlyUnsent) onlyUnsent.checked=true;
+      saveCommunicationDraft();
+      if(msg) msg.textContent=`Guía preparada para ${Number(guide.recipientCount||0)} candidato(s), reuniendo ${Number(guide.questionCount||0)} consulta(s) pendientes. Podés revisarla o ampliarla antes de programar el envío.`;
+      return;
+    }
     const data = await apiFetch(`/admin/communications/latest-template?audience=${encodeURIComponent(audience)}&classKey=${encodeURIComponent(classKey)}`);
     const item = data.communication || {};
     document.getElementById('communicationSubject').value = item.subject || '';
@@ -1917,7 +1933,7 @@ document.getElementById('btnTraceYearNext').onclick = () => { const years = (sta
 
 document.getElementById('btnAudienceCandidate').onclick = () => setCommunicationAudience('CANDIDATE');
 document.getElementById('btnAudienceCompany').onclick = () => setCommunicationAudience('COMPANY');
-document.getElementById('communicationCandidateClass').onchange = (e) => { state.communications.candidateClassKey = e.target.value || 'ALL'; document.getElementById('communicationMsg').textContent=''; renderCommunications(); };
+document.getElementById('communicationCandidateClass').onchange = async (e) => { state.communications.candidateClassKey = e.target.value || 'ALL'; document.getElementById('communicationMsg').textContent=''; renderCommunications(); if(state.communications.candidateClassKey===SUPPORT_DETAIL_SEGMENT_KEY) await loadLastCommunication(); };
 document.getElementById('btnRefreshCommunications').onclick = () => loadCommunications();
 document.getElementById('commOptOutCard').onclick = () => loadCommunicationOptOuts();
 document.getElementById('btnCloseOptOutPanel').onclick = () => { document.getElementById('communicationOptOutPanel').style.display='none'; };
@@ -1997,7 +2013,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v8.0.3: el estado de la cola se refresca mientras Administración permanece abierto.
+// v8.0.4: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();

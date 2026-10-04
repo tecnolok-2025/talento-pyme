@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "8.0.3";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "8.0.4";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -62,7 +62,7 @@ let backupSchedulerStarted = false;
 // v7.10.3 · clasificación automática y persistente de candidatos.
 // El motor sigue siendo determinístico y basado en evidencia declarada; esta capa solamente
 // garantiza que altas, importaciones masivas y cambios de CV queden procesados sin auditoría manual.
-const CANDIDATE_CLASSIFICATION_VERSION = '8.0.3';
+const CANDIDATE_CLASSIFICATION_VERSION = '8.0.4';
 const CANDIDATE_CLASSIFICATION_AUTO_ENABLED = String(process.env.CANDIDATE_CLASSIFICATION_AUTO_ENABLED || 'true').trim().toLowerCase() !== 'false';
 const CANDIDATE_CLASSIFICATION_SCAN_SECONDS = Math.max(15, Math.min(3600, Number(process.env.CANDIDATE_CLASSIFICATION_SCAN_SECONDS || 60)));
 const CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS = Math.max(1000, Math.min(120000, Number(process.env.CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS || 12000)));
@@ -1006,6 +1006,7 @@ async function listBulkCommunicationRecipients(audience, {classKey='ALL'}={}){
   const normalized = String(audience || '').toUpperCase();
   const normalizedClassKey = String(classKey || 'ALL').trim().toUpperCase();
   if(!['CANDIDATE','COMPANY'].includes(normalized)) return { recipients:[], totalAccounts:0, optedOut:0, duplicates:0 };
+  if(normalized==='CANDIDATE' && normalizedClassKey===SUPPORT_DETAIL_SEGMENT_KEY) return listSupportDetailRecipients();
   const users = normalized === 'COMPANY'
     ? await prisma.user.findMany({
         where:{ role:normalized },
@@ -5543,7 +5544,12 @@ const SUPPORT_KNOWLEDGE_SEEDS = [
   { scope: 'COMPANY', keywords: ['factory planes publicaciones busquedas compra bonificacion iva carrito checkout'], questionSample: '¿Cómo funcionan los planes de Factory?', answer: 'Factory permite contratar capacidad por tiempo. Cada plan habilita días, publicaciones y búsquedas. El precio publicado es sin IVA, el impuesto se suma al confirmar la compra y los códigos de bonificación válidos se aplican una sola vez. El pago se completa en un proveedor externo seguro y la orden solo queda pagada cuando el proveedor la confirma.' },
   { scope: 'COMPANY', keywords: ['abrir ficha candidato aperturas creditos saldo capacidad operativa'], questionSample: '¿Cómo se consumen los créditos?', answer: 'La empresa puede ver resultados resumidos sin consumir crédito. La apertura completa de una ficha consume capacidad según el plan activo o el acceso especial vigente. El panel comercial muestra el saldo disponible para operar.' },
   { scope: 'COMPANY', keywords: ['factory admin matriz planes precio dias publicaciones busquedas bonificaciones acceso free'], questionSample: '¿Para qué sirve Factory Admin?', answer: 'Factory Admin permite editar la matriz comercial de días, publicaciones, búsquedas y precio, generar códigos de bonificación, crear accesos especiales free y revisar la operatoria comercial desde la empresa habilitada para administración.' },
-  { scope: 'SUPERADMIN', keywords: ['panel general empresas candidatos estadisticas chat operador conocimiento'], questionSample: '¿Qué muestra el Panel General?', answer: 'El Panel General reúne estadísticas globales del sistema, listados de empresas y candidatos, actividad comercial y el centro de conversaciones para operador. Desde ahí también se administra el conocimiento reutilizable del chat de ayuda.' }
+  { scope: 'SUPERADMIN', keywords: ['panel general empresas candidatos estadisticas chat operador conocimiento'], questionSample: '¿Qué muestra el Panel General?', answer: 'El Panel General reúne estadísticas globales del sistema, listados de empresas y candidatos, actividad comercial y el centro de conversaciones para operador. Desde ahí también se administra el conocimiento reutilizable del chat de ayuda.' },
+  { scope:'CANDIDATE', keywords:['foto cámara sacar foto selfie imagen perfil'], questionSample:'¿Cómo cargo o saco una foto para mi perfil?', answer:'En Mi Perfil buscá Foto de perfil. Podés elegir una imagen del teléfono o la computadora y, cuando el dispositivo lo permita, usar la cámara. Elegí una foto reciente, de frente, con buena luz y fondo simple. Confirmá la carga y guardá los cambios. Si la cámara no aparece, revisá los permisos del navegador.' },
+  { scope:'CANDIDATE', keywords:['cv pdf docx txt subir archivo no me deja curriculum'], questionSample:'¿Cómo cargo mi CV y qué hago si no me deja?', answer:'En Mi Perfil, en la sección de CV, seleccioná un archivo PDF, DOCX o TXT. Talento PyME lee el contenido para enriquecer tu perfil. Si no carga, verificá que sea uno de esos formatos, usá el archivo original y probá nuevamente. Después volvé al punto 2 y pulsá Corrección IA profesional para integrar el CV con tu presentación; revisá y guardá.' },
+  { scope:'CANDIDATE', keywords:['punto 2 corrección ia profesional escribir dictar que se hacer me gustaría hacer'], questionSample:'¿Qué puedo contarle a la IA en el punto 2?', answer:'No necesitás redactar un currículum perfecto. En el punto 2 podés escribir o dictar qué sabés hacer, qué tareas realizaste aunque hayan sido informales, qué herramientas conocés, qué te gusta hacer y qué trabajo te gustaría aprender o desarrollar. Después pulsá Corrección IA profesional: Talento PyME ordena el relato, elimina repeticiones y mejora la redacción sin inventar antecedentes. Revisá el resultado y guardalo.' },
+  { scope:'CANDIDATE', keywords:['no encuentro búsqueda no hay puestos cero resultados seguridad higiene supervisor'], questionSample:'¿Qué hago si mi búsqueda no muestra puestos?', answer:'En Mis Oportunidades probá primero términos simples y amplios relacionados con el área o puesto. Si no aparece nada, puede significar que en ese momento no existe una publicación activa con esas palabras; no necesariamente hay un error en tu perfil. Probá sinónimos o una búsqueda más general y revisá nuevamente más adelante.' },
+  { scope:'CANDIDATE', keywords:['palabras clave visibilidad empresas encontrar perfil oficio tareas habilidades'], questionSample:'¿Qué palabras conviene agregar para que una empresa me encuentre?', answer:'Usá palabras concretas que describan tareas reales, conocimientos e intereses: por ejemplo electricidad, mecánica, cocina, limpieza, cuidado de personas, atención al cliente, ventas, depósito, logística, construcción, pintura, seguridad, producción, administración o informática. No agregues especialidades que no conocés. Cuanto más precisa sea la descripción de lo que sabés hacer y querés desarrollar, más útil será la búsqueda para una empresa.' }
 ];
 
 const SUPPORT_SUGGESTIONS = {
@@ -6192,6 +6198,131 @@ const ADMIN_CANDIDATE_CLASS_LABELS = {
   GERENCIAL: 'Gerencia / Dirección',
   ADMINISTRATIVO: 'Administrativos / Gestión',
 };
+
+const SUPPORT_DETAIL_SEGMENT_KEY = 'SUPPORT_DETAIL_PENDING';
+const SUPPORT_DETAIL_SEGMENT_LABEL = 'Detalles de respuestas solicitadas por candidatos';
+const SUPPORT_DETAIL_RECIPIENT_MODES = ['SUPPORT_DETAIL_UNSENT_ONLY','SUPPORT_DETAIL_ALL_ELIGIBLE'];
+
+async function listSupportDetailRecipients(){
+  const messages = await prisma.supportMessage.findMany({
+    where:{ actor:'USER', thread:{ is:{ role:'CANDIDATE', userId:{ not:null } } } },
+    select:{ createdAt:true, thread:{ select:{ userId:true } } },
+    orderBy:{ createdAt:'asc' },
+  });
+  const latestQuestionByUser = new Map();
+  for(const row of messages){
+    const userId=row.thread?.userId;
+    if(!userId) continue;
+    const at=new Date(row.createdAt);
+    const prev=latestQuestionByUser.get(userId);
+    if(!prev || at>prev) latestQuestionByUser.set(userId,at);
+  }
+  if(!latestQuestionByUser.size) return { recipients:[], totalAccounts:0, optedOut:0, duplicates:0, reachable:0, questionCount:0 };
+
+  const coveredRows = await prisma.adminCommunicationRecipient.findMany({
+    where:{
+      userId:{ in:[...latestQuestionByUser.keys()] },
+      status:{ in:['PENDING','SENT'] },
+      communication:{ is:{ recipientMode:{ in:SUPPORT_DETAIL_RECIPIENT_MODES } } },
+    },
+    select:{ userId:true, communication:{ select:{ createdAt:true } } },
+  });
+  const coveredAtByUser=new Map();
+  for(const row of coveredRows){
+    const at=new Date(row.communication?.createdAt || 0);
+    const prev=coveredAtByUser.get(row.userId);
+    if(!prev || at>prev) coveredAtByUser.set(row.userId,at);
+  }
+  const pendingUserIds=[...latestQuestionByUser.entries()]
+    .filter(([userId,lastQuestionAt])=>!coveredAtByUser.get(userId) || lastQuestionAt>coveredAtByUser.get(userId))
+    .map(([userId])=>userId);
+  if(!pendingUserIds.length) return { recipients:[], totalAccounts:0, optedOut:0, duplicates:0, reachable:0, questionCount:messages.length };
+
+  const users=await prisma.user.findMany({
+    where:{ id:{ in:pendingUserIds }, role:'CANDIDATE' },
+    select:{ id:true,email:true,bulkEmailOptOutAt:true },
+    orderBy:{ createdAt:'asc' },
+  });
+  const grouped=new Map();
+  for(const user of users){
+    const email=normalizeEmail(user.email);
+    if(!email) continue;
+    const row={ userId:user.id, email, optedOut:Boolean(user.bulkEmailOptOutAt) };
+    const prev=grouped.get(email);
+    grouped.set(email, prev ? { ...prev, optedOut:Boolean(prev.optedOut || row.optedOut) } : row);
+  }
+  const all=[...grouped.values()];
+  return {
+    recipients:all.filter((r)=>!r.optedOut),
+    totalAccounts:users.length,
+    optedOut:all.filter((r)=>r.optedOut).length,
+    duplicates:Math.max(0,users.length-all.length),
+    reachable:all.length,
+    questionCount:messages.filter((row)=>pendingUserIds.includes(row.thread?.userId)).length,
+  };
+}
+
+function supportDetailTopicKey(text=''){
+  const t=normalizeName(text);
+  if(/foto|camara|cámara|sacar.*foto|cargar.*foto/.test(t)) return 'PHOTO';
+  if(/subir.*cv|cargar.*cv|formato.*cv|curriculum|currículo|archivo.*pdf|docx|txt/.test(t)) return 'CV';
+  if(/complet.*perfil|terminar.*perfil|celdas|datos personales|observaciones|alcance curricular/.test(t)) return 'PROFILE';
+  if(/visibilidad|que me encuentren|encontrado por empresas|palabras clave/.test(t)) return 'VISIBILITY';
+  if(/postular|postulacion|postulación|expo empleo/.test(t)) return 'APPLICATION';
+  if(/mis oportunidades|no sale nada|no encuentro puesto|busco supervisor|busqueda|búsqueda/.test(t)) return 'SEARCH';
+  if(/actualizar.*perfil|sin perder informacion|sin perder información/.test(t)) return 'UPDATE';
+  return 'OTHER';
+}
+
+const SUPPORT_DETAIL_SECTIONS = {
+  PROFILE:{ title:'Cómo completar o mejorar Mi Perfil', body:'Entrá a Mi Perfil y avanzá por las etapas con la información que tengas. En el punto 2 podés escribir con tus propias palabras o contárselo a la IA: qué sabés hacer, qué tareas realizaste, qué te gustaría aprender y en qué tipo de trabajo te gustaría desempeñarte. No hace falta redactarlo de manera profesional: la función “Corrección IA profesional” ordena el relato, elimina repeticiones y mejora la presentación sin inventar antecedentes. Después revisá el resultado, corregí lo que quieras y guardalo.' },
+  PHOTO:{ title:'Cómo cargar o sacar tu foto', body:'En Mi Perfil buscá la sección Foto de perfil. Podés seleccionar una imagen que ya tengas en el teléfono o la computadora y, cuando el dispositivo lo permita, usar la cámara. Elegí una foto reciente, de frente, con buena luz, fondo simple y sin filtros fuertes. Una vez seleccionada, confirmá la carga y guardá los cambios. Si usás celular y no aparece la cámara, revisá que el navegador tenga permiso para acceder a ella.' },
+  CV:{ title:'Cómo cargar el CV y qué formatos acepta', body:'En Mi Perfil buscá la sección de CV y elegí el archivo desde tu dispositivo. Talento PyME admite PDF, DOCX y TXT. El sistema lee el contenido para enriquecer el perfil; no necesitás que el diseño sea perfecto. Después de cargarlo, volvé al punto 2 y usá “Corrección IA profesional” para integrar lo que contaste con los antecedentes del CV. Finalmente revisá y guardá. Si el archivo no carga, verificá que sea uno de esos formatos y probá nuevamente desde el archivo original, no desde una vista previa o una imagen del documento.' },
+  VISIBILITY:{ title:'Cómo mejorar tu visibilidad para las empresas', body:'Las empresas encuentran candidatos por palabras relacionadas con oficio, especialidad, experiencia, estudios y tareas. Por eso conviene escribir de manera concreta qué sabés hacer. Por ejemplo: electricidad domiciliaria, mantenimiento mecánico, atención al cliente, cocina, depósito, control de stock, limpieza, cuidado de personas, soldadura o administración. También indicá qué actividad te interesa aprender o desarrollar. Cuanto más específico sea el perfil, más posibilidades hay de aparecer en una búsqueda adecuada.' },
+  SEARCH:{ title:'Cómo buscar oportunidades y qué significa si no aparecen resultados', body:'Entrá en Mis Oportunidades y buscá por palabras simples relacionadas con el puesto o el área: por ejemplo seguridad e higiene, supervisor, logística, mantenimiento o producción. Si una búsqueda devuelve cero resultados, no significa que tu perfil esté mal: puede ocurrir que en ese momento no haya una publicación activa con esas palabras. Probá términos más amplios y volvé a consultar periódicamente.' },
+  APPLICATION:{ title:'Cómo postularte a una oportunidad', body:'Cuando encuentres una búsqueda que te interese, abrila y utilizá la opción de postulación. Después podés revisar lo enviado desde Mis Postulaciones. Antes de postularte conviene tener actualizado Mi Perfil, especialmente la presentación del punto 2, experiencia, formación y datos de contacto, porque esa es la información que ayuda a la empresa a interpretar mejor tu candidatura.' },
+  UPDATE:{ title:'Cómo actualizar tu perfil sin perder lo anterior', body:'Podés volver a Mi Perfil todas las veces que necesites. Modificá sólo la información que quieras cambiar y guardá. La actualización no exige volver a empezar: podés agregar una experiencia, corregir una descripción, incorporar estudios, cargar una nueva foto o reemplazar el CV. Antes de salir, verificá que el cambio haya quedado guardado.' },
+  OTHER:{ title:'Si tu consulta no está dentro de estos ejemplos', body:'Volvé a Ayuda IA y escribí la consulta con la mayor precisión posible, indicando en qué pantalla estás y qué querés lograr. Si aparece un error, explicá qué botón tocaste y qué ocurrió. Esa información permite orientar mejor la respuesta y también ayuda a mejorar las próximas explicaciones del sistema.' },
+};
+
+async function buildSupportDetailGuide(){
+  const recipientData=await listSupportDetailRecipients();
+  const pendingIds=new Set(recipientData.recipients.map((r)=>r.userId));
+  const rows=await prisma.supportMessage.findMany({
+    where:{ actor:'USER', thread:{ is:{ role:'CANDIDATE', userId:{ in:[...pendingIds] } } } },
+    select:{ content:true, thread:{ select:{ userId:true } }, createdAt:true },
+    orderBy:{createdAt:'asc'},
+  });
+  const topicKeys=[];
+  const seen=new Set();
+  for(const row of rows){
+    const key=supportDetailTopicKey(row.content || '');
+    if(!seen.has(key)){ seen.add(key); topicKeys.push(key); }
+  }
+  if(!topicKeys.length) topicKeys.push('PROFILE','CV','PHOTO','VISIBILITY','SEARCH','APPLICATION');
+  const intro=[
+    'Hola,',
+    '',
+    'Registramos que en algún momento utilizaste Ayuda IA para consultar cómo completar o utilizar alguna función de Talento PyME. Para facilitarte el proceso, reunimos en este correo una explicación más amplia y paso a paso de las consultas que fueron apareciendo entre los candidatos.',
+    '',
+    'No significa que hayas hecho algo mal. La idea es que puedas aprovechar mejor el portal, completar tu perfil con mayor claridad y aumentar las posibilidades de ser encontrado por una empresa.',
+    ''
+  ];
+  const body=[...intro];
+  let n=1;
+  for(const key of topicKeys){
+    const sec=SUPPORT_DETAIL_SECTIONS[key] || SUPPORT_DETAIL_SECTIONS.OTHER;
+    body.push(`${n}) ${sec.title}`,sec.body,''); n++;
+  }
+  body.push('IMPORTANTE','Si todavía te quedó alguna duda, podés volver a Ayuda IA y formular la consulta con tus propias palabras. También podés escribir o dictar en el punto 2 de Mi Perfil lo que sabés hacer o te gustaría hacer: la IA te ayuda a ordenarlo y redactarlo de una manera más profesional.','', 'Nuestro objetivo es que la falta de experiencia para redactar un currículum no sea un obstáculo para mostrar lo que realmente sabés hacer.','', 'Talento PyME','Conectando experiencia con producción.');
+  return {
+    subject:'Talento PyME · Guía ampliada para completar y aprovechar mejor tu perfil',
+    body:body.join('\n'),
+    topicKeys,
+    questionCount:rows.length,
+    recipientCount:recipientData.recipients.length,
+  };
+}
 
 const ADMIN_EXPERTISE_LABELS = {
   MECANICA: 'Mecánica',
@@ -7122,7 +7253,7 @@ function buildCandidateAdminClassification(candidate = {}){
     professionalEvidenceSummary:{rolesDetected:best?.role?1:0,responsibilitySignals:responsibilities.length,leadershipSignals:responsibilities.length,credibleWorkSignals:ev.credibleWork.length,richResume:false,richPresentation:false},
     reason,scoreBasis:profileScore===null?'Sin evidencia suficiente para puntuar.':`${profileScore}/100: indicador conservador de evidencia en la actividad principal; no mide empleabilidad.`,
     evidence,gaps,assessment:`${reason} ${secondaryProfiles.length?`Perfil(es) complementario(s): ${secondaryProfiles.map(x=>x.label).join(' / ')}. `:''}${gaps.join(' ')} Confirmar funciones y autonomía en entrevista.`,
-    searchText:[profileTitle,expertiseLabel,seniorityLabel,...(entryProfile?educationProfile.aliases:[]),ev.recent?.[0]||'',...evidence,...searchableSecondary.flatMap(x=>[x.label,x.profileTitle,...(x.evidence||[])])].join(' '),classificationVersion:'8.0.3'};
+    searchText:[profileTitle,expertiseLabel,seniorityLabel,...(entryProfile?educationProfile.aliases:[]),ev.recent?.[0]||'',...evidence,...searchableSecondary.flatMap(x=>[x.label,x.profileTitle,...(x.evidence||[])])].join(' '),classificationVersion:'8.0.4'};
 }
 
 
@@ -7723,10 +7854,23 @@ app.get('/admin/communications/summary', auth, requireAnyRole(['ADMIN','SUPERADM
     ]);
     const shape = (x) => ({ totalAccounts:x.totalAccounts, reachable:x.reachable, eligible:x.recipients.length, optedOut:x.optedOut, duplicates:x.duplicates });
     const candidateSegments=classKeys.map((key,idx)=>({ key, label:ADMIN_CANDIDATE_CLASS_LABELS[key], ...shape(segmentRows[idx]) }));
+    const supportDetail=await listSupportDetailRecipients();
+    candidateSegments.push({ key:SUPPORT_DETAIL_SEGMENT_KEY, label:SUPPORT_DETAIL_SEGMENT_LABEL, special:true, questionCount:Number(supportDetail.questionCount||0), ...shape(supportDetail) });
     return res.json({ ok:true, configured:gmailConfigured(), candidates:shape(candidates), companies:shape(companies), candidateSegments, history, queue });
   } catch (err) {
     console.error('GET /admin/communications/summary', err?.message || err);
     return res.status(500).json({ error:'No se pudo leer el padrón de comunicaciones.' });
+  }
+});
+
+
+app.get('/admin/communications/support-detail-template', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req, res) => {
+  try{
+    const guide=await buildSupportDetailGuide();
+    return res.json({ok:true,...guide});
+  }catch(err){
+    console.error('GET /admin/communications/support-detail-template',err?.message || err);
+    return res.status(500).json({error:'No se pudo preparar la guía ampliada para candidatos.'});
   }
 });
 
@@ -7736,7 +7880,7 @@ app.get('/admin/communications/latest-template', auth, requireAnyRole(['ADMIN','
   const audience=String(req.query?.audience || '').trim().toUpperCase();
   const classKey=String(req.query?.classKey || 'ALL').trim().toUpperCase();
   if(!['CANDIDATE','COMPANY'].includes(audience)) return res.status(400).json({ error:'Destinatario inválido.' });
-  if(audience==='CANDIDATE' && classKey!=='ALL' && !ADMIN_CANDIDATE_CLASS_LABELS[classKey]) return res.status(400).json({ error:'Grupo de candidatos inválido.' });
+  if(audience==='CANDIDATE' && classKey!=='ALL' && classKey!==SUPPORT_DETAIL_SEGMENT_KEY && !ADMIN_CANDIDATE_CLASS_LABELS[classKey]) return res.status(400).json({ error:'Grupo de candidatos inválido.' });
   try {
     const latest=await prisma.adminCommunication.findFirst({
       where:{ audience, sentCount:{ gt:0 } },
@@ -7771,7 +7915,7 @@ app.post('/admin/communications/send', auth, requireAnyRole(['ADMIN','SUPERADMIN
   if(!parsed.success) return res.status(400).json({ error:'Revisá el destinatario, asunto y contenido de la comunicación.' });
   const { audience, classKey, subject, body, onlyNotPreviouslySent } = parsed.data;
   const normalizedClassKey=String(classKey || 'ALL').trim().toUpperCase();
-  if(audience==='CANDIDATE' && normalizedClassKey!=='ALL' && !ADMIN_CANDIDATE_CLASS_LABELS[normalizedClassKey]) return res.status(400).json({ error:'Grupo de candidatos inválido.' });
+  if(audience==='CANDIDATE' && normalizedClassKey!=='ALL' && normalizedClassKey!==SUPPORT_DETAIL_SEGMENT_KEY && !ADMIN_CANDIDATE_CLASS_LABELS[normalizedClassKey]) return res.status(400).json({ error:'Grupo de candidatos inválido.' });
   try {
     const audienceData = await listBulkCommunicationRecipients(audience,{classKey:audience==='CANDIDATE'?normalizedClassKey:'ALL'});
     const historyFilter = await filterCommunicationRecipientsByHistory({ audience, subject, body, recipients:audienceData.recipients, onlyNotPreviouslySent });
@@ -7788,7 +7932,7 @@ app.post('/admin/communications/send', auth, requireAnyRole(['ADMIN','SUPERADMIN
       sentCount:0,
       skippedOptOutCount:audienceData.optedOut,
       skippedPreviouslySentCount:historyFilter.skippedPreviouslySent,
-      recipientMode:onlyNotPreviouslySent ? 'UNSENT_ONLY' : 'ALL_ELIGIBLE',
+      recipientMode:normalizedClassKey===SUPPORT_DETAIL_SEGMENT_KEY ? (onlyNotPreviouslySent ? 'SUPPORT_DETAIL_UNSENT_ONLY' : 'SUPPORT_DETAIL_ALL_ELIGIBLE') : (onlyNotPreviouslySent ? 'UNSENT_ONLY' : 'ALL_ELIGIBLE'),
       failedCount:0,
       status:'QUEUED',
       queuedAt:new Date(),
@@ -7812,11 +7956,11 @@ app.post('/admin/communications/send', auth, requireAnyRole(['ADMIN','SUPERADMIN
       communicationId:campaign.id,
       audience,
       classKey:audience==='CANDIDATE'?normalizedClassKey:'ALL',
-      classLabel:audience==='CANDIDATE' && normalizedClassKey!=='ALL' ? ADMIN_CANDIDATE_CLASS_LABELS[normalizedClassKey] : null,
+      classLabel:audience==='CANDIDATE' && normalizedClassKey===SUPPORT_DETAIL_SEGMENT_KEY ? SUPPORT_DETAIL_SEGMENT_LABEL : (audience==='CANDIDATE' && normalizedClassKey!=='ALL' ? ADMIN_CANDIDATE_CLASS_LABELS[normalizedClassKey] : null),
       recipientCount:targetRecipients.length,
       skippedOptOutCount:audienceData.optedOut,
       skippedPreviouslySentCount:historyFilter.skippedPreviouslySent,
-      recipientMode:onlyNotPreviouslySent ? 'UNSENT_ONLY' : 'ALL_ELIGIBLE',
+      recipientMode:normalizedClassKey===SUPPORT_DETAIL_SEGMENT_KEY ? (onlyNotPreviouslySent ? 'SUPPORT_DETAIL_UNSENT_ONLY' : 'SUPPORT_DETAIL_ALL_ELIGIBLE') : (onlyNotPreviouslySent ? 'UNSENT_ONLY' : 'ALL_ELIGIBLE'),
       queuePosition,
       queue,
       message:queuePosition > 1
