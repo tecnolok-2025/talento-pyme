@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "8.0.4";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "8.0.5";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -5685,6 +5685,47 @@ function scoreKnowledgeMatch(message, knowledge){
   return score;
 }
 
+// v8.0.5 · clasificación administrativa de cada consulta de Ayuda IA.
+// No agrega columnas ni migra Neon: se calcula contra la base de conocimiento vigente
+// para que una respuesta reusable del operador pase a cubrir consultas futuras.
+function knownSupportIntentScore(message, role){
+  const hay = normalizeName(message);
+  const normalizedRole = String(role || '').toUpperCase();
+  let bestScore = 0;
+  let bestIntent = null;
+  for(const intent of SUPPORT_INTENTS){
+    if(!intent.scopes.includes('GLOBAL') && !intent.scopes.includes(normalizedRole)) continue;
+    let score = 0;
+    for(const pattern of intent.patterns){
+      if(pattern instanceof RegExp){ if(pattern.test(hay)) score += 4; }
+      else if(normalizeName(pattern) && hay.includes(normalizeName(pattern))) score += 3;
+    }
+    if(score > bestScore){ bestScore = score; bestIntent = intent.id; }
+  }
+  return { score:bestScore, intent:bestIntent };
+}
+
+function classifySupportConsultationStatus(message, role, knowledgeRows=[]){
+  const value = String(message || '').trim();
+  if(!value) return { key:'NEW', label:'Consulta nueva / requiere ampliar respuesta', source:'empty', score:0 };
+  if(isGreetingMessage(value) || isInsultMessage(value)) return { key:'COVERED', label:'Tema ya cubierto', source:'system', score:99 };
+
+  const intent = knownSupportIntentScore(value, role);
+  if(intent.score > 0) return { key:'COVERED', label:'Tema ya cubierto', source:intent.intent || 'intent', score:intent.score };
+
+  if(String(role || '').toUpperCase()==='CANDIDATE') {
+    const topicKey = supportDetailTopicKey(value);
+    if(topicKey && topicKey !== 'OTHER') return { key:'COVERED', label:'Tema ya cubierto', source:`guide:${topicKey}`, score:4 };
+  }
+
+  let bestKnowledgeScore = 0;
+  for(const row of knowledgeRows || []) bestKnowledgeScore = Math.max(bestKnowledgeScore, scoreKnowledgeMatch(value,row));
+  // Un solo término genérico no alcanza para declarar una consulta como cubierta.
+  if(bestKnowledgeScore >= 3) return { key:'COVERED', label:'Tema ya cubierto', source:'knowledge', score:bestKnowledgeScore };
+
+  return { key:'NEW', label:'Consulta nueva / requiere ampliar respuesta', source:'uncovered', score:bestKnowledgeScore };
+}
+
 function extractSupportName(message=''){
   const raw = String(message || '').trim();
   const patterns = [
@@ -5855,7 +5896,7 @@ async function getTopKnowledgeMatches(message, scopes){
   const rows = await prisma.supportKnowledge.findMany({ where: { isActive: true, scope: { in: scopes } }, orderBy: { updatedAt: 'desc' }, take: 400 }).catch(() => []);
   const ranked = rows
     .map((row)=> ({ row, score: scoreKnowledgeMatch(message, row) }))
-    .filter((item)=> item.score > 0)
+    .filter((item)=> item.score >= 3)
     .sort((a,b)=> b.score - a.score)
     .slice(0, 3);
   return ranked;
@@ -6217,7 +6258,7 @@ async function listSupportDetailRecipients(){
     const prev=latestQuestionByUser.get(userId);
     if(!prev || at>prev) latestQuestionByUser.set(userId,at);
   }
-  if(!latestQuestionByUser.size) return { recipients:[], totalAccounts:0, optedOut:0, duplicates:0, reachable:0, questionCount:0 };
+  if(!latestQuestionByUser.size) return { recipients:[], totalAccounts:0, optedOut:0, duplicates:0, reachable:0, questionCount:0, coveredQuestionCount:0, newQuestionCount:0 };
 
   const coveredRows = await prisma.adminCommunicationRecipient.findMany({
     where:{
@@ -6236,7 +6277,7 @@ async function listSupportDetailRecipients(){
   const pendingUserIds=[...latestQuestionByUser.entries()]
     .filter(([userId,lastQuestionAt])=>!coveredAtByUser.get(userId) || lastQuestionAt>coveredAtByUser.get(userId))
     .map(([userId])=>userId);
-  if(!pendingUserIds.length) return { recipients:[], totalAccounts:0, optedOut:0, duplicates:0, reachable:0, questionCount:messages.length };
+  if(!pendingUserIds.length) return { recipients:[], totalAccounts:0, optedOut:0, duplicates:0, reachable:0, questionCount:0, coveredQuestionCount:0, newQuestionCount:0 };
 
   const users=await prisma.user.findMany({
     where:{ id:{ in:pendingUserIds }, role:'CANDIDATE' },
@@ -6252,13 +6293,23 @@ async function listSupportDetailRecipients(){
     grouped.set(email, prev ? { ...prev, optedOut:Boolean(prev.optedOut || row.optedOut) } : row);
   }
   const all=[...grouped.values()];
+  const pendingMessages=messages.filter((row)=>pendingUserIds.includes(row.thread?.userId));
+  const knowledgeRows=await prisma.supportKnowledge.findMany({ where:{ isActive:true }, orderBy:{ updatedAt:'desc' }, take:400 }).catch(()=>[]);
+  let coveredQuestionCount=0;
+  let newQuestionCount=0;
+  for(const row of pendingMessages){
+    const cls=classifySupportConsultationStatus(row.content || '', 'CANDIDATE', knowledgeRows);
+    if(cls.key==='COVERED') coveredQuestionCount++; else newQuestionCount++;
+  }
   return {
     recipients:all.filter((r)=>!r.optedOut),
     totalAccounts:users.length,
     optedOut:all.filter((r)=>r.optedOut).length,
     duplicates:Math.max(0,users.length-all.length),
     reachable:all.length,
-    questionCount:messages.filter((row)=>pendingUserIds.includes(row.thread?.userId)).length,
+    questionCount:pendingMessages.length,
+    coveredQuestionCount,
+    newQuestionCount,
   };
 }
 
@@ -6321,6 +6372,8 @@ async function buildSupportDetailGuide(){
     topicKeys,
     questionCount:rows.length,
     recipientCount:recipientData.recipients.length,
+    coveredQuestionCount:Number(recipientData.coveredQuestionCount||0),
+    newQuestionCount:Number(recipientData.newQuestionCount||0),
   };
 }
 
@@ -7855,7 +7908,7 @@ app.get('/admin/communications/summary', auth, requireAnyRole(['ADMIN','SUPERADM
     const shape = (x) => ({ totalAccounts:x.totalAccounts, reachable:x.reachable, eligible:x.recipients.length, optedOut:x.optedOut, duplicates:x.duplicates });
     const candidateSegments=classKeys.map((key,idx)=>({ key, label:ADMIN_CANDIDATE_CLASS_LABELS[key], ...shape(segmentRows[idx]) }));
     const supportDetail=await listSupportDetailRecipients();
-    candidateSegments.push({ key:SUPPORT_DETAIL_SEGMENT_KEY, label:SUPPORT_DETAIL_SEGMENT_LABEL, special:true, questionCount:Number(supportDetail.questionCount||0), ...shape(supportDetail) });
+    candidateSegments.push({ key:SUPPORT_DETAIL_SEGMENT_KEY, label:SUPPORT_DETAIL_SEGMENT_LABEL, special:true, questionCount:Number(supportDetail.questionCount||0), coveredQuestionCount:Number(supportDetail.coveredQuestionCount||0), newQuestionCount:Number(supportDetail.newQuestionCount||0), ...shape(supportDetail) });
     return res.json({ ok:true, configured:gmailConfigured(), candidates:shape(candidates), companies:shape(companies), candidateSegments, history, queue });
   } catch (err) {
     console.error('GET /admin/communications/summary', err?.message || err);
@@ -9200,12 +9253,30 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
 
 app.get('/admin/chat/threads', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   try {
-    const rows = await prisma.supportThread.findMany({ orderBy: { updatedAt: 'desc' }, take: 100, include: { company: { select: { companyName: true, contactEmail: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'asc' }, take: 100 } } }).catch(() => []);
+    const [rows, knowledgeRows] = await Promise.all([
+      prisma.supportThread.findMany({ orderBy: { updatedAt: 'desc' }, take: 100, include: { company: { select: { companyName: true, contactEmail: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'asc' }, take: 100 } } }).catch(() => []),
+      prisma.supportKnowledge.findMany({ where:{ isActive:true }, orderBy:{ updatedAt:'desc' }, take:400 }).catch(() => []),
+    ]);
+    let coveredCount=0;
+    let newCount=0;
     const items = rows.map((thread) => {
       const recipientEmail = resolveSupportThreadRecipient(thread);
       const lastOperator = [...(thread.messages || [])].reverse().find((m) => m.actor === 'OPERATOR') || null;
+      let threadCoveredCount=0;
+      let threadNewCount=0;
+      const messages=(thread.messages || []).map((m)=>{
+        if(m.actor!=='USER') return m;
+        const consultationClassification=classifySupportConsultationStatus(m.content,thread.role,knowledgeRows);
+        if(consultationClassification.key==='COVERED'){ coveredCount++; threadCoveredCount++; }
+        else { newCount++; threadNewCount++; }
+        return { ...m, consultationClassification };
+      });
+      const lastUserMessage=[...messages].reverse().find((m)=>m.actor==='USER') || null;
       return {
         ...thread,
+        messages,
+        consultationCounters:{ covered:threadCoveredCount, new:threadNewCount, total:threadCoveredCount+threadNewCount },
+        lastConsultationClassification:lastUserMessage?.consultationClassification || null,
         recipientEmail: recipientEmail || null,
         maskedRecipientEmail: recipientEmail ? maskEmail(recipientEmail) : null,
         canEmail: Boolean(recipientEmail && gmailConfigured()),
@@ -9213,7 +9284,7 @@ app.get('/admin/chat/threads', auth, requireAnyRole(['ADMIN','SUPERADMIN']), asy
         lastOperatorAt: lastOperator?.createdAt || null,
       };
     });
-    return res.json({ ok: true, items, mailConfigured:gmailConfigured() });
+    return res.json({ ok: true, items, consultationCounters:{ covered:coveredCount, new:newCount, total:coveredCount+newCount }, mailConfigured:gmailConfigured() });
   } catch (err) {
     console.error('GET /admin/chat/threads', err);
     return res.status(500).json({ error: 'No se pudo cargar el chat operador.' });

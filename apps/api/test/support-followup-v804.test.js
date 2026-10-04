@@ -39,4 +39,4 @@ test('las campañas especiales quedan trazables sin migración nueva',()=>{
   assert.doesNotMatch(fs.readFileSync(path.join(root,'apps/api/prisma/schema.prisma'),'utf8'),/supportDetailRespondedAt/);
 });
 
-test('versión web v8.0.4',()=>assert.match(config,/TP_APP_VERSION = "8\.0\.4"/));
+test('versión web v8.0.5',()=>assert.match(config,/TP_APP_VERSION = "8\.0\.5"/));

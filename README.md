@@ -1,4 +1,4 @@
-# Talento PyME — versión actual v8.0.4
+# Talento PyME — versión actual v8.0.5
 
 ## Etapa 8.0.2 — clasificación práctica y navegación asistida
 - Trazabilidad deja de mostrar **Información profesional por completar** y **Perfil profesional / Trayectoria no determinada** como grupos operativos.
@@ -9,11 +9,22 @@
 - Capacidad operativa estima candidatos posibles a partir del uso real de PostgreSQL y una reserva preventiva del 20%.
 
 
-> **VERSIÓN ACTIVA v8.0.4**  
+> **VERSIÓN ACTIVA v8.0.5**  
 > Inicio de una nueva etapa del motor de clasificación de candidatos.
 
 La versión operativa se obtiene de `apps/api/package.json`, `apps/web/config.js`, `CURRENT_VERSION.txt` y `/health`. Los archivos con números anteriores se conservan como **documentación histórica** y no representan la versión ejecutándose.
 
+
+
+## v8.0.5 — clasificación automática de consultas de Ayuda IA
+
+- Cada mensaje de usuario en **Chat operador** se clasifica automáticamente como **Tema ya cubierto** o **Consulta nueva / requiere ampliar respuesta**.
+- Se muestran **dos contadores separados** y se recalculan según el filtro de candidato, empresa o administración.
+- Cada consulta individual lleva su etiqueta, y el hilo muestra el estado de la consulta más reciente.
+- La clasificación usa las respuestas incorporadas al conocimiento, las intenciones reconocidas y la guía ampliada. Una coincidencia débil no se considera cubierta.
+- Cuando una respuesta del operador se marca como **reutilizable**, pasa a la base de conocimiento y las consultas similares futuras pueden quedar automáticamente como cubiertas.
+- En **Correo / Consultas**, el grupo de respuestas pendientes también informa cuántas consultas están cubiertas y cuántas son nuevas.
+- No requiere migración de Neon ni vuelve a reclasificar los CV: el motor de perfiles continúa en 8.0.4.
 
 ## v8.0.4 — seguimiento de consultas y guía ampliada
 

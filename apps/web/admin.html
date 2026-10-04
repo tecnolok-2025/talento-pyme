@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=8.0.4" />
+  <link rel="stylesheet" href="/styles.css?v=8.0.5" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -532,13 +532,13 @@
   </section>
   <section class="tabPane" id="tab-chat">
     <div class="adminChatShell">
-      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Conversaciones</h2><div class="muted">Separadas por Ayuda IA del lado empresa y del lado candidato para responder con contexto claro.</div></div><button class="btn btn-ghost" id="btnRefreshThreads" type="button">Actualizar</button></div><div class="row" id="chatRoleTabs" style="margin-top:14px"><button class="btn btn-ghost active" data-role-filter="ALL" type="button">Todas</button><button class="btn btn-ghost" data-role-filter="COMPANY" type="button">Ayuda IA · lado empresa</button><button class="btn btn-ghost" data-role-filter="CANDIDATE" type="button">Ayuda IA · lado candidato</button><button class="btn btn-ghost" data-role-filter="SUPERADMIN" type="button">Ayuda IA · administración</button></div><div id="threadList" class="adminList" style="margin-top:16px"></div></div>
+      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Conversaciones</h2><div class="muted">Cada consulta se clasifica automáticamente según el conocimiento vigente para distinguir lo ya cubierto de lo que requiere ampliar respuesta.</div></div><button class="btn btn-ghost" id="btnRefreshThreads" type="button">Actualizar</button></div><div class="mailKpis" style="margin-top:14px"><div class="mailKpi"><span class="muted small">Tema ya cubierto</span><b id="chatCoveredCount">0</b></div><div class="mailKpi"><span class="muted small">Consulta nueva / requiere ampliar</span><b id="chatNewCount">0</b></div></div><div class="row" id="chatRoleTabs" style="margin-top:14px"><button class="btn btn-ghost active" data-role-filter="ALL" type="button">Todas</button><button class="btn btn-ghost" data-role-filter="COMPANY" type="button">Ayuda IA · lado empresa</button><button class="btn btn-ghost" data-role-filter="CANDIDATE" type="button">Ayuda IA · lado candidato</button><button class="btn btn-ghost" data-role-filter="SUPERADMIN" type="button">Ayuda IA · administración</button></div><div id="threadList" class="adminList" style="margin-top:16px"></div></div>
       <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Detalle del hilo</h2><div class="muted" id="threadMeta">Seleccioná una conversación.</div></div></div><div id="threadMessages" style="margin-top:16px"></div><div style="margin-top:16px"><label>Respuesta del operador</label><textarea class="input" id="operatorReply" rows="6" placeholder="Escribí la respuesta que verá el usuario y, si querés, también recibirá por email."></textarea><div class="muted small" id="operatorEmailTarget" style="margin-top:8px">Correo destinatario: seleccioná una conversación.</div><label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="replyReusable" /> Incorporar esta respuesta a la base de conocimiento</label><div class="row" style="margin-top:12px;align-items:center"><button class="btn btn-primary" id="btnSendOperatorReply" type="button">Responder en Talento PyME</button><button class="btn btn-ghost" id="btnSendOperatorReplyEmail" type="button">Responder + enviar por email</button><button class="btn btn-ghost" id="btnResendLastOperatorEmail" type="button">Reenviar último mensaje informado por email</button></div><div class="muted" id="operatorReplyMsg" style="margin-top:10px"></div></div></div>
     </div>
   </section>
 </div>
-<script src="/config.js?v=8.0.4"></script>
-<script src="/auth.js?v=8.0.4"></script>
+<script src="/config.js?v=8.0.5"></script>
+<script src="/auth.js?v=8.0.5"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -1600,7 +1600,7 @@ function renderCommunications(){
   const specialSupport = audience === 'CANDIDATE' && segmentKey === SUPPORT_DETAIL_SEGMENT_KEY;
   const hint=document.getElementById('communicationCandidateClassHint');
   if(hint) hint.textContent = specialSupport
-    ? `Incluye sólo candidatos que hicieron una consulta en Ayuda IA y todavía no recibieron una guía posterior a su última pregunta. Si vuelven a consultar después del envío, reaparecerán automáticamente en este grupo.`
+    ? `Incluye sólo candidatos que hicieron una consulta en Ayuda IA y todavía no recibieron una guía posterior a su última pregunta. Consultas pendientes: ${Number(segment?.questionCount||0)} · tema ya cubierto: ${Number(segment?.coveredQuestionCount||0)} · consulta nueva / requiere ampliar: ${Number(segment?.newQuestionCount||0)}. Si vuelven a consultar después del envío, reaparecerán automáticamente en este grupo.`
     : 'Podés enviar el correo nuevo o reutilizar el último correo solamente al grupo seleccionado.';
   const loadLastBtn=document.getElementById('btnLoadLastCommunication');
   if(loadLastBtn) loadLastBtn.textContent = specialSupport ? 'Cargar guía ampliada de respuestas' : (audience === 'COMPANY' ? 'Cargar último correo enviado a empresas' : 'Cargar último correo enviado a candidatos');
@@ -1695,7 +1695,7 @@ async function loadLastCommunication(){
       document.getElementById('communicationBody').value=guide.body || '';
       const onlyUnsent=document.getElementById('communicationOnlyUnsent'); if(onlyUnsent) onlyUnsent.checked=true;
       saveCommunicationDraft();
-      if(msg) msg.textContent=`Guía preparada para ${Number(guide.recipientCount||0)} candidato(s), reuniendo ${Number(guide.questionCount||0)} consulta(s) pendientes. Podés revisarla o ampliarla antes de programar el envío.`;
+      if(msg) msg.textContent=`Guía preparada para ${Number(guide.recipientCount||0)} candidato(s), reuniendo ${Number(guide.questionCount||0)} consulta(s) pendientes: ${Number(guide.coveredQuestionCount||0)} tema(s) ya cubierto(s) y ${Number(guide.newQuestionCount||0)} consulta(s) nueva(s) / requiere(n) ampliar respuesta. Podés revisarla o ampliarla antes de programar el envío.`;
       return;
     }
     const data = await apiFetch(`/admin/communications/latest-template?audience=${encodeURIComponent(audience)}&classKey=${encodeURIComponent(classKey)}`);
@@ -1833,9 +1833,12 @@ async function loadThreads(){
   state.threads = data.items || [];
   const list = document.getElementById('threadList');
   const filtered = activeThreadRole === 'ALL' ? state.threads : state.threads.filter((t) => String(t.role || '').toUpperCase() === activeThreadRole);
+  const filteredCounters=filtered.reduce((acc,t)=>{ acc.covered+=Number(t.consultationCounters?.covered||0); acc.new+=Number(t.consultationCounters?.new||0); return acc; },{covered:0,new:0});
+  document.getElementById('chatCoveredCount').textContent=String(filteredCounters.covered);
+  document.getElementById('chatNewCount').textContent=String(filteredCounters.new);
   const order = ['COMPANY','CANDIDATE','SUPERADMIN'];
   const sections = order.map((role) => ({ role, items: filtered.filter((t) => String(t.role || '').toUpperCase() === role) })).filter((section) => section.items.length);
-  list.innerHTML = sections.map((section) => `<div><div class="threadSectionTitle">${esc(threadRoleLabel[section.role] || section.role)}</div>${section.items.map((t) => `<div class="threadItem ${state.selectedThreadId === t.id ? 'active' : ''}" data-id="${t.id}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b>${esc(t.company?.companyName || t.user?.email || t.subject || 'Conversación')}</b><span class="threadRoleBadge">${esc(threadRoleLabel[t.role] || t.role)}</span></div><div class="muted">${t.needsHuman ? 'requiere revisión' : 'seguimiento'} · ${fd(t.updatedAt)}</div><div class="muted">${esc(t.lastUserMessage || 'Sin mensaje inicial')}</div></div>`).join('')}</div>`).join('') || '<div class="muted">Sin conversaciones en esta categoría.</div>';
+  list.innerHTML = sections.map((section) => `<div><div class="threadSectionTitle">${esc(threadRoleLabel[section.role] || section.role)}</div>${section.items.map((t) => { const cls=t.lastConsultationClassification; const badge=cls ? `<span class="threadRoleBadge">${esc(cls.key==='COVERED'?'Tema cubierto':'Consulta nueva')}</span>` : ''; return `<div class="threadItem ${state.selectedThreadId === t.id ? 'active' : ''}" data-id="${t.id}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b>${esc(t.company?.companyName || t.user?.email || t.subject || 'Conversación')}</b><span style="display:flex;gap:6px;flex-wrap:wrap">${badge}<span class="threadRoleBadge">${esc(threadRoleLabel[t.role] || t.role)}</span></span></div><div class="muted">${t.needsHuman ? 'requiere revisión' : 'seguimiento'} · ${fd(t.updatedAt)}</div><div class="muted">${esc(t.lastUserMessage || 'Sin mensaje inicial')}</div></div>`; }).join('')}</div>`).join('') || '<div class="muted">Sin conversaciones en esta categoría.</div>';
   list.querySelectorAll('.threadItem').forEach((el) => { el.onclick = () => { state.selectedThreadId = el.dataset.id; loadThreads().then(renderSelectedThread); }; });
   if(!state.selectedThreadId || !filtered.find((t) => t.id === state.selectedThreadId)) state.selectedThreadId = filtered[0]?.id || null;
   renderSelectedThread();
@@ -1859,7 +1862,7 @@ function renderSelectedThread(){
   if(emailTarget) emailTarget.textContent = thread.recipientEmail ? `Correo destinatario: ${thread.recipientEmail}` : 'Esta conversación no tiene un correo destinatario disponible.';
   if(resendBtn) resendBtn.disabled = !(thread.canEmail && thread.lastOperatorMessage);
   if(emailReplyBtn) emailReplyBtn.disabled = !thread.canEmail;
-  box.innerHTML = (thread.messages || []).map((m) => `<div class="msgBubble ${m.actor}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b>${esc(actorLabelEs(m.actor))}</b><span class="muted small">${esc(fd(m.createdAt))}</span></div><div style="margin-top:6px;white-space:pre-wrap">${esc(m.content || '')}</div></div>`).join('');
+  box.innerHTML = (thread.messages || []).map((m) => { const cls=m.actor==='USER' ? m.consultationClassification : null; const status=cls ? `<span class="threadRoleBadge">${esc(cls.key==='COVERED'?'Tema ya cubierto':'Consulta nueva / requiere ampliar respuesta')}</span>` : ''; return `<div class="msgBubble ${m.actor}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap"><span><b>${esc(actorLabelEs(m.actor))}</b>${status ? ' · '+status : ''}</span><span class="muted small">${esc(fd(m.createdAt))}</span></div><div style="margin-top:6px;white-space:pre-wrap">${esc(m.content || '')}</div></div>`; }).join('');
 }
 
 document.getElementById('btnSaveMatrix').onclick = async () => {
@@ -2013,7 +2016,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v8.0.4: el estado de la cola se refresca mientras Administración permanece abierto.
+// v8.0.5: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();
