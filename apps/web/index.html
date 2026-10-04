@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Talento PyME</title>
   <meta name="theme-color" content="#0B1220" />
-  <link rel="manifest" href="/manifest.webmanifest?v=8.0.5" />
+  <link rel="manifest" href="/manifest.webmanifest?v=8.0.6" />
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=8.0.5" />
+  <link rel="stylesheet" href="/styles.css?v=8.0.6" />
 </head>
 <body class="authBody">
   <div class="authTop">
@@ -191,8 +191,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=8.0.5"></script>
-  <script src="/auth.js?v=8.0.5"></script>
+  <script src="/config.js?v=8.0.6"></script>
+  <script src="/auth.js?v=8.0.6"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));
@@ -266,6 +266,12 @@
       return data;
     }
 
+    function auditRegistration(eventType, reason=''){
+      try{
+        fetch(`${window.TP_API_URL}/auth/register-audit`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:selectedRole,eventType,reason:String(reason||'').slice(0,180)})}).catch(()=>{});
+      }catch(_){ }
+    }
+
     function disable(el, v){ el.disabled = !!v; el.style.opacity = v ? .7 : 1; }
 
     function setBusy(on, text){
@@ -317,6 +323,8 @@
 $("btnRegister").onclick = async () => {
       msg(""); setBusy(true, "Registrando… conectando con la base de datos");
       disable($("btnRegister"), true);
+      let registrationPosted=false;
+      auditRegistration('STARTED','REGISTER_BUTTON');
       try{
         if(selectedRole === "CANDIDATE"){
           const fullName = $("regFullName").value.trim();
@@ -340,6 +348,7 @@ $("btnRegister").onclick = async () => {
           if(!country) throw new Error("Falta País de residencia");
           if(!phone) throw new Error("Falta Teléfono");
           if((password||"").length < 10) throw new Error("La contraseña debe tener mínimo 10 caracteres");
+          registrationPosted=true;
           await post("/auth/register", { role: "CANDIDATE", fullName, email, dni, address, city, province, country, phone, password });
         } else {
           const fullName = $("regContactName").value.trim();
@@ -358,11 +367,16 @@ $("btnRegister").onclick = async () => {
           if(!city) throw new Error("Falta Localidad");
           if(!phone) throw new Error("Falta Teléfono");
           if((password||"").length < 10) throw new Error("La contraseña debe tener mínimo 10 caracteres");
+          registrationPosted=true;
           await post("/auth/register", { role: "COMPANY", fullName, companyName, cuit, email, address, city, phone, password });
         }
         msg("Registro OK. Ahora podés ingresar.");
         setMode("LOGIN");
-      }catch(e){ msg(e.message); }
+      }catch(e){
+        if(!registrationPosted) auditRegistration('CLIENT_REJECTED', e.message || 'VALIDACION_LOCAL');
+        else if(/failed to fetch|network|conexi/i.test(String(e.message||''))) auditRegistration('NETWORK_ERROR', e.message || 'NETWORK_ERROR');
+        msg(e.message);
+      }
       finally{ setBusy(false); disable($("btnRegister"), false); }
     };
 

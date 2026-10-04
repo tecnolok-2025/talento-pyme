@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=8.0.5" />
+  <link rel="stylesheet" href="/styles.css?v=8.0.6" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -214,7 +214,13 @@
   </div>
   <section class="tabPane active" id="tab-overview">
     <div class="adminColumns">
-      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Resumen candidato</h2><div class="muted">Vista rápida de altas, actividad reciente y últimos registros del lado candidato.</div></div></div><div class="traceKpiRow"><div class="traceMini"><span class="muted small">Candidatos registrados</span><b id="traceCandidateTotal">—</b></div><div class="traceMini"><span class="muted small">Perfiles actualizados 30 días</span><b id="traceCandidateUpdated">—</b></div><div class="traceMini"><span class="muted small">Postulaciones 30 días</span><b id="traceCandidateApplications">—</b></div><div class="traceMini"><span class="muted small">Consultas IA 30 días</span><b id="traceCandidateChats">—</b></div></div><div class="muted traceHint">Desde la pestaña Resumen candidato podés recorrer el padrón completo y su trazabilidad.</div><div id="candidatePreview" class="adminList" style="margin-top:16px"></div></div>
+      <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Resumen candidato</h2><div class="muted">Vista rápida de altas, actividad reciente y últimos registros del lado candidato.</div></div></div><div class="traceKpiRow"><div class="traceMini"><span class="muted small">Candidatos registrados</span><b id="traceCandidateTotal">—</b></div><div class="traceMini"><span class="muted small">Perfiles actualizados 30 días</span><b id="traceCandidateUpdated">—</b></div><div class="traceMini"><span class="muted small">Postulaciones 30 días</span><b id="traceCandidateApplications">—</b></div><div class="traceMini"><span class="muted small">Consultas IA 30 días</span><b id="traceCandidateChats">—</b></div></div><div class="muted traceHint">Desde la pestaña Resumen candidato podés recorrer el padrón completo y su trazabilidad.</div>
+      <div class="backupNoteCard" style="margin-top:16px">
+        <div class="toolbarCard"><div><b>Auditoría de registro · últimas 72 h</b><div class="muted small" id="regAuditStatus">Cargando diagnóstico…</div></div><button class="btn btn-ghost" id="btnRegistrationCheck" type="button">Verificar alta de candidatos</button></div>
+        <div class="traceKpiRow" style="margin-top:12px"><div class="traceMini"><span class="muted small">Intentos</span><b id="regAuditStarted">—</b></div><div class="traceMini"><span class="muted small">Altas completadas</span><b id="regAuditSuccess">—</b></div><div class="traceMini"><span class="muted small">Rechazos</span><b id="regAuditRejected">—</b></div><div class="traceMini"><span class="muted small">Errores de conexión</span><b id="regAuditNetwork">—</b></div></div>
+        <div class="muted small" id="regAuditReasons" style="margin-top:10px">Sin datos todavía.</div>
+      </div>
+      <div id="candidatePreview" class="adminList" style="margin-top:16px"></div></div>
       <div class="card"><div class="toolbarCard"><div><h2 style="margin:0">Resumen empresa</h2><div class="muted">Vista rápida de cuentas registradas, actividad comercial y últimos movimientos del lado empresa.</div></div></div><div class="traceKpiRow" style="grid-template-columns:repeat(5,minmax(0,1fr))"><div class="traceMini"><span class="muted small">Empresas registradas</span><b id="traceCompanyTotal">—</b></div><div class="traceMini"><span class="muted small">Empresas activas 30 días</span><b id="traceCompanyUpdated">—</b></div><div class="traceMini"><span class="muted small">Búsquedas 30 días</span><b id="traceCompanyJobs">—</b></div><div class="traceMini"><span class="muted small">Consultas IA 30 días</span><b id="traceCompanyChats">—</b></div><div class="traceMini"><span class="muted small">Aperturas 30 días</span><b id="traceCompanyOpenings">—</b></div></div><div class="muted traceHint">Desde la pestaña Resumen empresa podés revisar el padrón completo, búsquedas y movimientos comerciales.</div><div id="companyPreview" class="adminList" style="margin-top:16px"></div></div>
     </div>
   </section>
@@ -537,8 +543,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=8.0.5"></script>
-<script src="/auth.js?v=8.0.5"></script>
+<script src="/config.js?v=8.0.6"></script>
+<script src="/auth.js?v=8.0.6"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -1460,6 +1466,38 @@ async function loadOverview(){
   renderClassificationAutomation();
   renderBackupCenter();
   renderTraceabilityReportPanel();
+  loadRegistrationAudit();
+}
+
+async function loadRegistrationAudit(){
+  const status=document.getElementById('regAuditStatus');
+  if(!status) return;
+  try{
+    const data=await apiFetch('/admin/registration-audit');
+    const rejected=Number(data.clientRejected||0)+Number(data.serverRejected||0);
+    document.getElementById('regAuditStarted').textContent=String(data.started||0);
+    document.getElementById('regAuditSuccess').textContent=String(data.success||0);
+    document.getElementById('regAuditRejected').textContent=String(rejected);
+    document.getElementById('regAuditNetwork').textContent=String(data.networkErrors||0);
+    status.textContent=data.status==='OPERATIONAL' ? 'Circuito con actividad y sin señales críticas.' : (data.status==='NO_ACTIVITY' ? 'No se registraron intentos de alta en las últimas 72 horas.' : 'Atención: hubo rechazos o errores que conviene revisar.');
+    const reasons=(data.reasonCounts||[]).map(x=>`${x.reason}: ${x.total}`).join(' · ');
+    document.getElementById('regAuditReasons').textContent=reasons ? `Motivos recientes: ${reasons}` : 'Sin rechazos registrados en esta ventana.';
+  }catch(e){
+    status.textContent='No se pudo leer la auditoría de registro.';
+  }
+}
+
+async function runRegistrationCheck(){
+  const btn=document.getElementById('btnRegistrationCheck');
+  const status=document.getElementById('regAuditStatus');
+  if(!btn||!status) return;
+  btn.disabled=true; status.textContent='Verificando API y PostgreSQL sin crear candidatos…';
+  try{
+    const data=await apiFetch('/admin/registration-audit/check',{method:'POST'});
+    status.textContent=`${data.message || 'Verificación completada.'} Candidatos actuales: ${data.candidateCount ?? '—'}.`;
+  }catch(e){
+    status.textContent=`Error en la verificación: ${e.message || 'sin detalle'}`;
+  }finally{ btn.disabled=false; await loadRegistrationAudit(); }
 }
 
 function renderTraceabilityReportPanel(){
@@ -2016,7 +2054,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v8.0.5: el estado de la cola se refresca mientras Administración permanece abierto.
+// v8.0.6: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();
@@ -2029,6 +2067,8 @@ Promise.allSettled([loadOverview(), loadFactoryAdmin(), loadThreads()]).then((re
     document.getElementById('sumCompanies').textContent = '—';
   }
 });
+
+document.getElementById('btnRegistrationCheck')?.addEventListener('click', runRegistrationCheck);
 </script>
 </body>
 </html>

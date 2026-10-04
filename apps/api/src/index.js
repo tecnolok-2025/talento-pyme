@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "8.0.5";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "8.0.6";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -2309,9 +2309,40 @@ const passwordRecoveryCompleteSchema = z.object({
   newPassword: z.string().min(10).max(200),
 });
 
+const registrationAuditSchema = z.object({
+  role: z.enum(["CANDIDATE", "COMPANY"]).optional(),
+  eventType: z.enum(["STARTED", "CLIENT_REJECTED", "NETWORK_ERROR"]),
+  reason: z.string().max(180).optional(),
+});
+
+async function writeRegistrationAudit({ role=null, eventType, outcome=null, reason=null, source='WEB' }){
+  try{
+    await prisma.registrationAuditEvent.create({ data:{ role: role || null, eventType, outcome: outcome || null, reason: reason ? String(reason).slice(0,180) : null, source } });
+  }catch(err){
+    console.warn('[REGISTRATION_AUDIT]', err?.message || err);
+  }
+}
+
+app.post('/auth/register-audit', async (req,res)=>{
+  const parsed = registrationAuditSchema.safeParse(req.body || {});
+  if(!parsed.success) return res.status(400).json({ok:false});
+  await writeRegistrationAudit({ ...parsed.data, outcome: parsed.data.eventType, source:'WEB_CLIENT' });
+  return res.json({ok:true});
+});
+
 app.post("/auth/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Datos inválidos" });
+  const fallbackRole = ['CANDIDATE','COMPANY'].includes(String(req.body?.role || '')) ? String(req.body.role) : null;
+  const reject = async (status, error, reason=error, role=fallbackRole) => {
+    await writeRegistrationAudit({ role, eventType:'RESULT', outcome:'REJECTED', reason, source:'API' });
+    return res.status(status).json({ error });
+  };
+  const success = async (payload, role=fallbackRole, reason='OK') => {
+    await writeRegistrationAudit({ role, eventType:'RESULT', outcome:'SUCCESS', reason, source:'API' });
+    return res.json(payload);
+  };
+
+  if (!parsed.success) return reject(400, "Datos inválidos", 'SCHEMA_VALIDATION');
 
   const {
     role,
@@ -2336,33 +2367,31 @@ app.post("/auth/register", async (req, res) => {
   // Validaciones de identidad (DNI/CUIT) y unicidad
   if (role === "CANDIDATE") {
     const dniNorm = normalizeId(dni || "");
-    if (!dniNorm) return res.status(400).json({ error: "DNI requerido" });
-    if (!isCandidateDni(dniNorm)) return res.status(400).json({ error: "Ingresá un DNI válido, sin puntos. Debe tener menos de 11 dígitos." });
-    if(!String(province || '').trim()) return res.status(400).json({ error: "Provincia / Estado / Región requerida" });
-    if(!String(country || '').trim()) return res.status(400).json({ error: "País de residencia requerido" });
+    if (!dniNorm) return reject(400, "DNI requerido", 'DNI_REQUIRED', role);
+    if (!isCandidateDni(dniNorm)) return reject(400, "Ingresá un DNI válido, sin puntos. Debe tener menos de 11 dígitos.", 'DNI_INVALID', role);
+    if(!String(province || '').trim()) return reject(400, "Provincia / Estado / Región requerida", 'PROVINCE_REQUIRED', role);
+    if(!String(country || '').trim()) return reject(400, "País de residencia requerido", 'COUNTRY_REQUIRED', role);
 
     const [existingByDni, existingBolsaByDni] = await Promise.all([
       prisma.profile.findUnique({ where: { dni: dniNorm } }),
       prisma.candidateBolsa.findFirst({ where: { dni: dniNorm }, select: { id: true } }).catch(() => null),
     ]);
-    if (existingByDni || existingBolsaByDni) return res.status(409).json({ error: "Ya existe un candidato con ese DNI" });
+    if (existingByDni || existingBolsaByDni) return reject(409, "Ya existe un candidato con ese DNI", 'DNI_DUPLICATE', role);
   }
 
   if (role === "COMPANY") {
     const cuitNorm = normalizeId(cuit || "");
-    if (!cuitNorm) return res.status(400).json({ error: "CUIT requerido" });
-    if (!isCompanyCuit(cuitNorm)) return res.status(400).json({ error: "Ingresá un CUIT válido de 11 dígitos." });
+    if (!cuitNorm) return reject(400, "CUIT requerido", 'CUIT_REQUIRED', role);
+    if (!isCompanyCuit(cuitNorm)) return reject(400, "Ingresá un CUIT válido de 11 dígitos.", 'CUIT_INVALID', role);
 
     const existingByCuit = await prisma.companyProfile.findUnique({ where: { cuit: cuitNorm } });
-    if (existingByCuit) return res.status(409).json({ error: "Ya existe una empresa con ese CUIT" });
+    if (existingByCuit) return reject(409, "Ya existe una empresa con ese CUIT", 'CUIT_DUPLICATE', role);
   }
 
   const registrationResidence = role === "CANDIDATE"
     ? inferResidence({ locality:city || '', province:province || '', country:country || '' })
     : { city:city || '', province:province || '', country:country || '' };
 
-  // Si el email ya existe, permitimos "completar" el registro
-  // (caso típico: versiones anteriores crearon el usuario pero no el perfil por mismatch de schema/código)
   const existingUser = await prisma.user.findUnique({
     where: { email: emailNorm },
     include: { candidateProfile: true, company: true, resume: true },
@@ -2370,14 +2399,12 @@ app.post("/auth/register", async (req, res) => {
 
   if (existingUser) {
     if (existingUser.role !== role) {
-      return res.status(409).json({ error: "Ese email ya está registrado con otro perfil" });
+      return reject(409, "Ese email ya está registrado con otro perfil", 'EMAIL_OTHER_ROLE', role);
     }
 
     if (role === "CANDIDATE" && !existingUser.candidateProfile) {
-      // Compatibilidad segura: una cuenta antigua incompleta sólo puede completarse
-      // demostrando conocimiento de su clave actual. El registro nunca reemplaza la clave.
       const ownsAccount = await bcrypt.compare(password, existingUser.passHash);
-      if(!ownsAccount) return res.status(409).json({ error: "La cuenta ya existe. Ingresá con tu clave actual o usá Olvidé mi contraseña." });
+      if(!ownsAccount) return reject(409, "La cuenta ya existe. Ingresá con tu clave actual o usá Olvidé mi contraseña.", 'LEGACY_PASSWORD_MISMATCH', role);
       const dniNorm = normalizeId(dni || "");
       const fullNameNorm = normalizeName(fullName || "");
 
@@ -2402,13 +2429,12 @@ app.post("/auth/register", async (req, res) => {
       });
       queueCandidateClassification(existingUser.id,'REGISTRATION_UPGRADE');
 
-      return res.json({ ok: true, upgraded: true, version: APP_VERSION });
+      return success({ ok: true, upgraded: true, version: APP_VERSION }, role, 'LEGACY_UPGRADE');
     }
 
     if (role === "COMPANY" && !existingUser.company) {
-      // Mismo criterio que candidatos: completar un registro legado no puede resetear la clave.
       const ownsAccount = await bcrypt.compare(password, existingUser.passHash);
-      if(!ownsAccount) return res.status(409).json({ error: "La cuenta ya existe. Ingresá con tu clave actual o usá Olvidé mi contraseña." });
+      if(!ownsAccount) return reject(409, "La cuenta ya existe. Ingresá con tu clave actual o usá Olvidé mi contraseña.", 'LEGACY_PASSWORD_MISMATCH', role);
       const cuitNorm = normalizeId(cuit || "");
       const companyNameNorm = normalizeName(companyName || "");
       const contactNameNorm = normalizeName(contactName || fullName || "");
@@ -2435,13 +2461,12 @@ app.post("/auth/register", async (req, res) => {
         },
       });
 
-      return res.json({ ok: true, upgraded: true, version: APP_VERSION });
+      return success({ ok: true, upgraded: true, version: APP_VERSION }, role, 'LEGACY_UPGRADE');
     }
 
-    return res.status(409).json({ error: "Email ya registrado" });
+    return reject(409, "Email ya registrado", 'EMAIL_DUPLICATE', role);
   }
 
-  // Alta normal
   try {
     if (role === "CANDIDATE") {
       const dniNorm = normalizeId(dni || "");
@@ -2470,7 +2495,7 @@ app.post("/auth/register", async (req, res) => {
       });
       queueCandidateClassification(user.id,'REGISTRATION');
 
-      return res.json({ ok: true, userId: user.id, version: APP_VERSION });
+      return success({ ok: true, userId: user.id, version: APP_VERSION }, role, 'NEW_CANDIDATE');
     }
 
     if (role === "COMPANY") {
@@ -2502,12 +2527,13 @@ app.post("/auth/register", async (req, res) => {
         },
       });
 
-      return res.json({ ok: true, userId: user.id, version: APP_VERSION });
+      return success({ ok: true, userId: user.id, version: APP_VERSION }, role, 'NEW_COMPANY');
     }
 
-    return res.status(400).json({ error: "Rol inválido" });
+    return reject(400, "Rol inválido", 'ROLE_INVALID', role);
   } catch (e) {
     console.error(e);
+    await writeRegistrationAudit({ role, eventType:'RESULT', outcome:'REJECTED', reason:'SERVER_ERROR', source:'API' });
     return res.status(500).json({ error: "Error registrando usuario" });
   }
 });
@@ -5685,7 +5711,7 @@ function scoreKnowledgeMatch(message, knowledge){
   return score;
 }
 
-// v8.0.5 · clasificación administrativa de cada consulta de Ayuda IA.
+// v8.0.6 · clasificación administrativa de cada consulta de Ayuda IA.
 // No agrega columnas ni migra Neon: se calcula contra la base de conocimiento vigente
 // para que una respuesta reusable del operador pase a cubrir consultas futuras.
 function knownSupportIntentScore(message, role){
@@ -8568,6 +8594,51 @@ app.patch('/admin/companies/:companyId/category', auth, requireAnyRole(['ADMIN',
   } catch (err) {
     console.error('PATCH /admin/companies/:companyId/category', err);
     return res.status(500).json({ error:'No se pudo guardar la categoría de la empresa.' });
+  }
+});
+
+app.get('/admin/registration-audit', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req,res)=>{
+  try{
+    const since = new Date(Date.now() - 72*60*60*1000);
+    const rows = await prisma.registrationAuditEvent.findMany({ where:{ createdAt:{ gte:since } }, orderBy:{ createdAt:'desc' }, take:500 });
+    const candidateRows = rows.filter(r=>r.role==='CANDIDATE' || !r.role);
+    const count=(eventType,outcome)=>candidateRows.filter(r=>(!eventType || r.eventType===eventType) && (!outcome || r.outcome===outcome)).length;
+    const started = count('STARTED');
+    const success = count('RESULT','SUCCESS');
+    const serverRejected = count('RESULT','REJECTED');
+    const clientRejected = count('CLIENT_REJECTED');
+    const networkErrors = count('NETWORK_ERROR');
+    const reasons = new Map();
+    for(const r of candidateRows){
+      if(!['CLIENT_REJECTED','NETWORK_ERROR','RESULT'].includes(r.eventType)) continue;
+      if(r.eventType==='RESULT' && r.outcome!=='REJECTED') continue;
+      const key=String(r.reason || 'SIN_DETALLE');
+      reasons.set(key,(reasons.get(key)||0)+1);
+    }
+    const reasonCounts=[...reasons.entries()].map(([reason,total])=>({reason,total})).sort((a,b)=>b.total-a.total).slice(0,8);
+    const status = networkErrors>0 || (started>=3 && success===0 && (clientRejected+serverRejected)>0)
+      ? 'ATTENTION'
+      : (started===0 ? 'NO_ACTIVITY' : 'OPERATIONAL');
+    return res.json({ok:true,windowHours:72,started,success,serverRejected,clientRejected,networkErrors,status,reasonCounts,lastEventAt:candidateRows[0]?.createdAt || null});
+  }catch(err){
+    console.error('GET /admin/registration-audit',err?.message||err);
+    return res.status(500).json({error:'No se pudo leer la auditoría de registro'});
+  }
+});
+
+app.post('/admin/registration-audit/check', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req,res)=>{
+  try{
+    const result = await prisma.$transaction(async(tx)=>{
+      const before = await tx.user.count({ where:{role:'CANDIDATE'} });
+      const probe = await tx.registrationAuditEvent.create({data:{role:'CANDIDATE',eventType:'SELF_TEST',outcome:'OK',reason:'ADMIN_CHECK',source:'ADMIN'}});
+      await tx.registrationAuditEvent.delete({where:{id:probe.id}});
+      const profiles = await tx.profile.count();
+      return {before,profiles};
+    });
+    return res.json({ok:true,status:'OPERATIONAL',candidateCount:result.before,profileCount:result.profiles,checkedAt:new Date().toISOString(),message:'API y PostgreSQL permiten lectura y escritura. No se creó ningún candidato de prueba.'});
+  }catch(err){
+    console.error('POST /admin/registration-audit/check',err?.message||err);
+    return res.status(500).json({ok:false,status:'ERROR',message:'La verificación técnica de alta no pudo completar una operación de lectura/escritura.',detail:String(err?.message||'').slice(0,180)});
   }
 });
 

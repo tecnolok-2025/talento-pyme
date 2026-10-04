@@ -1,4 +1,4 @@
-/* Talento PyME - v8.0.5 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF directo */
+/* Talento PyME - v8.0.6 (candidato) - perfil por etapas + IA profesional + residencia inferida + CV PDF directo */
 
 const AREA_TRABAJO = [
   "Eléctrica (Industrial)",
@@ -287,8 +287,14 @@ function buildCandidateCompleteness(candidate){
     {
       key: 'perfil',
       label: 'Perfil laboral',
-      hint: 'Área, especialidad, experiencia y educación',
-      complete: hasMeaningfulValue(candidate.areaTrabajo) && hasMeaningfulValue(candidate.rangoExperiencia) && hasMeaningfulValue(candidate.nivelEducativo) && (hasMeaningfulValue(candidate.especialidad) || hasMeaningfulValue(candidate.especialidadOtro))
+      hint: 'Área de trabajo y especialidad',
+      complete: hasMeaningfulValue(candidate.areaTrabajo) && (hasMeaningfulValue(candidate.especialidad) || hasMeaningfulValue(candidate.especialidadOtro))
+    },
+    {
+      key: 'experiencia',
+      label: 'Experiencia y formación',
+      hint: 'Experiencia declarada y nivel educativo',
+      complete: hasMeaningfulValue(candidate.rangoExperiencia) && hasMeaningfulValue(candidate.nivelEducativo)
     },
     {
       key: 'economico',
@@ -1573,7 +1579,7 @@ async function initBolsaCandidato(){
       return;
     }
 
-    // v8.0.5: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
+    // v8.0.6: Guardar nunca dispara IA automáticamente. La corrección sólo se ejecuta
     // cuando el candidato pulsa expresamente “Corrección IA profesional”.
 
     busy = true; render();

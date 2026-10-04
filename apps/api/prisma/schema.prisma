@@ -714,3 +714,18 @@ model PasswordResetChallenge {
   @@index([userId, createdAt])
   @@index([expiresAt])
 }
+
+model RegistrationAuditEvent {
+  id        String   @id @default(cuid())
+  role      String?
+  eventType String
+  outcome   String?
+  reason    String?
+  source    String   @default("WEB")
+  createdAt DateTime @default(now())
+
+  @@index([role, createdAt])
+  @@index([eventType, createdAt])
+  @@index([outcome, createdAt])
+}
+

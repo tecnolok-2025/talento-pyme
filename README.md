@@ -1,4 +1,4 @@
-# Talento PyME — versión actual v8.0.5
+# Talento PyME — versión actual v8.0.6
 
 ## Etapa 8.0.2 — clasificación práctica y navegación asistida
 - Trazabilidad deja de mostrar **Información profesional por completar** y **Perfil profesional / Trayectoria no determinada** como grupos operativos.
@@ -9,12 +9,20 @@
 - Capacidad operativa estima candidatos posibles a partir del uso real de PostgreSQL y una reserva preventiva del 20%.
 
 
-> **VERSIÓN ACTIVA v8.0.5**  
+> **VERSIÓN ACTIVA v8.0.6**  
 > Inicio de una nueva etapa del motor de clasificación de candidatos.
 
 La versión operativa se obtiene de `apps/api/package.json`, `apps/web/config.js`, `CURRENT_VERSION.txt` y `/health`. Los archivos con números anteriores se conservan como **documentación histórica** y no representan la versión ejecutándose.
 
 
+
+
+## v8.0.6 — auditoría de altas y semáforo de perfil
+
+- Auditoría de registro de candidatos: intentos, altas completadas, rechazos y errores de conexión de las últimas 72 h.
+- Botón administrativo **Verificar alta de candidatos** para probar lectura/escritura de PostgreSQL sin crear candidatos ficticios.
+- El semáforo del perfil ahora refleja las secciones reales: **Perfil laboral** queda verde con Área + Especialidad; **Experiencia y formación** se controla por separado.
+- La auditoría no guarda contraseñas, DNI, email ni otros datos personales del intento de registro.
 
 ## v8.0.5 — clasificación automática de consultas de Ayuda IA
 
