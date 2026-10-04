@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Talento PyME</title>
   <meta name="theme-color" content="#0B1220" />
-  <link rel="manifest" href="/manifest.webmanifest?v=8.0.1" />
+  <link rel="manifest" href="/manifest.webmanifest?v=8.0.2" />
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=8.0.1" />
+  <link rel="stylesheet" href="/styles.css?v=8.0.2" />
 </head>
 <body class="authBody">
   <div class="authTop">
@@ -46,7 +46,7 @@
           </div>
 
           <div class="modeTabs">
-            <button type="button" class="modeTab active" id="tabLogin" aria-pressed="true">Ingresar</button>
+            <button type="button" class="modeTab active" id="tabLogin" aria-pressed="true">Ya tengo cuenta</button>
             <button type="button" class="modeTab" id="tabRegister" aria-pressed="false">Registrarme</button>
           </div>
 
@@ -153,7 +153,7 @@
             <h3>¿Cómo se usa?</h3>
             <p><b>1)</b> Elegí <b>Candidato</b> o <b>Empresa</b>.</p>
             <p><b>2)</b> Si es tu primera vez, tocá <b>Registrarme</b> y completá el formulario.</p>
-            <p><b>3)</b> Luego volvé a <b>Ingresar</b> y entrá con tu usuario y tu clave.</p>
+            <p><b>3)</b> Luego volvé a <b>Ya tengo cuenta</b> y entrá con tu usuario y tu clave.</p>
           </div>
 <div class="authHint" style="margin-top:12px">
             <h3>Modo gratuito</h3>
@@ -191,8 +191,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=8.0.1"></script>
-  <script src="/auth.js?v=8.0.1"></script>
+  <script src="/config.js?v=8.0.2"></script>
+  <script src="/auth.js?v=8.0.2"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));

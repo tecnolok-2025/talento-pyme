@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Buscar Talento</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=8.0.1" />
+  <link rel="stylesheet" href="/styles.css?v=8.0.2" />
   <style>
     .talentCard{padding:0;overflow:hidden;cursor:default}
     .talentCardHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px;cursor:pointer}
@@ -41,7 +41,8 @@
     .filterGroup h3{margin:0 0 6px 0;font-size:18px;color:#103a7a}
     .filterGroup .muted{margin-bottom:12px;color:#475569}
 
-  </style>
+    .searchFocusPulse{outline:3px solid rgba(37,99,235,.45);outline-offset:4px;box-shadow:0 0 0 7px rgba(37,99,235,.08);transition:outline-color .5s ease,box-shadow .5s ease}
+</style>
 </head>
 <body class="appShell">
   <div class="header">
@@ -162,8 +163,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=8.0.1"></script>
-  <script src="/auth.js?v=8.0.1"></script>
+  <script src="/config.js?v=8.0.2"></script>
+  <script src="/auth.js?v=8.0.2"></script>
   <script>
     requireAuth();
     applyRoleVisibility();
@@ -455,6 +456,13 @@
         els.jobsErr.textContent = '';
       }catch(e){ els.jobsErr.textContent = e.message; }
     }
+    function focusFirstCompanySearchResult(){
+      const first=els.resultsList?.querySelector('.talentCard');
+      if(!first) return;
+      first.scrollIntoView({behavior:'smooth',block:'start'});
+      first.classList.add('searchFocusPulse');
+      setTimeout(()=>first.classList.remove('searchFocusPulse'),1800);
+    }
     async function searchJobs(){
       els.jobsErr.textContent = 'Buscando perfiles…';
       const url = new URL(window.TP_API_URL + '/jobs/search');
@@ -477,6 +485,7 @@
         jobsOpenId = null;
         renderResults();
         els.jobsErr.textContent = jobsItems.length ? 'Búsqueda realizada correctamente.' : 'Sin coincidencias con los filtros actuales.';
+        if(jobsItems.length) setTimeout(focusFirstCompanySearchResult,60);
       }catch(e){
         jobsItems = [];
         renderResults();
@@ -511,6 +520,7 @@
     els.jobsArea.onchange = ()=>{ refreshSpecialties(); renderStats(); };
     document.getElementById('btnRefreshStats').onclick = loadStats;
     document.getElementById('btnSearch').onclick = searchJobs;
+    els.jobsQ.onkeydown = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); searchJobs(); } };
     document.getElementById('btnClear').onclick = clearFilters;
 
     loadStats();

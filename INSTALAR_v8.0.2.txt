@@ -1,0 +1,11 @@
+TALENTO PyME v8.0.2
+
+Parche directo sobre v8.0.1.
+1) Subir/reemplazar estos archivos respetando carpetas.
+2) Commit en GitHub.
+3) Deploy talento-pyme-api.
+4) Esperar que el motor 8.0.2 reclasifique el padrón.
+5) Deploy/verificar talento-pyme.
+6) Ctrl+F5 si hiciera falta.
+
+No requiere migración nueva de Neon.

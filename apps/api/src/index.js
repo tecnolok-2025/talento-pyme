@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "8.0.1";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "8.0.2";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -62,7 +62,7 @@ let backupSchedulerStarted = false;
 // v7.10.3 · clasificación automática y persistente de candidatos.
 // El motor sigue siendo determinístico y basado en evidencia declarada; esta capa solamente
 // garantiza que altas, importaciones masivas y cambios de CV queden procesados sin auditoría manual.
-const CANDIDATE_CLASSIFICATION_VERSION = '8.0.1';
+const CANDIDATE_CLASSIFICATION_VERSION = '8.0.2';
 const CANDIDATE_CLASSIFICATION_AUTO_ENABLED = String(process.env.CANDIDATE_CLASSIFICATION_AUTO_ENABLED || 'true').trim().toLowerCase() !== 'false';
 const CANDIDATE_CLASSIFICATION_SCAN_SECONDS = Math.max(15, Math.min(3600, Number(process.env.CANDIDATE_CLASSIFICATION_SCAN_SECONDS || 60)));
 const CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS = Math.max(1000, Math.min(120000, Number(process.env.CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS || 12000)));
@@ -180,6 +180,17 @@ function guessProviderConsoleUrl(dbName = ''){
   if (DEFAULT_PROVIDER_CONSOLE_URL) return DEFAULT_PROVIDER_CONSOLE_URL;
   if (key.includes('neon')) return 'https://console.neon.tech';
   return '';
+}
+
+function detectDatabaseProvider(){
+  try{
+    const raw=String(process.env.DATABASE_URL || '');
+    const host=raw ? new URL(raw).hostname.toLowerCase() : '';
+    if(host.includes('neon.tech')) return { name:'Neon', engine:'PostgreSQL', consoleUrl:'https://console.neon.tech' };
+    if(host.includes('supabase')) return { name:'Supabase', engine:'PostgreSQL', consoleUrl:'' };
+    if(host.includes('render.com') || host.includes('render')) return { name:'Render PostgreSQL', engine:'PostgreSQL', consoleUrl:'' };
+  }catch(_){ }
+  return { name:'PostgreSQL', engine:'PostgreSQL', consoleUrl:'' };
 }
 
 function buildBackupGuardAssessment({ previousRecordCount = 0, currentRecordCount = 0, previousFileSizeBytes = 0, currentFileSizeBytes = 0, previousStats = {}, currentStats = {} } = {}){
@@ -6022,13 +6033,17 @@ app.delete('/support/thread', auth, async (req, res) => {
 async function readDatabaseCapacityStatus(){
   const backupInfo = await readBackupOperationalSummary().catch(() => ({ recentBackups: [] }));
   const fallback = {
-    provider: 'PostgreSQL',
+    provider: detectDatabaseProvider().name,
     dbName: 'principal',
     sizeBytes: 0,
     sizeMb: 0,
     warningMb: ADMIN_DB_WARNING_MB,
     criticalMb: ADMIN_DB_CRITICAL_MB,
     usagePct: 0,
+    candidateCount: 0,
+    estimatedCandidateCapacity: 0,
+    candidateCapacityPct: 0,
+    safeStorageMb: Number((ADMIN_DB_CRITICAL_MB * 0.8).toFixed(2)),
     status: 'UNKNOWN',
     statusLabel: 'Sin lectura',
     headline: 'No se pudo leer el tamaño actual de la base.',
@@ -6043,30 +6058,38 @@ async function readDatabaseCapacityStatus(){
     backupRetentionDays: ADMIN_BACKUP_RETENTION_DAYS,
     backupProvider: ADMIN_BACKUP_PROVIDER,
     backupProviderLabel: adminBackupProviderLabel(ADMIN_BACKUP_PROVIDER),
-    upgradeUrl: ADMIN_UPGRADE_URL || ADMIN_INFRA_URL || guessProviderConsoleUrl('principal') || null,
+    upgradeUrl: ADMIN_UPGRADE_URL || ADMIN_INFRA_URL || detectDatabaseProvider().consoleUrl || guessProviderConsoleUrl('principal') || null,
     providerLoginNote: 'El enlace abre la consola del proveedor y puede pedir su propio acceso de infraestructura.',
     ...backupInfo,
   };
   try {
-    const rows = await prisma.$queryRawUnsafe(`SELECT current_database() AS db_name, pg_database_size(current_database()) AS size_bytes`);
+    const [rows,candidateCountRaw] = await Promise.all([
+      prisma.$queryRawUnsafe(`SELECT current_database() AS db_name, pg_database_size(current_database()) AS size_bytes`),
+      prisma.candidateBolsa.count().catch(()=>0),
+    ]);
     const row = Array.isArray(rows) ? rows[0] || {} : {};
     const sizeBytes = Number(row?.size_bytes || 0);
     const sizeMb = Number((sizeBytes / (1024 * 1024)).toFixed(2));
-    const usagePct = Math.min(999, Number(((sizeMb / ADMIN_DB_CRITICAL_MB) * 100).toFixed(1)));
+    const candidateCount = Number(candidateCountRaw || 0);
+    const safeStorageMb = Number((ADMIN_DB_CRITICAL_MB * 0.8).toFixed(2));
+    const avgMbPerCandidate = candidateCount > 0 && sizeMb > 0 ? sizeMb / candidateCount : 0;
+    const estimatedCandidateCapacity = avgMbPerCandidate > 0 ? Math.max(candidateCount, Math.floor(safeStorageMb / avgMbPerCandidate)) : 0;
+    const candidateCapacityPct = estimatedCandidateCapacity > 0 ? Number(((candidateCount / estimatedCandidateCapacity) * 100).toFixed(1)) : 0;
+    const usagePct = candidateCapacityPct;
     let status = 'OK';
     let statusLabel = 'Operativo';
-    let headline = 'La capacidad actual se encuentra en un rango saludable.';
-    let recommendation = 'Seguí monitoreando este tablero y revisá periódicamente la evolución del tamaño de la base.';
-    if (sizeMb >= ADMIN_DB_CRITICAL_MB) {
+    let headline = 'La capacidad estimada para candidatos se encuentra en un rango saludable.';
+    let recommendation = estimatedCandidateCapacity ? `Con ${candidateCount.toLocaleString('es-AR')} candidatos, el sistema usa aproximadamente ${candidateCapacityPct.toLocaleString('es-AR')}% de una capacidad operativa segura estimada en ${estimatedCandidateCapacity.toLocaleString('es-AR')} candidatos, calculada con el peso real actual de la base y una reserva del 20%.` : 'Seguí monitoreando este tablero y revisá periódicamente la evolución del tamaño de la base.';
+    if (candidateCapacityPct >= 90 || sizeMb >= ADMIN_DB_CRITICAL_MB) {
       status = 'CRITICAL';
       statusLabel = 'Crítico';
-      headline = 'La base de datos está entrando en una zona crítica de capacidad.';
-      recommendation = 'Conviene ampliar capacidad o reforzar el plan de base de datos para no comprometer la continuidad operativa ni la trazabilidad histórica.';
-    } else if (sizeMb >= ADMIN_DB_WARNING_MB) {
+      headline = 'La base está muy cerca de la capacidad operativa segura estimada.';
+      recommendation = 'Conviene ampliar capacidad antes de incorporar un volumen importante de nuevos candidatos.';
+    } else if (candidateCapacityPct >= 70 || sizeMb >= safeStorageMb) {
       status = 'WARNING';
       statusLabel = 'Atención';
-      headline = 'La base de datos está creciendo y merece seguimiento preventivo.';
-      recommendation = 'Revisá la consola del proveedor y evaluá ampliar memoria/capacidad antes de llegar al punto crítico.';
+      headline = 'La base está entrando en una zona preventiva de capacidad.';
+      recommendation = 'Revisá la consola del proveedor y planificá la ampliación antes de superar el 90% de la capacidad segura estimada.';
     }
     if (backupInfo.lastBlockedBackupAt) {
       status = status === 'CRITICAL' ? 'CRITICAL' : 'WARNING';
@@ -6083,11 +6106,17 @@ async function readDatabaseCapacityStatus(){
       sizeBytes,
       sizeMb,
       usagePct,
+      candidateCount,
+      estimatedCandidateCapacity,
+      candidateCapacityPct,
+      safeStorageMb,
+      avgMbPerCandidate:Number(avgMbPerCandidate.toFixed(4)),
       status,
       statusLabel,
       headline,
       recommendation,
-      upgradeUrl: ADMIN_UPGRADE_URL || ADMIN_INFRA_URL || guessProviderConsoleUrl(String(row?.db_name || 'principal')) || null,
+      provider: detectDatabaseProvider().name,
+      upgradeUrl: ADMIN_UPGRADE_URL || ADMIN_INFRA_URL || detectDatabaseProvider().consoleUrl || guessProviderConsoleUrl(String(row?.db_name || 'principal')) || null,
     };
   } catch (error) {
     console.error('readDatabaseCapacityStatus', error);
@@ -6872,6 +6901,59 @@ function candidateSecondaryProfiles(ranked=[], primary=null, now=new Date()){
 }
 
 
+// v8.0.2: para perfiles de entrada sin estudios/orientación suficientes, usamos sólo
+// saberes y tareas que la propia persona haya declarado. Esto permite distinguir
+// aprendices de cocina, limpieza, cuidado, logística, construcción, etc. sin inventar
+// experiencia profesional ni convertir palabras aisladas en un oficio.
+function candidateDeclaredApprenticeOrientation(candidate={}){
+  const b=candidate.candidateBolsa || {}, r=candidate.resume || {};
+  const chunks=[
+    ['ULTIMO_TRABAJO',b.ultimoTrabajo,5],
+    ['RELATO_ORIGINAL',b.voiceNarrativeRaw,5],
+    ['OBSERVACIONES',b.observaciones,3],
+    ['EXPERIENCIA_CV',r.experience,5],
+    ['RESUMEN_CV',r.summary,2],
+    ['OTROS_DATOS_CV',r.observations,2],
+  ].filter(([,value])=>String(value||'').trim());
+  const boilerplate=/\b(perfil general|expertise no determinado|trayectoria no determinada|cv generado con talento pyme|estoy construyendo mi perfil profesional|puedo completar experiencia|perfil detectado|resumen profesional optimizado)\b/;
+  const rules=[
+    ['GASTRONOMIA','cocina / gastronomía',[/\b(cocin(?:a|ar|ero|era)|ayudante de cocina|peon de cocina|bachero|bachera|mozo|moza|pizzeria|panaderia|gastronomia|comida|elaboracion de alimentos)\b/,/\b(prepar(?:o|ar|acion)\w* (?:comida|alimentos|pizzas?|empanadas?)|lav(?:o|ar) platos|servicio de mesa)\b/]],
+    ['LIMPIEZA','limpieza / maestranza',[/\b(limpieza|maestranza|mucam(?:a|o)|limpi(?:o|ar)|higiene de espacios|aseo)\b/,/\b(lav(?:o|ar) pisos|orden y limpieza|limpieza de casas?|limpieza de oficinas?)\b/]],
+    ['CUIDADOS','cuidado de personas',[/\b(niñer(?:a|o)|cuidador(?:a)?|cuidado de niñ(?:os|as)|cuidado de adultos?|acompañante de adultos?|geriatrico)\b/,/\b(cuido (?:niños|niñas|chicos|chicas|personas|adultos))\b/]],
+    ['ATENCION_CLIENTE','atención al cliente / ventas',[/\b(atencion al cliente|ventas?|vendedor(?:a)?|cajer(?:o|a)|comercio|repositor(?:a)?|mostrador|recepcionista)\b/,/\b(cobros?|caja|asesoramiento a clientes?|reposicion de mercaderia)\b/]],
+    ['LOGISTICA','logística / depósito',[/\b(logistica|deposito|almacen|picking|packing|distribucion|despacho|recepcion de mercaderia|preparacion de pedidos|control de stock|repositor(?:a)?)\b/,/\b(carga y descarga|armado de pedidos|movimiento de mercaderia)\b/]],
+    ['CONSTRUCCION','construcción / albañilería',[/\b(albañil|albañileria|ayudante de albañil|construccion|obra|obra civil|durlock|revoque|mamposteria)\b/,/\b(mezcla|hormigon|ladrillos?|reparaciones de obra)\b/]],
+    ['SEGURIDAD','seguridad / vigilancia',[/\b(seguridad privada|vigilador(?:a)?|vigilancia|control de acceso|custodia|cctv)\b/]],
+    ['PRODUCCION','producción / tareas operativas',[/\b(produccion|operari[oa]|linea de produccion|ensamble|envasado|embalaje|manufactura|planta)\b/]],
+    ['ELECTRICA','eléctrico',[/\b(electricidad|electricista|instalaciones electricas|cableado|tableros electricos|enchufes?|luminarias?)\b/]],
+    ['MECANICA','mecánico',[/\b(mecanica|mecanico|mantenimiento de autos?|automotores?|motores?|frenos?|embrague)\b/]],
+    ['MANTENIMIENTO','mantenimiento general',[/\b(mantenimiento general|reparaciones generales|arreglos generales)\b/]],
+    ['PINTURA','pintura',[/\b(pintor(?:a)?|pintura de obra|pintura de casas?|pintar paredes)\b/]],
+    ['JARDINERIA','jardinería',[/\b(jardineria|jardinero|corte de pasto|parquizacion|poda)\b/]],
+    ['TEXTIL','costura / textil',[/\b(costura|costurera|costurero|maquina de coser|confeccion textil)\b/]],
+    ['CONDUCCION','conducción / reparto',[/\b(chofer|conductor(?:a)?|repartidor(?:a)?|delivery|reparto|mensajeria)\b/]],
+    ['ESTETICA','peluquería / estética',[/\b(peluqueria|peluquero|peluquera|manicura|manicurista|estetica|barberia)\b/]],
+    ['ADMINISTRACION','administrativo',[/\b(administracion|administrativo|administrativa|carga de datos|archivo|recepcion)\b/]],
+  ];
+  const scored=[];
+  for(const [key,label,patterns] of rules){
+    let score=0; const evidence=[]; const sources=[];
+    for(const [source,value,weight] of chunks){
+      const text=adminNormText(value);
+      if(!text || boilerplate.test(text)) continue;
+      const hits=patterns.filter((rx)=>rx.test(text)).length;
+      if(hits){ score += weight + Math.max(0,hits-1); evidence.push(String(value).replace(/\s+/g,' ').trim().slice(0,220)); sources.push(source); }
+    }
+    if(score>0) scored.push({key,label,score,evidence:[...new Set(evidence)].slice(0,2),sources:[...new Set(sources)]});
+  }
+  scored.sort((a,b)=>b.score-a.score || a.label.localeCompare(b.label,'es'));
+  const best=scored[0] || null;
+  // Una sola mención débil en texto generado no alcanza. Relato, último trabajo o
+  // experiencia CV sí constituyen una declaración suficientemente directa para orientar.
+  if(!best || best.score<5) return null;
+  return best;
+}
+
 // v8.0.1: cuando no existe experiencia laboral verificable, la formación deja de
 // quedar escondida bajo "información profesional por completar". Se utiliza para
 // construir una categoría de Aprendiz o Pasante que sea útil y buscable.
@@ -6957,7 +7039,12 @@ function buildCandidateAdminClassification(candidate = {}){
   const primaryFromRecent=!!best && (best===recentBest || best===currentDatedBest);
   const education=adminNormText(r.education || '');
   const technicalSchool=/\b(escuela tecnica|secundari\w* tecnic\w*|tecnico electromecanico|tecnico electric\w*|tecnico mecanico|tecnico electronico)\b/.test(education);
-  const educationProfile=candidateEducationOrientation(candidate);
+  let educationProfile=candidateEducationOrientation(candidate);
+  const declaredApprentice=candidateDeclaredApprenticeOrientation(candidate);
+  if(!best && educationProfile.kind==='APRENDIZ' && educationProfile.orientation==='estudios secundarios no declarados' && declaredApprentice){
+    const label=`Aprendiz ${declaredApprentice.label}`;
+    educationProfile={...educationProfile,expertiseKey:`APRENDIZ_${declaredApprentice.key}`,orientation:declaredApprentice.label,displayLabel:label,orientationSource:'SABER_DECLARADO',aliases:[...educationProfile.aliases,'aprendiz',label,declaredApprentice.label,...declaredApprentice.evidence],declaredPracticalEvidence:declaredApprentice.evidence,declaredPracticalSources:declaredApprentice.sources};
+  }
   const allOriginal=adminNormText([b.ultimoTrabajo,b.voiceNarrativeRaw,r.experience].join(' '));
   const explicitFirst=/\b(primer empleo|sin experiencia laboral|sin experiencia previa|sin experiencia formal|no tengo experiencia laboral|(?:busco|buscando)\w*(?: \w+){0,4} pasantia)\b/.test(allOriginal);
   // v8.0.1: la ausencia de experiencia verificable es suficiente para entrar en
@@ -7016,24 +7103,25 @@ function buildCandidateAdminClassification(candidate = {}){
   const secondaryProfiles=candidateSecondaryProfiles(ranked,best);
   const gaps=[];
   if(!best && ev.credibleWork.length) gaps.push('Hay antecedentes laborales declarados, pero no alcanzan para definir un expertise profesional; el perfil se clasifica por su nivel y orientación formativa.');
-  else if(!best && educationProfile.orientation==='estudios secundarios no declarados') gaps.push('No se declararon estudios secundarios ni experiencia laboral verificable.');
+  else if(!best && educationProfile.orientationSource==='SABER_DECLARADO') gaps.push('No se declaró formación suficiente ni experiencia profesional verificable; la orientación de Aprendiz surge de tareas o saberes expresamente mencionados por la persona.');
+  else if(!best && educationProfile.orientation==='estudios secundarios no declarados') gaps.push('No se declararon estudios secundarios, experiencia laboral verificable ni saberes prácticos suficientes para orientar el perfil.');
   else if(!best) gaps.push('Sin experiencia profesional verificable; la clasificación se apoya exclusivamente en la formación declarada.');
   if(best && relevantDuration.years===null) gaps.push('Falta duración verificable en la especialidad.');
   if(best && !best.task) gaps.push('El cargo está declarado, pero faltan tareas que demuestren el dominio.');
   const primaryOrigin=primaryFromRecent?'actividad actual o último trabajo declarado':'antecedentes curriculares disponibles';
-  const reason=best?`Actividad principal propuesta: ${expertiseLabel}. Se prioriza ${primaryOrigin}. Evidencia utilizada: ${evidence.map(x=>x.slice(0,180)).join(' / ')}.`:(educationProfile.kind==='PASANTE'?`No hay una actividad profesional suficientemente demostrada. La formación superior declarada permite clasificar el perfil como ${educationProfile.displayLabel}.`:(educationProfile.orientation==='estudios secundarios no declarados'?`No hay una actividad profesional suficientemente demostrada ni estudios secundarios declarados. Se clasifica como ${educationProfile.displayLabel} para mantenerlo encontrable sin inventar experiencia.`:`No hay una actividad profesional suficientemente demostrada. La formación u orientación declarada permite clasificar el perfil como ${educationProfile.displayLabel}.`));
+  const reason=best?`Actividad principal propuesta: ${expertiseLabel}. Se prioriza ${primaryOrigin}. Evidencia utilizada: ${evidence.map(x=>x.slice(0,180)).join(' / ')}.`:(educationProfile.kind==='PASANTE'?`No hay una actividad profesional suficientemente demostrada. La formación superior declarada permite clasificar el perfil como ${educationProfile.displayLabel}.`:(educationProfile.orientationSource==='SABER_DECLARADO'?`No hay experiencia profesional suficientemente demostrada ni formación que defina una especialidad. La persona sí declaró tareas o saberes prácticos compatibles con ${educationProfile.displayLabel}; se usa esa orientación sólo como categoría de aprendizaje y búsqueda.`:(educationProfile.orientation==='estudios secundarios no declarados'?`No hay experiencia, formación ni saberes prácticos suficientes para orientar una especialidad. Se conserva ${educationProfile.displayLabel} sin inventar conocimientos.`:`No hay una actividad profesional suficientemente demostrada. La formación u orientación declarada permite clasificar el perfil como ${educationProfile.displayLabel}.`)));
 
-  const confidence=best && primaryFromRecent && best.role && best.task && relevantDuration.dated?'ALTA':(best && (primaryFromRecent || (best.role && best.task))?'MEDIA':(entryProfile && educationProfile.orientationSource==='FORMACION_ACADEMICA'?'MEDIA':'BAJA'));
+  const confidence=best && primaryFromRecent && best.role && best.task && relevantDuration.dated?'ALTA':(best && (primaryFromRecent || (best.role && best.task))?'MEDIA':(entryProfile && educationProfile.orientationSource==='FORMACION_ACADEMICA'?'MEDIA':'BAJA')); // saber práctico declarado sigue siendo BAJA: orienta búsqueda, no certifica expertise
   const searchableSecondary=(confidence==='BAJA'?[]:secondaryProfiles.filter((item)=>item.searchable));
-  return {classKey,classLabel:ADMIN_CANDIDATE_CLASS_LABELS[classKey],expertiseKey,expertiseLabel,expertiseSource:'EVIDENCIA_PRIORIZADA_V801',profileTitle,
+  return {classKey,classLabel:ADMIN_CANDIDATE_CLASS_LABELS[classKey],expertiseKey,expertiseLabel,expertiseSource:'EVIDENCIA_PRIORIZADA_V802',profileTitle,
     recentRole:ev.recent[0] || ev.credibleWork[0] || '',profileScore,seniorityKey,seniorityLabel,explicitYearsExperience:duration.years,
     relevantYearsExperience:relevantDuration.years,experienceEvidenceSource:duration.years===null?'Sin duración verificable':(duration.dated?'Períodos laborales declarados (aproximación temporal)':'Duración explícita en antecedentes laborales'),
-    professionalSourcesUsed:[...(ev.recent.length?['Último trabajo declarado']:[]),...(ev.work.length?['CV / antecedentes curriculares']:[]),...(ev.voice.length?['Relato original']:[]),...(!best && educationProfile.rawEducation?['Formación académica declarada']:[])],cvEvidenceUsed:ev.work.length>0,
+    professionalSourcesUsed:[...(ev.recent.length?['Último trabajo declarado']:[]),...(ev.work.length?['CV / antecedentes curriculares']:[]),...(ev.voice.length?['Relato original']:[]),...(!best && educationProfile.rawEducation?['Formación académica declarada']:[]),...(!best && educationProfile.orientationSource==='SABER_DECLARADO'?['Saberes / tareas declaradas por el candidato']:[])],cvEvidenceUsed:ev.work.length>0,
     classificationConfidence:confidence,firstEmploymentExplicit:first,secondaryProfiles,primaryFromRecent,
     professionalEvidenceSummary:{rolesDetected:best?.role?1:0,responsibilitySignals:responsibilities.length,leadershipSignals:responsibilities.length,credibleWorkSignals:ev.credibleWork.length,richResume:false,richPresentation:false},
     reason,scoreBasis:profileScore===null?'Sin evidencia suficiente para puntuar.':`${profileScore}/100: indicador conservador de evidencia en la actividad principal; no mide empleabilidad.`,
     evidence,gaps,assessment:`${reason} ${secondaryProfiles.length?`Perfil(es) complementario(s): ${secondaryProfiles.map(x=>x.label).join(' / ')}. `:''}${gaps.join(' ')} Confirmar funciones y autonomía en entrevista.`,
-    searchText:[profileTitle,expertiseLabel,seniorityLabel,...(entryProfile?educationProfile.aliases:[]),ev.recent?.[0]||'',...evidence,...searchableSecondary.flatMap(x=>[x.label,x.profileTitle,...(x.evidence||[])])].join(' '),classificationVersion:'8.0.1'};
+    searchText:[profileTitle,expertiseLabel,seniorityLabel,...(entryProfile?educationProfile.aliases:[]),ev.recent?.[0]||'',...evidence,...searchableSecondary.flatMap(x=>[x.label,x.profileTitle,...(x.evidence||[])])].join(' '),classificationVersion:'8.0.2'};
 }
 
 
