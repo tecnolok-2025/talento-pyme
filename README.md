@@ -1,4 +1,4 @@
-# Talento PyME — versión actual v8.0.7
+# Talento PyME — versión actual v8.0.8
 
 ## Etapa 8.0.2 — clasificación práctica y navegación asistida
 - Trazabilidad deja de mostrar **Información profesional por completar** y **Perfil profesional / Trayectoria no determinada** como grupos operativos.
@@ -9,7 +9,7 @@
 - Capacidad operativa estima candidatos posibles a partir del uso real de PostgreSQL y una reserva preventiva del 20%.
 
 
-> **VERSIÓN ACTIVA v8.0.7**  
+> **VERSIÓN ACTIVA v8.0.8**  
 > Inicio de una nueva etapa del motor de clasificación de candidatos.
 
 La versión operativa se obtiene de `apps/api/package.json`, `apps/web/config.js`, `CURRENT_VERSION.txt` y `/health`. Los archivos con números anteriores se conservan como **documentación histórica** y no representan la versión ejecutándose.
@@ -17,7 +17,7 @@ La versión operativa se obtiene de `apps/api/package.json`, `apps/web/config.js
 
 
 
-## v8.0.7 — bandeja unificada App + Email
+## v8.0.8 — bandeja unificada App + Email
 
 - Talento PyME lee directamente la casilla Gmail institucional mediante IMAP, con sincronización manual y automática cada 30 minutos.
 - Las consultas recibidas por email de candidatos/empresas registrados se incorporan al mismo **Chat operador** y se identifican con origen **EMAIL**; las consultas de la aplicación siguen como **APP**.

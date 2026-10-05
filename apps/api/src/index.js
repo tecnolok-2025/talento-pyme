@@ -6436,13 +6436,13 @@ const ADMIN_CANDIDATE_CLASS_LABELS = {
 };
 
 const SUPPORT_DETAIL_SEGMENT_KEY = 'SUPPORT_DETAIL_PENDING';
-const SUPPORT_DETAIL_SEGMENT_LABEL = 'Detalles de respuestas solicitadas por candidatos';
+const SUPPORT_DETAIL_SEGMENT_LABEL = 'Candidatos con consultas pendientes · App + Email';
 const SUPPORT_DETAIL_RECIPIENT_MODES = ['SUPPORT_DETAIL_UNSENT_ONLY','SUPPORT_DETAIL_ALL_ELIGIBLE'];
 
 async function listSupportDetailRecipients(){
   const messages = await prisma.supportMessage.findMany({
     where:{ actor:'USER', thread:{ is:{ role:'CANDIDATE', userId:{ not:null } } } },
-    select:{ createdAt:true, thread:{ select:{ userId:true } } },
+    select:{ id:true, content:true, source:true, externalRef:true, createdAt:true, thread:{ select:{ userId:true } } },
     orderBy:{ createdAt:'asc' },
   });
   const latestQuestionByUser = new Map();
@@ -6490,13 +6490,23 @@ async function listSupportDetailRecipients(){
   const all=[...grouped.values()];
   const suppressions=all.length ? await prisma.emailSuppression.findMany({where:{active:true,email:{in:all.map((r)=>r.email)}},select:{email:true}}).catch(()=>[]) : [];
   const suppressedSet=new Set(suppressions.map((r)=>normalizeEmail(r.email)));
-  const pendingMessages=messages.filter((row)=>pendingUserIds.includes(row.thread?.userId));
+  // Sólo contamos preguntas posteriores a la última guía enviada/programada a cada candidato.
+  // Así una consulta ya atendida desaparece de la bandeja y vuelve a aparecer sólo si hay una pregunta nueva.
+  const pendingMessages=messages.filter((row)=>{
+    const userId=row.thread?.userId;
+    if(!pendingUserIds.includes(userId)) return false;
+    const coveredAt=coveredAtByUser.get(userId);
+    return !coveredAt || new Date(row.createdAt)>coveredAt;
+  });
   const knowledgeRows=await prisma.supportKnowledge.findMany({ where:{ isActive:true }, orderBy:{ updatedAt:'desc' }, take:400 }).catch(()=>[]);
   let coveredQuestionCount=0;
   let newQuestionCount=0;
+  let appQuestionCount=0;
+  let emailQuestionCount=0;
   for(const row of pendingMessages){
     const cls=classifySupportConsultationStatus(row.content || '', 'CANDIDATE', knowledgeRows);
     if(cls.key==='COVERED') coveredQuestionCount++; else newQuestionCount++;
+    if(String(row.source||'APP').toUpperCase()==='EMAIL') emailQuestionCount++; else appQuestionCount++;
   }
   return {
     recipients:all.filter((r)=>!r.optedOut && !suppressedSet.has(r.email)),
@@ -6508,6 +6518,9 @@ async function listSupportDetailRecipients(){
     questionCount:pendingMessages.length,
     coveredQuestionCount,
     newQuestionCount,
+    appQuestionCount,
+    emailQuestionCount,
+    pendingMessages,
   };
 }
 
@@ -6536,12 +6549,7 @@ const SUPPORT_DETAIL_SECTIONS = {
 
 async function buildSupportDetailGuide(){
   const recipientData=await listSupportDetailRecipients();
-  const pendingIds=new Set(recipientData.recipients.map((r)=>r.userId));
-  const rows=await prisma.supportMessage.findMany({
-    where:{ actor:'USER', thread:{ is:{ role:'CANDIDATE', userId:{ in:[...pendingIds] } } } },
-    select:{ content:true, thread:{ select:{ userId:true } }, createdAt:true },
-    orderBy:{createdAt:'asc'},
-  });
+  const rows=Array.isArray(recipientData.pendingMessages) ? recipientData.pendingMessages : [];
   const topicKeys=[];
   const seen=new Set();
   for(const row of rows){
@@ -6552,7 +6560,7 @@ async function buildSupportDetailGuide(){
   const intro=[
     'Hola,',
     '',
-    'Registramos que en algún momento utilizaste Ayuda IA para consultar cómo completar o utilizar alguna función de Talento PyME. Para facilitarte el proceso, reunimos en este correo una explicación más amplia y paso a paso de las consultas que fueron apareciendo entre los candidatos.',
+    'Registramos una o más consultas tuyas a través de Ayuda IA o del correo de Talento PyME. Para facilitarte el proceso, reunimos en este único correo una respuesta general y ordenada sobre los temas consultados, evitando enviarte varios mensajes separados.',
     '',
     'No significa que hayas hecho algo mal. La idea es que puedas aprovechar mejor el portal, completar tu perfil con mayor claridad y aumentar las posibilidades de ser encontrado por una empresa.',
     ''
@@ -6572,6 +6580,8 @@ async function buildSupportDetailGuide(){
     recipientCount:recipientData.recipients.length,
     coveredQuestionCount:Number(recipientData.coveredQuestionCount||0),
     newQuestionCount:Number(recipientData.newQuestionCount||0),
+    appQuestionCount:Number(recipientData.appQuestionCount||0),
+    emailQuestionCount:Number(recipientData.emailQuestionCount||0),
   };
 }
 
@@ -8106,7 +8116,7 @@ app.get('/admin/communications/summary', auth, requireAnyRole(['ADMIN','SUPERADM
     const shape = (x) => ({ totalAccounts:x.totalAccounts, reachable:x.reachable, eligible:x.recipients.length, optedOut:x.optedOut, suppressed:Number(x.suppressed||0), duplicates:x.duplicates });
     const candidateSegments=classKeys.map((key,idx)=>({ key, label:ADMIN_CANDIDATE_CLASS_LABELS[key], ...shape(segmentRows[idx]) }));
     const supportDetail=await listSupportDetailRecipients();
-    candidateSegments.push({ key:SUPPORT_DETAIL_SEGMENT_KEY, label:SUPPORT_DETAIL_SEGMENT_LABEL, special:true, questionCount:Number(supportDetail.questionCount||0), coveredQuestionCount:Number(supportDetail.coveredQuestionCount||0), newQuestionCount:Number(supportDetail.newQuestionCount||0), ...shape(supportDetail) });
+    candidateSegments.push({ key:SUPPORT_DETAIL_SEGMENT_KEY, label:SUPPORT_DETAIL_SEGMENT_LABEL, special:true, questionCount:Number(supportDetail.questionCount||0), coveredQuestionCount:Number(supportDetail.coveredQuestionCount||0), newQuestionCount:Number(supportDetail.newQuestionCount||0), appQuestionCount:Number(supportDetail.appQuestionCount||0), emailQuestionCount:Number(supportDetail.emailQuestionCount||0), ...shape(supportDetail) });
     return res.json({ ok:true, configured:gmailConfigured(), candidates:shape(candidates), companies:shape(companies), candidateSegments, history, queue });
   } catch (err) {
     console.error('GET /admin/communications/summary', err?.message || err);
@@ -9541,27 +9551,74 @@ app.get('/admin/bootstrap', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async 
 app.get('/admin/chat/threads', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
   try {
     const [rows, knowledgeRows] = await Promise.all([
-      prisma.supportThread.findMany({ orderBy: { updatedAt: 'desc' }, take: 100, include: { company: { select: { companyName: true, contactEmail: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'asc' }, take: 100 } } }).catch(() => []),
+      prisma.supportThread.findMany({ orderBy: { updatedAt: 'desc' }, take: 140, include: { company: { select: { companyName: true, contactEmail: true } }, user: { select: { email: true } }, messages: { orderBy: { createdAt: 'asc' }, take: 160 } } }).catch(() => []),
       prisma.supportKnowledge.findMany({ where:{ isActive:true }, orderBy:{ updatedAt:'desc' }, take:400 }).catch(() => []),
     ]);
+
+    // Cobertura por guía general: una vez que el candidato ya tiene una respuesta general
+    // enviada o programada después de su última consulta, el hilo deja de mostrarse como pendiente.
+    const candidateUserIds=[...new Set(rows.filter((t)=>String(t.role||'').toUpperCase()==='CANDIDATE' && t.userId).map((t)=>t.userId))];
+    const guideRows=candidateUserIds.length ? await prisma.adminCommunicationRecipient.findMany({
+      where:{
+        userId:{in:candidateUserIds},
+        status:{in:['PENDING','SENT']},
+        communication:{is:{recipientMode:{in:SUPPORT_DETAIL_RECIPIENT_MODES}}},
+      },
+      select:{userId:true,communication:{select:{createdAt:true}}},
+    }).catch(()=>[]) : [];
+    const guideCoveredAtByUser=new Map();
+    for(const row of guideRows){
+      const at=new Date(row.communication?.createdAt||0);
+      const prev=guideCoveredAtByUser.get(row.userId);
+      if(!prev || at>prev) guideCoveredAtByUser.set(row.userId,at);
+    }
+
+    // Los EMAIL válidos son solamente los que la bandeja unificada clasificó como CONSULTATION.
+    // Rebotes y automáticos nunca deben reaparecer en Chat operador aunque exista un mensaje histórico.
+    const threadIds=rows.map((t)=>t.id);
+    const inboundConsultations=threadIds.length ? await prisma.inboundMailMessage.findMany({
+      where:{supportThreadId:{in:threadIds},category:'CONSULTATION'},
+      select:{supportThreadId:true,uid:true},
+    }).catch(()=>[]) : [];
+    const validInboundRefs=new Set(inboundConsultations.map((r)=>`${r.supportThreadId}:gmail:${MAILBOX_FOLDER}:${Number(r.uid)}`));
+
     let coveredCount=0;
     let newCount=0;
-    const items = rows.map((thread) => {
+    const items=[];
+    for(const thread of rows){
       const recipientEmail = resolveSupportThreadRecipient(thread);
-      const lastOperator = [...(thread.messages || [])].reverse().find((m) => m.actor === 'OPERATOR') || null;
+      const validMessages=(thread.messages || []).filter((m)=>{
+        if(m.actor!=='USER') return true;
+        if(String(m.source||'APP').toUpperCase()!=='EMAIL') return true;
+        if(!m.externalRef) return false;
+        return validInboundRefs.has(`${thread.id}:${m.externalRef}`);
+      });
+      const userMessages=validMessages.filter((m)=>m.actor==='USER');
+      if(!userMessages.length) continue;
+      const lastUser=userMessages[userMessages.length-1];
+      const lastOperator=[...validMessages].reverse().find((m)=>m.actor==='OPERATOR') || null;
+      const operatorAt=lastOperator ? new Date(lastOperator.createdAt) : null;
+      const guideAt=String(thread.role||'').toUpperCase()==='CANDIDATE' && thread.userId ? guideCoveredAtByUser.get(thread.userId) : null;
+      const resolvedCutoff=[operatorAt,guideAt].filter(Boolean).sort((a,b)=>b-a)[0] || null;
+      const pendingUserMessages=userMessages.filter((m)=>!resolvedCutoff || new Date(m.createdAt)>resolvedCutoff);
+      if(!pendingUserMessages.length) continue;
+
       let threadCoveredCount=0;
       let threadNewCount=0;
-      const messages=(thread.messages || []).map((m)=>{
+      const messages=validMessages.map((m)=>{
         if(m.actor!=='USER') return m;
         const consultationClassification=classifySupportConsultationStatus(m.content,thread.role,knowledgeRows);
-        if(consultationClassification.key==='COVERED'){ coveredCount++; threadCoveredCount++; }
-        else { newCount++; threadNewCount++; }
+        if(pendingUserMessages.some((p)=>p.id===m.id)){
+          if(consultationClassification.key==='COVERED'){ coveredCount++; threadCoveredCount++; }
+          else { newCount++; threadNewCount++; }
+        }
         return { ...m, consultationClassification };
       });
       const lastUserMessage=[...messages].reverse().find((m)=>m.actor==='USER') || null;
-      return {
+      items.push({
         ...thread,
         messages,
+        pendingMessageCount:pendingUserMessages.length,
         consultationCounters:{ covered:threadCoveredCount, new:threadNewCount, total:threadCoveredCount+threadNewCount },
         lastConsultationClassification:lastUserMessage?.consultationClassification || null,
         recipientEmail: recipientEmail || null,
@@ -9569,9 +9626,9 @@ app.get('/admin/chat/threads', auth, requireAnyRole(['ADMIN','SUPERADMIN']), asy
         canEmail: Boolean(recipientEmail && gmailConfigured()),
         lastOperatorMessage: lastOperator?.content || null,
         lastOperatorAt: lastOperator?.createdAt || null,
-      };
-    });
-    return res.json({ ok: true, items, consultationCounters:{ covered:coveredCount, new:newCount, total:coveredCount+newCount }, mailConfigured:gmailConfigured() });
+      });
+    }
+    return res.json({ ok: true, items, consultationCounters:{ covered:coveredCount, new:newCount, total:coveredCount+newCount }, mailConfigured:gmailConfigured(), pendingOnly:true });
   } catch (err) {
     console.error('GET /admin/chat/threads', err);
     return res.status(500).json({ error: 'No se pudo cargar el chat operador.' });

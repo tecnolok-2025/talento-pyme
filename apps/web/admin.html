@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=8.0.7" />
+  <link rel="stylesheet" href="/styles.css?v=8.0.8" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -545,8 +545,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=8.0.7"></script>
-<script src="/auth.js?v=8.0.7"></script>
+<script src="/config.js?v=8.0.8"></script>
+<script src="/auth.js?v=8.0.8"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -1640,10 +1640,10 @@ function renderCommunications(){
   const specialSupport = audience === 'CANDIDATE' && segmentKey === SUPPORT_DETAIL_SEGMENT_KEY;
   const hint=document.getElementById('communicationCandidateClassHint');
   if(hint) hint.textContent = specialSupport
-    ? `Incluye sólo candidatos que hicieron una consulta en Ayuda IA y todavía no recibieron una guía posterior a su última pregunta. Consultas pendientes: ${Number(segment?.questionCount||0)} · tema ya cubierto: ${Number(segment?.coveredQuestionCount||0)} · consulta nueva / requiere ampliar: ${Number(segment?.newQuestionCount||0)}. Si vuelven a consultar después del envío, reaparecerán automáticamente en este grupo.`
+    ? `Incluye sólo candidatos con consultas pendientes, ya sea desde Ayuda IA o por email, que todavía no recibieron una guía posterior a su última pregunta. Consultas pendientes: ${Number(segment?.questionCount||0)} · App: ${Number(segment?.appQuestionCount||0)} · Email: ${Number(segment?.emailQuestionCount||0)} · tema ya cubierto: ${Number(segment?.coveredQuestionCount||0)} · consulta nueva / requiere ampliar: ${Number(segment?.newQuestionCount||0)}. Una vez programada o enviada la guía, desaparecen de Chat operador; si vuelven a consultar, reaparecen automáticamente.`
     : 'Podés enviar el correo nuevo o reutilizar el último correo solamente al grupo seleccionado.';
   const loadLastBtn=document.getElementById('btnLoadLastCommunication');
-  if(loadLastBtn) loadLastBtn.textContent = specialSupport ? 'Cargar guía ampliada de respuestas' : (audience === 'COMPANY' ? 'Cargar último correo enviado a empresas' : 'Cargar último correo enviado a candidatos');
+  if(loadLastBtn) loadLastBtn.textContent = specialSupport ? 'Cargar guía general de respuestas · App + Email' : (audience === 'COMPANY' ? 'Cargar último correo enviado a empresas' : 'Cargar último correo enviado a candidatos');
   const histTitle=document.getElementById('communicationHistoryTitle');
   if(histTitle) histTitle.textContent = audience === 'COMPANY' ? 'Últimos envíos a empresas' : 'Últimos envíos a candidatos';
 
@@ -1729,13 +1729,13 @@ async function loadLastCommunication(){
   try {
     const classKey = audience === 'CANDIDATE' ? (state.communications.candidateClassKey || 'ALL') : 'ALL';
     if(audience === 'CANDIDATE' && classKey === SUPPORT_DETAIL_SEGMENT_KEY){
-      if(msg) msg.textContent='Preparando una guía ampliada con los temas consultados por los candidatos pendientes…';
+      if(msg) msg.textContent='Preparando una guía general con todas las consultas pendientes de App + Email…';
       const guide=await apiFetch('/admin/communications/support-detail-template');
       document.getElementById('communicationSubject').value=guide.subject || '';
       document.getElementById('communicationBody').value=guide.body || '';
       const onlyUnsent=document.getElementById('communicationOnlyUnsent'); if(onlyUnsent) onlyUnsent.checked=true;
       saveCommunicationDraft();
-      if(msg) msg.textContent=`Guía preparada para ${Number(guide.recipientCount||0)} candidato(s), reuniendo ${Number(guide.questionCount||0)} consulta(s) pendientes: ${Number(guide.coveredQuestionCount||0)} tema(s) ya cubierto(s) y ${Number(guide.newQuestionCount||0)} consulta(s) nueva(s) / requiere(n) ampliar respuesta. Podés revisarla o ampliarla antes de programar el envío.`;
+      if(msg) msg.textContent=`Guía general preparada para ${Number(guide.recipientCount||0)} candidato(s), reuniendo ${Number(guide.questionCount||0)} consulta(s) pendientes: App ${Number(guide.appQuestionCount||0)} · Email ${Number(guide.emailQuestionCount||0)} · ${Number(guide.coveredQuestionCount||0)} tema(s) ya cubierto(s) · ${Number(guide.newQuestionCount||0)} consulta(s) nueva(s) / requiere(n) ampliar respuesta. Podés revisarla antes de programar el envío. Al programarla, esos candidatos salen de Chat operador y sólo reaparecen si consultan nuevamente.`;
       return;
     }
     const data = await apiFetch(`/admin/communications/latest-template?audience=${encodeURIComponent(audience)}&classKey=${encodeURIComponent(classKey)}`);
@@ -1915,7 +1915,7 @@ async function loadThreads(){
   document.getElementById('chatNewCount').textContent=String(filteredCounters.new);
   const order = ['COMPANY','CANDIDATE','SUPERADMIN'];
   const sections = order.map((role) => ({ role, items: filtered.filter((t) => String(t.role || '').toUpperCase() === role) })).filter((section) => section.items.length);
-  list.innerHTML = sections.map((section) => `<div><div class="threadSectionTitle">${esc(threadRoleLabel[section.role] || section.role)}</div>${section.items.map((t) => { const cls=t.lastConsultationClassification; const badge=cls ? `<span class="threadRoleBadge">${esc(cls.key==='COVERED'?'Tema cubierto':'Consulta nueva')}</span>` : ''; return `<div class="threadItem ${state.selectedThreadId === t.id ? 'active' : ''}" data-id="${t.id}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b>${esc(t.company?.companyName || t.user?.email || t.subject || 'Conversación')}</b><span style="display:flex;gap:6px;flex-wrap:wrap">${badge}<span class="threadRoleBadge">${esc(threadRoleLabel[t.role] || t.role)}</span></span></div><div class="muted">${t.needsHuman ? 'requiere revisión' : 'seguimiento'} · ${fd(t.updatedAt)}</div><div class="muted">${esc(t.lastUserMessage || 'Sin mensaje inicial')}</div></div>`; }).join('')}</div>`).join('') || '<div class="muted">Sin conversaciones en esta categoría.</div>';
+  list.innerHTML = sections.map((section) => `<div><div class="threadSectionTitle">${esc(threadRoleLabel[section.role] || section.role)}</div>${section.items.map((t) => { const cls=t.lastConsultationClassification; const badge=cls ? `<span class="threadRoleBadge">${esc(cls.key==='COVERED'?'Tema cubierto':'Consulta nueva')}</span>` : ''; return `<div class="threadItem ${state.selectedThreadId === t.id ? 'active' : ''}" data-id="${t.id}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b>${esc(t.company?.companyName || t.user?.email || t.subject || 'Conversación')}</b><span style="display:flex;gap:6px;flex-wrap:wrap">${badge}<span class="threadRoleBadge">${esc(threadRoleLabel[t.role] || t.role)}</span></span></div><div class="muted">${t.needsHuman ? 'requiere revisión' : 'seguimiento'} · ${fd(t.updatedAt)}</div><div class="muted">${esc(t.lastUserMessage || 'Sin mensaje inicial')}</div></div>`; }).join('')}</div>`).join('') || '<div class="muted">Sin consultas pendientes en esta categoría. Las respondidas, programadas y los rebotes no se muestran aquí.</div>';
   list.querySelectorAll('.threadItem').forEach((el) => { el.onclick = () => { state.selectedThreadId = el.dataset.id; loadThreads().then(renderSelectedThread); }; });
   if(!state.selectedThreadId || !filtered.find((t) => t.id === state.selectedThreadId)) state.selectedThreadId = filtered[0]?.id || null;
   renderSelectedThread();
@@ -2094,7 +2094,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v8.0.7: el estado de la cola se refresca mientras Administración permanece abierto.
+// v8.0.8: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();

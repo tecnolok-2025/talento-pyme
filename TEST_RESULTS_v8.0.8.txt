@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: v8.0.8 consolida consultas pendientes APP + EMAIL en una guia general
+ok 1 - v8.0.8 consolida consultas pendientes APP + EMAIL en una guia general
+  ---
+  duration_ms: 1.394637
+  type: 'test'
+  ...
+# Subtest: la guia solo considera preguntas posteriores a la ultima guia del candidato
+ok 2 - la guia solo considera preguntas posteriores a la ultima guia del candidato
+  ---
+  duration_ms: 0.226111
+  type: 'test'
+  ...
+# Subtest: chat operador muestra solo consultas pendientes
+ok 3 - chat operador muestra solo consultas pendientes
+  ---
+  duration_ms: 0.803794
+  type: 'test'
+  ...
+# Subtest: rebotes y automaticos de Gmail no reaparecen como consultas
+ok 4 - rebotes y automaticos de Gmail no reaparecen como consultas
+  ---
+  duration_ms: 0.542249
+  type: 'test'
+  ...
+# Subtest: una nueva consulta posterior vuelve a abrir el hilo
+ok 5 - una nueva consulta posterior vuelve a abrir el hilo
+  ---
+  duration_ms: 0.201865
+  type: 'test'
+  ...
+# Subtest: v8.0.7 unifica consultas APP + EMAIL y clasifica origen
+ok 6 - v8.0.7 unifica consultas APP + EMAIL y clasifica origen
+  ---
+  duration_ms: 1.584213
+  type: 'test'
+  ...
+# Subtest: v8.0.7 separa rebotes definitivos y temporales
+ok 7 - v8.0.7 separa rebotes definitivos y temporales
+  ---
+  duration_ms: 0.410059
+  type: 'test'
+  ...
+# Subtest: rebote definitivo genera supresion y se excluye de futuros envios
+ok 8 - rebote definitivo genera supresion y se excluye de futuros envios
+  ---
+  duration_ms: 0.197198
+  type: 'test'
+  ...
+# Subtest: consultas email ingresan al mismo SupportThread y usan clasificacion cubierta/nueva
+ok 9 - consultas email ingresan al mismo SupportThread y usan clasificacion cubierta/nueva
+  ---
+  duration_ms: 0.25795
+  type: 'test'
+  ...
+# Subtest: sincronizacion manual y automatica cada 30 minutos
+ok 10 - sincronizacion manual y automatica cada 30 minutos
+  ---
+  duration_ms: 0.302908
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 76.813909
