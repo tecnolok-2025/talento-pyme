@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=8.0.8" />
+  <link rel="stylesheet" href="/styles.css?v=8.0.9" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -514,7 +514,14 @@
           <div class="row" style="margin-top:14px;align-items:center"><button class="btn btn-primary" id="btnSendCommunication" type="button">Programar comunicación a candidatos</button><span class="muted" id="communicationMsg"></span></div>
         </div>
         <div>
-          <h3 style="margin-top:0" id="communicationHistoryTitle">Últimos envíos a candidatos</h3><div class="muted small" style="margin-bottom:10px">El historial se muestra separado según el padrón seleccionado, sin exponer destinatarios individuales.</div><div id="communicationHistory" class="communicationHistory"><div class="muted">Todavía no se cargó el historial.</div></div>
+          <h3 style="margin-top:0" id="communicationHistoryTitle">Últimos envíos a candidatos</h3>
+          <div class="muted small" style="margin-bottom:10px">El historial se muestra separado según el padrón seleccionado, sin exponer destinatarios individuales.</div>
+          <div class="adminRow" style="margin-bottom:12px">
+            <label for="communicationTemplateSelect"><b>Recuperar correo enviado</b></label>
+            <select class="input" id="communicationTemplateSelect" style="margin-top:6px"><option value="">Seleccioná un correo anterior…</option></select>
+            <div class="row" style="margin-top:8px;align-items:center"><button class="btn btn-ghost" id="btnRecoverCommunicationTemplate" type="button">Recuperar correo</button><span class="muted small" id="recoverCommunicationTemplateMsg">Los correos repetidos se muestran una sola vez.</span></div>
+          </div>
+          <div id="communicationHistory" class="communicationHistory"><div class="muted">Todavía no se cargó el historial.</div></div>
         </div>
       </div>
     </div>
@@ -525,7 +532,13 @@
         <div class="mailKpis" style="margin-top:10px"><div class="mailKpi"><span class="muted small">Consultas por email</span><b id="mailUnifiedConsultations">0</b></div><div class="mailKpi"><span class="muted small">Tema ya cubierto</span><b id="mailUnifiedCovered">0</b></div><div class="mailKpi"><span class="muted small">Consulta nueva</span><b id="mailUnifiedNew">0</b></div><div class="mailKpi"><span class="muted small">Rebotes definitivos</span><b id="mailPermanentBounces">0</b></div><div class="mailKpi"><span class="muted small">Rebotes temporales</span><b id="mailTemporaryBounces">0</b></div><div class="mailKpi"><span class="muted small">Correos suprimidos</span><b id="mailSuppressed">0</b></div></div>
         <div class="muted small" id="mailUnifiedStatus" style="margin-top:10px">La sincronización automática se ejecuta cada 30 minutos. También podés forzarla con “Sincronizar correo”.</div>
         <div id="mailConfigNotice" class="muted" style="margin-top:14px"></div>
-        <div id="mailList" class="adminList" style="margin-top:16px"></div>
+        <details id="temporaryBouncePanel" class="adminRow" style="margin-top:14px">
+          <summary style="cursor:pointer;font-weight:800">Correos temporales para reintentar · <span id="temporaryBounceUniqueCount">0</span></summary>
+          <div class="muted small" style="margin-top:7px">Se muestra una sola vez cada dirección. Un reintento vuelve a usar la última comunicación general enviada a esa cuenta.</div>
+          <div id="temporaryBounceList" class="adminList" style="margin-top:10px"><div class="muted">Sin rebotes temporales pendientes.</div></div>
+        </details>
+        <div class="muted small" style="margin-top:14px"><b>Consultas pendientes</b> · Los rebotes, mensajes automáticos y correos ya respondidos no se muestran en esta lista.</div>
+        <div id="mailList" class="adminList" style="margin-top:10px"></div>
         <div class="row" style="justify-content:space-between;margin-top:14px"><button class="btn btn-ghost" id="btnMailPrev" type="button">Anterior</button><span class="muted" id="mailPaging">Página 1</span><button class="btn btn-ghost" id="btnMailNext" type="button">Siguiente</button></div>
       </div>
       <div class="card">
@@ -545,8 +558,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=8.0.8"></script>
-<script src="/auth.js?v=8.0.8"></script>
+<script src="/config.js?v=8.0.9"></script>
+<script src="/auth.js?v=8.0.9"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -567,8 +580,8 @@ const state = {
   factory: null,
   threads: [],
   selectedThreadId: null,
-  mail: { page:1, totalPages:1, total:0, unread:0, items:[], selectedUid:null, loaded:false, selectedFromAddress:'', unified:{} },
-  communications: { loaded:false, audience:'CANDIDATE', candidateClassKey:'ALL', candidates:null, companies:null, candidateSegments:[], history:[], drafts:{}, optOutItems:[] },
+  mail: { page:1, totalPages:1, total:0, mailboxTotal:0, unread:0, items:[], selectedUid:null, loaded:false, selectedFromAddress:'', unified:{}, temporaryBounces:[] },
+  communications: { loaded:false, audience:'CANDIDATE', candidateClassKey:'ALL', candidates:null, companies:null, candidateSegments:[], history:[], templates:[], drafts:{}, optOutItems:[] },
   filters: {
     candidateDays: 'ALL', candidateSearch: '', candidateProfile: 'ALL', candidatePage: 1, candidatePerPage: 50,
     companyDays: 'ALL', companySearch: '', companyProfile: 'ALL', companyPage: 1, companyPerPage: 50,
@@ -589,7 +602,7 @@ function traceEventHtml(ev, fallbackActor){
 function setTab(tab){
   document.querySelectorAll('#adminTabs [data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tabPane').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + tab));
-  if(tab === 'mail'){ if(!state.mail.loaded) loadMailInbox(1); if(!state.communications.loaded) loadCommunications(); }
+  if(tab === 'mail'){ if(!state.mail.loaded){ loadMailInbox(1); loadUnifiedMailSummary(); loadTemporaryBounces(); } if(!state.communications.loaded) loadCommunications(); }
   if(tab === 'reports') renderTraceabilityReportPanel();
 }
 document.querySelectorAll('#adminTabs [data-tab]').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
@@ -1659,7 +1672,16 @@ function renderCommunications(){
     ? `${String(active.audience || '').toUpperCase() === 'COMPANY' ? 'Empresas' : 'Candidatos'} · ${active.sentCount || 0} enviados de ${active.recipientCount || 0} · ${active.pendingCount || 0} pendientes${active.failedCount ? ` · ${active.failedCount} fallidos` : ''}${active.skippedOptOutCount ? ` · ${active.skippedOptOutCount} excluidos` : ''}. Ritmo: 1 correo cada ${q.paceSeconds || 30}s.`
     : `Sin comunicaciones pendientes. Límite interno: ${q.dailyLimit || 450} por día.`;
 
-  const history = (c.history || []).filter((it) => String(it.audience || '').toUpperCase() === audience);
+  const templateSelect=document.getElementById('communicationTemplateSelect');
+  const templates=(c.templates || []).filter((it)=>String(it.audience||'').toUpperCase()===audience);
+  if(templateSelect){
+    const current=templateSelect.value;
+    templateSelect.innerHTML='<option value="">Seleccioná un correo anterior…</option>'+templates.map((it)=>`<option value="${esc(it.id)}">${esc(it.subject || 'Comunicación')} · ${fd(it.lastSentAt || it.createdAt)}</option>`).join('');
+    if(templates.some((it)=>it.id===current)) templateSelect.value=current;
+  }
+  const historyRaw = (c.history || []).filter((it) => String(it.audience || '').toUpperCase() === audience);
+  const seenHistory=new Set();
+  const history=historyRaw.filter((it)=>{ const key=`${String(it.subject||'').trim()}\n${String(it.body||'').trim()}`; if(seenHistory.has(key)) return false; seenHistory.add(key); return true; });
   document.getElementById('communicationHistory').innerHTML = history.map((it) => `<div class="adminRow"><b>${esc(it.subject || 'Comunicación')}</b><div class="muted small">${String(it.audience || '').toUpperCase() === 'COMPANY' ? 'Empresas' : 'Candidatos'} · ${fd(it.createdAt)} · ${esc(communicationStatusLabel(it.status))}</div><div class="muted small">Enviados: ${Number(it.sentCount || 0)} · Fallidos: ${Number(it.failedCount || 0)} · Excluidos por baja: ${Number(it.skippedOptOutCount || 0)}${Number(it.skippedPreviouslySentCount || 0) ? ` · Ya informados: ${Number(it.skippedPreviouslySentCount || 0)}` : ''}</div></div>`).join('') || '<div class="muted">Todavía no hay comunicaciones registradas.</div>';
 }
 function communicationPreferenceHistoryHtml(history=[]){
@@ -1817,6 +1839,36 @@ async function setMailCommunicationPreference(optOut){
 }
 
 
+function renderCommunicationTemplatesMessage(text=''){ const el=document.getElementById('recoverCommunicationTemplateMsg'); if(el) el.textContent=text || 'Los correos repetidos se muestran una sola vez.'; }
+function recoverCommunicationTemplate(){
+  const id=document.getElementById('communicationTemplateSelect')?.value || '';
+  const item=(state.communications.templates || []).find((x)=>x.id===id);
+  if(!item){ renderCommunicationTemplatesMessage('Seleccioná primero un correo anterior.'); return; }
+  document.getElementById('communicationSubject').value=item.subject || '';
+  document.getElementById('communicationBody').value=item.body || '';
+  const only=document.getElementById('communicationOnlyUnsent'); if(only) only.checked=true;
+  saveCommunicationDraft();
+  renderCommunicationTemplatesMessage(`Correo recuperado · última utilización ${fd(item.lastSentAt || item.createdAt)}${Number(item.duplicateCount||1)>1 ? ` · ${Number(item.duplicateCount)} envíos iguales reunidos` : ''}.`);
+}
+async function loadTemporaryBounces(){
+  const list=document.getElementById('temporaryBounceList');
+  try{
+    const data=await apiFetch('/admin/mail/temporary-bounces');
+    state.mail.temporaryBounces=data.items || [];
+    const count=document.getElementById('temporaryBounceUniqueCount'); if(count) count.textContent=String(state.mail.temporaryBounces.length);
+    if(list) list.innerHTML=state.mail.temporaryBounces.map((it)=>`<div class="adminRow"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><b>${esc(it.email || 'Correo no identificado')}</b><div class="muted small">Último rebote: ${fd(it.receivedAt)}${Number(it.bounceCount||1)>1 ? ` · ${Number(it.bounceCount)} rebotes reunidos` : ''}</div><div class="muted small" style="margin-top:4px">${it.lastCommunicationSubject ? `Último correo: ${esc(it.lastCommunicationSubject)}` : 'No se encontró una comunicación general para reenviar.'}</div></div><button class="btn btn-ghost retryTemporaryBounceBtn" type="button" data-id="${esc(it.id)}" ${it.canRetry?'':'disabled'}>Reenviar</button></div><div class="muted small retryBounceMsg" style="margin-top:5px"></div></div>`).join('') || '<div class="muted">Sin rebotes temporales pendientes de reintento.</div>';
+    list?.querySelectorAll('.retryTemporaryBounceBtn').forEach((btn)=>btn.onclick=()=>retryTemporaryBounce(btn));
+  }catch(err){ if(list) list.innerHTML=`<div class="muted">${esc(err?.message || 'No se pudieron leer los rebotes temporales.')}</div>`; }
+}
+async function retryTemporaryBounce(btn){
+  const id=btn?.dataset?.id || ''; if(!id) return;
+  const row=btn.closest('.adminRow'); const msg=row?.querySelector('.retryBounceMsg');
+  tpSetButtonBusy(btn,true,'Programando…'); if(msg) msg.textContent='Preparando reenvío protegido…';
+  try{ const data=await apiFetch(`/admin/mail/temporary-bounces/${encodeURIComponent(id)}/retry`,{method:'POST',body:JSON.stringify({})}); if(msg) msg.textContent=data.message || 'Reenvío programado.'; await Promise.all([loadTemporaryBounces(),loadUnifiedMailSummary(),loadCommunications()]); }
+  catch(err){ if(msg) msg.textContent=err?.message || 'No se pudo programar el reenvío.'; }
+  finally{tpSetButtonBusy(btn,false);}
+}
+
 function mailCategoryBadge(it){
   const cat=String(it?.category||'');
   if(cat==='CONSULTATION') return `<span class="traceBadge">Email · ${it.consultationStatus==='NEW'?'Consulta nueva':'Tema cubierto'}</span>`;
@@ -1847,7 +1899,7 @@ async function syncSupportMail(){
     const data=await apiFetch('/admin/mail/sync',{method:'POST',body:JSON.stringify({})});
     const r=data.result||{};
     if(status) status.textContent=`Sincronización terminada · ${Number(r.imported||0)} correo(s) nuevo(s) procesado(s) · ${Number(r.consultations||0)} consulta(s) · ${Number(r.permanentBounces||0)} rebote(s) definitivo(s) · ${Number(r.temporaryBounces||0)} temporal(es).`;
-    await Promise.all([loadMailInbox(1),loadUnifiedMailSummary(),loadThreads(),loadCommunications()]);
+    await Promise.all([loadMailInbox(1),loadUnifiedMailSummary(),loadTemporaryBounces(),loadThreads(),loadCommunications()]);
   }catch(err){ if(status)status.textContent=err?.message||'No se pudo sincronizar la casilla.'; }
   finally{tpSetButtonBusy(btn,false);}
 }
@@ -1856,12 +1908,12 @@ function renderMailInbox(){
   const m = state.mail || {};
   const list = document.getElementById('mailList');
   document.getElementById('mailAccount').textContent = m.configured === false ? 'No configurado' : (m.account || '—');
-  document.getElementById('mailTotal').textContent = m.configured === false ? '—' : String(m.total || 0);
+  document.getElementById('mailTotal').textContent = m.configured === false ? '—' : String(m.mailboxTotal ?? m.total ?? 0);
   document.getElementById('mailUnread').textContent = m.configured === false ? '—' : String(m.unread || 0);
-  document.getElementById('mailPaging').textContent = m.configured === false ? 'Sin buzón configurado' : `Página ${m.page || 1} de ${m.totalPages || 1} · 20 correos por página`;
+  document.getElementById('mailPaging').textContent = m.configured === false ? 'Sin buzón configurado' : `Página ${m.page || 1} de ${m.totalPages || 1} · ${Number(m.total || 0)} consulta(s) pendiente(s)`;
   document.getElementById('btnMailPrev').disabled = m.configured === false || (m.page || 1) <= 1;
   document.getElementById('btnMailNext').disabled = m.configured === false || (m.page || 1) >= (m.totalPages || 1);
-  document.getElementById('mailConfigNotice').textContent = m.configured === false ? 'Para activar esta pantalla usá FACTORY_SUPPORT_EMAIL como correo institucional y GMAIL_APP_PASSWORD como autorización de esa misma cuenta en el servicio API de Render.' : 'Al abrir un mensaje desde este panel quedará marcado como leído en Gmail.';
+  document.getElementById('mailConfigNotice').textContent = m.configured === false ? 'Para activar esta pantalla usá FACTORY_SUPPORT_EMAIL como correo institucional y GMAIL_APP_PASSWORD como autorización de esa misma cuenta en el servicio API de Render.' : 'La bandeja visible muestra sólo consultas reales pendientes. Al abrir una consulta quedará marcada como leída en Gmail.';
   if(m.configured === false){ list.innerHTML = '<div class="adminRow"><b>Correo pendiente de configuración</b><div class="muted" style="margin-top:6px">El módulo ya está preparado. Falta asociar la cuenta Gmail de Talento PyME en Render.</div></div>'; return; }
   list.innerHTML = (m.items || []).map((it) => `<div class="mailItem ${it.unread ? 'unread' : ''} ${String(m.selectedUid || '') === String(it.uid) ? 'active' : ''}" data-uid="${esc(it.uid)}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b>${esc(it.subject || '(sin asunto)')}</b><span>${mailCategoryBadge(it)}${it.answered ? '<span class="traceBadge">Respondido</span>' : ''}${it.unread ? '<span class="traceBadge">Nuevo</span>' : ''}</span></div><div class="muted">${esc(it.fromName || it.fromAddress || 'Remitente')} ${it.fromAddress ? '· ' + esc(it.fromAddress) : ''}</div><div class="muted small">${esc(fd(it.date))}</div></div>`).join('') || '<div class="muted">No hay mensajes para mostrar.</div>';
   list.querySelectorAll('.mailItem').forEach((el) => el.onclick = () => loadMailMessage(el.dataset.uid));
@@ -2018,6 +2070,7 @@ document.getElementById('btnRefreshCommunications').onclick = () => loadCommunic
 document.getElementById('commOptOutCard').onclick = () => loadCommunicationOptOuts();
 document.getElementById('btnCloseOptOutPanel').onclick = () => { document.getElementById('communicationOptOutPanel').style.display='none'; };
 document.getElementById('btnLoadLastCommunication').onclick = () => loadLastCommunication();
+document.getElementById('btnRecoverCommunicationTemplate').onclick = () => recoverCommunicationTemplate();
 document.getElementById('btnSendCommunication').onclick = () => sendCommunication();
 document.getElementById('communicationSubject').oninput = () => saveCommunicationDraft();
 document.getElementById('communicationBody').oninput = () => saveCommunicationDraft();
@@ -2035,7 +2088,7 @@ document.getElementById('btnCancelCommunication').onclick = async () => {
 };
 document.getElementById('btnMailOptOut').onclick = () => setMailCommunicationPreference(true);
 document.getElementById('btnMailOptIn').onclick = () => setMailCommunicationPreference(false);
-document.getElementById('btnRefreshMail').onclick = () => { loadMailInbox(state.mail.page || 1); loadUnifiedMailSummary(); };
+document.getElementById('btnRefreshMail').onclick = () => { loadMailInbox(state.mail.page || 1); loadUnifiedMailSummary(); loadTemporaryBounces(); };
 document.getElementById('btnSyncSupportMail').onclick = () => syncSupportMail();
 document.getElementById('btnMailPrev').onclick = () => { if((state.mail.page || 1) > 1) loadMailInbox((state.mail.page || 1) - 1); };
 document.getElementById('btnMailNext').onclick = () => { if((state.mail.page || 1) < (state.mail.totalPages || 1)) loadMailInbox((state.mail.page || 1) + 1); };
@@ -2094,7 +2147,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
   }catch(e){ msg.textContent = e.message; }
 };
 
-// v8.0.8: el estado de la cola se refresca mientras Administración permanece abierto.
+// v8.0.9: el estado de la cola se refresca mientras Administración permanece abierto.
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();

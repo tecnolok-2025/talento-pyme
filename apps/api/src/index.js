@@ -8106,18 +8106,20 @@ const adminCommunicationSendSchema = z.object({
 app.get('/admin/communications/summary', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req, res) => {
   try {
     const classKeys=Object.keys(ADMIN_CANDIDATE_CLASS_LABELS);
-    const [candidates, companies, history, queue, ...segmentRows] = await Promise.all([
+    const [candidates, companies, history, queue, candidateTemplates, companyTemplates, ...segmentRows] = await Promise.all([
       listBulkCommunicationRecipients('CANDIDATE'),
       listBulkCommunicationRecipients('COMPANY'),
-      prisma.adminCommunication.findMany({ orderBy:{ createdAt:'desc' }, take:12 }),
+      prisma.adminCommunication.findMany({ orderBy:{ createdAt:'desc' }, take:24 }),
       communicationQueueSnapshot(),
+      uniqueCommunicationTemplates('CANDIDATE'),
+      uniqueCommunicationTemplates('COMPANY'),
       ...classKeys.map((classKey)=>listBulkCommunicationRecipients('CANDIDATE',{classKey})),
     ]);
     const shape = (x) => ({ totalAccounts:x.totalAccounts, reachable:x.reachable, eligible:x.recipients.length, optedOut:x.optedOut, suppressed:Number(x.suppressed||0), duplicates:x.duplicates });
     const candidateSegments=classKeys.map((key,idx)=>({ key, label:ADMIN_CANDIDATE_CLASS_LABELS[key], ...shape(segmentRows[idx]) }));
     const supportDetail=await listSupportDetailRecipients();
     candidateSegments.push({ key:SUPPORT_DETAIL_SEGMENT_KEY, label:SUPPORT_DETAIL_SEGMENT_LABEL, special:true, questionCount:Number(supportDetail.questionCount||0), coveredQuestionCount:Number(supportDetail.coveredQuestionCount||0), newQuestionCount:Number(supportDetail.newQuestionCount||0), appQuestionCount:Number(supportDetail.appQuestionCount||0), emailQuestionCount:Number(supportDetail.emailQuestionCount||0), ...shape(supportDetail) });
-    return res.json({ ok:true, configured:gmailConfigured(), candidates:shape(candidates), companies:shape(companies), candidateSegments, history, queue });
+    return res.json({ ok:true, configured:gmailConfigured(), candidates:shape(candidates), companies:shape(companies), candidateSegments, history, templates:[...candidateTemplates,...companyTemplates], queue });
   } catch (err) {
     console.error('GET /admin/communications/summary', err?.message || err);
     return res.status(500).json({ error:'No se pudo leer el padrón de comunicaciones.' });
@@ -8406,6 +8408,98 @@ app.post('/communications/unsubscribe', async (req, res) => {
 });
 
 
+
+// v8.0.9 · vista operativa limpia: sólo consultas pendientes, rebotes temporales deduplicados
+// y recuperación de comunicaciones sin duplicados.
+async function pendingInboundMailConsultations(){
+  const rows=await prisma.inboundMailMessage.findMany({
+    where:{category:'CONSULTATION'},
+    orderBy:{receivedAt:'desc'},
+    take:2000,
+  }).catch(()=>[]);
+  if(!rows.length) return [];
+  const threadIds=[...new Set(rows.map((r)=>r.supportThreadId).filter(Boolean))];
+  const userIds=[...new Set(rows.filter((r)=>String(r.matchedRole||'').toUpperCase()==='CANDIDATE').map((r)=>r.matchedUserId).filter(Boolean))];
+  const [operatorRows,guideRows]=await Promise.all([
+    threadIds.length ? prisma.supportMessage.findMany({
+      where:{threadId:{in:threadIds},actor:'OPERATOR'},
+      select:{threadId:true,createdAt:true},orderBy:{createdAt:'desc'},
+    }).catch(()=>[]) : [],
+    userIds.length ? prisma.adminCommunicationRecipient.findMany({
+      where:{userId:{in:userIds},status:{in:['PENDING','SENT']},communication:{is:{recipientMode:{in:SUPPORT_DETAIL_RECIPIENT_MODES}}}},
+      select:{userId:true,communication:{select:{createdAt:true}}},
+    }).catch(()=>[]) : [],
+  ]);
+  const lastOperatorByThread=new Map();
+  for(const row of operatorRows){ if(row.threadId && !lastOperatorByThread.has(row.threadId)) lastOperatorByThread.set(row.threadId,new Date(row.createdAt)); }
+  const lastGuideByUser=new Map();
+  for(const row of guideRows){
+    const at=new Date(row.communication?.createdAt||0); const prev=lastGuideByUser.get(row.userId);
+    if(!prev || at>prev) lastGuideByUser.set(row.userId,at);
+  }
+  return rows.filter((row)=>{
+    const receivedAt=new Date(row.receivedAt || row.createdAt || 0);
+    const cutoffs=[];
+    if(row.supportThreadId && lastOperatorByThread.get(row.supportThreadId)) cutoffs.push(lastOperatorByThread.get(row.supportThreadId));
+    if(String(row.matchedRole||'').toUpperCase()==='CANDIDATE' && row.matchedUserId && lastGuideByUser.get(row.matchedUserId)) cutoffs.push(lastGuideByUser.get(row.matchedUserId));
+    const cutoff=cutoffs.sort((a,b)=>b-a)[0] || null;
+    return !cutoff || receivedAt>cutoff;
+  });
+}
+
+async function activeTemporaryBounceRows(){
+  const rows=await prisma.inboundMailMessage.findMany({
+    where:{category:'BOUNCE_TEMPORARY',bounceTargetEmail:{not:null}},
+    orderBy:{receivedAt:'desc'},take:1000,
+  }).catch(()=>[]);
+  const grouped=new Map();
+  for(const row of rows){
+    const email=normalizeEmail(row.bounceTargetEmail||''); if(!email) continue;
+    const prev=grouped.get(email);
+    if(!prev) grouped.set(email,{latest:row,count:1}); else prev.count++;
+  }
+  const result=[];
+  for(const [email,info] of grouped.entries()){
+    const suppression=await prisma.emailSuppression.findUnique({where:{email}}).catch(()=>null);
+    if(suppression?.active) continue;
+    const user=await findPortalUserByEmail(email);
+    let lastCommunication=null;
+    let retriedAfterBounce=false;
+    if(user){
+      const sentRows=await prisma.adminCommunicationRecipient.findMany({
+        where:{userId:user.id,status:{in:['SENT','PENDING']}},
+        include:{communication:true},orderBy:{createdAt:'desc'},take:30,
+      }).catch(()=>[]);
+      const latestBounceAt=new Date(info.latest.receivedAt || info.latest.createdAt || 0);
+      retriedAfterBounce=sentRows.some((r)=>String(r.communication?.recipientMode||'')==='BOUNCE_RETRY' && new Date(r.communication?.createdAt||0)>latestBounceAt);
+      lastCommunication=sentRows.find((r)=>String(r.communication?.recipientMode||'')!=='BOUNCE_RETRY' && Number(r.communication?.sentCount||0)>0)?.communication || null;
+    }
+    if(retriedAfterBounce) continue;
+    result.push({
+      id:info.latest.id,email,receivedAt:info.latest.receivedAt || info.latest.createdAt,
+      bounceCount:info.count,subject:info.latest.subject || null,matchedUserId:user?.id || null,
+      lastCommunicationSubject:lastCommunication?.subject || null,lastCommunicationId:lastCommunication?.id || null,
+      canRetry:Boolean(user && lastCommunication),
+    });
+  }
+  result.sort((a,b)=>new Date(b.receivedAt||0)-new Date(a.receivedAt||0));
+  return result;
+}
+
+async function uniqueCommunicationTemplates(audience){
+  const rows=await prisma.adminCommunication.findMany({
+    where:{audience,sentCount:{gt:0}},orderBy:{createdAt:'desc'},take:250,
+    select:{id:true,audience:true,subject:true,body:true,createdAt:true,completedAt:true,sentCount:true,status:true},
+  }).catch(()=>[]);
+  const grouped=new Map();
+  for(const row of rows){
+    const key=`${String(row.subject||'').trim()}\n${String(row.body||'').trim()}`;
+    if(!grouped.has(key)) grouped.set(key,{...row,lastSentAt:row.completedAt||row.createdAt,duplicateCount:1});
+    else grouped.get(key).duplicateCount++;
+  }
+  return [...grouped.values()];
+}
+
 app.post('/admin/mail/sync', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req,res)=>{
   try{
     const result=await syncSupportMailboxOnce();
@@ -8425,17 +8519,17 @@ app.post('/admin/mail/sync', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async
 
 app.get('/admin/mail/unified-summary', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req,res)=>{
   try{
-    const [consultations,covered,newQueries,permanentBounces,temporaryBounces,automatic,suppressed,latest]=await Promise.all([
-      prisma.inboundMailMessage.count({where:{category:'CONSULTATION'}}),
-      prisma.inboundMailMessage.count({where:{category:'CONSULTATION',consultationStatus:'COVERED'}}),
-      prisma.inboundMailMessage.count({where:{category:'CONSULTATION',consultationStatus:'NEW'}}),
-      prisma.inboundMailMessage.count({where:{category:'BOUNCE_PERMANENT'}}),
-      prisma.inboundMailMessage.count({where:{category:'BOUNCE_TEMPORARY'}}),
-      prisma.inboundMailMessage.count({where:{category:'AUTOMATIC'}}),
+    const [pendingConsultations,permanentRows,temporaryRows,suppressed,latest]=await Promise.all([
+      pendingInboundMailConsultations(),
+      prisma.inboundMailMessage.findMany({where:{category:'BOUNCE_PERMANENT',bounceTargetEmail:{not:null}},select:{bounceTargetEmail:true}}).catch(()=>[]),
+      activeTemporaryBounceRows(),
       prisma.emailSuppression.count({where:{active:true}}),
       prisma.inboundMailMessage.findFirst({orderBy:{processedAt:'desc'},select:{processedAt:true}}),
     ]);
-    return res.json({ok:true,configured:gmailConfigured(),consultations,covered,newQueries,permanentBounces,temporaryBounces,automatic,suppressed,lastSyncAt:latest?.processedAt||null});
+    const permanentEmails=new Set(permanentRows.map((r)=>normalizeEmail(r.bounceTargetEmail||'')).filter(Boolean));
+    const covered=pendingConsultations.filter((r)=>r.consultationStatus==='COVERED').length;
+    const newQueries=pendingConsultations.filter((r)=>r.consultationStatus==='NEW').length;
+    return res.json({ok:true,configured:gmailConfigured(),consultations:pendingConsultations.length,covered,newQueries,permanentBounces:permanentEmails.size,temporaryBounces:temporaryRows.length,suppressed,lastSyncAt:latest?.processedAt||null});
   }catch(err){ return res.status(500).json({error:'No se pudo leer el estado de la bandeja unificada.'}); }
 });
 
@@ -8446,41 +8540,68 @@ app.get('/admin/mail/problems', auth, requireAnyRole(['ADMIN','SUPERADMIN']), as
   }catch(err){ return res.status(500).json({error:'No se pudieron leer los correos con problemas.'}); }
 });
 
+app.get('/admin/mail/temporary-bounces', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req,res)=>{
+  try{ return res.json({ok:true,items:await activeTemporaryBounceRows()}); }
+  catch(err){ return res.status(500).json({error:'No se pudieron leer los rebotes temporales pendientes.'}); }
+});
+
+app.post('/admin/mail/temporary-bounces/:id/retry', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req,res)=>{
+  const id=String(req.params.id||'').trim();
+  if(!id) return res.status(400).json({error:'Rebote temporal inválido.'});
+  try{
+    const bounce=await prisma.inboundMailMessage.findUnique({where:{id}});
+    if(!bounce || bounce.category!=='BOUNCE_TEMPORARY') return res.status(404).json({error:'El rebote temporal ya no está disponible.'});
+    const email=normalizeEmail(bounce.bounceTargetEmail||'');
+    if(!email) return res.status(400).json({error:'No se pudo identificar el correo destinatario del rebote.'});
+    const suppression=await prisma.emailSuppression.findUnique({where:{email}}).catch(()=>null);
+    if(suppression?.active) return res.status(409).json({error:'Ese correo quedó suprimido por un rebote definitivo y no se reenviará.'});
+    const user=await findPortalUserByEmail(email);
+    if(!user || !['CANDIDATE','COMPANY'].includes(String(user.role||'').toUpperCase())) return res.status(404).json({error:'No se encontró una cuenta activa asociada a ese correo.'});
+    const latestRecipient=await prisma.adminCommunicationRecipient.findFirst({
+      where:{userId:user.id,status:'SENT',communication:{is:{recipientMode:{not:'BOUNCE_RETRY'}}}},
+      include:{communication:true},orderBy:{sentAt:'desc'},
+    });
+    const source=latestRecipient?.communication;
+    if(!source) return res.status(404).json({error:'No se encontró una comunicación general anterior para reenviar.'});
+    const campaign=await prisma.adminCommunication.create({data:{
+      audience:String(user.role).toUpperCase(),subject:source.subject,body:source.body,recipientCount:1,sentCount:0,
+      skippedOptOutCount:0,skippedPreviouslySentCount:0,recipientMode:'BOUNCE_RETRY',failedCount:0,status:'QUEUED',queuedAt:new Date(),
+    }});
+    await prisma.adminCommunicationRecipient.create({data:{communicationId:campaign.id,userId:user.id,status:'PENDING'}});
+    processCommunicationQueueOnce().catch(()=>{});
+    return res.json({ok:true,communicationId:campaign.id,message:`Reenvío programado para ${maskEmail(email)}. Si vuelve a rebotar temporalmente aparecerá otra vez en esta lista.`});
+  }catch(err){
+    console.error('POST /admin/mail/temporary-bounces/:id/retry',err?.message||err);
+    return res.status(500).json({error:'No se pudo programar el reenvío del correo temporal.'});
+  }
+});
+
 app.get('/admin/mail/inbox', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req, res) => {
-  if(!gmailConfigured()) return res.json({ ok:true, configured:false, items:[], total:0, unread:0, page:1, totalPages:1, pageSize:20 });
+  if(!gmailConfigured()) return res.json({ ok:true, configured:false, items:[], total:0, mailboxTotal:0, unread:0, page:1, totalPages:1, pageSize:20 });
   const page = Math.max(1, Number(req.query?.page || 1));
   const pageSize = 20;
   try {
-    const data = await withGmailInbox(async (client) => {
-      const total = Number(client.mailbox?.exists || 0);
-      const totalPages = Math.max(1, Math.ceil(total / pageSize));
-      const safePage = Math.min(page, totalPages);
-      const end = Math.max(0, total - ((safePage - 1) * pageSize));
-      const start = Math.max(1, end - pageSize + 1);
-      const items = [];
-      if(total > 0 && end >= start){
-        for await (const msg of client.fetch(`${start}:${end}`, { uid:true, envelope:true, flags:true, internalDate:true })){
-          const from = Array.isArray(msg.envelope?.from) && msg.envelope.from.length ? msg.envelope.from[0] : null;
-          items.push({
-            uid: msg.uid,
-            subject: msg.envelope?.subject || '(sin asunto)',
-            fromName: from?.name || '',
-            fromAddress: from?.address || '',
-            date: msg.envelope?.date || msg.internalDate || null,
-            unread: !(msg.flags && msg.flags.has('\\Seen')),
-            answered: Boolean(msg.flags && msg.flags.has('\\Answered')),
-          });
-        }
+    const pending=await pendingInboundMailConsultations();
+    const total=pending.length;
+    const totalPages=Math.max(1,Math.ceil(total/pageSize));
+    const safePage=Math.min(page,totalPages);
+    const slice=pending.slice((safePage-1)*pageSize,safePage*pageSize);
+    const gmailMeta=await withGmailInbox(async(client)=>{
+      const mailboxTotal=Number(client.mailbox?.exists||0);
+      let unread=0; try{ unread=(await client.search({seen:false},{uid:true})).length; }catch{}
+      const unreadByUid=new Map();
+      for(const row of slice){
+        try{ const msg=await client.fetchOne(Number(row.uid),{flags:true},{uid:true}); unreadByUid.set(Number(row.uid),!(msg?.flags && msg.flags.has('\\Seen'))); }
+        catch{ unreadByUid.set(Number(row.uid),false); }
       }
-      let unread = 0;
-      try { unread = (await client.search({ seen:false }, { uid:true })).length; } catch {}
-      items.sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
-      const imported=items.length ? await prisma.inboundMailMessage.findMany({where:{mailbox:MAILBOX_FOLDER,uid:{in:items.map((x)=>Number(x.uid))}},select:{uid:true,category:true,consultationStatus:true,bounceTargetEmail:true}}).catch(()=>[]) : [];
-      const importedMap=new Map(imported.map((x)=>[Number(x.uid),x]));
-      const enriched=items.map((x)=>({...x,...(importedMap.get(Number(x.uid))||{})}));
-      return { total, unread, page:safePage, totalPages, pageSize, items:enriched };
+      return {mailboxTotal,unread,unreadByUid};
     });
-    return res.json({ ok:true, configured:true, account:maskEmail(FACTORY_SUPPORT_EMAIL), ...data });
+    const items=slice.map((row)=>({
+      id:row.id,uid:row.uid,subject:row.subject||'(sin asunto)',fromName:row.fromName||'',fromAddress:row.fromAddress||'',
+      date:row.receivedAt||row.createdAt,unread:Boolean(gmailMeta.unreadByUid.get(Number(row.uid))),answered:false,
+      category:row.category,consultationStatus:row.consultationStatus,bounceTargetEmail:null,
+    }));
+    return res.json({ok:true,configured:true,account:maskEmail(FACTORY_SUPPORT_EMAIL),mailboxTotal:gmailMeta.mailboxTotal,unread:gmailMeta.unread,page:safePage,totalPages,pageSize,total,items});
   } catch (err) {
     console.error('GET /admin/mail/inbox', err?.message || err);
     return res.status(503).json({ error:'No se pudo leer el buzón de Gmail. Verificá la configuración de correo en Render.' });
