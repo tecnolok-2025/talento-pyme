@@ -1,4 +1,4 @@
-# Talento PyME — versión actual v8.0.6
+# Talento PyME — versión actual v8.0.7
 
 ## Etapa 8.0.2 — clasificación práctica y navegación asistida
 - Trazabilidad deja de mostrar **Información profesional por completar** y **Perfil profesional / Trayectoria no determinada** como grupos operativos.
@@ -9,7 +9,7 @@
 - Capacidad operativa estima candidatos posibles a partir del uso real de PostgreSQL y una reserva preventiva del 20%.
 
 
-> **VERSIÓN ACTIVA v8.0.6**  
+> **VERSIÓN ACTIVA v8.0.7**  
 > Inicio de una nueva etapa del motor de clasificación de candidatos.
 
 La versión operativa se obtiene de `apps/api/package.json`, `apps/web/config.js`, `CURRENT_VERSION.txt` y `/health`. Los archivos con números anteriores se conservan como **documentación histórica** y no representan la versión ejecutándose.
@@ -17,12 +17,15 @@ La versión operativa se obtiene de `apps/api/package.json`, `apps/web/config.js
 
 
 
-## v8.0.6 — auditoría de altas y semáforo de perfil
+## v8.0.7 — bandeja unificada App + Email
 
-- Auditoría de registro de candidatos: intentos, altas completadas, rechazos y errores de conexión de las últimas 72 h.
-- Botón administrativo **Verificar alta de candidatos** para probar lectura/escritura de PostgreSQL sin crear candidatos ficticios.
-- El semáforo del perfil ahora refleja las secciones reales: **Perfil laboral** queda verde con Área + Especialidad; **Experiencia y formación** se controla por separado.
-- La auditoría no guarda contraseñas, DNI, email ni otros datos personales del intento de registro.
+- Talento PyME lee directamente la casilla Gmail institucional mediante IMAP, con sincronización manual y automática cada 30 minutos.
+- Las consultas recibidas por email de candidatos/empresas registrados se incorporan al mismo **Chat operador** y se identifican con origen **EMAIL**; las consultas de la aplicación siguen como **APP**.
+- Cada consulta, sin importar el origen, se clasifica como **Tema ya cubierto** o **Consulta nueva / requiere ampliar respuesta** usando la misma base de conocimiento.
+- Los rebotes se separan en **definitivos** y **temporales**. Los definitivos crean una supresión del correo inválido para evitar futuros envíos repetidos; los temporales quedan como incidencia técnica.
+- Los rebotes y mensajes automáticos no generan conversaciones ni movimientos de trazabilidad operativa.
+- Correo / Consultas muestra contadores de consultas por email, cubiertas/nuevas, rebotes y correos suprimidos.
+- Se incorpora una migración aditiva e idempotente para trazabilidad de correo entrante y lista de supresión.
 
 ## v8.0.5 — clasificación automática de consultas de Ayuda IA
 

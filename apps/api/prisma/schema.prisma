@@ -626,16 +626,57 @@ model SupportThread {
 }
 
 model SupportMessage {
-  id         String        @id @default(cuid())
-  threadId    String
-  actor       SupportActor
-  content     String
-  reusable    Boolean      @default(false)
-  createdAt   DateTime     @default(now())
+  id          String        @id @default(cuid())
+  threadId     String
+  actor        SupportActor
+  content      String
+  reusable     Boolean      @default(false)
+  source       String        @default("APP")
+  externalRef  String?       @unique
+  createdAt    DateTime      @default(now())
 
-  thread      SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  thread       SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
   @@index([threadId, createdAt])
+  @@index([source, createdAt])
+}
+
+model InboundMailMessage {
+  id                     String   @id @default(cuid())
+  mailbox                String   @default("INBOX")
+  uid                    Int
+  messageId              String?
+  fromAddress            String?
+  fromName               String?
+  subject                String?
+  bodyText               String?
+  receivedAt             DateTime?
+  category               String   @default("OTHER")
+  consultationStatus     String?
+  matchedUserId          String?
+  matchedRole            String?
+  supportThreadId        String?
+  bounceTargetEmail      String?
+  hiddenFromTraceability Boolean  @default(false)
+  processedAt            DateTime @default(now())
+  createdAt              DateTime @default(now())
+
+  @@unique([mailbox, uid])
+  @@index([category, receivedAt])
+  @@index([matchedUserId, receivedAt])
+  @@index([supportThreadId, receivedAt])
+}
+
+model EmailSuppression {
+  id                  String   @id @default(cuid())
+  email               String   @unique
+  reason              String
+  sourceInboundMailId String?
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([active, updatedAt])
 }
 
 model SupportKnowledge {
