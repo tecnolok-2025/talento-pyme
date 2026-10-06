@@ -7546,8 +7546,21 @@ function candidateQuickFacts(candidate={}, now=new Date()){
     maritalStatus:clean(b.estadoCivil),age,birthDate:age!==null?birth:'',ageSource:age!==null?source:'No informada',latestJob:clean(b.ultimoTrabajo),email:clean(b.correo || candidate.email)};
 }
 function candidateProfessionalSearchText(candidate={}, classification=buildCandidateAdminClassification(candidate)){
-  const b=candidate.candidateBolsa || {},p=candidate.candidateProfile || {};
-  return [candidate.email,b.nombre,b.apellido,b.dni,b.correo,b.localidad,b.provinciaResidencia,b.paisResidencia,p.fullName,p.dni,p.city,p.province,classification.searchText].filter(Boolean).join(' ');
+  const b=candidate.candidateBolsa || {},p=candidate.candidateProfile || {},r=candidate.resume || {};
+  const declaredQualificationText=[
+    b.voiceNarrativeProfessionalTitle,
+    p.headline,
+    r.education,
+    r.certifications,
+  ].filter(Boolean).join(' ');
+  const qualificationNorm=adminNormText(declaredQualificationText);
+  const qualificationAliases=[];
+  if(/\bingenier/.test(qualificationNorm)) qualificationAliases.push('ingeniero','ingeniera','ingenieria');
+  if(/\btecnic/.test(qualificationNorm)) qualificationAliases.push('tecnico','tecnica','tecnicatura');
+  if(/\blicenciad|\blicenciatur/.test(qualificationNorm)) qualificationAliases.push('licenciado','licenciada','licenciatura');
+  if(/\barquitect/.test(qualificationNorm)) qualificationAliases.push('arquitecto','arquitecta','arquitectura');
+  if(/\bcontador|\bcontadora|\bcontabilidad/.test(qualificationNorm)) qualificationAliases.push('contador','contadora','contabilidad');
+  return [candidate.email,b.nombre,b.apellido,b.dni,b.correo,b.localidad,b.provinciaResidencia,b.paisResidencia,p.fullName,p.dni,p.city,p.province,classification.searchText,declaredQualificationText,...qualificationAliases].filter(Boolean).join(' ');
 }
 
 function buildAdminComposition(candidateItems = [], companyItems = []){
@@ -8946,7 +8959,7 @@ app.patch('/admin/companies/:companyId/category', auth, requireAnyRole(['ADMIN',
   }
 });
 
-// v8.0.10 · Administración puede excluir perfiles de prueba de las búsquedas públicas.
+// v8.0.11 · Administración puede excluir perfiles de prueba de las búsquedas públicas.
 app.get('/admin/search-visibility', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req,res)=>{
   try{
     const q=String(req.query.q||'').trim().slice(0,160);
