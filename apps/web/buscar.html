@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Buscar Talento</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=8.0.11" />
+  <link rel="stylesheet" href="/styles.css?v=9.0.0" />
   <style>
     .talentCard{padding:0;overflow:hidden;cursor:default}
     .talentCardHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px;cursor:pointer}
@@ -105,11 +105,11 @@
       <div class="filterSections">
         <div class="filterGroup">
           <h3>Lectura general del perfil</h3>
-          <div class="muted">Combiná texto libre, área y especialidad para encontrar perfiles por resumen curricular, experiencia u observaciones.</div>
+          <div class="muted">Combiná texto libre, área y especialidad. El buscador considera profesión, título académico, experiencia, especialidad, tareas, herramientas, certificaciones y equivalencias frecuentes.</div>
           <div class="filtersGrid">
             <div>
               <label>Texto libre</label>
-              <input class="input" id="jobsQ" placeholder="Ej: eléctrico, industrial, supervisor, PLC, confiabilidad" />
+              <input class="input" id="jobsQ" placeholder="Ej: ingeniero, electricista, logística, RRHH, PLC, soldador, AutoCAD" />
               <div class="filterNote">Busca también dentro del resumen curricular.</div>
             </div>
             <div><label>Área de trabajo</label><select class="input" id="jobsArea"></select></div>
@@ -163,8 +163,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=8.0.11"></script>
-  <script src="/auth.js?v=8.0.11"></script>
+  <script src="/config.js?v=9.0.0"></script>
+  <script src="/auth.js?v=9.0.0"></script>
   <script>
     requireAuth();
     applyRoleVisibility();

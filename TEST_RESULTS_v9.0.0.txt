@@ -1,0 +1,12 @@
+Talento PyME v9.0.0 · pruebas focalizadas
+
+- Motor de palabras clave v9.0.0: 6/6
+- Aprendiz/Pasante + compatibilidad de búsqueda: 7/7
+- Aprendiz práctico + UX/capacidad: 7/7
+- Visibilidad administrable v8.0.10: 5/5
+TOTAL: 25/25 aprobadas
+
+Node --check apps/api/src/index.js: OK
+
+Auditoría de integridad: buildCandidateAdminClassification() idéntico entre v8.0.10 y v9.0.0.
+No hay migración nueva de Neon.

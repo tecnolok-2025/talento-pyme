@@ -17,7 +17,7 @@ function fns(){
   vm.runInContext(api.slice(hs,he)+'\n'+api.slice(s,e)+';globalThis.__out={buildCandidateAdminClassification,adminSearchTextMatch};',ctx);
   return ctx.__out;
 }
-test('v8.0.4 versión sincronizada',()=>assert.equal(pkg.version,'8.0.5'));
+test('v9.0.0 versión sincronizada',()=>assert.equal(pkg.version,'9.0.0'));
 test('secundario técnico eléctrico sin experiencia => Aprendiz eléctrico y buscable',()=>{
   const {buildCandidateAdminClassification,adminSearchTextMatch}=fns();
   const c=buildCandidateAdminClassification({candidateBolsa:{nivelEducativo:'Secundaria'},resume:{education:'Escuela Técnica. Técnico Electricista. Secundario completo.',experience:'Sin experiencia laboral formal.'}});

@@ -1,4 +1,4 @@
-# Talento PyME — versión actual v8.0.11
+# Talento PyME — versión actual v9.0.0
 
 ## Etapa 8.0.2 — clasificación práctica y navegación asistida
 - Trazabilidad deja de mostrar **Información profesional por completar** y **Perfil profesional / Trayectoria no determinada** como grupos operativos.
@@ -9,7 +9,7 @@
 - Capacidad operativa estima candidatos posibles a partir del uso real de PostgreSQL y una reserva preventiva del 20%.
 
 
-> **VERSIÓN ACTIVA v8.0.11**  
+> **VERSIÓN ACTIVA v9.0.0**  
 > Inicio de una nueva etapa del motor de clasificación de candidatos.
 
 La versión operativa se obtiene de `apps/api/package.json`, `apps/web/config.js`, `CURRENT_VERSION.txt` y `/health`. Los archivos con números anteriores se conservan como **documentación histórica** y no representan la versión ejecutándose.
@@ -17,7 +17,17 @@ La versión operativa se obtiene de `apps/api/package.json`, `apps/web/config.js
 
 
 
-## v8.0.11 — búsqueda por título profesional y académico
+
+## v9.0.0 — motor de búsqueda profesional por evidencia y palabras clave
+
+- Amplía Buscar Talento con fuentes profesionales reales: título/formación, experiencia, observaciones, especialidad, último trabajo, herramientas y certificaciones.
+- Incorpora equivalencias controladas para familias profesionales frecuentes sin depender sólo de la etiqueta principal.
+- Las búsquedas compuestas exigen todos los conceptos; las abreviaturas cortas se comparan como tokens completos para evitar falsos positivos.
+- Ordena primero las coincidencias profesionales más fuertes cuando existe texto libre.
+- No usa resúmenes generados por IA como única fuente de coincidencia profesional.
+- No modifica score, clasificación, seniority ni expertise.
+
+## v8.0.10 — visibilidad de perfiles de prueba y recuperador compacto
 
 - El recuperador y el historial de comunicaciones muestran una sola entrada por asunto, conservando la versión más reciente.
 - Trazabilidad incorpora un buscador de candidatos y empresas con tilde **Ocultar de búsquedas**, desmarcado por defecto y reversible.
