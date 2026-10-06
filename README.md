@@ -1,4 +1,4 @@
-# Talento PyME — versión actual v8.0.9
+# Talento PyME — versión actual v8.0.10
 
 ## Etapa 8.0.2 — clasificación práctica y navegación asistida
 - Trazabilidad deja de mostrar **Información profesional por completar** y **Perfil profesional / Trayectoria no determinada** como grupos operativos.
@@ -9,13 +9,21 @@
 - Capacidad operativa estima candidatos posibles a partir del uso real de PostgreSQL y una reserva preventiva del 20%.
 
 
-> **VERSIÓN ACTIVA v8.0.9**  
+> **VERSIÓN ACTIVA v8.0.10**  
 > Inicio de una nueva etapa del motor de clasificación de candidatos.
 
 La versión operativa se obtiene de `apps/api/package.json`, `apps/web/config.js`, `CURRENT_VERSION.txt` y `/health`. Los archivos con números anteriores se conservan como **documentación histórica** y no representan la versión ejecutándose.
 
 
 
+
+## v8.0.10 — visibilidad de perfiles de prueba y recuperador compacto
+
+- El recuperador y el historial de comunicaciones muestran una sola entrada por asunto, conservando la versión más reciente.
+- Trazabilidad incorpora un buscador de candidatos y empresas con tilde **Ocultar de búsquedas**, desmarcado por defecto y reversible.
+- Un candidato oculto deja de aparecer en **Buscar Talento** y en sus filtros disponibles.
+- Una empresa oculta conserva su cuenta para pruebas, pero sus oportunidades dejan de mostrarse a candidatos mientras permanezca oculta.
+- La exclusión no borra perfiles, CV, trazabilidad, score, clasificaciones ni antecedentes administrativos.
 
 ## v8.0.9 — bandeja unificada App + Email
 

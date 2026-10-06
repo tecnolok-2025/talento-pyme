@@ -4252,7 +4252,8 @@ function facetStats(items) {
 app.get('/jobs/stats', auth, requireRole('COMPANY'), async (req, res) => {
   try {
     const items = await prisma.candidateBolsa.findMany({
-      include:{ user:{select:{resume:true,candidateProfile:true}} },
+      where:{ user:{ hiddenFromSearch:false } },
+      include:{ user:{select:{resume:true,candidateProfile:true,hiddenFromSearch:true}} },
       orderBy: { updatedAt: 'desc' },
     });
     const classified=items.map(it=>{
@@ -4295,13 +4296,14 @@ app.get('/jobs/search', auth, requireRole('COMPANY'), async (req, res) => {
     const orden = String(req.query.orden || 'recientes').trim();
 
     const all = await prisma.candidateBolsa.findMany({
+      where:{ user:{ hiddenFromSearch:false } },
       select: {
         id:true, nombre:true, apellido:true, dni:true, nacionalidad:true, estadoCivil:true, hijos:true,
         telefono:true, telefonoAdicional:true, fechaNacimiento:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
         especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true,
         tieneCapacitacion:true, trabajaActualmente:true, sueldoPretendido:true, ultimoTrabajo:true,
         observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, photoDataUrl:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true,
-        user: { select: { candidateProfile:true, resume:true } }
+        user: { select: { candidateProfile:true, resume:true, hiddenFromSearch:true } }
       },
 
     });
@@ -4376,10 +4378,6 @@ app.get('/jobs/candidate/:id/detail', auth, requireRole('COMPANY'), async (req, 
     const candidateId = String(req.params.id || '').trim();
     if(!candidateId) return res.status(400).json({ error: 'Falta candidateId' });
     const { company } = await getCompanyContextByUserId(req.user.id);
-    const accessResult = await ensureCompanyCandidateAccess(company.id, candidateId);
-    if(!accessResult.ok){
-      return res.status(402).json({ error: accessResult.error, openingUsage: accessResult.usage || null });
-    }
     const it = await prisma.candidateBolsa.findUnique({
       where: { id: candidateId },
       select: {
@@ -4387,10 +4385,14 @@ app.get('/jobs/candidate/:id/detail', auth, requireRole('COMPANY'), async (req, 
         telefono:true, telefonoAdicional:true, fechaNacimiento:true, correo:true, localidad:true, direccion:true, areaTrabajo:true, nivel:true,
         especialidad:true, especialidadOtro:true, rangoExperiencia:true, nivelEducativo:true,
         tieneCapacitacion:true, trabajaActualmente:true, sueldoPretendido:true, ultimoTrabajo:true,
-        observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, photoDataUrl:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true, user:{select:{resume:true,candidateProfile:true}}
+        observaciones:true, voiceNarrativeRaw:true, voiceNarrativeSummary:true, photoDataUrl:true, herramientasMecanica:true, instrumentosElectrica:true, createdAt:true, updatedAt:true, user:{select:{resume:true,candidateProfile:true,hiddenFromSearch:true}}
       }
     });
-    if(!it) return res.status(404).json({ error: 'Candidato no encontrado' });
+    if(!it || it.user?.hiddenFromSearch) return res.status(404).json({ error: 'Candidato no encontrado' });
+    const accessResult = await ensureCompanyCandidateAccess(company.id, candidateId);
+    if(!accessResult.ok){
+      return res.status(402).json({ error: accessResult.error, openingUsage: accessResult.usage || null });
+    }
     const candidate={candidateBolsa:it,resume:it.user?.resume,candidateProfile:it.user?.candidateProfile};
     const classification=buildCandidateAdminClassification(candidate);
     const quickFacts=candidateQuickFacts(candidate);
@@ -5429,7 +5431,7 @@ app.get("/jobs", async (req, res) => {
   const q = String(req.query.q || "").trim();
   const categoryId = String(req.query.categoryId || "").trim();
 
-  const where = { status: "PUBLISHED", visibleToCandidates: true };
+  const where = { status: "PUBLISHED", visibleToCandidates: true, company: { is: { hiddenFromSearch: false } } };
   if (q) {
     where.OR = [
       { title: { contains: q, mode: "insensitive" } },
@@ -8493,7 +8495,7 @@ async function uniqueCommunicationTemplates(audience){
   }).catch(()=>[]);
   const grouped=new Map();
   for(const row of rows){
-    const key=`${String(row.subject||'').trim()}\n${String(row.body||'').trim()}`;
+    const key=String(row.subject||'').trim().toLowerCase().replace(/\s+/g,' ');
     if(!grouped.has(key)) grouped.set(key,{...row,lastSentAt:row.completedAt||row.createdAt,duplicateCount:1});
     else grouped.get(key).duplicateCount++;
   }
@@ -8941,6 +8943,98 @@ app.patch('/admin/companies/:companyId/category', auth, requireAnyRole(['ADMIN',
   } catch (err) {
     console.error('PATCH /admin/companies/:companyId/category', err);
     return res.status(500).json({ error:'No se pudo guardar la categoría de la empresa.' });
+  }
+});
+
+// v8.0.10 · Administración puede excluir perfiles de prueba de las búsquedas públicas.
+app.get('/admin/search-visibility', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req,res)=>{
+  try{
+    const q=String(req.query.q||'').trim().slice(0,160);
+    const scope=String(req.query.scope||'ALL').trim().toUpperCase();
+    if(q.length<2) return res.json({ok:true,items:[]});
+    const items=[];
+
+    if(scope==='ALL' || scope==='CANDIDATE'){
+      const candidates=await prisma.user.findMany({
+        where:{role:'CANDIDATE',OR:[
+          {email:{contains:q,mode:'insensitive'}},
+          {candidateProfile:{is:{fullName:{contains:q,mode:'insensitive'}}}},
+          {candidateProfile:{is:{dni:{contains:q,mode:'insensitive'}}}},
+          {candidateBolsa:{is:{nombre:{contains:q,mode:'insensitive'}}}},
+          {candidateBolsa:{is:{apellido:{contains:q,mode:'insensitive'}}}},
+          {candidateBolsa:{is:{dni:{contains:q,mode:'insensitive'}}}},
+          {candidateBolsa:{is:{correo:{contains:q,mode:'insensitive'}}}},
+        ]},
+        select:{
+          id:true,email:true,hiddenFromSearch:true,
+          candidateProfile:{select:{fullName:true,dni:true}},
+          candidateBolsa:{select:{nombre:true,apellido:true,dni:true,correo:true,localidad:true}},
+        },
+        orderBy:{createdAt:'desc'},take:30,
+      }).catch(()=>[]);
+      for(const row of candidates){
+        const b=row.candidateBolsa||{};
+        const p=row.candidateProfile||{};
+        const name=`${b.nombre||''} ${b.apellido||''}`.trim()||p.fullName||row.email||'Candidato';
+        items.push({
+          type:'CANDIDATE',id:row.id,label:name,
+          secondary:`${b.dni||p.dni||'DNI no informado'} · ${b.correo||row.email||'sin correo'}${b.localidad?` · ${b.localidad}`:''}`,
+          hiddenFromSearch:Boolean(row.hiddenFromSearch),
+        });
+      }
+    }
+
+    if(scope==='ALL' || scope==='COMPANY'){
+      const companies=await prisma.companyProfile.findMany({
+        where:{OR:[
+          {companyName:{contains:q,mode:'insensitive'}},
+          {cuit:{contains:q,mode:'insensitive'}},
+          {contactName:{contains:q,mode:'insensitive'}},
+          {contactEmail:{contains:q,mode:'insensitive'}},
+          {user:{is:{email:{contains:q,mode:'insensitive'}}}},
+        ]},
+        select:{
+          id:true,companyName:true,cuit:true,contactName:true,contactEmail:true,city:true,hiddenFromSearch:true,
+          user:{select:{email:true}},
+        },
+        orderBy:{companyName:'asc'},take:30,
+      }).catch(()=>[]);
+      for(const row of companies){
+        items.push({
+          type:'COMPANY',id:row.id,label:row.companyName||row.user?.email||'Empresa',
+          secondary:`${row.cuit||'CUIT no informado'} · ${row.contactEmail||row.user?.email||'sin correo'}${row.city?` · ${row.city}`:''}`,
+          hiddenFromSearch:Boolean(row.hiddenFromSearch),
+        });
+      }
+    }
+
+    return res.json({ok:true,items});
+  }catch(err){
+    console.error('GET /admin/search-visibility',err?.message||err);
+    return res.status(500).json({error:'No se pudo buscar la visibilidad de perfiles.'});
+  }
+});
+
+app.patch('/admin/search-visibility/:type/:id', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (req,res)=>{
+  try{
+    const type=String(req.params.type||'').trim().toUpperCase();
+    const id=String(req.params.id||'').trim();
+    const hiddenFromSearch=req.body?.hiddenFromSearch===true;
+    if(!id || !['CANDIDATE','COMPANY'].includes(type)) return res.status(400).json({error:'Perfil no válido.'});
+
+    if(type==='CANDIDATE'){
+      const existing=await prisma.user.findUnique({where:{id},select:{id:true,role:true}}).catch(()=>null);
+      if(!existing || existing.role!=='CANDIDATE') return res.status(404).json({error:'Candidato no encontrado.'});
+      const updated=await prisma.user.update({where:{id},data:{hiddenFromSearch},select:{id:true,hiddenFromSearch:true}});
+      return res.json({ok:true,type,id,hiddenFromSearch:Boolean(updated.hiddenFromSearch)});
+    }
+
+    const updated=await prisma.companyProfile.update({where:{id},data:{hiddenFromSearch},select:{id:true,hiddenFromSearch:true}}).catch(()=>null);
+    if(!updated) return res.status(404).json({error:'Empresa no encontrada.'});
+    return res.json({ok:true,type,id,hiddenFromSearch:Boolean(updated.hiddenFromSearch)});
+  }catch(err){
+    console.error('PATCH /admin/search-visibility/:type/:id',err?.message||err);
+    return res.status(500).json({error:'No se pudo actualizar la visibilidad del perfil.'});
   }
 });
 

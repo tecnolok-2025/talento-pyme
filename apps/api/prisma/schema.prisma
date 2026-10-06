@@ -73,6 +73,7 @@ model User {
   passHash                  String
   role                      UserRole @default(CANDIDATE)
   candidateKeepIndefinitely Boolean  @default(true)
+  hiddenFromSearch          Boolean  @default(false)
   bulkEmailOptOutAt         DateTime?
   bulkEmailOptOutReason     String?
   welcomeEmailQueuedAt       DateTime?
@@ -349,6 +350,7 @@ model CompanyProfile {
   companySummary String?
   adminCategory String?
   showCompanySummary Boolean @default(true)
+  hiddenFromSearch Boolean @default(false)
   candidateBookmarks String[] @default([])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
