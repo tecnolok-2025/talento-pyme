@@ -31,15 +31,85 @@ const __dirname = path.dirname(__filename);
 const UPLOADS_DIR = path.resolve(__dirname, "../uploads");
 const PUBLIC_UPLOADS = "/uploads";
 
-app.use(cors({ exposedHeaders:['Content-Disposition'] }));
+// v9.1.0 · Seguridad Etapa 1. Refuerzos deliberadamente invisibles para candidatos y empresas.
+// No modifica sesiones, búsquedas, clasificación, score, CV ni flujos funcionales.
+app.disable("x-powered-by");
+
+const SECURITY_ALLOWED_ORIGINS = new Set(
+  [
+    String(process.env.WEB_BASE_URL || "https://talento-pyme.onrender.com").replace(/\/$/, "").trim(),
+    ...String(process.env.SECURITY_ALLOWED_ORIGINS || "").split(",").map(v => v.trim().replace(/\/$/, "")).filter(Boolean),
+  ].filter(Boolean)
+);
+if(!process.env.RENDER){
+  ["http://localhost:3000","http://localhost:4173","http://localhost:5173","http://127.0.0.1:3000","http://127.0.0.1:5173"].forEach(v => SECURITY_ALLOWED_ORIGINS.add(v));
+}
+
+function securityCorsOrigin(origin, callback){
+  // Clientes sin cabecera Origin (health checks / servidor-a-servidor) siguen admitidos.
+  if(!origin || SECURITY_ALLOWED_ORIGINS.has(String(origin).replace(/\/$/, ""))) return callback(null, true);
+  return callback(null, false);
+}
+
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+  if(process.env.RENDER || String(req.headers["x-forwarded-proto"] || "").toLowerCase() === "https") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  if(/^\/(auth|me|admin|factory|bolsa|resume|jobs|communications|support)(?:\/|$)/.test(req.path)) {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Pragma", "no-cache");
+  }
+  next();
+});
+
+app.use(cors({
+  origin: securityCorsOrigin,
+  exposedHeaders:["Content-Disposition"],
+  methods:["GET","HEAD","POST","PUT","PATCH","DELETE","OPTIONS"],
+  maxAge: 600,
+}));
+
+function makeIpRateLimiter({ windowMs, max, message }){
+  const buckets = new Map();
+  return (req, res, next) => {
+    const now = Date.now();
+    const key = String(req.ip || req.socket?.remoteAddress || "unknown");
+    let entry = buckets.get(key);
+    if(!entry || entry.resetAt <= now){
+      entry = { count:0, resetAt:now + windowMs };
+      buckets.set(key, entry);
+    }
+    entry.count += 1;
+    if(buckets.size > 10000){
+      for(const [k,v] of buckets) if(v.resetAt <= now) buckets.delete(k);
+    }
+    if(entry.count > max){
+      res.setHeader("Retry-After", String(Math.max(1, Math.ceil((entry.resetAt - now) / 1000))));
+      return res.status(429).json({ error: message });
+    }
+    next();
+  };
+}
+
+// Capa amplia anti-abuso. El login conserva además su límite histórico más estricto.
+app.use("/auth", makeIpRateLimiter({
+  windowMs:15 * 60 * 1000,
+  max:120,
+  message:"Demasiadas solicitudes de acceso. Esperá unos minutos e intentá nuevamente.",
+}));
+
 app.use((req, res, next) => {
   if (req.path.startsWith("/payments/webhook/")) return next();
   return express.json({ limit: "3mb" })(req, res, next);
 });
-app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d" }));
+app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d", dotfiles:"deny", index:false }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "9.0.0";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "9.1.0";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
