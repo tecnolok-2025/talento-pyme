@@ -130,7 +130,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d", dotfiles:"deny", index:false }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "9.1.2";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "9.1.3";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -8357,6 +8357,28 @@ const adminCommunicationSendSchema = z.object({
   onlyNotPreviouslySent:z.boolean().optional().default(true),
 });
 
+// v9.1.3 · lectura administrativa de bienvenidas pendientes; no envía ni modifica registros.
+async function listPendingCandidateWelcomeEmails(){
+  const rows=await prisma.user.findMany({
+    where:{role:'CANDIDATE',welcomeEmailQueuedAt:{not:null},welcomeEmailSentAt:null},
+    select:{id:true,email:true,createdAt:true,welcomeEmailQueuedAt:true,welcomeEmailAttempts:true,welcomeEmailLastAttemptAt:true,welcomeEmailLastError:true,candidateProfile:{select:{fullName:true}}},
+    orderBy:{welcomeEmailQueuedAt:'asc'},
+    take:101,
+  });
+  const hasMore=rows.length>100;
+  const items=rows.slice(0,100).map((row)=>({
+    id:row.id,
+    name:row.candidateProfile?.fullName || 'Candidato',
+    email:row.email,
+    registeredAt:row.createdAt,
+    queuedAt:row.welcomeEmailQueuedAt,
+    attempts:Number(row.welcomeEmailAttempts||0),
+    lastAttemptAt:row.welcomeEmailLastAttemptAt,
+    hasLastError:Boolean(row.welcomeEmailLastError),
+  }));
+  return {pendingCount:hasMore?'100+':rows.length,shownCount:items.length,hasMore,items};
+}
+
 app.get('/admin/communications/summary', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req, res) => {
   try {
     const classKeys=Object.keys(ADMIN_CANDIDATE_CLASS_LABELS);
@@ -8371,9 +8393,9 @@ app.get('/admin/communications/summary', auth, requireAnyRole(['ADMIN','SUPERADM
     ]);
     const shape = (x) => ({ totalAccounts:x.totalAccounts, reachable:x.reachable, eligible:x.recipients.length, optedOut:x.optedOut, suppressed:Number(x.suppressed||0), duplicates:x.duplicates });
     const candidateSegments=classKeys.map((key,idx)=>({ key, label:ADMIN_CANDIDATE_CLASS_LABELS[key], ...shape(segmentRows[idx]) }));
-    const supportDetail=await listSupportDetailRecipients();
+    const [supportDetail,welcomeQueue]=await Promise.all([listSupportDetailRecipients(),listPendingCandidateWelcomeEmails()]);
     candidateSegments.push({ key:SUPPORT_DETAIL_SEGMENT_KEY, label:SUPPORT_DETAIL_SEGMENT_LABEL, special:true, questionCount:Number(supportDetail.questionCount||0), coveredQuestionCount:Number(supportDetail.coveredQuestionCount||0), newQuestionCount:Number(supportDetail.newQuestionCount||0), appQuestionCount:Number(supportDetail.appQuestionCount||0), emailQuestionCount:Number(supportDetail.emailQuestionCount||0), ...shape(supportDetail) });
-    return res.json({ ok:true, configured:gmailConfigured(), candidates:shape(candidates), companies:shape(companies), candidateSegments, history, templates:[...candidateTemplates,...companyTemplates], queue });
+    return res.json({ ok:true, configured:gmailConfigured(), candidates:shape(candidates), companies:shape(companies), candidateSegments, history, templates:[...candidateTemplates,...companyTemplates], queue, welcomeQueue });
   } catch (err) {
     console.error('GET /admin/communications/summary', err?.message || err);
     return res.status(500).json({ error:'No se pudo leer el padrón de comunicaciones.' });

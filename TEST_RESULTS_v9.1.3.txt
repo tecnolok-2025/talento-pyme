@@ -1,0 +1,7 @@
+Verificaciones v9.1.3
+- Node syntax: API OK; JavaScript inline admin OK.
+- Cola bienvenida: consulta read-only, filtro queuedAt != null y sentAt == null.
+- No se agregaron escrituras ni envíos al panel.
+- Versionado package.json/package-lock/config/CURRENT_VERSION: sincronizado en 9.1.3.
+- ZIP patch y completo: integridad verificada.
+- La suite histórica completa reportó fallos preexistentes por aserciones con versión fija 8.0.1 y falta local de bcryptjs. No se interpretan como regresión del cambio de panel.
