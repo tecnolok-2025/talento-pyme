@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Talento PyME</title>
   <meta name="theme-color" content="#0B1220" />
-  <link rel="manifest" href="/manifest.webmanifest?v=9.1.1" />
+  <link rel="manifest" href="/manifest.webmanifest?v=9.1.2" />
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=9.1.1" />
+  <link rel="stylesheet" href="/styles.css?v=9.1.2" />
 </head>
 <body class="authBody">
   <div class="authTop">
@@ -191,8 +191,8 @@
     </div>
   </div>
 
-  <script src="/config.js?v=9.1.1"></script>
-  <script src="/auth.js?v=9.1.1"></script>
+  <script src="/config.js?v=9.1.2"></script>
+  <script src="/auth.js?v=9.1.2"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register(`/sw.js?v=${window.TP_APP_VERSION || Date.now()}`).catch(()=>{}));
@@ -256,13 +256,38 @@
     regDni?.addEventListener("blur", hideRegDniHint);
 
     async function post(path, body){
-      const r = await fetch(`${window.TP_API_URL}${path}`,{
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify(body)
-      });
+      let r;
+      try{
+        r = await fetch(`${window.TP_API_URL}${path}`,{
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify(body)
+        });
+      }catch(_){
+        window.location.replace('/maintenance.html');
+        throw new Error('Talento PyME está temporalmente en mantenimiento. Disculpá las molestias.');
+      }
       const data = await r.json().catch(()=> ({}));
-      if(!r.ok) throw new Error(data?.error || "Error");
+      if(!r.ok){
+        if([502,503,504].includes(r.status)){
+          window.location.replace('/maintenance.html');
+          throw new Error('Talento PyME está temporalmente en mantenimiento. Disculpá las molestias.');
+        }
+        if(r.status>=500){
+          try{
+            const status=await fetch(`${window.TP_API_URL}/status`,{cache:'no-store'});
+            if(status.status===503){
+              window.location.replace('/maintenance.html');
+              throw new Error('Talento PyME está temporalmente en mantenimiento. Disculpá las molestias.');
+            }
+          }catch(statusError){
+            if(statusError?.message?.includes('mantenimiento')) throw statusError;
+            window.location.replace('/maintenance.html');
+            throw new Error('Talento PyME está temporalmente en mantenimiento. Disculpá las molestias.');
+          }
+        }
+        throw new Error(data?.error || data?.message || "Error");
+      }
       return data;
     }
 

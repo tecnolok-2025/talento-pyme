@@ -29,11 +29,15 @@ async function apiFetch(path, options={}){
   const data = ct.includes("application/json")
     ? await res.json().catch(()=> ({}))
     : await res.text().catch(()=> "");
+  if([502,503,504].includes(res.status)){
+    showMaintenance();
+    throw new Error('Talento PyME está temporalmente en mantenimiento.');
+  }
   if(res.status>=500){
-    try{
-      const status=await fetch(`${base}/status`,{cache:'no-store'});
-      if(status.status===503){ showMaintenance(); throw new Error('Talento PyME está temporalmente en mantenimiento.'); }
-    }catch(statusError){ if(statusError?.message?.includes('mantenimiento')) throw statusError; }
+    let status;
+    try{ status=await fetch(`${base}/status`,{cache:'no-store'}); }
+    catch(_){ showMaintenance(); throw new Error('Talento PyME está temporalmente en mantenimiento.'); }
+    if(status.status===503){ showMaintenance(); throw new Error('Talento PyME está temporalmente en mantenimiento.'); }
   }
   if(!res.ok) throw new Error((data && data.error) || (typeof data === "string" && data) || "Error");
   return data;
@@ -87,13 +91,19 @@ function applyGlobalBranding(){
   } catch(_){}
 }
 
-async function syncVersionFromApi(){
+async function syncVersionFromApi(allowStartupRetry=true){
   try {
     if(!window.TP_API_URL) return;
     const res=await fetch(`${window.TP_API_URL}/status?_=${Date.now()}`,{method:'GET',cache:'no-store',headers:{'Cache-Control':'no-cache'}});
     const data=await res.json().catch(()=>({}));
     if(res.status===503 || data?.database==='unavailable'){ showMaintenance(); return; }
     if(!res.ok) return;
+    // El servidor hace una única prueba inicial a PostgreSQL dos segundos después
+    // de arrancar. Si aún informa "checking", esperar una vez sin consultar Neon.
+    if(allowStartupRetry && data?.database==='checking'){
+      window.setTimeout(()=>syncVersionFromApi(false),2500);
+      return;
+    }
     const apiVersion=String(data?.version||'').trim();
     if(apiVersion){
       window.TP_APP_VERSION=apiVersion;

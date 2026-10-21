@@ -23,12 +23,14 @@ import { buildCandidateCvPdfBuffer, buildCandidateCvFilename, buildCandidateSamp
 import { inferResidence, isArgentinaProvince, normalizeResidenceForGrouping } from "./services/residence.js";
 
 const prisma = new PrismaClient();
-const DATABASE_CONNECTIVITY_CODES = new Set(['P1001','P1002','P1003','P1017','ECONNREFUSED','ECONNRESET','ETIMEDOUT']);
+const DATABASE_CONNECTIVITY_CODES = new Set(['P1001','P1002','P1003','P1008','P1017','P2024','ECONNREFUSED','ECONNRESET','ETIMEDOUT','EHOSTUNREACH','ENETUNREACH','EAI_AGAIN']);
 let databaseAvailability = { available:null, checkedAt:null, errorCode:null };
 function noteDatabaseFailure(error){
-  const code=String(error?.code || error?.cause?.code || '');
-  if(DATABASE_CONNECTIVITY_CODES.has(code)) databaseAvailability={available:false,checkedAt:new Date().toISOString(),errorCode:code};
+  const codes=[error?.code,error?.cause?.code,error?.meta?.code,error?.cause?.cause?.code].map(value=>String(value || ''));
+  const code=codes.find(value=>DATABASE_CONNECTIVITY_CODES.has(value) || /^(ECONN|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|EAI_AGAIN)/.test(value));
+  if(code) databaseAvailability={available:false,checkedAt:new Date().toISOString(),errorCode:code};
 }
+
 function noteDatabaseSuccess(){
   databaseAvailability={available:true,checkedAt:new Date().toISOString(),errorCode:null};
 }
@@ -128,7 +130,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d", dotfiles:"deny", index:false }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "9.1.1";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "9.1.2";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -2419,11 +2421,14 @@ app.get("/status", (_, res) => {
     message:unavailable?"Estamos realizando tareas de mantenimiento para restablecer el servicio. Disculpá las molestias.":null,
   });
 });
-app.post("/health/recheck", async (_, res) => {
+app.post("/health/recheck", makeIpRateLimiter({
+  windowMs:60 * 1000,
+  max:3,
+  message:"Esperá un minuto antes de volver a comprobar el servicio.",
+}), async (_, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     noteDatabaseSuccess();
-    scheduleAutomaticMailQueueKick(0);
     return res.json({ok:true,service:"talento-pyme-api",version:APP_VERSION});
   } catch(error) {
     noteDatabaseFailure(error);

@@ -1,0 +1,10 @@
+Talento PyME v9.1.1 → v9.1.2
+
+1. Conservar los archivos de v9.1.1 para rollback.
+2. Subir a GitHub todos los archivos enumerados en ARCHIVOS_MODIFICADOS.txt, respetando las rutas.
+3. Confirmar los cambios.
+4. Esperar y verificar que talento-pyme-api quede Live.
+5. Esperar y verificar que talento-pyme (sitio web) quede Live.
+6. Comprobar que la aplicación indique v9.1.2. No ejecutar migraciones ni comandos Prisma de escritura.
+
+El parche no modifica datos ni el esquema PostgreSQL.
