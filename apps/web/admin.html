@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=9.1.0" />
+  <link rel="stylesheet" href="/styles.css?v=9.1.1" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -458,7 +458,7 @@
             <div class="backupStat"><span class="muted small">Último backup</span><b id="backupLastAt">—</b><div class="muted" id="backupLastStatus">Sin ejecución registrada todavía.</div></div>
             <div class="backupStat"><span class="muted small">Próximo backup</span><b id="backupNextAt">—</b><div class="muted" id="backupNextNote">El sistema lo calcula según la política diaria.</div></div>
             <div class="backupStat"><span class="muted small">Tamaño último archivo</span><b id="backupLastSize">—</b><div class="muted" id="backupLastRecords">Sin conteo todavía.</div></div>
-            <div class="backupStat"><span class="muted small">Archivos retenidos</span><b id="backupRetained">—</b><div class="muted" id="backupRetentionNote">Se conserva la ventana definida de resguardo.</div></div>
+            <div class="backupStat"><span class="muted small">Archivos retenidos</span><b id="backupRetained">—</b><div class="muted" id="backupRetentionNote">Archivo local de Render: no es una copia externa durable.</div></div>
           </div>
           <div class="backupActions">
             <button class="btn btn-primary" id="btnRunBackup" type="button">Ejecutar backup ahora</button>
@@ -475,9 +475,9 @@
         <div class="card">
           <div class="toolbarCard"><div><h2 style="margin:0">Alcance del resguardo</h2><div class="muted">Qué queda cubierto dentro del sistema y cómo se combina con el proveedor externo.</div></div></div>
           <div class="adminList" style="margin-top:14px">
-            <div class="adminRow"><b>Resguardo lógico interno</b><div class="muted" style="margin-top:6px">Genera un archivo JSON con usuarios, perfiles, bolsa, empresas, búsquedas, postulaciones, facturación, soporte y auditoría mensual.</div></div>
-            <div class="adminRow"><b>Periodicidad automática</b><div class="muted" style="margin-top:6px">El sistema verifica periódicamente si corresponde generar el backup diario. En producción sigue conviniendo acompañarlo con el backup del proveedor.</div></div>
-            <div class="adminRow"><b>Proveedor externo</b><div class="muted" style="margin-top:6px">La consola del proveedor sigue siendo la capa externa de resguardo y recuperación de infraestructura.</div></div>
+            <div class="adminRow"><b>Resguardo lógico interno</b><div class="muted" style="margin-top:6px">Genera un JSON local con un subconjunto de modelos. No es un dump completo de PostgreSQL ni una copia externa durable.</div></div>
+            <div class="adminRow"><b>Periodicidad automática</b><div class="muted" style="margin-top:6px">El sistema revisa cada seis horas si corresponde generar el JSON local. No se confirmó integración automática con el proveedor externo.</div></div>
+            <div class="adminRow"><b>Proveedor externo</b><div class="muted" style="margin-top:6px">Solo hay respaldo externo si se configura y se verifica por separado en la consola del proveedor.</div></div>
           </div>
         </div>
       </div>
@@ -550,7 +550,7 @@
         <div class="toolbarCard"><div><h2 style="margin:0">Correo / Consultas</h2><div class="muted">Bandeja unificada App + Email. Talento PyME lee directamente su casilla y separa consultas reales de rebotes y mensajes automáticos.</div></div><div class="row"><button class="btn btn-primary" id="btnSyncSupportMail" type="button">Sincronizar correo</button><button class="btn btn-ghost" id="btnRefreshMail" type="button">Actualizar</button></div></div>
         <div class="mailKpis"><div class="mailKpi"><span class="muted small">Cuenta</span><b id="mailAccount">—</b></div><div class="mailKpi"><span class="muted small">Mensajes Gmail</span><b id="mailTotal">—</b></div><div class="mailKpi"><span class="muted small">No leídos</span><b id="mailUnread">—</b></div></div>
         <div class="mailKpis" style="margin-top:10px"><div class="mailKpi"><span class="muted small">Consultas por email</span><b id="mailUnifiedConsultations">0</b></div><div class="mailKpi"><span class="muted small">Tema ya cubierto</span><b id="mailUnifiedCovered">0</b></div><div class="mailKpi"><span class="muted small">Consulta nueva</span><b id="mailUnifiedNew">0</b></div><div class="mailKpi"><span class="muted small">Rebotes definitivos</span><b id="mailPermanentBounces">0</b></div><div class="mailKpi"><span class="muted small">Rebotes temporales</span><b id="mailTemporaryBounces">0</b></div><div class="mailKpi"><span class="muted small">Correos suprimidos</span><b id="mailSuppressed">0</b></div></div>
-        <div class="muted small" id="mailUnifiedStatus" style="margin-top:10px">La sincronización automática se ejecuta cada 30 minutos. También podés forzarla con “Sincronizar correo”.</div>
+        <div class="muted small" id="mailUnifiedStatus" style="margin-top:10px">La sincronización automática se ejecuta cada 6 horas. También podés forzarla con “Sincronizar correo”.</div>
         <div id="mailConfigNotice" class="muted" style="margin-top:14px"></div>
         <details id="temporaryBouncePanel" class="adminRow" style="margin-top:14px">
           <summary style="cursor:pointer;font-weight:800">Correos temporales para reintentar · <span id="temporaryBounceUniqueCount">0</span></summary>
@@ -578,8 +578,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=9.1.0"></script>
-<script src="/auth.js?v=9.1.0"></script>
+<script src="/config.js?v=9.1.1"></script>
+<script src="/auth.js?v=9.1.1"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -1220,7 +1220,7 @@ function renderBackupCenter(){
   document.getElementById('backupLastSize').textContent = `${Number(backup.lastBackupSizeMb || 0).toLocaleString('es-AR')} MB`;
   document.getElementById('backupLastRecords').textContent = `${Number(backup.lastBackupRecordCount || 0).toLocaleString('es-AR')} registro(s) incluidos`;
   document.getElementById('backupRetained').textContent = `${Number(backup.retainedFiles || 0).toLocaleString('es-AR')} archivo(s)`;
-  document.getElementById('backupRetentionNote').textContent = backup.localBackupEnabled === false ? 'El backup lógico local está desactivado por configuración.' : 'Se conserva la ventana definida de resguardo.';
+  document.getElementById('backupRetentionNote').textContent = backup.localBackupEnabled === false ? 'El backup lógico local está desactivado por configuración.' : 'Archivo local de Render: no es una copia externa durable.';
   const verification = state.backupVerification;
   const integrityOk = verification ? (verification.integrityOk !== false && verification.checksumMatches !== false) : (backup.lastBackupIntegrityOk !== false);
   document.getElementById('backupIntegrityTitle').textContent = backupIntegrityLabel(integrityOk);
@@ -2222,7 +2222,7 @@ document.getElementById('btnResendLastOperatorEmail').onclick = async () => {
 setInterval(() => {
   const pane = document.getElementById('tab-mail');
   if(pane?.classList.contains('active') && state.communications.loaded) loadCommunications();
-}, 30000);
+}, 600000);
 
 Promise.allSettled([loadOverview(), loadFactoryAdmin(), loadThreads()]).then((results) => {
   results.forEach((r) => { if(r.status === 'rejected') console.error(r.reason); });

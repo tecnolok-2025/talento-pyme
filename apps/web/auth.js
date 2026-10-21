@@ -12,6 +12,9 @@ function logout(){
   localStorage.removeItem("tp_role");
   window.location.href = "/";
 }
+function showMaintenance(){
+  if(!location.pathname.endsWith('/maintenance.html')) location.replace('/maintenance.html');
+}
 async function apiFetch(path, options={}){
   const base = window.TP_API_URL;
   const headers = new Headers(options.headers || {});
@@ -19,11 +22,19 @@ async function apiFetch(path, options={}){
   if(t && !headers.has("Authorization")) headers.set("Authorization", "Bearer " + t);
   const isFormData = (typeof FormData !== "undefined") && (options.body instanceof FormData);
   if(options.body && !isFormData && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  const res = await fetch(base + path, Object.assign({}, options, { headers }));
+  let res;
+  try { res = await fetch(base + path, Object.assign({}, options, { headers })); }
+  catch(error){ showMaintenance(); throw new Error('Talento PyME está temporalmente en mantenimiento.'); }
   const ct = (res.headers.get("content-type") || "").toLowerCase();
   const data = ct.includes("application/json")
     ? await res.json().catch(()=> ({}))
     : await res.text().catch(()=> "");
+  if(res.status>=500){
+    try{
+      const status=await fetch(`${base}/status`,{cache:'no-store'});
+      if(status.status===503){ showMaintenance(); throw new Error('Talento PyME está temporalmente en mantenimiento.'); }
+    }catch(statusError){ if(statusError?.message?.includes('mantenimiento')) throw statusError; }
+  }
   if(!res.ok) throw new Error((data && data.error) || (typeof data === "string" && data) || "Error");
   return data;
 }
@@ -79,17 +90,17 @@ function applyGlobalBranding(){
 async function syncVersionFromApi(){
   try {
     if(!window.TP_API_URL) return;
-    const sep = window.TP_API_URL.includes('?') ? '&' : '?';
-    const res = await fetch(`${window.TP_API_URL}/health${sep}_=${Date.now()}`, { method:'GET', cache:'no-store', headers:{ 'Cache-Control':'no-cache' } });
+    const res=await fetch(`${window.TP_API_URL}/status?_=${Date.now()}`,{method:'GET',cache:'no-store',headers:{'Cache-Control':'no-cache'}});
+    const data=await res.json().catch(()=>({}));
+    if(res.status===503 || data?.database==='unavailable'){ showMaintenance(); return; }
     if(!res.ok) return;
-    const data = await res.json().catch(()=>({}));
-    const apiVersion = String(data?.version || '').trim();
+    const apiVersion=String(data?.version||'').trim();
     if(apiVersion){
-      window.TP_APP_VERSION = apiVersion;
+      window.TP_APP_VERSION=apiVersion;
       applyVersionBadges();
-      document.documentElement.setAttribute('data-tp-api-version', apiVersion);
+      document.documentElement.setAttribute('data-tp-api-version',apiVersion);
     }
-  } catch(_) {}
+  }catch(_){ showMaintenance(); }
 }
 document.addEventListener("DOMContentLoaded", applyVersionBadges);
 document.addEventListener("DOMContentLoaded", syncVersionFromApi);

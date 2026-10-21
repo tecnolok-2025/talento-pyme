@@ -23,6 +23,25 @@ import { buildCandidateCvPdfBuffer, buildCandidateCvFilename, buildCandidateSamp
 import { inferResidence, isArgentinaProvince, normalizeResidenceForGrouping } from "./services/residence.js";
 
 const prisma = new PrismaClient();
+const DATABASE_CONNECTIVITY_CODES = new Set(['P1001','P1002','P1003','P1017','ECONNREFUSED','ECONNRESET','ETIMEDOUT']);
+let databaseAvailability = { available:null, checkedAt:null, errorCode:null };
+function noteDatabaseFailure(error){
+  const code=String(error?.code || error?.cause?.code || '');
+  if(DATABASE_CONNECTIVITY_CODES.has(code)) databaseAvailability={available:false,checkedAt:new Date().toISOString(),errorCode:code};
+}
+function noteDatabaseSuccess(){
+  databaseAvailability={available:true,checkedAt:new Date().toISOString(),errorCode:null};
+}
+prisma.$use(async (params,next)=>{
+  try{
+    const result=await next(params);
+    noteDatabaseSuccess();
+    return result;
+  }catch(error){
+    noteDatabaseFailure(error);
+    throw error;
+  }
+});
 const app = express();
 // Render termina TLS en su proxy; no confiar cabeceras en instalaciones directas.
 if(process.env.RENDER) app.set('trust proxy', 1);
@@ -109,7 +128,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d", dotfiles:"deny", index:false }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "9.1.0";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "9.1.1";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -121,7 +140,7 @@ const ADMIN_BACKUP_RETENTION_DAYS = Math.max(1, Number(process.env.ADMIN_BACKUP_
 const ADMIN_BACKUP_PROVIDER = String(process.env.ADMIN_BACKUP_PROVIDER || 'EXTERNAL_PROVIDER').trim().toUpperCase();
 const BACKUPS_DIR = path.resolve(__dirname, '../backups');
 const ADMIN_LOCAL_BACKUP_ENABLED = String(process.env.ADMIN_LOCAL_BACKUP_ENABLED || 'true').trim().toLowerCase() !== 'false';
-const ADMIN_BACKUP_CHECK_MINUTES = Math.max(15, Number(process.env.ADMIN_BACKUP_CHECK_MINUTES || 60));
+const ADMIN_BACKUP_CHECK_MINUTES = Math.max(60, Number(process.env.ADMIN_BACKUP_CHECK_MINUTES || 360));
 const ADMIN_BACKUP_KEEP_FILES = Math.max(1, Number(process.env.ADMIN_BACKUP_KEEP_FILES || ADMIN_BACKUP_RETENTION_DAYS || 2));
 const ADMIN_BACKUP_MIN_SAFE_RATIO = Math.min(0.99, Math.max(0.1, Number(process.env.ADMIN_BACKUP_MIN_SAFE_RATIO || 0.8)));
 const DEFAULT_PROVIDER_CONSOLE_URL = String(process.env.ADMIN_PROVIDER_CONSOLE_URL || '').trim();
@@ -134,10 +153,9 @@ let backupSchedulerStarted = false;
 // garantiza que altas, importaciones masivas y cambios de CV queden procesados sin auditoría manual.
 const CANDIDATE_CLASSIFICATION_VERSION = '8.0.4';
 const CANDIDATE_CLASSIFICATION_AUTO_ENABLED = String(process.env.CANDIDATE_CLASSIFICATION_AUTO_ENABLED || 'true').trim().toLowerCase() !== 'false';
-const CANDIDATE_CLASSIFICATION_SCAN_SECONDS = Math.max(15, Math.min(3600, Number(process.env.CANDIDATE_CLASSIFICATION_SCAN_SECONDS || 60)));
-const CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS = Math.max(1000, Math.min(120000, Number(process.env.CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS || 12000)));
+const CANDIDATE_CLASSIFICATION_SCAN_SECONDS = Math.max(600, Math.min(86400, Number(process.env.CANDIDATE_CLASSIFICATION_SCAN_SECONDS || 21600)));
 const CANDIDATE_CLASSIFICATION_BATCH_SIZE = Math.max(20, Math.min(200, Number(process.env.CANDIDATE_CLASSIFICATION_BATCH_SIZE || 100)));
-const CANDIDATE_CLASSIFICATION_FULL_SWEEP_HOURS = Math.max(1, Math.min(168, Number(process.env.CANDIDATE_CLASSIFICATION_FULL_SWEEP_HOURS || 6)));
+const CANDIDATE_CLASSIFICATION_FULL_SWEEP_HOURS = Math.max(6, Math.min(168, Number(process.env.CANDIDATE_CLASSIFICATION_FULL_SWEEP_HOURS || 24)));
 let candidateClassificationSchedulerStarted = false;
 let candidateClassificationWorkerBusy = false;
 let candidateClassificationQueueKickScheduled = false;
@@ -176,7 +194,7 @@ const MAILBOX_FOLDER = String(process.env.MAILBOX_FOLDER || 'INBOX').trim() || '
 // a recuperaciones de contraseña, respuestas individuales, reportes y envíos manuales externos.
 const COMMUNICATION_DAILY_LIMIT = Math.max(1, Math.min(450, Number(process.env.COMMUNICATION_DAILY_LIMIT || 450)));
 const COMMUNICATION_SEND_INTERVAL_MS = Math.max(60000, Math.min(300000, Number(process.env.COMMUNICATION_SEND_INTERVAL_MS || 60000)));
-const COMMUNICATION_WORKER_TICK_MS = Math.max(5000, Math.min(60000, Number(process.env.COMMUNICATION_WORKER_TICK_MS || 10000)));
+const COMMUNICATION_WORKER_RECOVERY_HOURS = Math.max(1, Math.min(24, Number(process.env.COMMUNICATION_WORKER_RECOVERY_HOURS || 6)));
 const COMMUNICATION_RETRY_MINUTES = Math.max(10, Math.min(180, Number(process.env.COMMUNICATION_RETRY_MINUTES || 30)));
 // v7.9.11 · bienvenida automática protegida. Se reserva capacidad fuera de las campañas masivas.
 const WELCOME_DAILY_LIMIT = Math.max(1, Math.min(40, Number(process.env.WELCOME_DAILY_LIMIT || 40)));
@@ -186,6 +204,9 @@ let communicationSchedulerStarted = false;
 let communicationWorkerBusy = false;
 let welcomeWorkerBusy = false;
 let automaticMailSchedulerBusy = false;
+let automaticMailQueueTimer = null;
+let automaticMailQueueScheduledAt = 0;
+const SUPPORT_MAILBOX_SYNC_INTERVAL_MINUTES = Math.max(60, Math.min(1440, Number(process.env.SUPPORT_MAILBOX_SYNC_INTERVAL_MINUTES || 360)));
 const TRACEABILITY_REPORT_RECIPIENT = String(process.env.TRACEABILITY_REPORT_RECIPIENT || 'nestor.manucci@tecnolok.com.ar').trim().toLowerCase();
 const VIRTUAL_ADMIN_USER_ID = '__factory_admin__';
 const VIRTUAL_ADMIN_ROLE = 'SUPERADMIN';
@@ -637,7 +658,8 @@ async function readBackupOperationalSummary(){
 function startAutomaticBackupScheduler(){
   if (backupSchedulerStarted || !ADMIN_LOCAL_BACKUP_ENABLED || ADMIN_BACKUP_MODE !== 'AUTOMATIC') return;
   backupSchedulerStarted = true;
-  setTimeout(() => { ensureAutomaticLogicalBackup('AUTO_BOOT').catch((err) => console.error('AUTO_BOOT backup', err)); }, 15000);
+  // No ejecutar un volcado completo tras cada reinicio/deploy. El chequeo y respaldo,
+  // cuando corresponda, comienza en el intervalo programado de seis horas.
   const timer = setInterval(() => {
     ensureAutomaticLogicalBackup('AUTO_INTERVAL').catch((err) => console.error('AUTO_INTERVAL backup', err));
   }, ADMIN_BACKUP_CHECK_MINUTES * 60 * 1000);
@@ -892,8 +914,8 @@ async function processWelcomeEmailQueueOnce(){
       communicationRolling24hUsage(now),
       lastAutomaticMailSentAt(),
     ]);
-    if(sentCount>=WELCOME_DAILY_LIMIT || rolling.count>=COMMUNICATION_DAILY_LIMIT) return;
-    if(lastSentAt && now.getTime()-lastSentAt.getTime()<WELCOME_SEND_INTERVAL_MS) return;
+    if(sentCount>=WELCOME_DAILY_LIMIT || rolling.count>=COMMUNICATION_DAILY_LIMIT){ scheduleAutomaticMailQueueKick(Math.max(60000,rolling.nextAvailableAt?rolling.nextAvailableAt.getTime()-now.getTime():6*60*60*1000)); return; }
+    if(lastSentAt && now.getTime()-lastSentAt.getTime()<WELCOME_SEND_INTERVAL_MS){ scheduleAutomaticMailQueueKick(WELCOME_SEND_INTERVAL_MS-(now.getTime()-lastSentAt.getTime())); return; }
     const retryBefore=new Date(now.getTime()-WELCOME_RETRY_MINUTES*60*1000);
     const user=await prisma.user.findFirst({
       where:{
@@ -909,8 +931,10 @@ async function processWelcomeEmailQueueOnce(){
     try{
       await sendWelcomeEmail(user);
       await prisma.user.update({ where:{id:user.id}, data:{ welcomeEmailSentAt:new Date(), welcomeEmailLastAttemptAt:new Date(), welcomeEmailLastError:null, welcomeEmailAttempts:{increment:1} } });
+      scheduleAutomaticMailQueueKick(WELCOME_SEND_INTERVAL_MS);
     }catch(err){
       await prisma.user.update({ where:{id:user.id}, data:{ welcomeEmailLastAttemptAt:new Date(), welcomeEmailLastError:String(err?.message || err || '').slice(0,500), welcomeEmailAttempts:{increment:1} } }).catch(()=>null);
+      scheduleAutomaticMailQueueKick(WELCOME_RETRY_MINUTES*60*1000);
     }
   }finally{ welcomeWorkerBusy=false; }
 }
@@ -1267,8 +1291,8 @@ async function processCommunicationQueueOnce(){
     if(!communication) return;
 
     // Una campaña por vez. Si la más antigua está esperando, ninguna posterior la adelanta.
-    if(communication.status === 'WAITING_RETRY' && communication.waitingUntil && communication.waitingUntil > new Date()) return;
-    if(communication.status === 'WAITING_DAILY_LIMIT' && communication.waitingUntil && communication.waitingUntil > new Date()) return;
+    if(communication.status === 'WAITING_RETRY' && communication.waitingUntil && communication.waitingUntil > new Date()){ scheduleAutomaticMailQueueKick(communication.waitingUntil.getTime()-Date.now()); return; }
+    if(communication.status === 'WAITING_DAILY_LIMIT' && communication.waitingUntil && communication.waitingUntil > new Date()){ scheduleAutomaticMailQueueKick(communication.waitingUntil.getTime()-Date.now()); return; }
 
     const rolling = await communicationRolling24hUsage();
     if(rolling.count >= COMMUNICATION_DAILY_LIMIT){
@@ -1279,6 +1303,7 @@ async function processCommunicationQueueOnce(){
           data:{ status:'WAITING_DAILY_LIMIT', waitingUntil, lastError:null },
         });
       }
+      scheduleAutomaticMailQueueKick(Math.max(60000,waitingUntil.getTime()-Date.now()));
       return;
     }
 
@@ -1291,7 +1316,7 @@ async function processCommunicationQueueOnce(){
 
     // Mantener separación temporal aun si Render reinicia el proceso.
     const lastSentAt = await lastAutomaticMailSentAt();
-    if(lastSentAt && (Date.now() - lastSentAt.getTime()) < COMMUNICATION_SEND_INTERVAL_MS) return;
+    if(lastSentAt && (Date.now() - lastSentAt.getTime()) < COMMUNICATION_SEND_INTERVAL_MS){ scheduleAutomaticMailQueueKick(COMMUNICATION_SEND_INTERVAL_MS-(Date.now()-lastSentAt.getTime())); return; }
 
     const recipient = await prisma.adminCommunicationRecipient.findFirst({
       where:{ communicationId:communication.id, status:'PENDING' },
@@ -1308,6 +1333,7 @@ async function processCommunicationQueueOnce(){
         prisma.adminCommunicationRecipient.update({ where:{ id:recipient.id }, data:{ status:'SKIPPED_OPTOUT', lastAttemptAt:new Date(), lastError:null } }),
         prisma.adminCommunication.update({ where:{ id:communication.id }, data:{ skippedOptOutCount:{ increment:1 } } }),
       ]);
+      scheduleAutomaticMailQueueKick(0);
       return;
     }
     if(resolved.invalid){
@@ -1315,6 +1341,7 @@ async function processCommunicationQueueOnce(){
         prisma.adminCommunicationRecipient.update({ where:{ id:recipient.id }, data:{ status:'FAILED', attempts:{ increment:1 }, lastAttemptAt:new Date(), lastError:resolved.reason } }),
         prisma.adminCommunication.update({ where:{ id:communication.id }, data:{ failedCount:{ increment:1 } } }),
       ]);
+      scheduleAutomaticMailQueueKick(0);
       return;
     }
 
@@ -1339,6 +1366,7 @@ async function processCommunicationQueueOnce(){
         }),
         prisma.adminCommunication.update({ where:{ id:communication.id }, data:{ sentCount:{ increment:1 }, lastError:null } }),
       ]);
+      scheduleAutomaticMailQueueKick(COMMUNICATION_SEND_INTERVAL_MS);
     } catch (err) {
       const errText = clampText(String(err?.message || err?.code || 'Error de correo'), 500);
       if(isMailQuotaOrRateError(err)){
@@ -1349,6 +1377,7 @@ async function processCommunicationQueueOnce(){
             data:{ status:'WAITING_DAILY_LIMIT', waitingUntil:new Date(Date.now() + 24 * 60 * 60 * 1000), lastError:'Gmail indicó límite o control temporal. El envío queda en pausa de seguridad y continuará automáticamente.' },
           }),
         ]);
+        scheduleAutomaticMailQueueKick(24*60*60*1000);
         return;
       }
       if(isTemporaryCommunicationMailError(err)){
@@ -1360,12 +1389,14 @@ async function processCommunicationQueueOnce(){
             data:{ status:'WAITING_RETRY', waitingUntil, lastError:'Problema temporal de correo. Talento PyME reintentará automáticamente.' },
           }),
         ]);
+        scheduleAutomaticMailQueueKick(COMMUNICATION_RETRY_MINUTES*60*1000);
         return;
       }
       await prisma.$transaction([
         prisma.adminCommunicationRecipient.update({ where:{ id:recipient.id }, data:{ status:'FAILED', attempts:{ increment:1 }, lastAttemptAt:new Date(), lastError:errText } }),
         prisma.adminCommunication.update({ where:{ id:communication.id }, data:{ failedCount:{ increment:1 }, lastError:errText } }),
       ]);
+      scheduleAutomaticMailQueueKick(0);
     }
   } catch (err) {
     console.error('COMMUNICATION_QUEUE_WORKER', err?.code || err?.message || err);
@@ -1385,13 +1416,27 @@ async function processAutomaticMailQueuesOnce(){
   }finally{ automaticMailSchedulerBusy=false; }
 }
 
+function scheduleAutomaticMailQueueKick(delayMs=0){
+  const delay=Math.max(0,Number(delayMs)||0);
+  const dueAt=Date.now()+delay;
+  if(automaticMailQueueTimer && automaticMailQueueScheduledAt<=dueAt) return;
+  if(automaticMailQueueTimer) clearTimeout(automaticMailQueueTimer);
+  automaticMailQueueScheduledAt=dueAt;
+  automaticMailQueueTimer=setTimeout(async()=>{
+    automaticMailQueueTimer=null;
+    automaticMailQueueScheduledAt=0;
+    await processAutomaticMailQueuesOnce().catch(()=>{});
+  },delay);
+  if(typeof automaticMailQueueTimer.unref==='function') automaticMailQueueTimer.unref();
+}
+
 function startCommunicationQueueScheduler(){
   if(communicationSchedulerStarted) return;
   communicationSchedulerStarted = true;
-  setTimeout(() => { processAutomaticMailQueuesOnce().catch(() => {}); }, 5000);
-  const timer = setInterval(() => { processAutomaticMailQueuesOnce().catch(() => {}); }, COMMUNICATION_WORKER_TICK_MS);
-  if(typeof timer.unref === 'function') timer.unref();
-  console.log(`Cola de correos automática activa · máximo compartido ${COMMUNICATION_DAILY_LIMIT} en 24 h · campañas + bienvenidas · 1 envío escalonado`);
+  scheduleAutomaticMailQueueKick(5000);
+  const recovery=setInterval(()=>scheduleAutomaticMailQueueKick(0),COMMUNICATION_WORKER_RECOVERY_HOURS*60*60*1000);
+  if(typeof recovery.unref==='function') recovery.unref();
+  console.log(`Cola de correos automática activa · máximo compartido ${COMMUNICATION_DAILY_LIMIT} en 24 h · revisión de respaldo cada ${COMMUNICATION_WORKER_RECOVERY_HOURS} h`);
 }
 
 
@@ -1407,10 +1452,10 @@ async function syncSupportMailboxOnce(){
 function startSupportMailboxScheduler(){
   if(supportMailboxSchedulerStarted) return;
   supportMailboxSchedulerStarted=true;
-  setTimeout(()=>{syncSupportMailboxOnce().catch(()=>{});},15000);
-  const timer=setInterval(()=>{syncSupportMailboxOnce().catch(()=>{});},30*60*1000);
+  // Evitar una sincronización IMAP/DB en cada reinicio; la sincronización manual sigue disponible.
+  const timer=setInterval(()=>{syncSupportMailboxOnce().catch(()=>{});},SUPPORT_MAILBOX_SYNC_INTERVAL_MINUTES*60*1000);
   if(typeof timer.unref==='function') timer.unref();
-  console.log('Bandeja unificada App + Email activa · sincronización cada 30 min');
+  console.log(`Bandeja unificada App + Email activa · sincronización automática cada ${SUPPORT_MAILBOX_SYNC_INTERVAL_MINUTES} min`);
 }
 
 async function sendPasswordRecoveryEmail({ to, code, challengeId, role }){
@@ -2365,6 +2410,26 @@ function requireAnyRole(roles){
 }
 
 app.get("/health", (_, res) => res.json({ ok:true, service:"talento-pyme-api", version: APP_VERSION }));
+app.get("/status", (_, res) => {
+  const unavailable=databaseAvailability.available===false;
+  return res.status(unavailable?503:200).json({
+    ok:!unavailable, service:"talento-pyme-api", version:APP_VERSION,
+    database:unavailable?"unavailable":(databaseAvailability.available===true?"available":"checking"),
+    checkedAt:databaseAvailability.checkedAt,
+    message:unavailable?"Estamos realizando tareas de mantenimiento para restablecer el servicio. Disculpá las molestias.":null,
+  });
+});
+app.post("/health/recheck", async (_, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    noteDatabaseSuccess();
+    scheduleAutomaticMailQueueKick(0);
+    return res.json({ok:true,service:"talento-pyme-api",version:APP_VERSION});
+  } catch(error) {
+    noteDatabaseFailure(error);
+    return res.status(503).json({ok:false,service:"talento-pyme-api",version:APP_VERSION,message:"El servicio continúa en mantenimiento. Probá nuevamente en unos minutos."});
+  }
+});
 
 // -----------------------------
 // Auth (solo CANDIDATE / COMPANY)
@@ -2526,6 +2591,7 @@ app.post("/auth/register", async (req, res) => {
         },
       });
       queueCandidateClassification(existingUser.id,'REGISTRATION_UPGRADE');
+      scheduleAutomaticMailQueueKick(0);
 
       return success({ ok: true, upgraded: true, version: APP_VERSION }, role, 'LEGACY_UPGRADE');
     }
@@ -2558,6 +2624,7 @@ app.post("/auth/register", async (req, res) => {
           ...(existingUser.resume ? {} : { resume: { create: {} } }),
         },
       });
+      scheduleAutomaticMailQueueKick(0);
 
       return success({ ok: true, upgraded: true, version: APP_VERSION }, role, 'LEGACY_UPGRADE');
     }
@@ -2592,6 +2659,7 @@ app.post("/auth/register", async (req, res) => {
         },
       });
       queueCandidateClassification(user.id,'REGISTRATION');
+      scheduleAutomaticMailQueueKick(0);
 
       return success({ ok: true, userId: user.id, version: APP_VERSION }, role, 'NEW_CANDIDATE');
     }
@@ -2624,6 +2692,7 @@ app.post("/auth/register", async (req, res) => {
           resume: { create: {} },
         },
       });
+      scheduleAutomaticMailQueueKick(0);
 
       return success({ ok: true, userId: user.id, version: APP_VERSION }, role, 'NEW_COMPANY');
     }
@@ -8221,10 +8290,8 @@ async function candidateClassificationStatusSummary(){
 function startCandidateClassificationScheduler(){
   if(candidateClassificationSchedulerStarted || !CANDIDATE_CLASSIFICATION_AUTO_ENABLED) return;
   candidateClassificationSchedulerStarted=true;
-  const bootTimer=setTimeout(()=>{
-    processAutomaticCandidateClassificationsOnce('AUTO_BOOT',{fullSweep:true}).catch((err)=>console.error('AUTO_BOOT classification',err));
-  },CANDIDATE_CLASSIFICATION_BOOT_DELAY_MS);
-  if(typeof bootTimer.unref==='function') bootTimer.unref();
+  candidateClassificationLastScanAt=new Date();
+  candidateClassificationLastFullSweepAt=new Date();
   const timer=setInterval(()=>{
     processAutomaticCandidateClassificationsOnce('AUTO_INTERVAL').catch((err)=>console.error('AUTO_INTERVAL classification',err));
   },CANDIDATE_CLASSIFICATION_SCAN_SECONDS*1000);
@@ -8394,7 +8461,7 @@ app.post('/admin/communications/send', auth, requireAnyRole(['ADMIN','SUPERADMIN
     });
     const queuePosition = Math.max(1, positionRows.findIndex((row) => row.id === campaign.id) + 1);
     // No esperamos al próximo intervalo si el worker está libre; igualmente el envío real respeta el pacing persistente.
-    processCommunicationQueueOnce().catch(() => {});
+    scheduleAutomaticMailQueueKick(0);
     return res.json({
       ok:true,
       queued:true,
@@ -8750,7 +8817,7 @@ app.post('/admin/mail/temporary-bounces/:id/retry', auth, requireAnyRole(['ADMIN
       skippedOptOutCount:0,skippedPreviouslySentCount:0,recipientMode:'BOUNCE_RETRY',failedCount:0,status:'QUEUED',queuedAt:new Date(),
     }});
     await prisma.adminCommunicationRecipient.create({data:{communicationId:campaign.id,userId:user.id,status:'PENDING'}});
-    processCommunicationQueueOnce().catch(()=>{});
+    scheduleAutomaticMailQueueKick(0);
     return res.json({ok:true,communicationId:campaign.id,message:`Reenvío programado para ${maskEmail(email)}. Si vuelve a rebotar temporalmente aparecerá otra vez en esta lista.`});
   }catch(err){
     console.error('POST /admin/mail/temporary-bounces/:id/retry',err?.message||err);
@@ -10247,7 +10314,20 @@ if (IS_MAIN) {
   startCommunicationQueueScheduler();
   startSupportMailboxScheduler();
   startCandidateClassificationScheduler();
-  app.listen(PORT, "0.0.0.0", () => console.log("Talento PyME API escuchando en", PORT, "(v"+APP_VERSION+")"));
+  const server=app.listen(PORT, "0.0.0.0", () => {
+    console.log("Talento PyME API escuchando en", PORT, "(v"+APP_VERSION+")");
+    const probe=setTimeout(()=>prisma.$queryRaw`SELECT 1`.then(noteDatabaseSuccess).catch(noteDatabaseFailure),2000);
+    if(typeof probe.unref==='function') probe.unref();
+  });
+  let shuttingDown=false;
+  const shutdown=()=>{
+    if(shuttingDown) return;
+    shuttingDown=true;
+    server.close(async()=>{ await prisma.$disconnect().catch(()=>{}); process.exit(0); });
+    setTimeout(()=>process.exit(1),10000).unref?.();
+  };
+  process.once('SIGTERM',shutdown);
+  process.once('SIGINT',shutdown);
 }
 
 export { app, prisma };

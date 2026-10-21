@@ -1,29 +1,30 @@
-// Talento PyME service worker (v9.1.0)
+// Talento PyME service worker (v9.1.1)
 // Objetivo: evitar "versiones pegadas" por cache. 
 // Estrategia:
 // - HTML (navegación): network-first (si hay red, siempre busca lo último).
 // - Assets (css/js/img): stale-while-revalidate.
 // - Al cambiar VERSION, se crea un cache nuevo y se limpian caches viejos.
 
-importScripts("/config.js?v=9.1.0");
+importScripts("/config.js?v=9.1.1");
 
-const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "9.1.0";
+const VERSION = (typeof TP_APP_VERSION !== "undefined") ? TP_APP_VERSION : "9.1.1";
 const CACHE_NAME = `tp-cache-${VERSION}`;
 
 const PRECACHE = [
   "/",
   "/index.html",
+  "/maintenance.html",
   "/perfil.html",
   "/empleos.html",
   "/buscar.html",
   "/factory.html",
   "/admin.html",
   "/asistencia.html",
-  "/styles.css?v=9.1.0",
-  "/auth.js?v=9.1.0",
-  "/app.js?v=9.1.0",
-  "/bolsa-candidato.js?v=9.1.0",
-  "/config.js?v=9.1.0",
+  "/styles.css?v=9.1.1",
+  "/auth.js?v=9.1.1",
+  "/app.js?v=9.1.1",
+  "/bolsa-candidato.js?v=9.1.1",
+  "/config.js?v=9.1.1",
   "/manifest.webmanifest",
   "/icon-192.png",
   "/icon-512.png"
@@ -90,7 +91,7 @@ self.addEventListener("fetch", (event) => {
         return fresh;
       } catch (e) {
         const cached = await caches.match(req);
-        return cached || caches.match("/index.html");
+        return cached || caches.match("/maintenance.html") || caches.match("/index.html");
       }
     })());
     return;

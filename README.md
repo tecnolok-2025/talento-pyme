@@ -1,3 +1,9 @@
+# Talento PyME v9.1.1 — revisión de continuidad
+
+Leer `LEER_PRIMERO_v9.1.1.md` antes de desplegar y `AUDITORIA_CONSUMO_NEON_v9.1.1.md` para la evidencia. El historial y la documentación de versiones anteriores se conservan abajo.
+
+---
+
 # Talento PyME — versión actual v9.0.0
 
 ## Etapa 8.0.2 — clasificación práctica y navegación asistida

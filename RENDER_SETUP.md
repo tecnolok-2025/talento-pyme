@@ -16,10 +16,10 @@ Corre Node/Express y se conecta a Neon.
 - Root Directory:
   - Repo anidado: `talento-pyme/apps/api`
   - Repo limpio: `apps/api`
-- Build Command: `npm install && npx prisma generate`
+- Build Command: `npm install && npm run build`
 - Start Command: `npm start`
 
-> **Desde v7.10.4:** `npm start` ya no ejecuta `prisma db push`. El `prestart` genera Prisma Client y aplica únicamente el SQL aditivo e idempotente `prisma/migrations/20260927_v7104_additive/migration.sql`. Ver `MIGRACION_ROLLBACK_v7.10.4.md`.
+> **Desde v9.1.1:** `npm start` no ejecuta migraciones. El build solo corre `prisma generate`. No agregues `prisma db push --accept-data-loss` al Build Command.
 
 ### Environment Variables (OBLIGATORIAS)
 - DATABASE_URL: pegar el connection string de Neon (pooler ON)

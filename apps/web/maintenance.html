@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b1733" />
+  <title>Talento PyME · Mantenimiento</title>
+  <style>
+    :root{color-scheme:light;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#14213d;background:#f2f6fb}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 15% 5%,#d9e9ff 0,transparent 42%),linear-gradient(145deg,#f7faff,#edf3fa)}
+    main{width:min(100%,660px);padding:clamp(28px,7vw,58px);border:1px solid #dbe5f1;border-radius:26px;background:#fff;box-shadow:0 24px 70px #18365c1c;text-align:center}
+    .brand{display:flex;align-items:center;justify-content:center;gap:12px;color:#0b2a59;font-weight:800;font-size:18px}.mark{display:grid;place-items:center;width:46px;height:46px;border-radius:15px;background:linear-gradient(145deg,#0b2a59,#2875ca);color:#fff;font-size:20px}
+    .icon{width:82px;height:82px;margin:34px auto 22px;display:grid;place-items:center;border-radius:50%;background:#eef5ff;color:#1e5da8}.icon svg{width:38px;height:38px}
+    h1{margin:0;color:#102a50;font-size:clamp(28px,5vw,38px);letter-spacing:-.03em}p{margin:14px auto 0;max-width:490px;color:#52627a;font-size:16px;line-height:1.7}.note{margin-top:22px;padding:13px 16px;border-radius:12px;background:#f5f8fc;color:#4e6078;font-size:14px}
+    button{margin-top:26px;border:0;border-radius:12px;padding:13px 22px;background:#155db3;color:#fff;font:700 15px inherit;cursor:pointer;box-shadow:0 7px 16px #155db333}button:hover{background:#104d96}button:disabled{opacity:.65;cursor:wait}.foot{margin-top:30px;color:#8090a6;font-size:12px}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand"><span class="mark">TP</span><span>Talento PyME</span></div>
+    <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M4.2 7.2l2.1 2.1m11.4 5.4 2.1 2.1M3 12h3m12 0h3M4.2 16.8l2.1-2.1m11.4-5.4 2.1-2.1"/><circle cx="12" cy="12" r="4"/><path d="M12 10v2.4l1.5 1"/></svg></div>
+    <h1>Estamos realizando tareas de mantenimiento</h1>
+    <p>Estamos trabajando para restablecer Talento PyME. El sistema volverá a estar disponible en las próximas horas. Disculpá las molestias.</p>
+    <div class="note" id="message" role="status">Estamos trabajando para restablecer el servicio. Podés volver a intentar en unos minutos.</div>
+    <button id="retry" type="button">Reintentar conexión</button>
+    <div class="foot">Gracias por tu paciencia · Talento PyME</div>
+  </main>
+  <script src="/config.js?v=9.1.1"></script>
+  <script>
+    const API=window.TP_API_URL||'https://talento-pyme-api.onrender.com';
+    const button=document.getElementById('retry'),message=document.getElementById('message');
+    button.addEventListener('click',async()=>{
+      button.disabled=true;button.textContent='Verificando…';message.textContent='Estamos verificando la conexión. Esperá un momento.';
+      try{
+        const response=await fetch(`${API}/health/recheck`,{method:'POST',cache:'no-store'});
+        const data=await response.json().catch(()=>({}));
+        if(response.ok&&data.ok){message.textContent='Conexión restablecida. Abriendo Talento PyME…';location.replace('/');return;}
+        message.textContent=data.message||'El servicio continúa en mantenimiento. Probá nuevamente en unos minutos.';
+      }catch(_){message.textContent='No se pudo establecer conexión. El servicio continúa en mantenimiento.';}
+      finally{button.disabled=false;button.textContent='Reintentar conexión';}
+    });
+  </script>
+</body>
+</html>
