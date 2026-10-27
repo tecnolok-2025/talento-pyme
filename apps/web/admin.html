@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Talento PyME · Panel General</title>
   <link rel="icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=9.1.3" />
+  <link rel="stylesheet" href="/styles.css?v=9.1.4" />
   <style>
     .adminGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     @media(max-width:1100px){.adminGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -583,8 +583,8 @@
     </div>
   </section>
 </div>
-<script src="/config.js?v=9.1.3"></script>
-<script src="/auth.js?v=9.1.3"></script>
+<script src="/config.js?v=9.1.4"></script>
+<script src="/auth.js?v=9.1.4"></script>
 <script>
 requireAuth();
 applyRoleVisibility();
@@ -1807,6 +1807,32 @@ async function loadCommunicationOptOuts(){
   }
 }
 
+async function loadRecentWelcomeAudit(){
+  const button=document.getElementById('btnWelcomeRecentAudit');
+  const status=document.getElementById('welcomeRecentStatus');
+  const list=document.getElementById('welcomeRecentList');
+  if(!button||!status||!list) return;
+  button.disabled=true; status.textContent='Consultando los últimos 50 registros…'; list.innerHTML='';
+  try{
+    const data=await apiFetch('/admin/communications/welcome-audit');
+    const labels={
+      SMTP_ACCEPTED:'Aceptado por el servidor de correo (no confirma recepción en bandeja)',
+      LAST_ATTEMPT_ERROR:'Último intento con error; queda sujeto al reintento automático',
+      RETRY_PENDING:'Tiene intentos registrados y sigue sin constancia de envío',
+      QUEUED:'En cola, pendiente del primer intento automático',
+      UNTRACKED:'Sin seguimiento registrado para la bienvenida',
+    };
+    const items=data.items||[];
+    status.textContent=`Se muestran ${Number(data.shownCount||0)} de los últimos 50 candidatos registrados.`;
+    list.innerHTML=items.map((item)=>{
+      const label=labels[item.status]||'Estado sin clasificar';
+      const details=[`Registro: ${fd(item.registeredAt)}`,item.queuedAt?`En cola: ${fd(item.queuedAt)}`:'Sin fecha de cola',item.sentAt?`Aceptado por SMTP: ${fd(item.sentAt)}`:'',item.lastAttemptAt?`Último intento: ${fd(item.lastAttemptAt)}`:'',`Intentos: ${Number(item.attempts||0)}`].filter(Boolean).join(' · ');
+      return `<div class="adminRow"><b>${esc(item.name||'Candidato')}</b><div class="muted small">${esc(item.email||'')} · ${esc(details)}</div><div class="muted small">${esc(label)}${item.hasLastError?' · Hay un error registrado.':''}</div></div>`;
+    }).join('')||'<div class="muted">Todavía no hay candidatos registrados.</div>';
+  }catch(err){ status.textContent=err?.message||'No se pudo consultar el estado.'; }
+  finally{ button.disabled=false; }
+}
+
 async function loadCommunications(){
   try {
     const data = await apiFetch('/admin/communications/summary');
@@ -2257,6 +2283,7 @@ Promise.allSettled([loadOverview(), loadFactoryAdmin(), loadThreads()]).then((re
 });
 
 document.getElementById('btnRegistrationCheck')?.addEventListener('click', runRegistrationCheck);
+document.getElementById('btnWelcomeRecentAudit')?.addEventListener('click', loadRecentWelcomeAudit);
 </script>
 </body>
 </html>

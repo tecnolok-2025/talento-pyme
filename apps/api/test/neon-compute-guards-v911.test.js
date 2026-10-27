@@ -22,12 +22,13 @@ test('health de Render no consulta PostgreSQL y mantenimiento tiene reintento ma
 });
 
 test('trabajadores sin tareas no mantienen una consulta frecuente a la base',()=>{
-  assert.match(api,/COMMUNICATION_WORKER_RECOVERY_HOURS[^\n]*\|\| 6/);
+  assert.match(api,/COMMUNICATION_WORKER_RECOVERY_HOURS[^\n]*\|\| 12/);
   assert.doesNotMatch(api,/COMMUNICATION_WORKER_TICK_MS/);
-  assert.match(api,/SUPPORT_MAILBOX_SYNC_INTERVAL_MINUTES[^\n]*\|\| 360/);
+  assert.match(api,/SUPPORT_MAILBOX_SYNC_INTERVAL_MINUTES[^\n]*\|\| 720/);
   assert.match(api,/ADMIN_BACKUP_CHECK_MINUTES[^\n]*\|\| 360/);
-  assert.match(api,/CANDIDATE_CLASSIFICATION_SCAN_SECONDS[^\n]*\|\| 21600/);
+  assert.match(api,/CANDIDATE_CLASSIFICATION_SCAN_SECONDS[^\n]*\|\| 43200/);
   assert.match(api,/scheduleAutomaticMailQueueKick\(COMMUNICATION_SEND_INTERVAL_MS\)/);
+  assert.match(api,/ADMIN_BACKUP_CHECK_MINUTES[^\n]*\|\| 360/);
 });
 
 test('interfaz de mantenimiento se incluye en el PWA y no hace polling automático',()=>{

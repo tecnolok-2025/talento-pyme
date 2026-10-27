@@ -1,10 +1,17 @@
-apps/api/src/index.js
-apps/api/package.json
-apps/web/admin.html
-apps/web/config.js
-apps/web/sw.js
-CURRENT_VERSION.txt
-LEER_PRIMERO_v9.1.3.md
-AUDITORIA_v9.1.3.md
-TEST_RESULTS_v9.1.3.txt
-PARCHE_DESDE_v9.1.2_A_v9.1.3.md
+Talento PyME v9.1.4 - actualización acumulativa desde v9.1.3
+
+Se modifican:
+- apps/api/src/index.js
+- apps/api/.env.example
+- apps/api/test/neon-compute-guards-v911.test.js
+- apps/api/package.json
+- apps/api/package-lock.json
+- apps/web/admin.html
+- apps/web/config.js
+- apps/web/sw.js
+- CURRENT_VERSION.txt
+- LEER_PRIMERO_v9.1.4.md
+- PARCHE_DESDE_v9.1.3_A_v9.1.4.md
+- AUDITORIA_v9.1.4.md
+
+No se modifican schema.prisma, migraciones ni datos existentes.

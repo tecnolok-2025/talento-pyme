@@ -130,7 +130,7 @@ app.use((req, res, next) => {
 app.use(PUBLIC_UPLOADS, express.static(UPLOADS_DIR, { maxAge: "7d", dotfiles:"deny", index:false }));
 
 // Version única (proviene de package.json cuando se ejecuta vía `npm start`)
-const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "9.1.3";
+const APP_VERSION = process.env.TP_APP_VERSION || process.env.npm_package_version || "9.1.4";
 const ADMIN_DB_WARNING_MB = Math.max(64, Number(process.env.ADMIN_DB_WARNING_MB || 256));
 const ADMIN_DB_CRITICAL_MB = Math.max(ADMIN_DB_WARNING_MB + 32, Number(process.env.ADMIN_DB_CRITICAL_MB || 512));
 const ADMIN_INFRA_URL = String(process.env.ADMIN_INFRA_URL || '').trim();
@@ -155,7 +155,7 @@ let backupSchedulerStarted = false;
 // garantiza que altas, importaciones masivas y cambios de CV queden procesados sin auditoría manual.
 const CANDIDATE_CLASSIFICATION_VERSION = '8.0.4';
 const CANDIDATE_CLASSIFICATION_AUTO_ENABLED = String(process.env.CANDIDATE_CLASSIFICATION_AUTO_ENABLED || 'true').trim().toLowerCase() !== 'false';
-const CANDIDATE_CLASSIFICATION_SCAN_SECONDS = Math.max(600, Math.min(86400, Number(process.env.CANDIDATE_CLASSIFICATION_SCAN_SECONDS || 21600)));
+const CANDIDATE_CLASSIFICATION_SCAN_SECONDS = Math.max(43200, Math.min(86400, Number(process.env.CANDIDATE_CLASSIFICATION_SCAN_SECONDS || 43200))); // al menos 12 h; altas/cambios siguen usando la cola por evento
 const CANDIDATE_CLASSIFICATION_BATCH_SIZE = Math.max(20, Math.min(200, Number(process.env.CANDIDATE_CLASSIFICATION_BATCH_SIZE || 100)));
 const CANDIDATE_CLASSIFICATION_FULL_SWEEP_HOURS = Math.max(6, Math.min(168, Number(process.env.CANDIDATE_CLASSIFICATION_FULL_SWEEP_HOURS || 24)));
 let candidateClassificationSchedulerStarted = false;
@@ -196,7 +196,7 @@ const MAILBOX_FOLDER = String(process.env.MAILBOX_FOLDER || 'INBOX').trim() || '
 // a recuperaciones de contraseña, respuestas individuales, reportes y envíos manuales externos.
 const COMMUNICATION_DAILY_LIMIT = Math.max(1, Math.min(450, Number(process.env.COMMUNICATION_DAILY_LIMIT || 450)));
 const COMMUNICATION_SEND_INTERVAL_MS = Math.max(60000, Math.min(300000, Number(process.env.COMMUNICATION_SEND_INTERVAL_MS || 60000)));
-const COMMUNICATION_WORKER_RECOVERY_HOURS = Math.max(1, Math.min(24, Number(process.env.COMMUNICATION_WORKER_RECOVERY_HOURS || 6)));
+const COMMUNICATION_WORKER_RECOVERY_HOURS = Math.max(12, Math.min(24, Number(process.env.COMMUNICATION_WORKER_RECOVERY_HOURS || 12))); // la cola sigue iniciándose ante cada alta/envío
 const COMMUNICATION_RETRY_MINUTES = Math.max(10, Math.min(180, Number(process.env.COMMUNICATION_RETRY_MINUTES || 30)));
 // v7.9.11 · bienvenida automática protegida. Se reserva capacidad fuera de las campañas masivas.
 const WELCOME_DAILY_LIMIT = Math.max(1, Math.min(40, Number(process.env.WELCOME_DAILY_LIMIT || 40)));
@@ -208,7 +208,7 @@ let welcomeWorkerBusy = false;
 let automaticMailSchedulerBusy = false;
 let automaticMailQueueTimer = null;
 let automaticMailQueueScheduledAt = 0;
-const SUPPORT_MAILBOX_SYNC_INTERVAL_MINUTES = Math.max(60, Math.min(1440, Number(process.env.SUPPORT_MAILBOX_SYNC_INTERVAL_MINUTES || 360)));
+const SUPPORT_MAILBOX_SYNC_INTERVAL_MINUTES = Math.max(720, Math.min(1440, Number(process.env.SUPPORT_MAILBOX_SYNC_INTERVAL_MINUTES || 720))); // sincronización manual disponible
 const TRACEABILITY_REPORT_RECIPIENT = String(process.env.TRACEABILITY_REPORT_RECIPIENT || 'nestor.manucci@tecnolok.com.ar').trim().toLowerCase();
 const VIRTUAL_ADMIN_USER_ID = '__factory_admin__';
 const VIRTUAL_ADMIN_ROLE = 'SUPERADMIN';
@@ -1438,7 +1438,7 @@ function startCommunicationQueueScheduler(){
   scheduleAutomaticMailQueueKick(5000);
   const recovery=setInterval(()=>scheduleAutomaticMailQueueKick(0),COMMUNICATION_WORKER_RECOVERY_HOURS*60*60*1000);
   if(typeof recovery.unref==='function') recovery.unref();
-  console.log(`Cola de correos automática activa · máximo compartido ${COMMUNICATION_DAILY_LIMIT} en 24 h · revisión de respaldo cada ${COMMUNICATION_WORKER_RECOVERY_HOURS} h`);
+  console.log(`Cola de correos automática activa · máximo compartido ${COMMUNICATION_DAILY_LIMIT} en 24 h · recuperación del trabajador cada ${COMMUNICATION_WORKER_RECOVERY_HOURS} h`);
 }
 
 
@@ -8357,6 +8357,36 @@ const adminCommunicationSendSchema = z.object({
   onlyNotPreviouslySent:z.boolean().optional().default(true),
 });
 
+// v9.1.4 · auditoría de estado para los últimos candidatos; sólo lectura.
+async function listRecentCandidateWelcomeStatuses(){
+  const rows=await prisma.user.findMany({
+    where:{role:'CANDIDATE'},
+    select:{id:true,email:true,createdAt:true,welcomeEmailQueuedAt:true,welcomeEmailSentAt:true,welcomeEmailAttempts:true,welcomeEmailLastAttemptAt:true,welcomeEmailLastError:true,candidateProfile:{select:{fullName:true}}},
+    orderBy:{createdAt:'desc'},
+    take:50,
+  });
+  const items=rows.map((row)=>{
+    let status='UNTRACKED';
+    if(row.welcomeEmailSentAt) status='SMTP_ACCEPTED';
+    else if(row.welcomeEmailQueuedAt && row.welcomeEmailLastError) status='LAST_ATTEMPT_ERROR';
+    else if(row.welcomeEmailQueuedAt && Number(row.welcomeEmailAttempts||0)>0) status='RETRY_PENDING';
+    else if(row.welcomeEmailQueuedAt) status='QUEUED';
+    return {
+      id:row.id,
+      name:row.candidateProfile?.fullName || 'Candidato',
+      email:row.email,
+      registeredAt:row.createdAt,
+      queuedAt:row.welcomeEmailQueuedAt,
+      sentAt:row.welcomeEmailSentAt,
+      attempts:Number(row.welcomeEmailAttempts||0),
+      lastAttemptAt:row.welcomeEmailLastAttemptAt,
+      hasLastError:Boolean(row.welcomeEmailLastError),
+      status,
+    };
+  });
+  return {shownCount:items.length,items};
+}
+
 // v9.1.3 · lectura administrativa de bienvenidas pendientes; no envía ni modifica registros.
 async function listPendingCandidateWelcomeEmails(){
   const rows=await prisma.user.findMany({
@@ -8402,6 +8432,16 @@ app.get('/admin/communications/summary', auth, requireAnyRole(['ADMIN','SUPERADM
   }
 });
 
+
+// v9.1.4 · consulta puntual y de solo lectura; no se ejecuta al refrescar el resumen habitual.
+app.get('/admin/communications/welcome-audit', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req,res)=>{
+  try{
+    return res.json({ok:true,...await listRecentCandidateWelcomeStatuses()});
+  }catch(err){
+    console.error('GET /admin/communications/welcome-audit',err?.message||err);
+    return res.status(500).json({error:'No se pudo leer el estado de bienvenida de los últimos candidatos.'});
+  }
+});
 
 app.get('/admin/communications/support-detail-template', auth, requireAnyRole(['ADMIN','SUPERADMIN']), async (_req, res) => {
   try{
